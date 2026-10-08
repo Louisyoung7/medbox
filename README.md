@@ -13,6 +13,15 @@
 
 各端**独立构建**：后端在 `medbox-server/` 用 Gradle（`./gradlew bootRun` / `./gradlew build`），小程序在 `medbox-miniapp/` 用 npm，仓库根没有统一构建脚本。
 
+## CI（GitHub Actions）
+
+两套技术栈**各一个 workflow**，靠 `paths` 过滤互不触发（详见 [`medbox-spec/01` 的 4.0.1](medbox-spec/01_系统架构与部署.md)）：
+
+| Workflow | 触发目录 | 命令 |
+|----------|----------|------|
+| `ci-server.yml` | `medbox-server/**` | JDK 21 + `./gradlew build` |
+| `ci-miniapp.yml` | `medbox-miniapp/**` | Node 20 + `npm ci` + `npm run build:mp-weixin` |
+
 ## 文档
 
 入口：[`medbox-spec/00_README_文档索引.md`](medbox-spec/00_README_文档索引.md)
