@@ -1,0 +1,60 @@
+# 单仓多目录：后端 medbox-server/（Java / Maven）、小程序 medbox-miniapp/、
+# Web 前端 medbox-admin/（Node）。本地配置规则见 medbox-spec/01 的 4.5。
+
+# ---------- Java / Maven（medbox-server/） ----------
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# 构建产物与日志
+*.class
+*.log
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
+
+# IDE（IntelliJ / Eclipse）
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.classpath
+.project
+.factorypath
+.vscode/
+
+# ---------- Node / uni-app（medbox-miniapp/、medbox-admin/） ----------
+node_modules/
+dist/
+build/
+unpackage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.pnpm-store/
+
+# ---------- 本地配置（不入库，各人填自己的 IP） ----------
+# 见 medbox-spec/01 4.5：入库的 application.yml 不含内网 IP，因人而异的值放本地文件
+medbox-server/src/main/resources/application-local.yml
+.env.local
+.env.*.local
+
+# ---------- 系统与编辑器杂项 ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+*~
+*.swp
