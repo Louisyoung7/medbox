@@ -4,6 +4,23 @@
 > 版本格式：文档集统一版本号（各文件头部标注）。
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [V1.10] — 2026-10-08（小程序脚手架落地：uni-app + Vue3 + Vite）
+
+`feat/mp-scaffold` 落地时确定小程序端的工程形态与配置出口。**本次不改变任何接口、表结构与协议**（`BASE_URL` / `WS_URL` 与 02 / 04 一致）。
+
+- **`08`**：地基第 1 项 `feat/mp-scaffold` 勾选完成；新增《工程约定（V1.10 起）》——uni-app 官方 CLI（Vue 3 + Vite 5，无仓库根统一构建脚本）、`.gitignore` 由仓库根统一维护
+- **`01`** 4.2 补两条实操要点：① Vite 中 **`.env.[mode]` 优先级高于 `.env.local`**，故 `VITE_TLS` 只写 `.env.development`，各人的 `VITE_SERVER_HOST` 只写 `.env.local`，两者不冲突；② 脚手架生成的是嵌套一层目录，需把工程文件提升到 `medbox-miniapp/`（仓库约定路径）
+- **`medbox-miniapp/README.md`**（新增）：运行命令、后端地址三层配置（`.env.development` / `.env.local` / 本地缓存 `serverHost`）、微信开发者工具"不校验合法域名"与共用 AppID 的注意事项
+- **版本号**：文档集统一升到 V1.10（02 / 03 / 04 / 05 / 06 内容未变，仅版本号同步）
+
+### 影响提示
+
+| 端 / 目录 | 是否需要改代码 | 说明 |
+|-----------|----------------|------|
+| `medbox-miniapp/`（uni-app 小程序） | ✅ 需按 README 初始化 | 首次搭建 `cp .env.example .env.local` 并填自己的 IP；业务代码一律从 `src/config/index.js` 取地址 |
+| `medbox-server/`（Java 后端） | ➖ 不受影响 | 接口地址与协议未变 |
+| 嵌入式（设备端） | ➖ 不受影响 | MQTT / HTTP 协议未变 |
+
 ## [V1.9] — 2026-10-08（后端定为 Gradle / Spring Boot 4 / JDK 21）
 
 `feat/backend-scaffold` 落地时确定后端的技术栈与构建方式，并把 07 清单第 1 项的口径同步为实际实现：**Spring Boot 4（4.1.1）+ JDK 21 + Gradle**。**本次不改变任何接口、表结构与协议。**
