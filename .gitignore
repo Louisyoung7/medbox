@@ -1,11 +1,12 @@
-# 单仓多目录：后端 medbox-server/（Java / Maven）、小程序 medbox-miniapp/、
+# 单仓多目录：后端 medbox-server/（Java / Gradle）、小程序 medbox-miniapp/、
 # Web 前端 medbox-admin/（Node）。本地配置规则见 medbox-spec/01 的 4.5。
 
-# ---------- Java / Maven（medbox-server/） ----------
-target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+# ---------- Java / Gradle（medbox-server/） ----------
+.gradle/
+build/
+out/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
 # 构建产物与日志
 *.class
@@ -19,6 +20,9 @@ target/
 *.rar
 hs_err_pid*
 replay_pid*
+# 上面 *.jar 会连 Gradle Wrapper 一起忽略掉，这里放行（必须放在 *.jar 之后；
+# 带斜杠的模式锚定到仓库根，故用 ** 前缀匹配 medbox-server/gradle/wrapper/）
+!**/gradle/wrapper/gradle-wrapper.jar
 
 # IDE（IntelliJ / Eclipse）
 .idea/
