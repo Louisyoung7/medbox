@@ -6,12 +6,12 @@
 
 | 目录 | 内容 | 技术栈 | 任务清单 | 状态 |
 |------|------|--------|----------|------|
-| `medbox-server/` | Java 后端 | Spring Boot 3 / Java 17 / Maven | [`medbox-spec/07`](medbox-spec/07_特性分支清单_后端.md) | 进行中 |
+| `medbox-server/` | Java 后端 | Spring Boot 4 / Java 21 / Gradle | [`medbox-spec/07`](medbox-spec/07_特性分支清单_后端.md) | 进行中 |
 | `medbox-miniapp/` | uni-app 小程序 | Vue 3 + Vite | [`medbox-spec/08`](medbox-spec/08_特性分支清单_小程序.md) | 进行中 |
 | `medbox-admin/` | Web 前端 / 管理后台 | 未定 | 无（待设计） | ⏸ 本期占位 |
 | `medbox-spec/` | 接口与设计文档（唯一权威副本） | — | — | ✅ |
 
-各端**独立构建**：后端在 `medbox-server/` 用 Maven，小程序在 `medbox-miniapp/` 用 npm，仓库根没有统一构建脚本。
+各端**独立构建**：后端在 `medbox-server/` 用 Gradle（`./gradlew bootRun` / `./gradlew build`），小程序在 `medbox-miniapp/` 用 npm，仓库根没有统一构建脚本。
 
 ## 文档
 

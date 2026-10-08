@@ -4,14 +4,15 @@
 > 版本格式：文档集统一版本号（各文件头部标注）。
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
-## [V1.9] — 2026-10-08（后端构建工具定为 Gradle / JDK 21）
+## [V1.9] — 2026-10-08（后端定为 Gradle / Spring Boot 4 / JDK 21）
 
-`feat/backend-scaffold` 落地时确定后端的构建方式，并把 07 清单第 1 项的口径同步为实际实现。**本次不改变任何接口、表结构与协议。**
+`feat/backend-scaffold` 落地时确定后端的技术栈与构建方式，并把 07 清单第 1 项的口径同步为实际实现：**Spring Boot 4（4.1.1）+ JDK 21 + Gradle**。**本次不改变任何接口、表结构与协议。**
 
-- **`07`**：地基第 1 项 `feat/backend-scaffold` 勾选完成；内容由"Spring Boot 3 + Java 17 工程"改为"Spring Boot 3 + Java 21（**Gradle / Kotlin DSL**）"；验收由 `mvn spring-boot:run` 改为 `./gradlew bootRun`，健康检查路径明确为 `GET /medbox/actuator/health`（context-path 为 `/medbox`）
-- **`07` 新增《构建工具约定》**：单项目 Gradle 工程（Wrapper 9.7.1）+ JDK 21，`--release 17` 输出字节码；基础包名 `com.medbox.server`
+- **`07`**：地基第 1 项 `feat/backend-scaffold` 勾选完成；内容由"Spring Boot 3 + Java 17 工程"改为"**Spring Boot 4 + Java 21**（**Gradle / Kotlin DSL**）"；验收由 `mvn spring-boot:run` 改为 `./gradlew bootRun`，健康检查路径明确为 `GET /medbox/actuator/health`（context-path 为 `/medbox`）
+- **`07` 新增《构建工具约定》**：单项目 Gradle 工程（Wrapper 9.7.1）+ Spring Boot 4 + JDK 21，**编译与目标运行时都是 21**（不再做 `--release 17` 降级）；基础包名 `com.medbox.server`
 - **`01`**：4.1.1 的 `application.yml` 示例补 `server.servlet.context-path: /medbox`（与小程序 `BASE_URL` / `WS_URL` 对齐）；4.2 的 `.gitignore` 清单把 Maven 的 `target/` 换成 Gradle 的 `build/`、`.gradle/`
-- **`00`** 目录约定表与**仓库根 `AGENTS.md`** 的技术栈一列改为"Spring Boot 3 + Java 21 + Gradle"
+- **`00`** 目录约定表、**根 `README.md`** 与**仓库根 `AGENTS.md`** 的技术栈一列改为"Spring Boot 4 / Java 21 / Gradle"（`README.md` 的"各端独立构建"一句同步改成 Gradle）
+- **`07` 补记 Spring Boot 4 的两个差异**：① 自带 **Jackson 3**（DTO / 自定义序列化按 Jackson 3 的 API 写）；② `spring.ai.*`（Spring AI）需按与 Boot 4 匹配的版本引入，`feat/backend-ai-infra` 落地时对齐
 - **仓库根 `.gitignore`**：Java 段改为 Gradle（`.gradle/`、`build/`、`out/`），并放行 `gradle/wrapper/gradle-wrapper.jar`（否则会被上面的 `*.jar` 一并忽略，别人 clone 后无法使用 Wrapper）
 - **版本号**：文档集统一升到 V1.9（02 / 03 / 04 / 05 / 06 内容未变，仅版本号同步）
 
@@ -19,7 +20,7 @@
 
 | 端 / 目录 | 是否需要改代码 | 说明 |
 |-----------|----------------|------|
-| `medbox-server/`（Java 后端） | ➖ 仅构建方式 | 用 `./gradlew` 代替 `mvn`；工程为**单项目**（源码在 `medbox-server/src/main/java/...`），不是 `gradle init` 默认的多项目 `app/` 子工程 |
+| `medbox-server/`（Java 后端） | ✅ 需升级环境 | **JDK 最低要求 21**；用 `./gradlew` 代替 `mvn`；工程为**单项目**（源码在 `medbox-server/src/main/java/...`），不是 `gradle init` 默认的多项目 `app/` 子工程；Spring Boot 4 带 **Jackson 3**，自定义序列化代码按新 API 写 |
 | `medbox-miniapp/`（uni-app 小程序） | ➖ 不受影响 | 接口地址与协议未变 |
 | 嵌入式（设备端） | ➖ 不受影响 | MQTT / HTTP 协议未变 |
 

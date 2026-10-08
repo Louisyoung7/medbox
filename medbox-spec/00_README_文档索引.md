@@ -28,7 +28,7 @@
 
 | 目录 | 内容 | 本期 |
 |------|------|------|
-| `medbox-server/` | Java 后端（Spring Boot 3 / Java 21 + Gradle），任务清单见 `07` | ✅ 实现 |
+| `medbox-server/` | Java 后端（Spring Boot 4 / Java 21 + Gradle），任务清单见 `07` | ✅ 实现 |
 | `medbox-miniapp/` | uni-app 小程序（Vue3 + Vite），任务清单见 `08` | ✅ 实现 |
 | `medbox-admin/` | Web 前端 / 管理后台 | ⏸ **本期占位，暂不实现**（无 09 清单，接口待设计） |
 | `medbox-spec/` | 本文档集（唯一权威副本） | ✅ |
