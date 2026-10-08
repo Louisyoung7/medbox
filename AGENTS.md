@@ -16,7 +16,7 @@
 
 | 目录 | 端 | 技术栈 | 任务清单 | 本期 |
 |------|----|--------|----------|------|
-| `medbox-server/` | Java 后端 | Spring Boot 3 + Java 17 + Maven | `medbox-spec/07` | ✅ 实现 |
+| `medbox-server/` | Java 后端 | Spring Boot 3 + **Java 21 + Gradle（Kotlin DSL）** | `medbox-spec/07` | ✅ 实现 |
 | `medbox-miniapp/` | uni-app 小程序 | Vue3 + Vite | `medbox-spec/08` | ✅ 实现 |
 | `medbox-admin/` | Web 前端 / 管理后台 | 未定 | 无（待设计） | ⏸ **本期占位，不要在这里写代码** |
 | `medbox-spec/` | 本文档集（唯一权威副本） | — | — | ✅ |
