@@ -1,8 +1,9 @@
 # 家用智能药品箱 · 后端 / 小程序接口设计文档（文档集）
 
-> 范围：Java 后端（Spring Boot）+ uni-app 小程序　|　协议：HTTP REST、MQTT（EMQX）、WebSocket　|　版本 V1.7
+> 范围：Java 后端（Spring Boot）+ uni-app 小程序　|　协议：HTTP REST、MQTT（EMQX）、WebSocket　|　版本 V1.8
+> 仓库：**单仓多目录** —— 后端 `medbox-server/`、小程序 `medbox-miniapp/`、Web 前端 `medbox-admin/`（本期占位、暂不实现）；文档即本目录 `medbox-spec/`，**不再用 git subtree 同步**（见文末《文档就在本仓库》）。
 > 通信方式：当前全部为局域网（内网）通信，无公网域名。
-> 变更记录见 `CHANGELOG.md`；同步到代码仓库的方式见文末《文档如何同步到代码仓库》。
+> 变更记录见 `CHANGELOG.md`。
 
 本文档集按主题拆分为多个文件，便于分工评审与联调。各文件内容互不重复，统一约定见 01，数据库设计统一见 06。
 
@@ -17,70 +18,74 @@
 | `06_数据库设计.md` | 全部数据库设计：实体关系、PostgreSQL 关系表建表 DDL、pgvector 说明书向量表 | 后端 |
 | `07_特性分支清单_后端.md` | **Java 后端的特性分支待办清单**：每个待办 = 一个 `feat/xxx` 分支，前 8 项为地基，其余为可分配任务 | 后端 |
 | `08_特性分支清单_小程序.md` | **uni-app 小程序的特性分支待办清单**：同样每个待办 = 一个分支，前 5 项为地基 | 小程序 |
-| `CHANGELOG.md` | 版本变更记录：改了什么、影响哪个代码仓库 | 全员 |
-| `AGENTS.md` | **给 AI 助手的工作约定**：特性分支流程、开工 pull / 完工 push 文档、远程更新 rebase、AI 的提醒义务 | AI 助手 / 全员 |
+| （暂无 09） | Web 前端 `medbox-admin/` 本期占位暂不实现，等后端与小程序完成后再补清单与接口设计 | — |
+| `CHANGELOG.md` | 版本变更记录：改了什么、影响哪个端 / 目录 | 全员 |
+| `AGENTS.md`（**仓库根**，不在本目录） | **给 AI 助手的工作约定**：目录约定、特性分支流程、开工 pull / 完工同步文档（与代码同 PR）、远程更新 rebase、AI 的提醒义务 | AI 助手 / 全员 |
 
 **快速上手**：小程序与后端同学先看 01 + 02；建库 / 建模看 06；嵌入式同学看 01 + 03；做监护端实时推送看 04；做 AI 问答看 05。**接手新版本先看 `CHANGELOG.md`**；**开始开发前先看 07 / 08 认领分支**。
+
+**本仓库的目录约定**（详细见 01 的 4.0）：
+
+| 目录 | 内容 | 本期 |
+|------|------|------|
+| `medbox-server/` | Java 后端（Spring Boot 3 / Java 17），任务清单见 `07` | ✅ 实现 |
+| `medbox-miniapp/` | uni-app 小程序（Vue3 + Vite），任务清单见 `08` | ✅ 实现 |
+| `medbox-admin/` | Web 前端 / 管理后台 | ⏸ **本期占位，暂不实现**（无 09 清单，接口待设计） |
+| `medbox-spec/` | 本文档集（唯一权威副本） | ✅ |
+
+> 文档里的相对路径示例（如 `src/main/resources/application.yml`、`src/config/index.js`）**均相对对应端的子目录**，不是仓库根；详见 01 的 4.0 与 07 / 08 顶部说明。
 
 ---
 
 ## 分支与任务约定
 
 - 一个功能 = 一个特性分支 = 07 / 08 清单里的一个 `- [ ]` 待办；分支名用清单中给出的 `feat/xxx`；
+  - 后端分支自带 `backend-` 前缀（`feat/backend-xxx`），小程序自带 `mp-` 前缀（`feat/mp-xxx`），**单仓下天然不冲突**；
+  - **一个分支只动一个端**（只改 `medbox-server/` 或只改 `medbox-miniapp/`），跨端改动必须在 PR 里说明并尽量拆开；
 - 清单中 🧱 为**地基**（须先合并，后续任务都依赖它），🔧 为**可分配任务**；
 - **修 Bug、重构项目结构不计入清单**，随所在模块一起提交；
 - 完成后把待办勾成 `- [x]`，PR 描述写明"对应 07/08 清单第 N 项"；
-- **AI 助手的完整工作流（含提醒义务）见 `AGENTS.md`**，尤其：开工前 `git subtree pull` 拉文档、完工时更新文档并 `git subtree push` 推回、远程更新时回主分支 fetch 再 rebase。
+- **AI 助手的完整工作流（含提醒义务）见仓库根 `AGENTS.md`**，尤其：开工前 `git pull` 并读 `CHANGELOG.md`、完工时**把文档改动与代码放进同一个 commit / PR**、远程更新时回主分支 fetch 再 rebase。
 
-## 文档如何同步到代码仓库（git subtree）
+## 文档就在本仓库（不再用 git subtree）
 
-本仓库以 **git subtree** 双向同步到各代码仓库（Java 后端 / uni-app 小程序 / Web 管理后台）。
+本项目的代码与文档在**同一个仓库 `medbox`** 里：文档位于 `medbox-spec/`，与 `medbox-server/`、`medbox-miniapp/` 并列。
 
-### 为什么用 subtree
+> **历史说明（V1.8 起）**：此前文档单独一个仓库、通过 `git subtree` 双向同步到各代码仓库。**单仓方案下 subtree 已全部移除** —— 没有 `spec-repo` 远端，不要再执行 `git subtree add/pull/push`。若在网上或旧会话里看到这类命令，一律忽略。
 
-- clone 后文档**就在项目树里**，不需要额外初始化步骤，人与 AI 都能直接读到（submodule 忘了 init 就是空目录）；
-- 用 `--squash` 拉取时**不导入本仓库的历史**，每个代码仓库每次只多 1 个提交；
-- 支持 `git subtree push` **把改动推回本仓库**，文档与代码可以在同一个工作流里同步，不需要跳转 Issue。
+### 为什么取消 subtree
 
-### 首次接入（每个代码仓库做一次）
+- 文档**本来就在项目树里**，subtree 解决的是"跨仓库带文档"，单仓下这个前提不存在了；
+- 少一个远端、少一步同步，**文档不会与代码分叉**（改接口字段时，代码与文档可以在同一个 commit 里提交）；
+- 项目不长期维护、规模不大，单仓多目录的复杂度最低。
+
+### 怎么改文档
 
 ```bash
-git remote add spec-repo https://github.com/<you>/Interface-design-documentation.git
-git subtree add --prefix=spec spec-repo main --squash
+# 1) 开工前拉最新（代码 + 文档一起拉下来，只有这一个远端）
+git switch main && git pull
+git switch -c feat/backend-xxx          # 或 feat/mp-xxx
+
+# 2) 看文档有没有变
+git log --oneline -5 -- medbox-spec/
 ```
 
-> 命名说明：**`spec/` 是文档目录，`spec-repo` 是远端仓库别名**，两者不要混淆。
-
-### pull：开发前拉最新文档
+改动直接落在 `medbox-spec/` 下，**与代码一起提交**：
 
 ```bash
-git subtree pull --prefix=spec spec-repo main --squash  # 拉最新
-git subtree pull --prefix=spec spec-repo v1.7 --squash  # 或按 tag 固定版本
-git show --stat HEAD                                    # 看这次更新了哪些文件
-```
-
-### push：完成特性分支后把文档改动推回
-
-```bash
-# 1) 先拉最新文档（务必最先做，避免改在旧版本上、也避免与他人更新冲突）
-git subtree pull --prefix=spec spec-repo main --squash
-
-# 2) 在代码仓库里改 spec/ 下的文档（勾选 07/08 待办、补 CHANGELOG、修正接口/字段）
-git add spec/ && git commit -m "docs(spec): <说明>"
-
-# 3) 推回（推荐推到分支，由人在文档仓库合并）
-git subtree push --prefix=spec spec-repo docs/<特性分支名>
-# 小团队也可直接：git subtree push --prefix=spec spec-repo main
+git add medbox-server/ medbox-spec/
+git commit -m "feat(plan): 计划下发设备；docs(spec): 勾选 07 第 N 项、补 CHANGELOG"
 ```
 
 ### 约定
 
-1. **`spec/` 可以改，但要走 push 回传**：在代码仓库里改完文档后必须 `git subtree push` 推回本仓库，**不要只留在代码仓库里**，否则文档与代码会分叉；
-2. **pull / push 都交给 AI 助手执行**，并在每次开工与收尾时由 AI 主动提醒（详见 `AGENTS.md`）；
-3. **每次开工前先 pull**，完成后先更新文档再 push，避免文档落后于代码；
-4. **拉取时顺便读 `CHANGELOG.md`**：其中写明"影响哪个代码仓库"，据此判断本地代码要不要跟着改；
-5. 各代码仓库 README 中建议加一行说明：`spec/ 为接口文档（git subtree 同步），改动请通过 git subtree push 推回文档仓库`。
+1. **改了接口 / 字段 / 表结构 → 同一个 PR 里改 `medbox-spec/`**：勾选 07/08 待办、补 `CHANGELOG.md`、修正不一致处；不允许"代码改了文档没改"；
+2. **每次开工前看 `CHANGELOG.md`**：其中写明"影响哪个端 / 目录"，据此判断本地代码要不要跟着改；
+3. **文档只有一份权威副本**：就是 `medbox-spec/`；不要在其它目录另存接口说明，避免漂移；
+4. 仓库根 `README.md` 已写明目录结构与文档入口，新增端目录时同步更新。
 
 ### AGENTS.md
 
-本仓库根目录的 **`AGENTS.md`** 规定了给 AI 助手的完整工作流（特性分支、开工 pull、完工 push、远程更新时 rebase、以及 AI 的提醒义务）。各代码仓库请把它复制到**仓库根目录**一份，AI 工具会自动加载；内容与本仓库保持一致。
+**仓库根目录的 `AGENTS.md`**（与 `medbox-spec/` 同级）规定了给 AI 助手的完整工作流：目录约定、特性分支、开工 pull、完工同步文档、远程更新时 rebase，以及 AI 的提醒义务。放在根目录是为了让 AI 工具自动加载。
+
+> **不要用软链**（`ln -s medbox-spec/AGENTS.md AGENTS.md`）：Windows 下 git 默认 `core.symlinks=false`，软链会被检出成内容为路径的普通文本文件；要真软链还得开"开发者模式"或用管理员权限。因此 **`AGENTS.md` 是根目录的真实文件、唯一一份**，`medbox-spec/` 下不再放同名文件。
