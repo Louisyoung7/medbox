@@ -1,0 +1,64 @@
+# medbox-server/src/main/resources/application.yml
+#
+# 入库版配置：不含任何因人而异的内网 IP。
+#   - PostgreSQL / EMQX / Ollama / OCR 都在本机，一律写 localhost（各人一套，见文档 01 的 4.5）
+#   - 唯一因人而异的 medbox.host 走 ${MEDBOX_HOST} 占位
+#   - 本地覆盖用 src/main/resources/application-local.yml（不入库，模板见 application-local.yml.example）
+#     或直接在 IDE Run Configuration 里配环境变量 MEDBOX_HOST=192.168.1.x
+#
+# 参考：medbox-spec/01 的 4.1.1
+
+spring:
+  application:
+    name: medbox-server
+  jackson:
+    time-zone: UTC                  # 除服药计划 times（设备本地墙钟）外，时间一律 UTC（见文档 01）
+    default-property-inclusion: non_null
+  datasource:
+    url: jdbc:postgresql://localhost:5432/medbox   # 本机 Postgres（Docker 映射）
+    # username / password：按各人本机库填写，写在不入库的 application-local.yml 里
+  ai:
+    ollama:
+      base-url: http://localhost:11434   # 本地 Embedding（bge-m3），不出网、无需 Key
+      embedding:
+        model: bge-m3
+    vectorstore:
+      pgvector:
+        dimensions: 1024                 # 与 bge-m3 一致，换模型须重建向量
+
+server:
+  port: 8080
+  address: 0.0.0.0              # 监听所有网卡；Spring Boot 默认即如此（见文档 01 的 4.1.2）
+  servlet:
+    context-path: /medbox      # 小程序 BASE_URL=.../medbox/api/v1、WS_URL=.../medbox/ws（见文档 02 / 04）
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info   # 健康检查：GET /medbox/actuator/health
+  endpoint:
+    health:
+      show-details: never
+
+medbox:
+  host: ${MEDBOX_HOST:192.168.1.10}   # 本机对外 IP；各人在不入库的本地文件里给自己的值
+  ports:
+    http: 8080
+    ws: 8080
+    mqtt: 1883                  # 对外暴露的 EMQX 端口（设备用）
+  ocr:
+    provider: local             # local=本机 RapidOCR 侧车服务；cloud=云端 OCR API（需 Key）
+    endpoint: http://localhost:8000/ocr
+  capture:
+    dir: /var/medbox/captures     # 抓拍图片本地存储目录（需可写、留意磁盘配额）
+    retention-days-unread: 30     # 未读最长保留天数
+    retention-days-read: 7        # 已读后保留天数；expire_at = MIN(captured+30d, viewed+7d)
+
+  # —— 出站地址：后端作为“客户端”要连的对端 —— #
+  mqtt:
+    broker: tcp://localhost:1883    # EMQX 与后端同机，走 localhost，无内网 IP
+    client-id: medbox-server-01     # 后端在 EMQX 里的 clientId（**本期匿名连接，无需用户名密码**）
+    # username / password：本期不配置；将来关闭 EMQX 匿名时再补（见文档 03 第 1 章）
+  ai:
+    base-url: https://api.example.com/v1 # 公网大模型，属后端出网方向（唯一必须写死的外网地址）

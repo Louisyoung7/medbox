@@ -1,0 +1,12 @@
+# medbox-server/src/main/resources/application-local.yml  ← 不入库（已在仓库根 .gitignore 中）
+#
+# 用法一（推荐）：复制本文件为 application-local.yml，填自己的值，启动时加
+#   --spring.profiles.active=local
+# 用法二（更省事）：不建这个文件，直接在 IDE 的 Run Configuration 里配环境变量
+#   MEDBOX_HOST=192.168.1.23
+#
+# 只放「因人而异」的配置；与机器无关的内容一律写在入库的 application.yml 里。
+# 见文档 01 的 4.5。
+
+medbox:
+  host: 192.168.1.23        # ← 改成自己电脑在局域网里的 IP
