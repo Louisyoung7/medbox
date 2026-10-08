@@ -1,0 +1,49 @@
+name: CI · medbox-server
+
+# 只关心后端目录：改动 medbox-miniapp/ 不会触发本工作流（同理见 ci-miniapp.yml）
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'medbox-server/**'
+      - '.github/workflows/ci-server.yml'
+  pull_request:
+    paths:
+      - 'medbox-server/**'
+      - '.github/workflows/ci-server.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Gradle build (JDK 21)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbox-server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle       # 缓存 ~/.gradle/caches 与 wrapper，key 由 gradle 文件与 wrapper 版本算出
+
+      - name: 赋予 gradlew 执行权限
+        run: chmod +x ./gradlew
+
+      - name: 构建与测试
+        run: ./gradlew build --no-daemon
+
+      - name: 上传测试报告（仅在失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-reports
+          path: medbox-server/build/reports/tests
+          if-no-files-found: ignore

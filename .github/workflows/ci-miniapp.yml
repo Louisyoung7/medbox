@@ -1,0 +1,49 @@
+name: CI · medbox-miniapp
+
+# 只关心小程序目录：改动 medbox-server/ 不会触发本工作流（同理见 ci-server.yml）
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'medbox-miniapp/**'
+      - '.github/workflows/ci-miniapp.yml'
+  pull_request:
+    paths:
+      - 'medbox-miniapp/**'
+      - '.github/workflows/ci-miniapp.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-miniapp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 构建微信小程序产物
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbox-miniapp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: medbox-miniapp/package-lock.json
+
+      - name: 安装依赖（锁版本）
+        run: npm ci
+
+      - name: 构建 mp-weixin
+        run: npm run build:mp-weixin
+
+      # 只是产物留存，供下载后用微信开发者工具打开；CI 不上传小程序（上传需 miniprogram-ci + 私钥）
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: mp-weixin-dist
+          path: medbox-miniapp/dist/build/mp-weixin
+          if-no-files-found: warn

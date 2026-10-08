@@ -4,6 +4,27 @@
 > 版本格式：文档集统一版本号（各文件头部标注）。
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [V1.11] — 2026-10-08（CI：按端拆分两个 workflow）
+
+单仓两套技术栈（后端 Gradle / JDK 21，小程序 uni-app + Node），CI 按目录拆成两个 GitHub Actions workflow，互不触发。
+
+- **新增 `.github/workflows/ci-server.yml`**：`paths: medbox-server/**`；`setup-java` 21（temurin）+ `cache: gradle` → `chmod +x gradlew` → `./gradlew build --no-daemon`（含测试）；失败时上传 `build/reports/tests`
+- **新增 `.github/workflows/ci-miniapp.yml`**：`paths: medbox-miniapp/**`；`setup-node` 20 + `cache: npm`（`cache-dependency-path` 指向 `medbox-miniapp/package-lock.json`）→ `npm ci` → `npm run build:mp-weixin` → 上传 `dist/build/mp-weixin` 产物
+- 两个 workflow 均设 `concurrency`（同分支取消旧的）与 `workflow_dispatch`（可手动触发）
+- **不引入 Monorepo 工具**（Nx / Turborepo / Lerna）：项目不长期维护，`paths` 过滤已足够
+- **不自动上传小程序**：发布需 `miniprogram-ci` + 小程序密钥 + HTTPS 域名，局域网演示阶段不做
+- **`01`**：新增 4.0.1《CI：按端拆分（GitHub Actions）》；修正 4.0 约定第 1、3 条残留的 Maven / `target/` 表述（改为 Gradle / `build/` `.gradle/`）；新增第 5 条"CI 按端拆分"
+- **根 `README.md`**：新增 CI 小节（两个 workflow 与触发目录）
+- 记录了一个坑：带 `paths` 过滤的 job 在未改动端会显示 **skipped**，GitHub 视为必需检查未通过会卡合并；若要开分支保护，需加一个 `if: always()` 的汇总 job 作为唯一 required（示例已写在 01 的 4.0.1）
+
+### 影响提示
+
+| 端 / 目录 | 是否需要改代码 | 说明 |
+|-----------|----------------|------|
+| `medbox-server/` | ➖ 否 | 仅新增 CI；本地命令不变（`./gradlew build`） |
+| `medbox-miniapp/` | ➖ 否 | 仅新增 CI；本地命令不变（`npm run dev:mp-weixin`） |
+| `medbox-admin/` | ⏸ 本期不做 | 将来建 Web 前端时照抄 `ci-miniapp.yml` 加一个 `ci-admin.yml` 即可 |
+
 ## [V1.10] — 2026-10-08（小程序脚手架落地：uni-app + Vue3 + Vite）
 
 `feat/mp-scaffold` 落地时确定小程序端的工程形态与配置出口。**本次不改变任何接口、表结构与协议**（`BASE_URL` / `WS_URL` 与 02 / 04 一致）。
