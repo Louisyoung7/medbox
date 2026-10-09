@@ -4,6 +4,24 @@
 > 版本格式：文档集统一版本号（各文件头部标注）。
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [V1.12] — 2026-10-09（后端落地统一响应、异常与错误码）
+
+`feat/backend-response`（07 清单地基第 2 项）落地，后端所有 REST 接口有了统一出口。**本次不新增接口、不改表结构与 MQTT / WS 协议**，只补齐"响应与错误码"的落地口径。
+
+- **`07`**：地基第 2 项 `feat/backend-response` 勾选完成
+- **`02` 1.1 新增《落地约定》**：① `traceId` 由后端生成（32 位十六进制），客户端可用 `X-Request-Id` 自带，后端校验字符合法性后沿用，并用 **`X-Trace-Id` 响应头**回写，日志带 `[trace=xxx]`（响应里的 traceId 可直接 grep 日志）；② `timestamp` 是 epoch **秒**；③ `data` 为 null 时受全局 `non_null` 影响**不输出该字段**；④ `/medbox/actuator/**` 保持 Spring 原生格式，不套这层包装
+- **`02` 1.2 新增两条口径**：错误码是**封闭集合**（改枚举必须改文档）；**未知路径**与**请求方法用错**（文档无 405 码）一律 `40401`；校验失败 / JSON 非法 / 缺参 / 类型不匹配一律 `40001`；未捕获异常一律 `50000`，堆栈只进日志
+- **后端新增（后续分支直接复用）**：`R<T>`、`PageResult<T>`（page/size/total/list）、`ErrorCode` 枚举、`BizException` + `BizAssert`、`TraceIdFilter`、`GlobalExceptionHandler`
+- **构建**：新增**测试依赖** `spring-boot-webmvc-test` —— Boot 4 把 `@WebMvcTest` / `@AutoConfigureMockMvc` 拆成了独立模块（`org.springframework.boot.webmvc.test.autoconfigure`），`spring-boot-starter-test` 不再自带；**仅 test 作用域，不影响运行时**
+
+### 影响提示
+
+| 端 / 目录 | 是否需要改代码 | 说明 |
+|-----------|----------------|------|
+| `medbox-server/`（Java 后端） | ✅ 后续分支必读 | Controller 一律返回 `R<T>`；失败抛 `BizException`（或用 `BizAssert.forbiddenIf(...)` 等快捷方法），不要自己拼错误响应；列表接口用 `R<PageResult<T>>` |
+| `medbox-miniapp/`（uni-app 小程序） | ➖ 字段未变，暂无改动 | 请求封装分支落地时按 02 的 1.1 解析 `code/message/data`；注意**失败时 `data` 字段可能整个不存在**，按 `null` 处理，不要用 `data === undefined` 当异常 |
+| 嵌入式（设备端） | ➖ 不受影响 | 设备走 MQTT，不走 REST |
+
 ## [V1.11] — 2026-10-08（CI：按端拆分两个 workflow）
 
 单仓两套技术栈（后端 Gradle / JDK 21，小程序 uni-app + Node），CI 按目录拆成两个 GitHub Actions workflow，互不触发。

@@ -13,7 +13,12 @@ spring:
     name: medbox-server
   jackson:
     time-zone: UTC                  # 除服药计划 times（设备本地墙钟）外，时间一律 UTC（见文档 01）
-    default-property-inclusion: non_null
+    default-property-inclusion: non_null   # 值为 null 的字段不输出（如失败响应的 data）
+  mvc:
+    throw-exception-if-no-handler-found: true  # 无匹配路径抛 NoHandlerFoundException → 全局异常处理返回 40401
+  web:
+    resources:
+      add-mappings: false           # 不做静态资源映射，未命中路径才能落到上面的异常处理（统一响应结构）
   datasource:
     url: jdbc:postgresql://localhost:5432/medbox   # 本机 Postgres（Docker 映射）
     # username / password：按各人本机库填写，写在不入库的 application-local.yml 里
@@ -40,6 +45,11 @@ management:
   endpoint:
     health:
       show-details: never
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%thread] [trace=%X{traceId:-}] %logger{40} - %msg%n"
+    # 日志里带 traceId，与响应体 R.traceId / 响应头 X-Trace-Id 对齐（见文档 02 的 1.1）
 
 medbox:
   host: ${MEDBOX_HOST:192.168.1.10}   # 本机对外 IP；各人在不入库的本地文件里给自己的值
