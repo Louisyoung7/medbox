@@ -121,7 +121,7 @@ git stash pop                # 恢复未提交改动
 | 新建特性分支（小程序） | `git switch -c feat/mp-xxx main` |
 | 开工同步（代码 + 文档） | `git switch main && git pull && git switch -` |
 | 看文档改了什么 | `git log --oneline -5 -- medbox-spec/` |
-| 文档改动提交 | 与代码同一个 commit：`git add medbox-spec/ ...` |
+| 文档改动提交 | 与代码同一个 PR 即可，可单独 commit：`git add medbox-spec/ ...` |
 | 同步主线 | `git switch main && git pull && git switch - && git rebase main` |
 
 > **已废弃**：`git subtree add/pull/push --prefix=spec spec-repo ...` —— 单仓后不再有文档仓库与 `spec-repo` 远端，见到这类命令请忽略（详见 `medbox-spec/00_README_文档索引.md` 的《文档就在本仓库》）。

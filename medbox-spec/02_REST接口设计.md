@@ -1,6 +1,6 @@
 # 02 · REST 接口设计
 
-> 所有路径均相对 Base URL：`http://{后端主机内网IP}:8080/medbox/api/v1`　|　版本 V1.12
+> 所有路径均相对 Base URL：`http://{后端主机内网IP}:8080/medbox/api/v1`　|　版本 V1.13
 > 标注【鉴权】表示需携带 JWT，监护数据类接口需校验权限。AI 相关接口见文档 05。
 
 ## 1. 通用约定
@@ -34,6 +34,12 @@
 - **`timestamp`**：epoch **秒**（不是毫秒）。
 - **`data` 为 null 时**：受全局 `spring.jackson.default-property-inclusion: non_null` 影响，**该字段不出现在 JSON 里**（文档允许"失败时可为 null"），小程序按"取不到 data 即失败"处理即可。响应体**只有这五个字段**，不会夹带额外属性。
 - **`/medbox/actuator/**`（健康检查等）是 Spring 原生格式，不套这层包装**；业务接口一律 `R<T>`。
+
+**小程序侧落地（`feat/mp-request`）**：
+
+- **`X-Request-Id`**：小程序对**写方法**（`POST` / `PUT` / `PATCH` / `DELETE`）自动注入，值为**32 位小写十六进制**（无连字符），与后端 `newTraceId()` 同形，因此后端 `TraceContext.sanitize` 一定沿用，前后端日志可按同一个 traceId grep；`GET` 不注入（无幂等诉求）。小程序运行时没有 `crypto.randomUUID`，用 `crypto.getRandomValues` 生成、`Math.random` 回落（请求号只用于追踪与去重，不要求密码学强度）。
+- **判定失败只看 `code`**：`code !== 0` 即失败，取 `message` 提示；**`data` 字段缺失按 `null` 处理**，不能把"取不到 data"当异常（见上一条 `non_null`）。
+- **网络层失败**（没到服务端）不是业务码，小程序用客户端本地码 `-1`（仅前端约定，不进 1.2 的封闭集合）与"请检查是否在同一局域网"文案区分。
 
 ### 1.2 通用错误码
 

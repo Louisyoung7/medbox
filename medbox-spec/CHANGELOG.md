@@ -4,6 +4,29 @@
 > 版本格式：文档集统一版本号（各文件头部标注）。
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [V1.13] — 2026-10-09（小程序落地请求封装）
+
+`feat/mp-request`（08 清单地基第 2 项）落地，小程序所有 REST 调用有了统一出口。**本次不新增接口、不改表结构与 MQTT / WS 协议**，只补齐小程序侧的请求约定。
+
+- **`08`**：地基第 2 项 `feat/mp-request` 勾选完成；新增四条**跨分支约定**：① 统一出口为 `src/api/request.js`，业务模块不得直接调 `uni.request`；② 登录页路径常量 **`LOGIN_PATH = '/pages/auth/login'`**（页面由 `feat/mp-auth` 建）；③ `setUnauthorizedHandler()` 可接管 40101，mp-auth 接入 refresh 时不必改 `request.js`；④ `src/store/token.js` 是 token 存储的**唯一入口**，mp-auth 在此文件内扩展，不另建平行模块
+- **`02` 1.1 新增《小程序侧落地》**：`X-Request-Id` 由小程序自动生成 **32 位小写十六进制**、**只注入写方法**（POST / PUT / PATCH / DELETE），与后端 `newTraceId()` 同形因而必被沿用；失败**只看 `code`**，`data` 缺失按 `null` 处理；网络层失败用客户端本地码 **`-1`**（非业务码，不进 1.2 的封闭集合）
+- **小程序新增（`medbox-miniapp/src/`，后续分支直接复用）**：
+  - `api/request.js` 统一出口：`request` / `get` / `post` / `put` / `del`，自动拼 `BASE_URL`、注入 `Authorization: Bearer` 与 `X-Request-Id`、解析 `code/message/data`、loading（并发计数）与网络兜底；成功兑现 `data`，失败拒绝 `ApiError{code,message,traceId,httpStatus}`
+  - `api/auth.js`：`login` / `register` / `refresh` / `getMe`（02 第 3 章，`feat/mp-auth` 直接复用）
+  - `store/token.js`：最小 token 存储（key 常量 + 读写 / 清除）
+  - `utils/error.js`（错误码表 + `ApiError`）、`utils/uuid.js`（请求号生成）
+- **`medbox-miniapp/README.md`**：新增《请求封装用法》小节（导入方式、选项表、错误处理示例）
+- **流程约定调整**：`07` / `08`（及仓库根 `AGENTS.md`、根 `README.md`、`00`）**删除"文档改动必须与代码同一个 commit"要求** —— 改为**同一个 PR 即可**，允许按层分批提交（只要文档与代码在同一 PR 内）
+- **版本号**：文档集统一升到 V1.13（01 / 03 / 04 / 05 / 06 内容未变，仅版本号同步）
+
+### 影响提示
+
+| 端 / 目录 | 是否需要改代码 | 说明 |
+|-----------|----------------|------|
+| `medbox-miniapp/`（uni-app 小程序） | ✅ 后续分支必读 | 一律 `import { get, post } from '@/api/request.js'`；要自绘错误提示时传 `silent: true` 并在 `catch` 里按 `err.code` 细分（如 40901 设备离线、50310 AI 未开通）；loading 默认关闭，需要遮罩时显式传 `loading: true` |
+| `medbox-server/`（Java 后端） | ➖ 不受影响 | 接口与错误码未变；写操作会收到小程序自带的 `X-Request-Id`（32 位十六进制），会被 `TraceContext` 沿用为 traceId |
+| 嵌入式（设备端） | ➖ 不受影响 | 设备走 MQTT |
+
 ## [V1.12] — 2026-10-09（后端落地统一响应、异常与错误码）
 
 `feat/backend-response`（07 清单地基第 2 项）落地，后端所有 REST 接口有了统一出口。**本次不新增接口、不改表结构与 MQTT / WS 协议**，只补齐"响应与错误码"的落地口径。

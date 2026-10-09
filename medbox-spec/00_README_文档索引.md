@@ -1,6 +1,6 @@
 # 家用智能药品箱 · 后端 / 小程序接口设计文档（文档集）
 
-> 范围：Java 后端（Spring Boot）+ uni-app 小程序　|　协议：HTTP REST、MQTT（EMQX）、WebSocket　|　版本 V1.12
+> 范围：Java 后端（Spring Boot）+ uni-app 小程序　|　协议：HTTP REST、MQTT（EMQX）、WebSocket　|　版本 V1.13
 > 仓库：**单仓多目录** —— 后端 `medbox-server/`、小程序 `medbox-miniapp/`、Web 前端 `medbox-admin/`（本期占位、暂不实现）；文档即本目录 `medbox-spec/`，**不再用 git subtree 同步**（见文末《文档就在本仓库》）。
 > 通信方式：当前全部为局域网（内网）通信，无公网域名。
 > 变更记录见 `CHANGELOG.md`。
@@ -45,7 +45,7 @@
 - 清单中 🧱 为**地基**（须先合并，后续任务都依赖它），🔧 为**可分配任务**；
 - **修 Bug、重构项目结构不计入清单**，随所在模块一起提交；
 - 完成后把待办勾成 `- [x]`，PR 描述写明"对应 07/08 清单第 N 项"；
-- **AI 助手的完整工作流（含提醒义务）见仓库根 `AGENTS.md`**，尤其：开工前 `git pull` 并读 `CHANGELOG.md`、完工时**把文档改动与代码放进同一个 commit / PR**、远程更新时回主分支 fetch 再 rebase。
+- **AI 助手的完整工作流（含提醒义务）见仓库根 `AGENTS.md`**，尤其：开工前 `git pull` 并读 `CHANGELOG.md`、完工时**把文档改动与代码放进同一个 PR**（可分开 commit）、远程更新时回主分支 fetch 再 rebase。
 
 ## 文档就在本仓库（不再用 git subtree）
 

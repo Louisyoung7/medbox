@@ -30,7 +30,7 @@
 - 接手新版本**先看 [`medbox-spec/CHANGELOG.md`](medbox-spec/CHANGELOG.md)**，里面写明"影响哪个端"
 - 开发前先到 `07` / `08` 认领分支：`feat/backend-xxx` 只改 `medbox-server/`，`feat/mp-xxx` 只改 `medbox-miniapp/`
 
-文档就在这个仓库里，**不通过 git subtree 同步**；改了接口 / 字段 / 表结构时，请把 `medbox-spec/` 的改动与代码放进同一个 commit / PR。
+文档就在这个仓库里，**不通过 git subtree 同步**；改了接口 / 字段 / 表结构时，请把 `medbox-spec/` 的改动与代码放进同一个 PR（可以分开 commit）。
 
 ## AI 助手
 
