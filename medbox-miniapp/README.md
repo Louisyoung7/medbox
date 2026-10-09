@@ -41,6 +41,42 @@ import { BASE_URL, WS_URL, SERVER_HOST, setServerHost } from '@/config/index.js'
 // 没有 MQTT_URL：小程序不直连 MQTT，设备消息由后端中转
 ```
 
+## 请求封装用法（`feat/mp-request`）
+
+所有 REST 调用一律走 `@/api/request.js`，**不要直接调 `uni.request`**：它负责拼 `BASE_URL`、注入 `Authorization: Bearer` 与 `X-Request-Id`（仅写操作）、按统一响应拆包、按错误码提示。
+
+```js
+import { get, post, CODE } from '@/api/request.js'
+import { getMe } from '@/api/auth.js'
+
+// 成功直接拿到 data（不是整个响应体）
+const me = await get('/users/me')
+const list = await get('/devices', { page: 1, size: 20 }, { loading: true })
+
+// 失败拿 ApiError{ code, message, traceId, httpStatus }，按 code 细分
+try {
+  await post('/devices/BOXA1001/commands', { cmd: 'BUZZ' })
+} catch (err) {
+  if (err.code === CODE.CONFLICT) {
+    uni.showToast({ title: '设备离线，无法下发', icon: 'none' }) // 自己提示就传 silent: true
+  }
+}
+```
+
+| 选项 | 默认 | 说明 |
+|------|------|------|
+| `auth` | `true` | 注入 `Authorization: Bearer`；登录 / 注册 / 刷新传 `false` |
+| `loading` | `false` | `true` 或自定义文案（如 `'提交中'`）显示遮罩；并发请求内部计数，不重复弹 |
+| `silent` | `false` | `true` 时不自动 toast，由页面自绘错误（配合上例） |
+| `timeout` | `10000` | 毫秒 |
+| `params` | — | query 参数（`null` / 空串自动丢弃） |
+| `requestId` | 自动生成 | `X-Request-Id`，32 位十六进制，仅写操作注入 |
+
+- **错误码分流**：`40101` 清 token 并 `reLaunch` 到 `LOGIN_PATH`（`/pages/auth/login`，页面由 `feat/mp-auth` 建）；`40301` 提示无权限、`40302` 提示监护关系未生效；其余按 02 的 1.2 给出文案；未知码按 `50000` 兜底。
+- **接管 40101**：`setUnauthorizedHandler(fn)` 注入后默认跳转失效，`feat/mp-auth` 用它先 refresh 再决定跳不跳登录，无需改 `request.js`。
+- **网络失败**（没到服务端）不是业务码，用 `err.isNetworkError()`（`code === -1`）判断，提示"请检查是否在同一局域网"。
+- **Token 存储**：`src/store/token.js`（`getAccessToken` / `setTokens` / `clearTokens`），`feat/mp-auth` 在此文件内扩展刷新与用户信息，**不要另建平行模块**。
+
 ## 微信开发者工具设置
 
 - **详情 → 本地设置**：勾选「不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书」，否则局域网的 `http` / `ws` 请求会被工具拦截。
