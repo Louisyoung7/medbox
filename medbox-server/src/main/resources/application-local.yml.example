@@ -10,3 +10,8 @@
 
 medbox:
   host: 192.168.1.23        # ← 改成自己电脑在局域网里的 IP
+
+  # JWT 签名密钥（HS256，≥32 字节）。不配就用 application.yml 里的本地开发默认值；
+  # 一旦改了它，已签发的 token 全部失效，需要重新登录。
+  jwt:
+    secret: please-change-this-to-a-long-random-string

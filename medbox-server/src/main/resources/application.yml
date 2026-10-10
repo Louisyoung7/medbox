@@ -80,3 +80,12 @@ medbox:
     # username / password：本期不配置；将来关闭 EMQX 匿名时再补（见文档 03 第 1 章）
   ai:
     base-url: https://api.example.com/v1 # 公网大模型，属后端出网方向（唯一必须写死的外网地址）
+
+  # —— 认证（feat/backend-auth，见文档 02 第 3 章）—— #
+  jwt:
+    # HS256 签名密钥：≥32 字节。**本地开发可用下面的默认值，正式/对外部署必须设 MEDBOX_JWT_SECRET 覆盖**
+    secret: ${MEDBOX_JWT_SECRET:medbox-local-dev-secret-change-me-please}
+    access-token-ttl-seconds: 7200      # access token 2 小时（expiresIn=7200）
+    refresh-token-ttl-seconds: 604800   # refresh token 7 天，轮换制（换新即作废旧的）
+  idempotency:
+    ttl-hours: 24                       # X-Request-Id 幂等记录保留时长（目前只保护 POST /auth/register）

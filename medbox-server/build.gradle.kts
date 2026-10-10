@@ -37,6 +37,19 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
 
+    // 持久层：MyBatis-Plus（见 07 清单地基第 3 项的《持久层框架》，首个引入点是 feat/backend-auth）
+    // Boot 4 专用 starter（不是 spring-boot3-starter），版本取 Maven Central 上的最新稳定版
+    implementation("com.baomidou:mybatis-plus-spring-boot4-starter:3.5.17")
+
+    // JWT：jjwt 0.12.x。JSON provider 用 orgjson 而不是 jjwt-jackson —— jjwt-jackson 依赖 Jackson 2，
+    // 会被 Boot 4 自带的 Jackson 3（tools.jackson）BOM 顶掉，运行时直接 NoClassDefFoundError
+    implementation("io.jsonwebtoken:jjwt-api:0.12.7")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.7")
+    runtimeOnly("io.jsonwebtoken:jjwt-orgjson:0.12.7")
+
+    // 只借它的 BCryptPasswordEncoder（版本由 Boot 4 的 BOM 管理），不引入 Security 过滤器链
+    implementation("org.springframework.security:spring-security-crypto")
+
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 
