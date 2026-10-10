@@ -85,7 +85,7 @@ git log --oneline -5 -- medbox-spec/
    - 目的：这类逻辑写错了不会报错、只会悄悄算错，返工成本远高于先对齐口径。
 3. **合并同类分支，不要为每个待办单开一个分支**
    - 能在**同一个分支内写完并一起测试**的待办合并成一个分支（如"药品 CRUD + 库存录入"、"记录列表 + 详情 + 补录"、"抓拍上传 + 读取"）；
-   - 合并后的分支名取其中主项，PR 描述写明"对应 07/08 第 N、M 项"，清单里两项都勾选；
+   - 合并后的分支名见 07 / 08 清单（如 `feat/device-core`、`feat/mp-record`），PR 描述写明"对应 07/08 的 `feat/xxx`"，清单里**合并前的各项都勾选**；
    - 目的：省掉重复的分支 / PR / 文档改动开销，也让相关代码在同一次测试里被覆盖。
 
 ---
@@ -103,7 +103,7 @@ git switch main && git pull && git switch -
 
 # ③ 一起提交
 git add medbox-server/ medbox-spec/      # 或 medbox-miniapp/ medbox-spec/
-git commit -m "feat(<模块>): <说明>；docs(spec): 勾选 07/08 第 N 项、补 CHANGELOG"
+git commit -m "feat(<模块>): <说明>；docs(spec): 勾选 07/08 的 feat/xxx、补 CHANGELOG"
 ```
 
 **提醒义务**：如果用户说"这个分支做完了 / 帮我合并"，而 `medbox-spec/` 还没有文档改动，我必须先提醒：
