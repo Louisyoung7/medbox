@@ -3,14 +3,29 @@
 		{
 			"path": "pages/index/index",
 			"style": {
-				"navigationBarTitleText": "智能药箱"
+				"navigationBarTitleText": "智能药箱",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
+			"path": "pages/auth/login",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
+			"path": "pages/auth/register",
+			"style": {
+				"navigationBarTitleText": "注册",
+				"navigationBarBackgroundColor": "#FFFFFF"
 			}
 		}
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
 		"navigationBarTitleText": "智能药箱",
-		"navigationBarBackgroundColor": "#F8F8F8",
-		"backgroundColor": "#F8F8F8"
+		"navigationBarBackgroundColor": "#FFFFFF",
+		"backgroundColor": "#F4F8FA"
 	}
 }
