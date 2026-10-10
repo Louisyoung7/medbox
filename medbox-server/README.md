@@ -57,6 +57,7 @@ spring:
 |------|------|
 | `V1__init_schema.sql` | `CREATE EXTENSION IF NOT EXISTS vector` + 15 张表 + 约束 + 5 个普通索引 |
 | `V2__vector_hnsw.sql` | `drug_manual_chunk` 的 HNSW 索引（余弦距离） |
+| `V3__auth.sql` | `user_id_seq` 序列 + `refresh_token` + `idempotency_record`（`feat/backend-auth`，见文档 06 的 2.13 / 2.14） |
 
 安全开关：`clean-disabled: true`（禁止误清库）、`validate-on-migrate: true`（脚本被改动即启动失败）、不开 `baseline-on-migrate`。
 
@@ -69,7 +70,7 @@ docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "\d
 docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "\di"
 # pgvector 扩展
 docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "select extname from pg_extension;"
-# 迁移记录（应为 V1 / V2 两条 success = t）
+# 迁移记录（应为 V1 / V2 / V3 三条 success = t）
 docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox \
   -c "select installed_rank, version, success from flyway_schema_history order by installed_rank;"
 ```
@@ -86,4 +87,44 @@ docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox \
 
 ## 6. 持久层
 
-**持久层框架定为 MyBatis-Plus**（见文档 07）。本分支（地基 `feat/backend-db`）只做建表与迁移，**未引入该依赖**，由后续功能分支按需引入并写实体 / Mapper。
+**持久层框架定为 MyBatis-Plus**（见文档 07）。地基 `feat/backend-db` 只建表未引入依赖；**`feat/backend-auth` 是第一个引入它的分支**：
+`com.baomidou:mybatis-plus-spring-boot4-starter`（Boot 4 专用 starter，不是 `spring-boot3-starter`），
+`@MapperScan` 在 `config/MybatisPlusConfig`，实体放 `domain/`、Mapper 放 `mapper/`。
+
+> **实体主键要写 `@TableId(type = IdType.AUTO)`**：表主键是 `BIGSERIAL`，而 MyBatis-Plus 默认是雪花 ID（ASSIGN_ID），
+> 不显式声明就会往自增列里塞一个巨大的值。
+
+## 7. 认证（`feat/backend-auth`）
+
+`POST /medbox/api/v1/auth/{register,login,refresh}` —— 注册 / 登录 / 刷新，响应同为
+`{ token, refreshToken, userId, role, expiresIn }`（access 2 小时、refresh 7 天且轮换）。
+
+| 配置项 | 默认 | 说明 |
+|--------|------|------|
+| `medbox.jwt.secret` | 本地开发默认值 | HS256 密钥，**≥32 字节**；正式/对外部署用环境变量 `MEDBOX_JWT_SECRET` 覆盖（改了它已签发的 token 全部失效） |
+| `medbox.jwt.access-token-ttl-seconds` | 7200 | access token 有效期 |
+| `medbox.jwt.refresh-token-ttl-seconds` | 604800 | refresh token 有效期（7 天，轮换） |
+| `medbox.idempotency.ttl-hours` | 24 | `X-Request-Id` 幂等记录保留时长（目前只保护 `POST /auth/register`） |
+
+自测（本机）：
+
+```bash
+# 1) 注册（带上 X-Request-Id，重复提交只会建一个号）
+curl -s -X POST http://localhost:8080/medbox/api/v1/auth/register \
+  -H 'Content-Type: application/json' -H 'X-Request-Id: 8f2c1a9e3b7d4c1a9f0e2d5b6a7c8f10' \
+  -d '{"phone":"13800001234","password":"123456","role":"GUARDIAN","name":"李四"}' | jq
+
+# 2) 登录拿 access token
+TOKEN=$(curl -s -X POST http://localhost:8080/medbox/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"account":"13800001234","password":"123456"}' | jq -r '.data.token')
+
+# 3) 业务接口一律带 -H "Authorization: Bearer $TOKEN"（未带 / 过期 → 40101；40102 只出现在登录/注册）
+
+# 4) 刷新（旧的 refresh token 立即作废，重放会撤销该用户全部会话）
+curl -s -X POST http://localhost:8080/medbox/api/v1/auth/refresh \
+  -H 'Content-Type: application/json' -d '{"refreshToken":"..."}' | jq
+```
+
+登录校验由 `common/web/AuthInterceptor` 承担（只拦 `/api/v1/**`，放行 `/api/v1/auth/**` 与 `/actuator/**`）；
+`GET /users/me` 不在本分支（属 `feat/backend-authz`）。
