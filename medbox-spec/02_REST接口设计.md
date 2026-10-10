@@ -81,6 +81,65 @@
 
 **通用校验顺序**：① 是否登录（40101）→ ② 对目标 `elderId` / `deviceId` 是否有监护 / 管理关系（40301）→ ③ 关系是否已生效（40302）→ ④ 该角色是否具备此操作权限（40301）。越权一律 40301，不区分"资源不存在"与"无权限"，避免资源枚举。
 
+#### 1.3.1 权限判定规则表（🧭 判定型，`feat/backend-authz`）
+
+**输入**：当前登录用户（`userId` + `user.role` ∈ {ELDER, GUARDIAN}）、目标资源归属 `elderId`（`deviceId` 先解析成 `elderId`）、本次操作所需的 `Permission`、`guardian_relation` 记录。
+
+| 步 | 检查 | 通过条件 | 不通过 |
+|----|------|----------|--------|
+| ① | 是否登录 | `AuthContext` 中存在当前用户 | **40101** |
+| ② | 是否有关系 | 老人本人 → 目标 `elderId` 必须等于自己；监护人 → 必须存在 `guardian_relation` 记录，目标确实是老人，且 `status != REVOKED` | **40301** |
+| ③ | 关系是否生效 | `status == ACTIVE`（老人本人直接通过）。`REVOKED` 与状态为空（脏数据）走第 ② 步的 40301 | `PENDING` → **40302** |
+| ④ | 角色操作权限 | 命中下方权限矩阵 | **40301** |
+
+**输出**：放行返回访问身份（`kind` = SELF / GUARDIAN、`relationRole`）；拒绝抛 `BizException`，HTTP 403 + `code` 为 40301 / 40302。
+
+**权限矩阵**（行 = 访问身份，列 = 权限；✅ 放行，空白 = 40301）：
+
+| Permission | 老人本人 | FAMILY | NURSE | DOCTOR |
+|------------|:--------:|:------:|:-----:|:------:|
+| `READ_PLAN` `READ_MEDICINE` `READ_RECORD` `READ_ALARM`<br/>`READ_DEVICE` `READ_ENV` `READ_ADHERENCE` `READ_GUARDIAN` | ✅ | ✅ | ✅ | ✅ |
+| `WRITE_PLAN`（创建 / 修改 / 停用 / 删除计划） | | ✅ | | ✅ |
+| `WRITE_MEDICINE`（药品档案与库存、补药入库） | | ✅ | | |
+| `WRITE_RECORD`（监护人手工补录 / 确认） | | ✅ | | |
+| `HANDLE_ALARM`（告警处理闭环） | | ✅ | ✅ | |
+| `EXPORT_RECORD`（导出服药报告） | | ✅ | ✅ | |
+| `CONFIG_LLM_KEY`（配置大模型 Key） | | ✅ | | |
+| `READ_CAPTURE`（查看抓拍图片） | ✅ | ✅ | | |
+| `WRITE_CAPTURE`（删除抓拍图片） | | ✅ | | |
+| `WRITE_DEVICE`（下发控制命令） | | ✅ | | |
+| `WRITE_DRUG_MANUAL`（维护禁忌知识库） | | | | ✅ |
+| `AI_CHAT`（AI 药品问答） | ✅ | ✅ | | |
+
+> `READ_CAPTURE` / `WRITE_CAPTURE` 对护理 / 医生**显式拒绝** —— 用药图像属敏感健康数据，可见范围比本节默认规则更严格（见文档 01 的 4.6）。
+
+**边界口径**：
+
+| 场景 | 结果 | 说明 |
+|------|------|------|
+| 无 / 无效 / 过期的 access token | 40101 | 拿 refresh token 当 access 用也算无效（`typ` 校验） |
+| 拿 refresh token 当 access | 40101 | 同左 |
+| 老人访问他人 `elderId` | 40301 | 只读本人 |
+| 老人执行写操作 | 40301 | 老人只读，不可改计划 / 配置 Key |
+| 监护人与目标无 `guardian_relation` | 40301 | 越权 |
+| 关系 `PENDING` | **40302** | 老人端尚未确认；此判定**优先于**第 ④ 步 |
+| 关系 `REVOKED` / 状态为空 | 40301 | 与"无关系"同码，不回 40302，避免泄漏"曾有关系" |
+| `guardian_relation.role` 为空 | 按 **FAMILY** 兜底 | 打 warn 日志；不因空值放行或崩溃 |
+| 目标 `elderId` 不存在 / 不是老人 | 40301 | 不返回 40401，防资源枚举 |
+| `elderId` / `deviceId` 为空 | 40001 | 参数校验失败 |
+| `GET /users/me` 但账号已不存在 | 40401 | 唯一例外：当前用户自己的资源，不泄漏任何东西 |
+
+**后端侧落地（`feat/backend-authz`）**：
+
+- **判定入口**：`AccessService.require(elderId, Permission)` —— **后续所有业务分支的唯一调用点**；判定放 Service 而非拦截器，因为拦截器解析不出"目标资源归属哪位老人"。第 ① 步仍由 `AuthInterceptor` 负责（现状不变）。
+- **权限矩阵**：集中在 `common/security/Permission.java` 的 `allows(identity, permission)`，一处改动全端生效；矩阵共 19 个权限项，见上表。
+- **枚举**：`RelationRole`（FAMILY / DOCTOR / NURSE，护理 / 医生是**监护关系上的角色**，不是注册角色）、`RelationStatus`（PENDING / ACTIVE / REVOKED）。
+- **`GET /users/me`**：`UserController` + `UserService`，返回 `userId` / `role` / `name` / `phone` / `username`；小程序启动时靠它做冷启动静默续期。
+- **列表类接口的行级过滤**：用 `AccessService.visibleElderIds()` 一次取"我可见的老人 ID 集合"做 IN 过滤（如药品的"公共药品 + 我监护老人的私有药品"），避免逐条判定的 N+1。
+- **设备维度**：`requireDevice(deviceId, Permission)` 依赖 `DeviceOwnerResolver` 扩展点，**本分支只定义接口不实现**，由 `feat/device-core` 引入 `DeviceMapper` 后补（未接入时抛 50000 并打日志）。
+- **非 Web 线程（定时任务 / MQTT 消费）没有 `AuthContext`**：不要走 `AccessService`，直接调 Mapper。
+- **未做（有意）**：监护关系的申请 / 确认 / 解除接口（P1 `feat/guardian-relation`）、`GET /users/{elderId}/profile`（P1 `feat/user-profile`）。
+
 ### 1.4 接口调试（curl）
 
 后端接口一律可用 `curl` 直接调试（局域网阶段为明文 HTTP，无需证书）。典型流程：
@@ -209,7 +268,7 @@ GET /users/me
 - **注册校验**：`role` 只取 `ELDER` / `GUARDIAN`（其它值 40001），密码 **6~64 位**，手机号 11 位；手机号 / 用户名已存在返回 **40001**，提示取后端 `message`（如"手机号已注册"）。
 - **幂等**：仅 `POST /auth/register` 生效 —— 同一 `X-Request-Id` 重复提交只创建 1 个账号并回放首次响应；同号但请求体指纹不同 → 40001。登录 / 刷新天然幂等，不落幂等记录（免得把含 token 的响应快照写进库）。快照 TTL 24 小时（`medbox.idempotency.ttl-hours`）。
 - **登录校验范围**：`/api/v1/**` 需带 `Authorization: Bearer {access token}`，`/api/v1/auth/**` 与 `/actuator/**` 放行；**登录失败一律 40101**（40102 只用于账号密码错误）。本分支只做校验顺序的第 ① 步"是否登录"，监护关系与角色权限见 `feat/backend-authz`。
-- **未做**：`GET /users/me`（留给 `feat/backend-authz`）、微信登录、短信验证码、限流（`feat/ai-limit`）。
+- **未做**：微信登录、短信验证码、限流（`feat/ai-limit`）；`GET /users/me` 已由 `feat/backend-authz` 交付，落地口径见 1.3.1（《后端侧落地（`feat/backend-authz`）》）。
 
 ## 4. 设备管理（命令实际经 MQTT 下行）
 

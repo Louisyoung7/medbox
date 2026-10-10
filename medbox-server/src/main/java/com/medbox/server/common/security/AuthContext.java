@@ -40,7 +40,7 @@ public final class AuthContext {
         return user == null ? null : user.userId();
     }
 
-    /** 必须已登录；未登录抛 40101（给后续 {@code feat/backend-authz} 的权限判定用）。 */
+    /** 必须已登录；未登录抛 40101（{@code feat/backend-authz} 的 {@code AccessService} 用它做第 ① 步）。 */
     public static CurrentUser required() {
         CurrentUser user = HOLDER.get();
         if (user == null) {

@@ -14,7 +14,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /**
  * 登录校验拦截器：只做校验顺序的**第 ① 步「是否登录」**（见文档 02 的 1.3）。
  *
- * <p>监护关系 / 关系是否生效 / 角色权限（40301 / 40302）属 {@code feat/backend-authz}，不在这里。
+ * <p>监护关系 / 关系是否生效 / 角色权限（40301 / 40302）由 {@code feat/backend-authz} 的
+ * {@code AccessService.require(elderId, Permission)} 承接；需要业务接口显式调用 —— 拦截器只能拿到
+ * 请求本身，解析不出"目标资源归属哪位老人"。
  *
  * <p><b>为什么用拦截器而不是 Servlet Filter</b>：拦截器跑在 DispatcherServlet 内，抛出的
  * {@code BizException} 能被 {@code GlobalExceptionHandler} 接住，天然输出 {@code 40101} 的统一响应；
