@@ -2,7 +2,10 @@
 -- 见文档 06 的 2.13 / 2.14。只新增对象，不改动 V1 / V2（flyway.validate-on-migrate=true）
 
 -- user_id 业务 ID 生成器（u-1001、u-1002 ...）：避免"先插入再回填 user_id"
-CREATE SEQUENCE IF NOT EXISTS user_id_seq START 1001;
+--
+-- 名字不能叫 user_id_seq：**那是 "user" 表 id BIGSERIAL 自动创建的序列**（表名+列名+seq），
+-- 复用它会把自增主键的当前值拿去当业务号（首个用户就变成 u-1），两者还会互相踩。
+CREATE SEQUENCE IF NOT EXISTS user_biz_id_seq START 1001;
 
 -- 2.13 refresh_token：refresh token 轮换记录（换新即作废旧的）
 CREATE TABLE IF NOT EXISTS refresh_token (

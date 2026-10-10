@@ -14,9 +14,11 @@ public interface UserMapper extends BaseMapper<User> {
     /**
      * 取下一个业务 user_id（{@code u-1001}、{@code u-1002} ...）。
      *
-     * <p>用独立的 {@code user_id_seq} 序列而不是插入后回填：省掉一次 UPDATE，也避免并发下
-     * 先插入后改名导致的短暂空窗。
+     * <p>用独立序列而不是插入后回填：省掉一次 UPDATE，也避免并发下先插入后改名的短暂空窗。
+     *
+     * <p><b>序列名叫 {@code user_biz_id_seq} 而不是 {@code user_id_seq}</b>：后者是 `"user" 表
+     * {@code id BIGSERIAL} 自动创建的序列，复用它拿到的会是自增主键的值（首个用户变成 {@code u-1}）。
      */
-    @Select("SELECT 'u-' || nextval('user_id_seq')")
+    @Select("SELECT 'u-' || nextval('user_biz_id_seq')")
     String nextUserId();
 }

@@ -19,6 +19,7 @@
 - **`07`**：地基第 4 项 `feat/backend-auth` 勾选完成，并补"落地"一行（jjwt + 不引 Spring Security、拦截器形态、首个引入 MyBatis-Plus 的分支、V3 脚本、幂等只保护 register、`/users/me` 仍留给 authz）
 - **`06`**：新增 **2.13 `refresh_token`**（轮换 / 重放检测，只存 SHA-256 哈希）与 **2.14 `idempotency_record`**（`X-Request-Id` 幂等，当前只保护注册）；头部 Flyway 清单与实体关系总览同步补上 V3 与 RefreshToken
 - **`02`**：第 3 章新增《后端侧落地（`feat/backend-auth`）》—— 令牌 claims 与 TTL、refresh 轮换与重放撤销、密码口径（失败统一 40102）、注册校验（role / 密码 6~64）、幂等范围与 TTL、登录校验范围
+- **⚠️ 踩坑（后续分支照做）**：业务 `user_id` 的序列叫 **`user_biz_id_seq`**，不能叫 `user_id_seq` —— 后者是 `"user"` 表 `id BIGSERIAL` 自动创建的序列，`CREATE SEQUENCE IF NOT EXISTS` 会静默跳过，首个用户会被编成 `u-1`（已修，见 06 的 2.13）
 - **后端新增（`medbox-server/src/main/java/com/medbox/server/`，后续分支直接复用）**：
   - `common/security/`：`JwtProvider`（签发 / 解析，失败统一 40101）、`JwtPayload`、`TokenType`、`AuthContext`（当前登录用户，ThreadLocal）、`PasswordHasher`（BCrypt + 陪跑哈希）
   - `common/web/AuthInterceptor` + `config/WebMvcConfig`：只做校验顺序第 ① 步「是否登录」，只拦 `/api/v1/**`、放行 `/api/v1/auth/**` 与 `/actuator/**`
