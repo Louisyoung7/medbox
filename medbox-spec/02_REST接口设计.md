@@ -1,6 +1,6 @@
 # 02 · REST 接口设计
 
-> 所有路径均相对 Base URL：`http://{后端主机内网IP}:8080/medbox/api/v1`　|　版本 V1.15
+> 所有路径均相对 Base URL：`http://{后端主机内网IP}:8080/medbox/api/v1`　|　版本见 `CHANGELOG.md`
 > 标注【鉴权】表示需携带 JWT，监护数据类接口需校验权限。AI 相关接口见文档 05。
 
 ## 1. 通用约定
@@ -40,7 +40,7 @@
 - **`X-Request-Id`**：小程序对**写方法**（`POST` / `PUT` / `PATCH` / `DELETE`）自动注入，值为**32 位小写十六进制**（无连字符），与后端 `newTraceId()` 同形，因此后端 `TraceContext.sanitize` 一定沿用，前后端日志可按同一个 traceId grep；`GET` 不注入（无幂等诉求）。小程序运行时没有 `crypto.randomUUID`，用 `crypto.getRandomValues` 生成、`Math.random` 回落（请求号只用于追踪与去重，不要求密码学强度）。
 - **判定失败只看 `code`**：`code !== 0` 即失败，取 `message` 提示；**`data` 字段缺失按 `null` 处理**，不能把"取不到 data"当异常（见上一条 `non_null`）。
 - **网络层失败**（没到服务端）不是业务码，小程序用客户端本地码 `-1`（仅前端约定，不进 1.2 的封闭集合）与"请检查是否在同一局域网"文案区分。
-- **`40101` 的处理顺序（V1.15 修正，`feat/mp-auth`）**：请求层拿到 `40101` 时**先把错误交给 `feat/mp-auth` 注入的处理器续期**，处理器兑现真值（已换新 token）就用**同一份参数重发一次**（只重发一次），页面完全无感知；**只有续期失败才清本地凭据 + 跳登录页**。旧实现在调处理器**之前**就清掉了 refresh token，处理器根本无从刷新；且 40101 时 Promise 已 reject，处理器内部重试的结果也回传不到调用方 —— 因此重试必须放在请求层。
+- **`40101` 的处理顺序（V15 修正，`feat/mp-auth`）**：请求层拿到 `40101` 时**先把错误交给 `feat/mp-auth` 注入的处理器续期**，处理器兑现真值（已换新 token）就用**同一份参数重发一次**（只重发一次），页面完全无感知；**只有续期失败才清本地凭据 + 跳登录页**。旧实现在调处理器**之前**就清掉了 refresh token，处理器根本无从刷新；且 40101 时 Promise 已 reject，处理器内部重试的结果也回传不到调用方 —— 因此重试必须放在请求层。
 
 ### 1.2 通用错误码
 
@@ -191,7 +191,7 @@ GET /users/me
 
 > 小程序只用 `userId` / `role` / `name` / `phone`（`role` 决定角色视图，见 01 第 3 章）；其余字段随后端实现追加，前端整份缓存不挑字段。
 
-**小程序侧落地（V1.15，`feat/mp-auth`）**：
+**小程序侧落地（V15，`feat/mp-auth`）**：
 
 - **登录态编排在 `src/store/auth.js`**：`login` / `register` / `logout` / `refreshAuth` / `restoreSession` / `isLoggedIn`；`src/store/token.js` 仍是 **token 的唯一读写入口**，用户资料缓存在 `src/store/user.js`，**不存在第二份 token**；
 - **被动刷新（唯一刷新时机）**：业务请求拿到 `40101` → 请求层把错误交给 mp-auth 的处理器 → 调 `/auth/refresh` → **成功则用新 token 自动重发一次原请求**，调用方无感知；**并发只刷一次**（共享同一个 Promise，refresh 是轮换制，并发刷新会互相作废）；refresh 也失败才清凭据 + `reLaunch` 登录页。**不做"解析 JWT `exp` 提前刷新"**（JWT 结构未进文档，且被动刷新已覆盖全部场景）；
