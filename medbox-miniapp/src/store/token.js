@@ -5,6 +5,10 @@
  * 起点 —— mp-auth 在此扩展「刷新、过期判断、用户信息」，**不要另建平行模块**，否则请求层
  * 与登录页会读到两份 token。
  *
+ * <p>**V1.15（`feat/mp-auth` 落地）**：本文件仍是 **token 的唯一读写入口**（存储层），
+ * 刷新与登录流程编排在 `src/store/auth.js`、用户资料缓存在 `src/store/user.js` ——
+ * 它们都只是调用本文件的读写函数，**不存在第二份 token**。
+ *
  * <p>用 `uni.getStorageSync` 同步读写：与 `src/config/index.js` 读 `serverHost` 的写法一致，
  * 且请求发起前必须同步拿到 token（异步读会让鉴权头丢空）。
  */

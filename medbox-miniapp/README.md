@@ -77,6 +77,40 @@ try {
 - **网络失败**（没到服务端）不是业务码，用 `err.isNetworkError()`（`code === -1`）判断，提示"请检查是否在同一局域网"。
 - **Token 存储**：`src/store/token.js`（`getAccessToken` / `setTokens` / `clearTokens`），`feat/mp-auth` 在此文件内扩展刷新与用户信息，**不要另建平行模块**。
 
+## 登录与鉴权（`feat/mp-auth`）
+
+登录态一律走 `src/store/auth.js`（**编排层**），页面不要自己拼"写 token + 拉 `/users/me`"：
+
+```js
+import { login, logout, isLoggedIn, navigateAfterLogin } from '@/store/auth.js'
+import { getRole, roleLabel, ROLE } from '@/store/user.js'
+
+// 登录：写 token → 拉 GET /users/me → 存用户资料
+await login({ account: '13800001234', password: '******' })
+navigateAfterLogin(this.redirect)   // 回跳守卫带来的目标，否则回首页
+
+// 判断登录态与角色（决定显示哪些入口，见 medbox-spec/01 第 3 章）
+isLoggedIn()        // 是否有 access token
+getRole()           // 'ELDER' / 'GUARDIAN'
+roleLabel()         // '老人' / '监护人'
+
+logout()            // 清 token + 用户资料 + reLaunch 登录页
+```
+
+| 模块 | 职责 |
+|------|------|
+| `store/token.js` | **token 的唯一读写入口**（access / refresh），请求层也从这里取 |
+| `store/user.js` | 用户资料缓存（`userId` / `role` / `name` / `phone`）与角色常量 |
+| `store/auth.js` | 编排：登录 / 注册 / 登出 / 续期 / 401 接管 / 启动校验 |
+| `store/guard.js` | 路由守卫：白名单 + 未登录跳登录页并带 `redirect` 回跳 |
+
+- **过期自动刷新（页面无需关心）**：业务请求拿到 `40101` → 请求层交处理器 → `POST /auth/refresh` → 成功则**用新 token 自动重发一次原请求**（调用方无感知），**并发只刷一次**；refresh 也失败才清凭据 + 跳登录页。
+- **刷新接口的两个必须项**：`auth: false`（没有可用 token）与 `noAuthRetry: true`（否则 refresh 自己 40101 会递归刷新），已在 `api/auth.js` 里写死。
+- **路由守卫**：`App.vue` 的 `onLaunch` → `setupAuth()` 里装 `uni.addInterceptor`，拦截 `navigateTo` / `redirectTo` / `reLaunch` / `switchTab`。**新建页面若允许未登录访问，必须加进 `store/guard.js` 的 `WHITE_LIST`**（当前只有登录页与注册页）。
+- **回跳安全**：`redirect` 来自 URL 参数，`safeTarget()` 只接受 `pages/` 开头的站内路径，其余一律回首页。
+- **注册角色只有 `ELDER` / `GUARDIAN`**：护理 / 医生是 `guardian_relation.role`，由老人在确认监护关系时指定（见 `medbox-spec/06` 的 2.1 / 2.2），注册页不给这两个选项。
+- **当前首页的登录态卡片与"退出登录"是临时入口**，后续由 `feat/mp-ui-kit` / `feat/mp-profile` 接管。
+
 ## 微信开发者工具设置
 
 - **详情 → 本地设置**：勾选「不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书」，否则局域网的 `http` / `ws` 请求会被工具拦截。

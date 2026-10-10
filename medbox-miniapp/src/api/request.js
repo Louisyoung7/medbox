@@ -16,6 +16,10 @@
  *   if (err.code === CODE.GUARDIAN_PENDING) { /* 监护未生效，页面自绘提示 *\/ }
  * }
  * ```
+ *
+ * <p>**40101（登录失效）**：默认清本地凭据并 `reLaunch` 到 {@link LOGIN_PATH}；`feat/mp-auth`
+ * 用 {@link setUnauthorizedHandler} 接管后改为"先 refresh 续期、成功则自动重发一次原请求"，
+ * 并发只刷一次、失败才跳登录，页面无需感知（详见该函数注释）。
  */
 
 import { BASE_URL } from '@/config/index.js'
@@ -35,7 +39,8 @@ export { CODE, ApiError, NETWORK_ERROR_CODE } from '@/utils/error.js'
 /**
  * 登录页路径：40101 时 `reLaunch` 到这里。
  *
- * <p>**页面本身由 `feat/mp-auth` 建**（本分支只约定路径，不建页），改路径必须同步改 mp-auth。
+ * <p>页面已由 `feat/mp-auth` 落地（`src/pages/auth/login.vue`）；改这个常量必须同步改
+ * `src/store/guard.js` 的白名单与 `src/pages.json`。
  */
 export const LOGIN_PATH = '/pages/auth/login'
 
@@ -76,7 +81,12 @@ function hideLoading() {
 /**
  * 注入未登录处理器（覆盖默认的"清 token + 跳登录页"）。
  *
- * @param {?((error: ApiError) => void)} handler 传 null 恢复默认行为
+ * <p>**契约（V1.15，`feat/mp-auth`）**：处理器可返回 `Promise<boolean>` —— 兑现**真值**表示
+ * "已续期"（新 token 已写入 `src/store/token.js`），请求层会用**同一份参数重发一次**、把重试
+ * 结果兑现给原调用方（对页面完全透明）；兑现假值或 `void`（旧契约）表示"续期失败"，才清
+ * 凭据 + 跳登录页。处理器抛异常按"未续期"处理。
+ *
+ * @param {?((error: ApiError) => (boolean|Promise<boolean>|void))} handler 传 null 恢复默认行为
  * @returns {?Function} 上一个处理器，便于链式恢复
  */
 export function setUnauthorizedHandler(handler) {
@@ -140,24 +150,52 @@ function handleError(error, silent) {
 }
 
 /**
- * 40101：清本地凭据 → 跳登录页。
+ * 40101 且**没能续期**时的收尾：清本地凭据 → 跳登录页。
  *
- * <p>若已被 `setUnauthorizedHandler` 接管（mp-auth 的 refresh 逻辑），则完全交给它处理，
- * 本函数不再跳页 —— 刷新成功后重试请求由处理器自己负责。
+ * <p>续期尝试发生在 {@link tryRenewAndRetry}：mp-auth 的处理器兑现真值才算续期成功，
+ * 那种情况下根本不会走到这里。
  */
 function handleUnauthorized(error, silent) {
   clearTokens()
-
-  if (unauthorizedHandler) {
-    try {
-      unauthorizedHandler(error)
-    } catch (e) {
-      console.error('[request] 未登录处理器抛异常，回退默认跳转', e)
-      redirectToLogin(error, silent)
-    }
-    return
-  }
   redirectToLogin(error, silent)
+}
+
+/** {@link tryRenewAndRetry} 返回标记：处理器没续期（调用方据此 reject 原 40101 错误）。 */
+const NOT_RENEWED = { renewed: false }
+
+/**
+ * 40101 的续期与重试（对应 08 的 `feat/mp-auth`）。
+ *
+ * <p>流程：① 把 40101 交给 mp-auth 注入的处理器（它去调 `/auth/refresh`，并发只刷一次）；
+ * ② 处理器兑现**真值** = 已续期 → 用**同一份 options 重发一次**（`retried = true`，只重试一次；
+ * 重发时重新注入 Bearer，自然带上新 token）；③ 处理器兑现假值 / 抛异常 = 续期也失败 →
+ * {@link handleUnauthorized} 清凭据跳登录，把原 40101 错误交给调用方。
+ *
+ * <p>**为什么重试必须放在请求层**：40101 时本次 Promise 已经要 reject，若只由处理器内部重试，
+ * 结果回传不到原调用方（页面照样进 `catch`）；放在请求层重试对调用方完全透明。
+ *
+ * <p>**为什么清凭据挪到了续期之后**：旧实现在调处理器**之前**就 `clearTokens()`，refresh token
+ * 已被清空，处理器根本无从刷新（V1.15 修正）。
+ *
+ * @param {RequestOptions} options 原请求选项（含 url / method / data / params ...）
+ * @param {ApiError} error 40101 错误
+ * @param {boolean} silent
+ * @returns {Promise<{renewed: true, data: any}|{renewed: false}>}
+ */
+async function tryRenewAndRetry(options, error, silent) {
+  let renewed = false
+  try {
+    // 处理器返回 void 也兼容（旧契约）：await undefined 得到 undefined，按未续期处理
+    renewed = await Promise.resolve(unauthorizedHandler(error))
+  } catch (e) {
+    console.error('[request] 未登录处理器抛异常，按"未续期"处理', e)
+    renewed = false
+  }
+  if (!renewed) {
+    handleUnauthorized(error, silent)
+    return NOT_RENEWED
+  }
+  return { renewed: true, data: await send(options, true) }
 }
 
 function redirectToLogin(error, silent) {
@@ -170,7 +208,7 @@ function redirectToLogin(error, silent) {
   redirecting = true
   uni.reLaunch({
     url: LOGIN_PATH,
-    // 登录页尚未落地（mp-auth）时 reLaunch 会失败，complete 里复位避免后续请求永远不跳
+    // reLaunch 也可能失败（登录页被改名 / 编译未就绪），complete 里复位避免后续请求永远不跳
     complete: () => {
       redirecting = false
     },
@@ -191,11 +229,24 @@ function redirectToLogin(error, silent) {
  * @property {boolean} [silent=false] true 时不自动 toast（页面自绘错误时用）
  * @property {number} [timeout=10000]
  * @property {string} [requestId] 自定义 `X-Request-Id`（一般不传，写操作自动生成）
+ * @property {boolean} [noAuthRetry=false] true 时 40101 不尝试续期重试（**刷新接口自身必传**，
+ *           否则 refresh 返回 40101 会再触发一次刷新 → 递归；登录 / 注册也可传）
  *
  * @param {RequestOptions} options
  * @returns {Promise<any>} 成功兑现 `data`（无 data 时为 null），失败拒绝 {@link ApiError}
  */
 export function request(options) {
+  return send(options || {}, false)
+}
+
+/**
+ * 真正发起请求（**私有**：`retried` 由重试逻辑内部传入，外部一律调 {@link request}）。
+ *
+ * @param {RequestOptions} options
+ * @param {boolean} retried 是否已是 40101 续期后的重发（重发不再触发第二次续期）
+ * @returns {Promise<any>}
+ */
+function send(options, retried) {
   const {
     url,
     method = 'GET',
@@ -207,7 +258,8 @@ export function request(options) {
     silent = false,
     timeout = DEFAULT_TIMEOUT,
     requestId,
-  } = options || {}
+    noAuthRetry = false,
+  } = options
 
   const upperMethod = String(method).toUpperCase()
   const fullUrl = buildUrl(url, params)
@@ -258,6 +310,25 @@ export function request(options) {
             url: fullUrl,
             method: upperMethod,
           })
+          // 40101：先给 mp-auth 一次续期机会（只重发一次；刷新接口自身用 noAuthRetry 跳过）
+          if (
+            error.isUnauthorized() &&
+            !retried &&
+            !noAuthRetry &&
+            unauthorizedHandler
+          ) {
+            tryRenewAndRetry(options, error, silent).then(
+              (result) => {
+                if (result.renewed) {
+                  resolve(result.data)
+                } else {
+                  reject(error)
+                }
+              },
+              (retryError) => reject(retryError),
+            )
+            return
+          }
           handleError(error, silent)
           reject(error)
           return

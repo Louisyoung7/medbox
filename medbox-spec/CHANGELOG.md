@@ -1,8 +1,42 @@
 # 变更记录（CHANGELOG）
 
 > 本文件记录文档集的每次版本变更，便于**各端（后端 / 小程序 / Web 前端）** 判断"要不要跟着改、影响哪些模块"。
-> 版本格式：文档集统一版本号（各文件头部标注）。
+>
+> **当前版本：`V15`（2026-10-10）** —— 完整变更见下方 `[V15]` 条目。
+>
+> **编号规则（V15 起）**：文档集用**单一递增序号** `V15` / `V16` / `V17`……不区分 major / minor —— 每次文档变更（无论改的是哪个文件、哪个端）+1，序号只表示"第几次变更"。
+>
+> - **版本号只在本文件维护**：改文档时把上面的「当前版本」+1 并追加条目即可，**各文档（00~06）头部不再标注版本号**（那里统一写"版本见 `CHANGELOG.md`"）。这样升版本只动一个文件，避免漏改与纯版本号噪音 diff。
+> - **历史条目里的 `V1.14` 及更早保持原样**：那是旧编号（带 major.minor），**不要回去改**。`V15` 即原 `V1.15`，序号连续。
+> - **多人并行时**：以自己本地 `main` 上 `CHANGELOG.md` 顶部的号为准 +1；发现本地落后就先 `git pull`，冲突只可能发生在这个文件顶部一行，照 CONFLICT 里较新的号再 +1 即可（**不用 git tag**，本地版本不靠 tag 对齐）。
+>
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
+
+## [V15] — 2026-10-10（小程序落地登录注册与 token 管理）
+
+`feat/mp-auth`（08 清单地基第 3 项）落地，小程序有了"进门的第一道关"：登录 / 注册页、token 与 refreshToken 的本地存储、**过期自动刷新（含重试）**、未登录的路由守卫。**本次不新增接口、不改表结构与 MQTT / WS 协议**，只补齐小程序侧的认证落地口径。
+
+- **`08`**：地基第 3 项 `feat/mp-auth` 勾选完成，并补六条跨分支约定（编排层 `store/auth.js`、token 唯一入口、只做被动刷新、新页面要进守卫白名单、`LOGIN_PATH` 改动要同步、注册角色只有两种）；第 2 项 `feat/mp-request` 的三条约定同步更新（登录页已落地、40101 处理顺序已在 V15 修正、token.js 之上加了编排层）
+- **`02`**：第 3 章补**注册 / 刷新 / `/users/me` 的请求与响应示例**（此前只有登录示例），并新增《小程序侧落地（V15）》——被动刷新流程、并发只刷一次、`noAuthRetry`、登录接口 `silent`、路由守卫与回跳白名单、启动校验；**1.1 补 `40101` 处理顺序的修正说明**
+- **⚠️ 修正 `feat/mp-request` 的 40101 处理顺序（后续分支必读）**：旧实现在调处理器**之前**就 `clearTokens()`，refresh token 已被清空 → 处理器根本无法刷新；且 40101 时 Promise 已 reject，处理器内部重试的结果回传不到调用方。现改为「**先交处理器续期 → 兑现真值则用同一份参数重发一次（只重发一次）→ 失败才清凭据跳登录**」，`setUnauthorizedHandler` 的处理器因此支持返回 `Promise<boolean>`（旧契约返回 `void` 仍兼容）
+- **小程序新增（`medbox-miniapp/src/`，后续分支直接复用）**：
+  - `store/auth.js`：**登录态编排层**（页面只调它）——`login` / `register` / `logout` / `refreshAuth` / `restoreSession` / `isLoggedIn` / `setupAuth` / `navigateAfterLogin`
+  - `store/user.js`：用户资料缓存（`getUserInfo` / `setUserInfo` / `clearUserInfo` / `getRole` / `getUserId` / `roleLabel`）与角色常量 `ROLE`（`ELDER` / `GUARDIAN`）
+  - `store/guard.js`：路由守卫 `installAuthGuard()`（`uni.addInterceptor` 拦四个跳转 API + 白名单 + `redirect` 回跳）与 `safeTarget()`（回跳只接受 `pages/` 开头，防开放重定向）
+  - `pages/auth/login.vue` / `pages/auth/register.vue`：账号密码登录 / 注册（注册角色二选一），已注册进 `pages.json`；`pages/index/index.vue` 加登录态展示与退出登录 / 去登录 / 去注册入口（**临时**，后续由 `mp-ui-kit` / `mp-profile` 接管）
+  - `App.vue`：`onLaunch` 调 `setupAuth()`（注入 401 接管 → 装路由守卫 → 静默校验登录态）
+  - `api/request.js`（修 Bug）：`send(options, retried)` 内部重发、`noAuthRetry` 选项、清凭据时机后移；`api/auth.js`：登录 / 注册 / 刷新补 `silent` 与 `noAuthRetry`
+- **`medbox-miniapp/README.md`**：新增《登录与鉴权（`feat/mp-auth`）》小节（编排层用法、刷新流程、守卫、登出、角色）
+- **未做（有意）**：微信登录、密码前端 SHA-256 预哈希（等 HTTPS）、主动解析 JWT `exp` 提前刷新
+- **版本号改为单一递增序号**：本版为 **V15**（即原 `V1.15`，序号连续），**各文档（00~06）头部不再标注版本号**，只在 `CHANGELOG.md` 顶部维护 —— 升版本从此只改一个文件（详见本文件开头《编号规则（V15 起）》）
+
+### 影响提示
+
+| 端 / 目录 | 是否需要改代码 | 说明 |
+|-----------|----------------|------|
+| `medbox-miniapp/`（uni-app 小程序） | ✅ 后续分支必读 | ① 页面判断登录态用 `isLoggedIn()`、取角色用 `getRole()` / `roleLabel()`，**不要自己读 storage**；② 登录 / 注册 / 登出一律走 `store/auth.js`；③ **新建页面若允许未登录访问，必须加进 `store/guard.js` 的 `WHITE_LIST`**，否则会被挡到登录页；④ 业务请求**不要自己处理 40101**（请求层已自动续期 + 重发），只在页面里处理 `40301` / `40302` 等权限类错误 |
+| `medbox-server/`（Java 后端） | ✅ 后续分支必读（`feat/backend-auth`） | 登录 / 注册响应需带 `token` / `refreshToken` / `userId` / `role` / `expiresIn`；`/auth/refresh` 请求体为 `{ refreshToken }`、响应换新的一对（轮换）；`/users/me` 至少返回 `userId` / `role` / `name` / `phone`；**本版本前端已按此实现，后端 `/auth/*` 尚未落地，暂无法联调** |
+| 嵌入式（设备端） | ➖ 不受影响 | 设备走 MQTT |
 
 ## [V1.14] — 2026-10-10（后端落地数据库初始化与迁移）
 
