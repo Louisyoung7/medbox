@@ -17,6 +17,18 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-10] 后端落地权限与监护关系校验（`feat/backend-authz`）
+
+`GET /users/me` 终于可用，小程序冷启动的静默续期打通。落地了**集中式权限矩阵**与四步校验顺序，后续功能分支（`medicine-core` / `plan-core` / `alarm-core` / `ai-chat` ...）统一调 `AccessService.require(elderId, Permission)`，不再各自写角色判断。
+
+- **`02`**：1.3 新增 **1.3.1 权限判定规则表** —— 四步校验顺序 × 角色 × 资源归属 → 放行 / `40301` / `40302`，含 **19 项 `Permission` 集中矩阵**与边界口径（PENDING 优先于权限判定；REVOKED 与"无关系"同码；抓拍对护理 / 医生显式拒绝）
+- **`06`**：2.2 `guardian_relation` 新增 **`relation_id` 业务列**（`r-1001`，供 P1 `feat/guardian-relation` 的 accept / delete 接口直接用）+ `guardian_relation_biz_id_seq` 序列 + `guardian_id` / `elder_id` 带 `status` 的索引（Flyway `V4__authz.sql`）；头部 Flyway 清单同步
+- **`07`**：地基第 5 项 `feat/backend-authz` 勾选完成并补"落地"一行
+- **新增代码（`medbox-server/`）**：`common/security/{Permission,AccessIdentity,DeviceOwnerResolver}`、`domain/GuardianRelation`、`domain/enums/{RelationRole,RelationStatus}`、`mapper/GuardianRelationMapper`、`service/{AccessService,UserService}`、`controller/UserController`、`dto/user/UserProfileResponse`
+- **⚠️ 后续分支必读**：① 权限判定统一走 `AccessService.require`，**判定在 Service 层不在拦截器**；② 列表接口用 `visibleElderIds()` 做 IN 过滤（防 N+1）；③ 设备维度 `requireDevice(...)` 的 `DeviceOwnerResolver` **本分支只有接口没有实现**，`feat/device-core` 引入 `DeviceMapper` 后补上即可；④ **定时任务 / MQTT 消费线程没有 `AuthContext`**，别走 `AccessService`，直接调 Mapper
+- **测试**：`./gradlew test` 共 **91 例全通过**（本分支新增 36 例：规则表全矩阵 23 + Web 集成 9 + `/users/me` 4）；Mapper 打桩，**不连数据库**
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 是（`/users/me` 已可用）· 嵌入式 否
+
 ## [2026-10-10] 清单按优先级重构、新增三条实现约定、CHANGELOG 不再编号
 
 - **`07` / `08` 清单本体重构**：由"按业务模块平铺"改为**按实施顺序分章**（地基 → P0 主干闭环 → P1 完善 → P2 锦上添花），**章节顺序即实施顺序**；同类分支已合并，后端 46→32、小程序 38→23 个分支
