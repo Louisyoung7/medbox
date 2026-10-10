@@ -8,18 +8,29 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.medbox.server.common.TraceContext;
+import com.medbox.server.config.WebMvcConfig;
 import com.medbox.server.support.TestErrorController;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * 验收 07 清单第 2 项：任意异常都返回统一结构，且错误码与文档 02 的 1.2 一致。
+ *
+ * <p>排除 {@code AuthInterceptor} 与 {@code WebMvcConfig}：前者会给 {@code /api/v1/**} 加登录校验
+ * （本测试只看统一响应，登录拦截的验收在 {@code AuthControllerTest}）；
+ * 而 {@code @WebMvcTest} 切片**会**扫描 HandlerInterceptor 与 WebMvcConfigurer，不排除的话容器会去装配
+ * AuthInterceptor → 又要 JwtProvider → 起不来。
  */
-@WebMvcTest(controllers = TestErrorController.class)
+@WebMvcTest(controllers = TestErrorController.class,
+        excludeFilters = @ComponentScan.Filter(
+                type = FilterType.ASSIGNABLE_TYPE,
+                classes = {AuthInterceptor.class, WebMvcConfig.class}))
 class GlobalExceptionHandlerTest {
 
     @Autowired

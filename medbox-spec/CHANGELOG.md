@@ -2,7 +2,7 @@
 
 > 本文件记录文档集的每次版本变更，便于**各端（后端 / 小程序 / Web 前端）** 判断"要不要跟着改、影响哪些模块"。
 >
-> **当前版本：`V15`（2026-10-10）** —— 完整变更见下方 `[V15]` 条目。
+> **当前版本：`V16`（2026-10-10）** —— 完整变更见下方 `[V16]` 条目。
 >
 > **编号规则（V15 起）**：文档集用**单一递增序号** `V15` / `V16` / `V17`……不区分 major / minor —— 每次文档变更（无论改的是哪个文件、哪个端）+1，序号只表示"第几次变更"。
 >
@@ -11,6 +11,32 @@
 > - **多人并行时**：以自己本地 `main` 上 `CHANGELOG.md` 顶部的号为准 +1；发现本地落后就先 `git pull`，冲突只可能发生在这个文件顶部一行，照 CONFLICT 里较新的号再 +1 即可（**不用 git tag**，本地版本不靠 tag 对齐）。
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
+
+## [V16] — 2026-10-10（后端落地账号密码登录与 JWT）
+
+`feat/backend-auth`（07 清单地基第 4 项）落地，小程序 `feat/mp-auth` 终于可以联调：注册 / 登录 / 刷新三个接口、BCrypt 存密码、access 2 小时 + refresh 7 天轮换、`X-Request-Id` 保护注册幂等。**本次新增两张表**（`refresh_token`、`idempotency_record`）与 `user_id_seq` 序列，**不改 MQTT / WS 协议**。
+
+- **`07`**：地基第 4 项 `feat/backend-auth` 勾选完成，并补"落地"一行（jjwt + 不引 Spring Security、拦截器形态、首个引入 MyBatis-Plus 的分支、V3 脚本、幂等只保护 register、`/users/me` 仍留给 authz）
+- **`06`**：新增 **2.13 `refresh_token`**（轮换 / 重放检测，只存 SHA-256 哈希）与 **2.14 `idempotency_record`**（`X-Request-Id` 幂等，当前只保护注册）；头部 Flyway 清单与实体关系总览同步补上 V3 与 RefreshToken
+- **`02`**：第 3 章新增《后端侧落地（`feat/backend-auth`）》—— 令牌 claims 与 TTL、refresh 轮换与重放撤销、密码口径（失败统一 40102）、注册校验（role / 密码 6~64）、幂等范围与 TTL、登录校验范围
+- **⚠️ 踩坑（后续分支照做）**：业务 `user_id` 的序列叫 **`user_biz_id_seq`**，不能叫 `user_id_seq` —— 后者是 `"user"` 表 `id BIGSERIAL` 自动创建的序列，`CREATE SEQUENCE IF NOT EXISTS` 会静默跳过，首个用户会被编成 `u-1`（已修，见 06 的 2.13）
+- **后端新增（`medbox-server/src/main/java/com/medbox/server/`，后续分支直接复用）**：
+  - `common/security/`：`JwtProvider`（签发 / 解析，失败统一 40101）、`JwtPayload`、`TokenType`、`AuthContext`（当前登录用户，ThreadLocal）、`PasswordHasher`（BCrypt + 陪跑哈希）
+  - `common/web/AuthInterceptor` + `config/WebMvcConfig`：只做校验顺序第 ① 步「是否登录」，只拦 `/api/v1/**`、放行 `/api/v1/auth/**` 与 `/actuator/**`
+  - `controller/AuthController`、`service/{AuthService, RefreshTokenService, IdempotencyService}`、`dto/auth/*`（record）
+  - `domain/`（`User` / `RefreshToken` / `IdempotencyRecord`）与 `mapper/`（MyBatis-Plus，`@MapperScan` 在 `config/MybatisPlusConfig`）
+  - Flyway `V3__auth.sql`：`user_id_seq`、`refresh_token`、`idempotency_record`
+- **依赖变化**：新增 `mybatis-plus-spring-boot4-starter`（Boot 4 专用 starter）、`jjwt`（**JSON provider 取 `jjwt-orgjson` 而非 `jjwt-jackson`** —— 后者依赖 Jackson 2，会被 Boot 4 自带的 Jackson 3 顶掉）、`spring-security-crypto`（只用它的 BCryptPasswordEncoder，不引 Security 过滤器链）
+- **新增配置**：`medbox.jwt.secret`（可用 `MEDBOX_JWT_SECRET` 覆盖，≥32 字节）、`medbox.jwt.access-token-ttl-seconds`、`medbox.jwt.refresh-token-ttl-seconds`、`medbox.idempotency.ttl-hours`
+- **未做（有意）**：`GET /users/me`（留给 `feat/backend-authz`）、微信登录、短信验证码、限流（`feat/ai-limit`）
+
+### 影响提示
+
+| 端 / 目录 | 是否需要改代码 | 说明 |
+|-----------|----------------|------|
+| `medbox-miniapp/`（uni-app 小程序） | ✅ 可联调 | `feat/mp-auth` 已按本集文档实现，字段与后端一致（`token` / `refreshToken` / `userId` / `role` / `expiresIn`），写操作已自动带 `X-Request-Id`；**`/users/me` 仍未实现**，`App.vue` 启动的静默校验会拿到 40401 —— 属预期，等 `feat/backend-authz` |
+| `medbox-server/`（Java 后端） | ✅ 后续分支必读 | ① 取"当前登录用户"用 `AuthContext.current()` / `required()`；② 签发 / 解析令牌用 `JwtProvider`（`feat/backend-ws` 握手鉴权直接复用）；③ **新增需要登录的接口无需额外配置**（拦截器已拦 `/api/v1/**`），但**新增无需登录的接口要在 `WebMvcConfig` 里加排除路径**；④ 持久层用 MyBatis-Plus，实体放 `domain/`、Mapper 放 `mapper/`（实体主键记得 `@TableId(type = IdType.AUTO)`，MP 默认雪花 ID） |
+| 嵌入式（设备端） | ➖ 不受影响 | 设备走 MQTT |
 
 ## [V15] — 2026-10-10（小程序落地登录注册与 token 管理）
 

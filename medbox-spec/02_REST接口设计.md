@@ -201,6 +201,16 @@ GET /users/me
 - **启动校验**：`App.vue` 的 `onLaunch` 调 `setupAuth()`，有 token 就拉一次 `/users/me` —— 顺带完成**冷启动静默续期**（隔天打开时 access 已过期、refresh 仍有效，用户无感知）；
 - **未做**：微信登录（见上）、密码前端 SHA-256 预哈希（等 HTTPS）、前端主动解析 token 过期时间。
 
+**后端侧落地（`feat/backend-auth`）**：
+
+- **令牌**：HS256 签名，claims 为 `sub=userId`、`role`、`typ`（`ACCESS` / `REFRESH`，**两者必须区分**，拿 refresh 当 access 用一律拒绝）、`jti`、`iat`、`exp`；access **7200 秒**、refresh **604800 秒**，由 `medbox.jwt.*` 配置，密钥走 `MEDBOX_JWT_SECRET`（≥32 字节，**改了它已签发的 token 全部失效**）。解析失败 / 过期 / 类型不符 / 被篡改一律 **40101**。
+- **refresh 轮换（落库）**：每枚 refresh token 在 `refresh_token` 表留一行（只存 SHA-256 哈希，`token_id` = JWT 的 `jti`，见 06 的 2.13）。换新时旧行置 `ROTATED` 并指向接替者；**再次使用已 `ROTATED` / `REVOKED` 的 token 视为泄漏** —— 撤销该用户全部 refresh token 并返回 40101。
+- **密码**：BCrypt 单向哈希存 `user.password_hash`；登录失败（账号不存在 / 密码错误）统一 **40102**，且"账号不存在"时也会白算一次 BCrypt 做耗时对齐，避免被用来枚举已注册手机号。
+- **注册校验**：`role` 只取 `ELDER` / `GUARDIAN`（其它值 40001），密码 **6~64 位**，手机号 11 位；手机号 / 用户名已存在返回 **40001**，提示取后端 `message`（如"手机号已注册"）。
+- **幂等**：仅 `POST /auth/register` 生效 —— 同一 `X-Request-Id` 重复提交只创建 1 个账号并回放首次响应；同号但请求体指纹不同 → 40001。登录 / 刷新天然幂等，不落幂等记录（免得把含 token 的响应快照写进库）。快照 TTL 24 小时（`medbox.idempotency.ttl-hours`）。
+- **登录校验范围**：`/api/v1/**` 需带 `Authorization: Bearer {access token}`，`/api/v1/auth/**` 与 `/actuator/**` 放行；**登录失败一律 40101**（40102 只用于账号密码错误）。本分支只做校验顺序的第 ① 步"是否登录"，监护关系与角色权限见 `feat/backend-authz`。
+- **未做**：`GET /users/me`（留给 `feat/backend-authz`）、微信登录、短信验证码、限流（`feat/ai-limit`）。
+
 ## 4. 设备管理（命令实际经 MQTT 下行）
 
 | 方法 | 路径 | 说明 |
