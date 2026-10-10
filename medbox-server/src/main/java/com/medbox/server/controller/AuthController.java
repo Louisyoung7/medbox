@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>这三个接口**不校验登录态**（{@code /api/v1/auth/**} 已在 {@code WebMvcConfig} 里放行），
  * 校验失败按 {@code 40001}（参数）/ {@code 40102}（账号或密码错误）由全局异常处理统一输出。
  *
- * <p>{@code GET /users/me} 不在本分支（属 {@code feat/backend-authz}）。
+ * <p>{@code GET /users/me} 不在这里，见 {@link UserController}（{@code feat/backend-authz}）。
  */
 @RestController
 @RequestMapping("/api/v1/auth")
