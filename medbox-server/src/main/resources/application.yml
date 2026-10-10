@@ -20,8 +20,16 @@ spring:
     resources:
       add-mappings: false           # 不做静态资源映射，未命中路径才能落到上面的异常处理（统一响应结构）
   datasource:
-    url: jdbc:postgresql://localhost:5432/medbox   # 本机 Postgres（Docker 映射）
-    # username / password：按各人本机库填写，写在不入库的 application-local.yml 里
+    # 本机 Postgres（Docker 映射），一律走 localhost，不写内网 IP（见文档 01 的 4.1.1 / 4.5）
+    # 库名与账号因人而异时用环境变量覆盖，或写在不入库的 application-local.yml 里
+    url: ${MEDBOX_DB_URL:jdbc:postgresql://localhost:5432/medbox}
+    username: ${MEDBOX_DB_USERNAME:myuser}
+    password: ${MEDBOX_DB_PASSWORD:mypassword}
+  flyway:
+    enabled: true                        # 启动时自动执行 db/migration 下的脚本，空库一键初始化
+    locations: classpath:db/migration
+    clean-disabled: true                 # 禁止 clean，避免误清库
+    validate-on-migrate: true            # 已执行脚本被改动则启动失败
   ai:
     ollama:
       base-url: http://localhost:11434   # 本地 Embedding（bge-m3），不出网、无需 Key

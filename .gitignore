@@ -62,3 +62,6 @@ medbox-server/src/main/resources/application-local.yml
 Thumbs.db
 *~
 *.swp
+
+# ---------- IDE / CodeBuddy 本地数据（计划与会话，不入库） ----------
+.codebuddy/

@@ -1,0 +1,27 @@
+# medbox-server/docker-compose.yml
+#
+# 本机没有现成的 PostgreSQL 时用这个起一个：PostgreSQL 17 + pgvector（文档 06 第 3 章）
+# 镜像与文档 01 的 4.0.1 保持一致（pg17）；库名 / 账号与 application.yml 的默认值一致，起完即可直接 bootRun。
+# 本机已有实例时不需要它，直接建库即可（见 README.md）。
+
+services:
+  pgvector:
+    image: pgvector/pgvector:pg17
+    container_name: medbox-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medbox
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - medbox-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d medbox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  medbox-pg-data:
