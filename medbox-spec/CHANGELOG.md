@@ -4,6 +4,31 @@
 > 版本格式：文档集统一版本号（各文件头部标注）。
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [V1.14] — 2026-10-10（后端落地数据库初始化与迁移）
+
+`feat/backend-db`（07 清单地基第 3 项）落地，后端接上 **PostgreSQL 17 + pgvector**，15 张表由 **Flyway** 管理。**本次不新增接口、不改 MQTT / WS 协议**，只补齐"库怎么起、表怎么建"的落地口径。
+
+- **`07`**：地基第 3 项 `feat/backend-db` 勾选完成；该项下新增"落地"一行（脚本位置、数据源占位符、持久层选型）；《构建工具约定》新增**持久层**与**数据库**两段
+- **持久层框架定为 MyBatis-Plus**：本分支**不引入依赖**，由后续功能分支按需引入并写实体 / Mapper（`mapper/` 与 `domain/` 包已预留）
+- **`06`**：头部新增《落地方式（V1.14）》——DDL 由 Flyway 管理（`V1__init_schema.sql` / `V2__vector_hnsw.sql`）；修正 2.5 节末尾多余的代码块收尾标记
+- **`01`**：4.0.1 的 CI service 镜像 `pgvector/pgvector:pg16` → **pg17**；4.1.1 的 `application.yml` 示例补 `spring.datasource` 账号占位与 `spring.flyway` 配置段；**新增 4.1.3《本地数据库：PostgreSQL 17 + pgvector》**（两种起库方式、验收命令、两个坑）
+- **后端新增（`medbox-server/`，后续分支直接复用）**：
+  - `src/main/resources/db/migration/V1__init_schema.sql`：`CREATE EXTENSION IF NOT EXISTS vector` + 15 张表 + 约束 + 5 个普通索引（`user` 是保留字，建表带双引号）
+  - `src/main/resources/db/migration/V2__vector_hnsw.sql`：`drug_manual_chunk` 的 HNSW 索引（余弦距离）；换 embedding 模型须删索引 → 改维度 → 重建向量
+  - `docker-compose.yml`（`pgvector/pgvector:pg17`，库 `medbox` / 账号 `myuser` / 密码 `mypassword`）、`README.md`（起库 / 验收 / 常见问题）
+  - `build.gradle.kts`：`spring-boot-starter-jdbc`、`spring-boot-flyway`、`flyway-core`、`flyway-database-postgresql`、`runtimeOnly("org.postgresql:postgresql")`；test 任务注入 `SPRING_FLYWAY_ENABLED=false`
+- **两个 Boot 4 / Flyway 的坑（后续分支注意）**：① Boot 4 把各技术的自动装配拆成独立模块，**必须引 `org.springframework.boot:spring-boot-flyway`**，只加 `flyway-core` 会**静默不迁移**（无报错、表不建）；② Flyway 10+ 需 `flyway-database-postgresql`，否则报 `Unsupported Database: PostgreSQL`
+- **数据源约定**：入库配置不含内网 IP，库名 / 账号走 `${MEDBOX_DB_URL}` / `${MEDBOX_DB_USERNAME}` / `${MEDBOX_DB_PASSWORD}`；各人用环境变量或不入库的 `application-local.yml` 覆盖（4.5 口径不变）
+- **版本号**：文档集统一升到 V1.14（02 / 03 / 04 / 05 内容未变，仅版本号同步）
+
+### 影响提示
+
+| 端 / 目录 | 是否需要改代码 | 说明 |
+|-----------|----------------|------|
+| `medbox-server/`（Java 后端） | ✅ 后续分支必读 | 启动前须先有 PostgreSQL 17 + pgvector（`docker compose up -d`，或已有实例 `CREATE DATABASE medbox OWNER myuser;`）；`GET /medbox/actuator/health` 现在含 `db` 指示器，**库不可达会 DOWN（503）**；写实体 / Mapper 时引入 MyBatis-Plus；`med_record` / `env_sample` / `alarm` 属高频写入表，地基期只建了最小索引，后续按实际查询再补 |
+| `medbox-miniapp/`（uni-app 小程序） | ➖ 不受影响 | 接口、字段与协议均未变 |
+| 嵌入式（设备端） | ➖ 不受影响 | 设备走 MQTT |
+
 ## [V1.13] — 2026-10-09（小程序落地请求封装）
 
 `feat/mp-request`（08 清单地基第 2 项）落地，小程序所有 REST 调用有了统一出口。**本次不新增接口、不改表结构与 MQTT / WS 协议**，只补齐小程序侧的请求约定。
