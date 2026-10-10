@@ -84,6 +84,7 @@ git switch main && git pull && git switch -
 #    - 后端：medbox-spec/07 对应项改为 - [x]
 #    - 小程序：medbox-spec/08 对应项改为 - [x]
 #    - 在 medbox-spec/CHANGELOG.md 追加/补充本次改动与影响的端
+#    - 把 medbox-spec/CHANGELOG.md 顶部的「当前版本 V15」+1，并给新条目用同一个号（如 [V16]）
 
 # ③ 一起提交
 git add medbox-server/ medbox-spec/      # 或 medbox-miniapp/ medbox-spec/
@@ -135,6 +136,7 @@ git stash pop                # 恢复未提交改动
 - [ ] 本次会话**pull 过最新代码与文档**了吗？
 - [ ] 实现与 `medbox-spec/` 里的字段 / 错误码 / 枚举**一致**吗？
 - [ ] 改了接口或表结构 → **`medbox-spec/02` / `06` / `03` 同步改了**吗？
+- [ ] 改了文档 → **`CHANGELOG.md` 顶部的版本号 +1 了**吗？（**版本号只在这一处维护**，00~06 头部不写版本号；本地 `main` 落后就先 `git pull`，冲突只在这顶部一行）
 - [ ] 功能已完成 → **勾选了 07/08 待办 + 补了 CHANGELOG**，且与代码同 PR？
 - [ ] 用户要合并 → 提醒过"先更新文档再合并"吗？
 - [ ] 用户要拉远程更新 → 提醒过"回主分支 fetch + 特性分支 rebase"吗？
