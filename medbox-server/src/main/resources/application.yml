@@ -31,6 +31,9 @@ spring:
     clean-disabled: true                 # 禁止 clean，避免误清库
     validate-on-migrate: true            # 已执行脚本被改动则启动失败
   ai:
+    # 本分支只接本地 Embedding（bge-m3）与 pgvector 向量库；Chat 后续由 feat/ai-chat 按需动态构造，这里先关掉自动装配
+    model:
+      chat: none
     ollama:
       base-url: http://localhost:11434   # 本地 Embedding（bge-m3），不出网、无需 Key
       embedding:
@@ -38,6 +41,9 @@ spring:
     vectorstore:
       pgvector:
         dimensions: 1024                 # 与 bge-m3 一致，换模型须重建向量
+        index-type: HNSW                 # 默认 HNSW（多层图索引）
+        distance-type: COSINE_DISTANCE   # 默认余弦距离
+        initialize-schema: false         # 默认不自动建表：缺 PG 也不阻塞启动；仅 ai-local profile 开 true 供集成测试
 
 server:
   port: 8080

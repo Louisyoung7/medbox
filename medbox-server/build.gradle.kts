@@ -22,6 +22,14 @@ repositories {
     mavenCentral()
 }
 
+// Spring AI 2.x：适配 Spring Boot 4（Jackson 3 与 Boot 4 一致，无 Jackson 2 冲突）
+// 见 07 清单地基第 1 项《构建工具约定》与 feat/backend-ai-infra
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.ai:spring-ai-bom:2.0.1")
+    }
+}
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -49,6 +57,12 @@ dependencies {
 
     // 只借它的 BCryptPasswordEncoder（版本由 Boot 4 的 BOM 管理），不引入 Security 过滤器链
     implementation("org.springframework.security:spring-security-crypto")
+
+    // AI 地基（feat/backend-ai-infra）：本地 OCR 调用（RestClient）+ 本地 Embedding（Ollama bge-m3）+ pgvector 向量库
+    // 版本由上方 spring-ai-bom:2.0.1 统一管理（适配 Boot 4，Jackson 3 一致）
+    implementation("org.springframework.ai:spring-ai-starter-model-ollama")
+    implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
+    // pgvector 的 JDBC vector 类型绑定由 spring-ai-starter-vector-store-pgvector 传递引入，无需显式声明
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
