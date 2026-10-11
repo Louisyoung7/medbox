@@ -23,6 +23,11 @@ medbox:
   #   provider: local
   #   endpoint: http://localhost:8000/ocr
 
+  # —— WebSocket（feat/backend-ws，见文档 04）——
+  # 本地用 wscat 验收"能收到后端主动推送的告警帧"时，打开调试推送端点（生产务必保持关闭）：
+  # ws:
+  #   debug-endpoint-enabled: true
+
   # —— MQTT（feat/backend-mqtt，见文档 03）——
   # EMQX 在本机时无需覆盖（默认 tcp://localhost:1883）；本机没起 EMQX 就用下面的开关跳过连接，应用仍能正常启动：
   # mqtt:

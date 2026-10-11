@@ -97,6 +97,19 @@ medbox:
     max-attempts: 3                 # 含首次在内的总下发次数（1 次首发 + 2 次重发）
     retry-scan-interval-ms: 1000    # 待回执账本的扫描间隔（内存账本，重启丢失少量待确认消息）
     dedup-retention-days: 7         # mqtt_message 去重记录保留天数（过期记录由清理任务删除）
+  # —— WebSocket 推送骨架（feat/backend-ws，见文档 04）——
+  # 端点完整形态 ws://{medbox.host}:8080/medbox/ws?token=..&topics=elder:{elderId}&lastEventId=evt-9a1c
+  ws:
+    enabled: ${MEDBOX_WS_ENABLED:true}   # 逃生开关：false 时整个 ws 包不装配（CI / 排障用）
+    endpoint: /ws                        # context-path /medbox 之后，即 /medbox/ws
+    heartbeat-seconds: 30                # 客户端 ping 间隔（文档 04 第 1 章）
+    idle-timeout-seconds: 90             # 服务端判僵死的空闲阈值（3 个心跳周期）
+    idle-scan-interval-ms: 30000         # 空闲连接扫描间隔
+    debug-endpoint-enabled: false        # 调试推送端点开关：**默认关**，本地联调才开（见 04 第 4 章）
+    replay:
+      max-events: 200                    # 每个主题最多保留的事件条数（文档 04 第 1 章）
+      window-minutes: 10                 # 补推窗口：只保留最近 10 分钟的事件
+
   ai:
     base-url: https://api.example.com/v1 # 公网大模型，属后端出网方向（唯一必须写死的外网地址）
 

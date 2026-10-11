@@ -64,6 +64,11 @@ dependencies {
     // 被 EIP 抽象包一层后调试路径更长，故直接用 Paho。
     implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
 
+    // WebSocket 推送骨架（feat/backend-ws，见文档 04）：用**原生 WebSocket**（WebSocketConfigurer +
+    // TextWebSocketHandler），不用 STOMP / 消息代理 —— 文档 04 的帧是自定义 JSON（含 ping/pong、
+    // 单调递增的事件 id 用于断线补推），STOMP 的订阅语义表达不了"按 lastEventId 补增量"。
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
+
     // AI 地基（feat/backend-ai-infra）：本地 OCR 调用（RestClient）+ 本地 Embedding（Ollama bge-m3）+ pgvector 向量库
     // 版本由上方 spring-ai-bom:2.0.1 统一管理（适配 Boot 4，Jackson 3 一致）
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
