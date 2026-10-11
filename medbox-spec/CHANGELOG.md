@@ -17,6 +17,17 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-11] 小程序落地 WebSocket 封装（`feat/mp-ws`）
+
+`feat/mp-ws`（08 清单地基，P0 第 2 步）落地：小程序侧接进"后端 → 小程序"实时通道，只交付**连接与分发**，告警 / 设备状态的业务页面由后续分支消费。
+
+- **`medbox-miniapp/`**：新增 `src/store/ws.js`（**唯一长连接出口**：连接 / 30s 心跳 / 指数退避重连 1s→30s / `lastEventId` 补推 / 按类型分发 / 世代号防重）、`src/utils/ws-frame.js`（帧解析与摘要纯函数）、`components/WsStatusBar.vue`（首页顶部状态条：连接状态 + 最近事件 + 手动重连，联调入口）；`App.vue` 登录后起连、回前台幂等补连；首页插入状态条
+- **`04`**：新增第 5 章《小程序落地》—— ① **握手失败客户端拿不到 HTTP 状态与 `code`**（`uni.connectSocket` 的 fail 只给 `errMsg`），一律按"连接失败 + 退避重连"处理；② 续期口径：**从未连上过不 refresh**（后端没起时不误清凭据），**曾连上过且连续失败 3 次才 refresh 一次**；③ `PONG` 不推进 `lastEventId`；`RESYNC` 记 `latestEventId` 并改走 REST 全量
+- **测试**：`npm test` 共 **63 例**（执行 62、跳过 1、失败 0），本分支新增 **38 例**（帧解析 14 + 连接编排 24）；真链路 `ws.local.test.js` **默认跳过**（需本机后端）：`MEDBOX_WS_LOCAL_TEST=true` 已跑通 —— 注册拿真 JWT → 连 `/medbox/ws` → `_debug/ws/publish` 推 ALARM → 客户端收到并分发
+- **⚠️ 跨分支约定（后续分支必读）**：① 页面**只调 `store/ws.js` 的 `onEvent(type, handler)`**，不要再 `uni.connectSocket`；② **订阅主题由调用方传**，监护人端必须传 `elderId`（"我监护的老人列表"接口属 P1 `feat/guardian-relation`，不传则不起连）；③ `RESYNC` 的消费者是 `feat/mp-alarm` / `feat/mp-device`（改走 REST 拉全量）
+- **测试配置**：`medbox-miniapp/vitest.config.js` 的 `test.include` 从 `src/utils/__tests__` 放开到 `src/**/__tests__`（`store/` 也要写测试）；uni 插件塞的 include 在 `vite.config.js` 里改不动（插件返回值优先级更高），故改在独立的 vitest 配置里
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-11] 后端落地 WebSocket 推送骨架（`feat/backend-ws`）
 
 `feat/backend-ws`（07 清单地基，P0 第 4 步）落地：打通"后端 → 小程序"的实时通道。只交付**通道 + 帧协议 + 唯一推送出口**，具体告警业务仍由后续分支接入。

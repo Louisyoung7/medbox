@@ -1,6 +1,9 @@
 <template>
   <view class="page">
     <view class="hero">
+      <view class="hero__ws">
+        <WsStatusBar />
+      </view>
       <view class="hero__top">
         <view class="hero__avatar">{{ avatarText }}</view>
         <view class="hero__who">
@@ -50,11 +53,12 @@ import MbModal from '@/components/MbModal.vue'
 import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import RoleGate from '@/components/RoleGate.vue'
+import WsStatusBar from '@/components/WsStatusBar.vue'
 import { getUserInfo, roleLabel } from '@/store/user.js'
 
 export default {
   name: 'HomePage',
-  components: { MbCard, MbCell, MbButton, MbModal, MbLoading, MbTabBar, RoleGate },
+  components: { MbCard, MbCell, MbButton, MbModal, MbLoading, MbTabBar, RoleGate, WsStatusBar },
   data() {
     return {
       name: '',
@@ -108,6 +112,10 @@ export default {
   background: $mb-gradient;
   border-bottom-left-radius: 40rpx;
   border-bottom-right-radius: 40rpx;
+
+  &__ws {
+    margin-bottom: 24rpx;
+  }
 
   &__top {
     display: flex;
