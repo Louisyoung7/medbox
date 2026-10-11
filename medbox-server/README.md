@@ -139,22 +139,17 @@ OCR 转文本与中文文本向量化**全部本地化、不出网、无需 Key*
   docker exec ollama ollama pull bge-m3
   ```
   `spring.ai.ollama.base-url`（默认 `http://localhost:11434`）、`spring.ai.ollama.embedding.model=bge-m3` 已在 `application.yml`，无需覆盖。
-- **RapidOCR 侧车（OCR）**：一个 FastAPI 包一层，`POST /ocr` 收图片/PDF 返回纯文本。最小示例：
-  ```python
-  # pip install rapidocr-onnxruntime fastapi uvicorn
-  from fastapi import FastAPI, File, UploadFile
-  from fastapi.responses import PlainTextResponse
-  from rapidocr_onnxruntime import RapidOCR
-  import tempfile, os
-  app = FastAPI(); ocr = RapidOCR()
-  @app.post("/ocr")
-  async def ocr_endpoint(file: UploadFile = File(...)):
-      data = await file.read()
-      with tempfile.NamedTemporaryFile(delete=False, suffix=".img") as f:
-          f.write(data); path = f.name
-      result, _ = ocr(path); os.unlink(path)
-      return PlainTextResponse("\n".join(line[1] for line in result) if result else "")
-  # uvicorn ocr_app:app --host 0.0.0.0 --port 8000
-  ```
+- **RapidOCR 侧车（OCR）**：一个 FastAPI 包一层、`POST /ocr` 收图片/PDF 返回纯文本。源码已落在仓库内 `medbox-server/ocr-sidecar/`（`main.py` + `requirements.txt` + `Dockerfile`），**不在 `src/main/resources`**（那只是 Java classpath 资源，会被打进 JAR，跑不起来）。
+  - 用 Docker 起（推荐，与 pgvector 一起 `docker compose up`）：
+    ```bash
+    docker compose up -d ocr      # 构建并起 medbox-ocr，监听 :8000
+    curl -F file=@说明书.jpg http://localhost:8000/ocr
+    ```
+  - 或本机直接跑（需 Python 3.11+）：
+    ```bash
+    cd medbox-server/ocr-sidecar
+    pip install -r requirements.txt
+    uvicorn main:app --host 0.0.0.0 --port 8000
+    ```
   `medbox.ocr.endpoint`（默认 `http://localhost:8000/ocr`）已在 `application.yml`；`medbox.ocr.provider=cloud` 可切换到云端 OCR（本期仅骨架，未实装）。
 - **验证（本地集成测试）**：起好上面两个服务后，设环境变量 `MEDBOX_AI_LOCAL_TEST=true`，运行 `AiLocalIntegrationTest`：① 中文文本 embed→1024 维；② 渲染带文字图片 OCR→非空；③ PgVectorStore 写入 + 相似召回回环。**CI 无本地 AI 栈，该测试自动跳过。**

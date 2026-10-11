@@ -23,6 +23,7 @@
 
 - **`07`**：地基 `feat/backend-ai-infra` 勾选完成，并补"落地"一行
 - **`medbox-server/`**：新增 `ai/` 包 —— `OcrClient` 抽象 + `LocalOcrClient`（RestClient 调本地 RapidOCR 侧车 `localhost:8000/ocr`）+ `CloudOcrClient` 骨架（按 `medbox.ocr.provider` 切换）、`OcrProperties`、`AiConfig`（条件化装配）；Embedding（Ollama `bge-m3` 1024 维）与 `PgVectorStore` 由 Spring AI 2.0.1 自动装配（`spring.ai.*` 已在 application.yml，`initialize-schema` 默认 false，缺 PG 不阻塞启动）
+- **`medbox-server/ocr-sidecar/`**：新增可独立部署的 RapidOCR 侧车（FastAPI `main.py` + `requirements.txt` + `Dockerfile`，`POST /ocr` 收图片/PDF 返回纯文本）；`docker-compose.yml` 加 `ocr` 服务（构建自该目录）；README 第 8 节改为指向该目录。**不进 `src/main/resources`**（那只是 Java classpath 资源，会被打进 JAR）
 - **依赖**：`build.gradle.kts` 引入 `spring-ai-bom:2.0.1` + `spring-ai-starter-model-ollama` + `spring-ai-starter-vector-store-pgvector`（Jackson 3 与 Boot 4 一致）
 - **测试**：`./gradlew test` 共 **97 例**（执行 94、跳过 3、失败 0）；新增 6 例（`AiInfraConfigTest` 2 + `OcrProviderSwitchTest` 1 + `AiLocalIntegrationTest` 3，后者需本地 Ollama/RapidOCR/PG，CI 默认跳过）；本地验收：`MEDBOX_AI_LOCAL_TEST=true` 跑 `AiLocalIntegrationTest` 验证 embed→1024 维 / OCR→文字 / 向量回环
 - **⚠️ 架构约定（后续分支必读）**：① 本分支 `PgVectorStore` 用其默认 `vector_store` 表仅作向量能力打通；真实 RAG 库仍是 Flyway 建的 `drug_manual_chunk`（结构化列 `medicine_id`/`elder_id`），由 `feat/manual-ingest` 自定义 INSERT、`feat/ai-chat` 用 06 §3.3 自定义 SQL 召回；② 云端 OCR 仅骨架，实装待后续分支
