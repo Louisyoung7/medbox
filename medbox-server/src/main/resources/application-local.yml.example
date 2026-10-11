@@ -22,3 +22,9 @@ medbox:
   # ocr:
   #   provider: local
   #   endpoint: http://localhost:8000/ocr
+
+  # —— MQTT（feat/backend-mqtt，见文档 03）——
+  # EMQX 在本机时无需覆盖（默认 tcp://localhost:1883）；本机没起 EMQX 就用下面的开关跳过连接，应用仍能正常启动：
+  # mqtt:
+  #   enabled: false
+  # Topic 前缀与下行 ack 重发参数一般也不用动，要调见 application.yml 里的默认值。

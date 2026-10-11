@@ -80,10 +80,23 @@ medbox:
     retention-days-read: 7        # 已读后保留天数；expire_at = MIN(captured+30d, viewed+7d)
 
   # —— 出站地址：后端作为“客户端”要连的对端 —— #
+  # MQTT 接入（feat/backend-mqtt，见文档 03）：本机 EMQX，本期匿名连接（无用户名密码）
   mqtt:
+    enabled: ${MEDBOX_MQTT_ENABLED:true} # 逃生开关：MQTT 相关 Bean 全部条件装配，false 时完全不连 broker
+                                         # （CI / 未起 EMQX 时用它，避免 @SpringBootTest 启动失败）
     broker: tcp://localhost:1883    # EMQX 与后端同机，走 localhost，无内网 IP
     client-id: medbox-server-01     # 后端在 EMQX 里的 clientId（**本期匿名连接，无需用户名密码**）
     # username / password：本期不配置；将来关闭 EMQX 匿名时再补（见文档 03 第 1 章）
+    topic-prefix: medbox            # Topic 一级前缀，完整形态 medbox/{productKey}/{deviceId}/up|down|status/...
+    subscribe-qos: 1                # 订阅 QoS（上行里 telemetry/heartbeat 是 QoS0，订阅侧给 1 仍按发布方 QoS 投递）
+    keep-alive-seconds: 60          # KeepAlive，与设备端一致（见文档 03 第 1 章）
+    clean-session: true             # 干净会话；重连后在 connectComplete 回调里重新订阅，避免 session 状态不一致
+    auto-reconnect: true            # Paho 自动重连
+    connection-timeout-seconds: 10  # 单次连接超时；**连不上不阻塞应用启动**，只 WARN 并后台重试
+    ack-timeout-ms: 5000            # 下行消息等待 up/ack 的超时（文档 03 第 1 章：超时重发，最多 3 次）
+    max-attempts: 3                 # 含首次在内的总下发次数（1 次首发 + 2 次重发）
+    retry-scan-interval-ms: 1000    # 待回执账本的扫描间隔（内存账本，重启丢失少量待确认消息）
+    dedup-retention-days: 7         # mqtt_message 去重记录保留天数（过期记录由清理任务删除）
   ai:
     base-url: https://api.example.com/v1 # 公网大模型，属后端出网方向（唯一必须写死的外网地址）
 
