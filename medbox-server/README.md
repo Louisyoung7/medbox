@@ -212,3 +212,25 @@ docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "se
 | 消费某个上行 topic 的业务逻辑 | 新增一个类实现 `UpMessageHandler`（`supports()` 返回 `up/` 之后的子路径，如 `telemetry`）并注册成 `@Bean`，**不用改本分支代码** |
 | 下发计划 / 命令 | 注入 `DownlinkPublisher`，调 `publish(deviceId, "schedule"\|"command", payload, needAck)`；`msgId` / `needAck` 由它注入，别自己拼 |
 | 下发失败要告警 | 替换 `DownlinkFailureListener` 的实现即可（当前只打 WARN 日志，告警实体属 `feat/alarm-core`） |
+
+## 10. WebSocket 推送（`feat/backend-ws`，见文档 04）
+
+端点 `ws://{medbox.host}:8080/medbox/ws?token={JWT}&topics=elder:{elderId}[&lastEventId=evt-xxxx]`，
+**只支持 `elder:{elderId}` 主题**（`device:` 待 `feat/device-core` 提供设备归属解析）。
+
+```bash
+# 1) 登录拿 token（见第 7 节）
+# 2) wscat 订阅；每 30s 发一次 {"type":"ping"}，服务端回 PONG（90s 无任何帧会被断开）
+wscat -c "ws://192.168.1.10:8080/medbox/ws?token=$TOKEN&topics=elder:e-1001"
+# 3) 触发一帧：开 medbox.ws.debug-endpoint-enabled=true 后
+curl -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/ws/publish \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"elderId":"e-1001","type":"ALARM"}'
+```
+
+- 越权主题（不是我可见的老人）**整个握手被拒**：HTTP 403 + `{"code":40301,...}`；token 无效 401；主题语法错 400。
+- 调试端点**默认不装配**（`medbox.ws.debug-endpoint-enabled=false`），生产保持关闭；它仍需登录并通过
+  `AccessService.require(elderId, READ_ALARM)`，不是后门。
+- 后续业务分支推送一律调 `WsPushService.publish(topic, type, payload)`，**不要自己持有 `WebSocketSession`**。
+- 本机没起应用也能跑真链路测试：`MEDBOX_WS_LOCAL_TEST=true ./gradlew test --tests '*WsLocalIntegrationTest'`
+  （它会自己拉起随机端口的完整上下文，替代手工 wscat）。
