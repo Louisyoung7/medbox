@@ -17,6 +17,13 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-11] 小程序地基 UI Kit（feat/mp-ui-kit）：组件库 + 工具 + 页面骨架
+
+- **`medbox-miniapp/`**：新增 `components/`（MbCard / MbCell / MbEmpty / MbLoading / MbModal / MbButton / MbField / MbNavbar / MbTabBar / RoleGate）、`utils/datetime.js`（UTC→本地：绝对 / 相对 / 临期）、`utils/permission.js`（`canAccess` + `ENTRY_ROLES`）、`config/tabbar.js`（`TAB_ENTRIES`）；`uni.scss` 加 MedBox 主题变量；预建 device / medicine / plan / record / profile 占位页 + **自定义角色化 TabBar**（绕开原生 5 项限制，按角色过滤入口）
+- **跨分支约定**：① 入口角色可见性集中在 `ENTRY_ROLES`，改可见性只改配置不动组件；② 时间一律 UTC，展示统一走 `datetime.js`；③ 组件 `Mb` 前缀统一，避免与 uni 内置重名
+- **测试**：Vitest 单测 **24 例全通过**（datetime 19 + permission 5）；`npm run build:mp-weixin` 编译通过（新增 devDependency：`vitest` / `sass`）
+- 影响端：`medbox-miniapp/` 是 · `medbox-server/` 否 · 嵌入式 否
+
 ## [2026-10-10] 后端落地权限与监护关系校验（`feat/backend-authz`）
 
 `GET /users/me` 终于可用，小程序冷启动的静默续期打通。落地了**集中式权限矩阵**与四步校验顺序，后续功能分支（`medicine-core` / `plan-core` / `alarm-core` / `ai-chat` ...）统一调 `AccessService.require(elderId, Permission)`，不再各自写角色判断。
