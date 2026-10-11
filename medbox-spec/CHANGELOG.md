@@ -17,6 +17,18 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-11] 后端落地 WebSocket 推送骨架（`feat/backend-ws`）
+
+`feat/backend-ws`（07 清单地基，P0 第 4 步）落地：打通"后端 → 小程序"的实时通道。只交付**通道 + 帧协议 + 唯一推送出口**，具体告警业务仍由后续分支接入。
+
+- **`04`**：补齐三处原文留白 —— ① 握手失败返回 **HTTP 401/403 + 统一响应体**（握手不走 MVC，`GlobalExceptionHandler` 管不到）；② `lastEventId` 走**握手 query**（`&lastEventId=evt-9a1c`），重连建连即补；③ 主题语法定为**仅 `elder:{elderId}`**（逗号分隔多主题），`device:` 本期不支持；另补心跳 90s 空闲阈值、按主题的补推窗口边界，并新增 **`RESYNC` 帧**（窗口过期时告知客户端改走 REST）
+- **`medbox-server/`**：新增 `ws/` 包 —— `WsProperties`+`WsConfig`（`medbox.ws.enabled` 整包条件装配）、`WsFrame`/`WsFrameType`/`WsEventId`、`WsTopic`、`WsHandshakeInterceptor`、`MedboxWebSocketHandler`、`WsSessionManager`、`WsEventBuffer`、`WsPushService`、`WsIdleSessionReaper`、`WsDebugController`；新增 `payload/{AlarmPayload,DeviceStatusPayload}`
+- **依赖**：`build.gradle.kts` 引入 `spring-boot-starter-websocket`；**用原生 WebSocket 不用 STOMP**（04 是自定义 JSON 帧，含 ping/pong 与按 lastEventId 补推，STOMP 表达不了）
+- **配置**：`application.yml` 新增 `medbox.ws.*`（endpoint `/ws`、心跳 30s、空闲 90s、补推 200 条 / 10 分钟、`debug-endpoint-enabled` **默认 false**）
+- **测试**：`./gradlew test` 共 **175 例全通过**（执行 170、跳过 5、失败 0）；本分支新增 **43 例**；真链路：`MEDBOX_WS_LOCAL_TEST=true ./gradlew test --tests '*WsLocalIntegrationTest'` 已跑通（真实客户端连 `/medbox/ws` 收到后端主动推送的 ALARM 帧）
+- **⚠️ 跨分支约定（后续分支必读）**：① 推送一律走 **`WsPushService.publish(topic, type, payload)`**，不要自己持有 `WebSocketSession`；② **`device:` 主题尚未支持**（`DeviceOwnerResolver` 待 `feat/device-core`）；③ 事件缓冲在**内存**、按主题保留，**重启 / 多实例即丢**，换外部存储时调用方不用改；④ 未注册 `ServletServerContainerFactoryBean`（Boot 4 下它取 `ServerContainer` 太早会拖垮启动），单帧沿用容器默认 8KB
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 是（后续 `feat/mp-*` 按 04 的 query 参数与 `RESYNC` 帧对接） · 嵌入式 否
+
 ## [2026-10-11] 后端落地 MQTT 客户端与消息骨架（`feat/backend-mqtt`）
 
 `feat/backend-mqtt`（07 清单地基，P0 第 3 步）落地：打通"设备 ⇄ EMQX ⇄ 后端"的消息通道。**只做通信骨架**（连接 / 订阅 / 去重 / 在线态 / 下行 ack 重发），**不含任何业务落库** —— 各上行 topic 的业务语义留给后续分支接 `UpMessageHandler` 实现。

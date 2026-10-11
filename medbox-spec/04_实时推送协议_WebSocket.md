@@ -7,21 +7,29 @@
 | 项 | 约定 |
 |----|------|
 | 端点 | `ws://{后端主机内网IP}:8080/medbox/ws?token={JWT}&topics=elder:e-1001`（局域网明文） |
-| 鉴权 | 握手校验 JWT；按订阅主题（所监护老人 / 设备）鉴权，越权主题拒绝 |
-| 心跳 | 客户端每 30s 发 `{"type":"ping"}`，服务端回 pong；超时断开 |
-| 重连 | 断线指数退避重连（初始 1s，上限 30s）；重连后按 `lastEventId` 补推增量 |
-| 补推窗口 | 服务端只保留**最近 200 条 / 最近 10 分钟**的事件用于补推，超出部分客户端应改用 REST 拉取全量 |
-| 调试 | 用 `wscat -c "ws://{IP}:8080/medbox/ws?token=...&topics=elder:e-1001"` 验证；MQTT 侧用 EMQX Dashboard（见文档 03 第 5 章） |
+| 鉴权 | 握手校验 JWT；按订阅主题鉴权，**越权主题直接拒绝整个握手** |
+| 主题语法 | 仅支持 **`elder:{elderId}`**，多个用逗号分隔（`topics=elder:e-1001,elder:e-1002`）；**`device:{deviceId}` 本期不支持**（设备归属解析由 `feat/device-core` 提供，见 07），传了返回 40001 |
+| 归属判定 | 复用 REST 同一口径（02 的 1.3）：订阅主题必须落在"我可见的老人"内（老人 = 自己；监护人 = 所有 ACTIVE 监护关系）。PENDING / REVOKED / 无关系一律按越权处理 |
+| 握手失败 | 直接返回 HTTP 状态码 + **统一响应体**（`code/message/traceId/timestamp`）：`40001`→400、`40101`→401、`40301`→403。握手不走 MVC，客户端按 HTTP 状态与 `code` 判断即可 |
+| 心跳 | 客户端每 **30s** 发 `{"type":"ping"}`，服务端回 `PONG`；服务端 **90s**（3 个周期）无任何客户端帧即关闭连接 |
+| 重连 | 断线指数退避重连（初始 1s，上限 30s）；**重连时把 `lastEventId` 放在握手 query 上**（`&lastEventId=evt-9a1c`），服务端建连即补推增量 |
+| 补推窗口 | 服务端**按主题**各保留最近 **200 条 / 最近 10 分钟**的事件；窗口内取不到"该给的下一跳"（被淘汰或已跨过）则回 **`RESYNC`**，客户端改用 REST 拉全量 |
+| 连接期 token | 握手时校验一次；**连接存续期间不主动踢**（局域网场景，2 小时有效期），重连时自然重新鉴权 |
+| 调试 | 用 `wscat -c "ws://{IP}:8080/medbox/ws?token=...&topics=elder:e-1001"` 验证；推送触发源见第 4 章的调试端点；MQTT 侧用 EMQX Dashboard（见文档 03 第 5 章） |
 
 ## 2. 消息帧结构
 
 ```json
-{ "type":"ALARM|DEVICE_STATUS|REMINDER|AI_STREAM|PONG",
-  "id":"evt-9a1c",           // 单调递增/雪花，用于断线补推
+{ "type":"ALARM|DEVICE_STATUS|REMINDER|AI_STREAM|PONG|RESYNC",
+  "id":"evt-9a1c",           // evt- + 单调递增序号的十六进制，用于断线补推
   "topic":"elder:e-1001",
-  "ts":1759474520000,
+  "ts":1759474520000,        // epoch **毫秒**（与 REST 响应体 R.timestamp 的秒不同）
   "payload": { } }
 ```
+
+> `PONG` 是控制帧：**不带 `topic` 与 `payload`**（一条连接可能订阅多个主题，无从归属）。
+> `RESYNC` 是本分支新增：补推窗口过期时告诉客户端"别等补推了，改走 REST 拉全量"，
+> 否则客户端分不清"没有新事件"与"事件已被淘汰"。
 
 ## 3. 推送事件类型
 
@@ -31,6 +39,7 @@
 | DEVICE_STATUS | 设备在线/离线（订阅 retained status） | deviceId, deviceType(`MAIN`/`TEMP_HUMI`/`LIGHT`/`CAMERA`), online, parentDeviceId（子设备时） |
 | REMINDER | 临近服药计划提醒（可选，监护端提醒） | planId, planTime, **`medicines[]`**（一次提醒可含多种药） |
 | AI_STREAM | AI 流式回答分片（**本期不使用**：流式统一走 HTTP SSE，见文档 05） | sessionId, delta |
+| RESYNC | 补推窗口已过期，客户端应改走 REST 拉全量 | `reason=WINDOW_EXPIRED`、`latestEventId` |
 
 > **DEVICE_STATUS 覆盖子设备**：药箱主控（`MAIN`）离线/上线各推一条；**传感器子设备**没有自己的 MQTT 连接，其在线状态由主控通过 `up/sensor/heartbeat` 汇总上报（见文档 03 第 3 章），后端据此推送子设备的 `DEVICE_STATUS`（带 `deviceType` 与 `parentDeviceId`）。子设备离线**不生成 DEVICE_OFFLINE 告警**，仅在设备详情页标注。
 
@@ -51,3 +60,50 @@
     "medicines":[ { "itemId":"pi-9001","medicineId":"m-205","medicineName":"阿莫西林","dose":"1","unit":"片" },
                   { "itemId":"pi-9002","medicineId":"m-388","medicineName":"维生素D","dose":"2","unit":"粒" } ] } }
 ```
+
+---
+
+## 4. 后端落地（`feat/backend-ws`）
+
+**推送出口只有一个**：`WsPushService.publish(topic, WsFrameType, payload)` → 返回 `(eventId, 送达连接数)`。
+后续业务分支（`feat/miss-alarm`、`feat/plan-reminder`、`feat/env-alarm`、`feat/alarm-core`）一律只调它，
+**不要自己持有 `WebSocketSession`** —— 与 MQTT 侧"下行出口只有 `DownlinkPublisher`"是同一条约定。
+
+| 组件 | 职责 |
+|------|------|
+| `WsConfig` | `@EnableWebSocket` + `@EnableScheduling`；`medbox.ws.enabled=false` 整包不装配（与 `MqttConfig` 同套路） |
+| `WsHandshakeInterceptor` | 解析 `token` → 解析 `topics` 语法 → `AccessService.visibleElderIds()` 归属判定；拒绝时写 HTTP 状态 + 统一响应体；`finally` 清 `AuthContext` |
+| `MedboxWebSocketHandler` | 建连注册、按 `lastEventId` 补推（过期发 `RESYNC`）、`ping`→`PONG`、关闭 / 异常摘除连接 |
+| `WsSessionManager` | `topic → sessionId` 倒排索引、按连接串行发送、发送失败即摘除、90s 空闲回收 |
+| `WsEventBuffer` | **按主题**各留最近 200 条 / 10 分钟；记每主题已发最大序号，据此判定"窗口已过期" |
+| `WsPushService` | 发号（`evt-` + 十六进制递增序号）→ 组帧 → 写缓冲 → 扇出 |
+| `WsIdleSessionReaper` | 30s 扫描一次，关闭 90s 无消息的连接 |
+| `WsDebugController` | `POST /api/v1/_debug/ws/publish`，**默认不装配**（见下） |
+
+**几个取舍**：
+
+- **用原生 WebSocket，不用 STOMP / 消息代理**：本协议的帧是自定义 JSON，含 `ping/pong` 与"按 `lastEventId`
+  补增量"，STOMP 的 destination 订阅语义表达不了，还会白引入一层代理。
+- **归属判定用 `visibleElderIds()` 而不是 `require(elderId, Permission)`**：握手阶段只有"订阅哪些老人"，
+  没有"要做什么操作"，拿不到具体 `Permission`；用可见老人集合一次查询覆盖所有主题，也避免逐主题查库。
+- **事件缓冲放内存**：骨架期单实例足够，代价是**重启 / 多实例即丢**。届时可换 Redis / 表，
+  `WsPushService` 签名与补推语义不变，调用方零改动。
+- **未注册 `ServletServerContainerFactoryBean`**：它在 `afterPropertiesSet` 就去取
+  `jakarta.websocket.server.ServerContainer`，而 Boot 4 下该属性要等内嵌 Tomcat 起来才有，注册会让
+  应用上下文启动失败。单帧大小沿用容器默认（Tomcat 文本帧 8KB），业务帧远小于此。
+
+**调试推送端点（本地联调用）**：告警的业务源头（`feat/miss-alarm`）是 P0 第 10 步，骨架阶段没有触发源，
+故留一个开关控制的入口 —— `medbox.ws.debug-endpoint-enabled=true` 时才装配：
+
+```bash
+# 1) 开端点（写在 application-local.yml，或启动时加参数）后起应用
+# 2) wscat 订阅
+wscat -c "ws://192.168.1.10:8080/medbox/ws?token=$TOKEN&topics=elder:e-1001"
+# 3) 触发一帧
+curl -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/ws/publish \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"elderId":"e-1001","type":"ALARM"}'
+```
+
+端点落在 `/api/v1/**`（强制登录）并再经 `AccessService.require(elderId, READ_ALARM)` 校验归属，
+越权照样 40301 —— 能推的范围不超出调用者本来就能看到的数据。**生产务必保持关闭。**
