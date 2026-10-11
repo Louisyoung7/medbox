@@ -17,6 +17,17 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-11] 后端落地本地 OCR / Embedding 与向量库接入（feat/backend-ai-infra）
+
+`feat/backend-ai-infra`（07 清单地基，P0 第 2 步）落地：把 OCR 转文本、中文文本向量化、向量入库与召回三块本地能力接进 Spring 容器，为后续 P2 的 `ai-chat` / `manual-ingest` 打地基。所有 AI 操作局域网内闭环（不出网、无需 Key），仅 Chat 问答后续出网。
+
+- **`07`**：地基 `feat/backend-ai-infra` 勾选完成，并补"落地"一行
+- **`medbox-server/`**：新增 `ai/` 包 —— `OcrClient` 抽象 + `LocalOcrClient`（RestClient 调本地 RapidOCR 侧车 `localhost:8000/ocr`）+ `CloudOcrClient` 骨架（按 `medbox.ocr.provider` 切换）、`OcrProperties`、`AiConfig`（条件化装配）；Embedding（Ollama `bge-m3` 1024 维）与 `PgVectorStore` 由 Spring AI 2.0.1 自动装配（`spring.ai.*` 已在 application.yml，`initialize-schema` 默认 false，缺 PG 不阻塞启动）
+- **依赖**：`build.gradle.kts` 引入 `spring-ai-bom:2.0.1` + `spring-ai-starter-model-ollama` + `spring-ai-starter-vector-store-pgvector`（Jackson 3 与 Boot 4 一致）
+- **测试**：`./gradlew test` 共 **97 例**（执行 94、跳过 3、失败 0）；新增 6 例（`AiInfraConfigTest` 2 + `OcrProviderSwitchTest` 1 + `AiLocalIntegrationTest` 3，后者需本地 Ollama/RapidOCR/PG，CI 默认跳过）；本地验收：`MEDBOX_AI_LOCAL_TEST=true` 跑 `AiLocalIntegrationTest` 验证 embed→1024 维 / OCR→文字 / 向量回环
+- **⚠️ 架构约定（后续分支必读）**：① 本分支 `PgVectorStore` 用其默认 `vector_store` 表仅作向量能力打通；真实 RAG 库仍是 Flyway 建的 `drug_manual_chunk`（结构化列 `medicine_id`/`elder_id`），由 `feat/manual-ingest` 自定义 INSERT、`feat/ai-chat` 用 06 §3.3 自定义 SQL 召回；② 云端 OCR 仅骨架，实装待后续分支
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-11] 小程序地基 UI Kit（feat/mp-ui-kit）：组件库 + 工具 + 页面骨架
 
 - **`medbox-miniapp/`**：新增 `components/`（MbCard / MbCell / MbEmpty / MbLoading / MbModal / MbButton / MbField / MbNavbar / MbTabBar / RoleGate）、`utils/datetime.js`（UTC→本地：绝对 / 相对 / 临期）、`utils/permission.js`（`canAccess` + `ENTRY_ROLES`）、`config/tabbar.js`（`TAB_ENTRIES`）；`uni.scss` 加 MedBox 主题变量；预建 device / medicine / plan / record / profile 占位页 + **自定义角色化 TabBar**（绕开原生 5 项限制，按角色过滤入口）

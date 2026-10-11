@@ -15,3 +15,10 @@ medbox:
   # 一旦改了它，已签发的 token 全部失效，需要重新登录。
   jwt:
     secret: please-change-this-to-a-long-random-string
+
+  # —— 本地 AI 服务（feat/backend-ai-infra）——
+  # Ollama 与 RapidOCR 的地址在入库的 application.yml 已默认指向本机 localhost，一般无需覆盖；
+  # 若侧车不在本机，改这里即可：
+  # ocr:
+  #   provider: local
+  #   endpoint: http://localhost:8000/ocr
