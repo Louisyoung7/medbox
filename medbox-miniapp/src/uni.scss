@@ -74,3 +74,36 @@ $uni-color-subtitle: #555; // 二级标题颜色
 $uni-font-size-subtitle: 18px;
 $uni-color-paragraph: #3f536e; // 文章段落颜色
 $uni-font-size-paragraph: 15px;
+
+/* =====================================================================
+ * MedBox 主题变量（feat/mp-ui-kit，全端组件统一引用，不写死色值）
+ * 医疗清爽风：青绿品牌色 + 浅灰蓝页面背景 + 白卡
+ * ===================================================================== */
+$mb-primary: #0e9f8e; // 主色（医疗青绿）
+$mb-primary-light: #12b39f; // 主色高亮（渐变起）
+$mb-primary-dark: #0b8c7c; // 主色深（渐变止 / 按压）
+$mb-primary-bg: #e3f6f3; // 主色浅底（ghost 按钮 / 标签）
+$mb-gradient: linear-gradient(135deg, #12b39f 0%, #0e9f8e 100%); // 主按钮渐变
+
+$mb-bg: #f4f8fa; // 页面背景
+$mb-card-bg: #ffffff; // 卡片背景
+$mb-mask: rgba(0, 0, 0, 0.4); // 遮罩
+
+$mb-text: #1b2b2a; // 主文字
+$mb-text-2: #333333; // 次文字
+$mb-text-3: #6b7c80; // 辅助灰
+$mb-text-4: #a8b4b6; // 占位 / 极弱
+$mb-placeholder: #a8b4b6; // 输入占位
+
+$mb-warning: #f0ad4e; // 临期 / 警示
+$mb-danger: #e5484d; // 过期 / 错误
+$mb-success: #0e9f8e; // 成功（与主色同源）
+$mb-border: #eef2f3; // 分割线 / 输入框边框
+
+$mb-radius-sm: 12rpx;
+$mb-radius: 24rpx; // 卡片圆角
+$mb-radius-lg: 28rpx;
+$mb-radius-pill: 48rpx; // 按钮胶囊
+
+$mb-shadow: 0 8rpx 24rpx rgba(14, 159, 142, 0.12); // 卡片柔和阴影
+$mb-gap: 24rpx; // 卡片间距

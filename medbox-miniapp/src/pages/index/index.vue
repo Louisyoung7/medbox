@@ -1,187 +1,170 @@
 <template>
-  <view class="content">
-    <image class="logo" src="/static/logo.png"></image>
-    <view class="text-area">
-      <text class="title">智能药箱</text>
+  <view class="page">
+    <view class="hero">
+      <view class="hero__top">
+        <view class="hero__avatar">{{ avatarText }}</view>
+        <view class="hero__who">
+          <text class="hero__name">{{ name || '未登录' }}</text>
+          <text class="hero__role">{{ roleText }}</text>
+        </view>
+      </view>
+      <text class="hero__greeting">{{ greeting }}</text>
     </view>
 
-    <!-- 登录态（feat/mp-auth 临时入口，后续由 mp-ui-kit / mp-profile 接管） -->
-    <view class="card">
-      <view class="row">
-        <text class="label">登录状态</text>
-        <text class="value" :class="{ 'value--ok': loggedIn }">
-          {{ loggedIn ? '已登录' : '未登录' }}
-        </text>
-      </view>
-      <view class="row" v-if="loggedIn">
-        <text class="label">当前用户</text>
-        <text class="value">{{ userId }}（{{ roleText }}）</text>
-      </view>
+    <view class="section">
+      <MbCard title="功能入口">
+        <MbCell title="我的设备" value="药箱与传感器" arrow clickable @click="go('/pages/device/device')" />
+        <MbCell title="药品管理" value="公共与私有药品" arrow clickable @click="go('/pages/medicine/medicine')" />
+        <MbCell title="服药计划" value="提醒与剂量" arrow clickable @click="go('/pages/plan/plan')" />
+        <MbCell title="服药记录" value="按时 / 错服明细" arrow clickable @click="go('/pages/record/record')" />
+      </MbCard>
 
-      <view class="actions">
-        <button v-if="loggedIn" class="btn btn--ghost" hover-class="btn--hover" @click="onLogout">
-          退出登录
-        </button>
-        <button v-else class="btn" hover-class="btn--hover" @click="onGoLogin">去登录</button>
-        <button v-if="!loggedIn" class="btn btn--ghost" hover-class="btn--hover" @click="onGoRegister">
-          去注册
-        </button>
-      </view>
+      <RoleGate entry="alarmSettings">
+        <MbCard title="监护台">
+          <text class="guard-hint">仅监护人可见：告警设置、环境阈值、为老人配置 AI Key 将在此区域。</text>
+        </MbCard>
+      </RoleGate>
+
+      <MbCard title="组件演示">
+        <view class="demo-row">
+          <MbButton type="primary" @click="openModal">弹窗</MbButton>
+          <MbButton type="ghost" @click="toggleLoading">加载</MbButton>
+        </view>
+      </MbCard>
     </view>
 
-    <view class="card">
-      <view class="row">
-        <text class="label">后端 REST</text>
-        <text class="value">{{ BASE_URL }}</text>
-      </view>
-      <view class="row">
-        <text class="label">WebSocket</text>
-        <text class="value">{{ WS_URL }}</text>
-      </view>
-      <view class="row">
-        <text class="label">当前 HOST</text>
-        <text class="value">{{ hostFrom }}</text>
-      </view>
-    </view>
+    <MbModal v-model="showModal" title="提示" confirm-text="知道了">
+      这是 MedBox UI Kit 的弹窗组件示例。
+    </MbModal>
+    <MbLoading v-if="loading" text="加载中..." />
 
-    <text class="hint">地基分支 scaffold 占位页；地址取自 src/config/index.js</text>
+    <MbTabBar />
   </view>
 </template>
 
 <script>
-import { BASE_URL, WS_URL, SERVER_HOST } from '@/config/index.js'
-import { isLoggedIn, logout } from '@/store/auth.js'
+import MbCard from '@/components/MbCard.vue'
+import MbCell from '@/components/MbCell.vue'
+import MbButton from '@/components/MbButton.vue'
+import MbModal from '@/components/MbModal.vue'
+import MbLoading from '@/components/MbLoading.vue'
+import MbTabBar from '@/components/MbTabBar.vue'
+import RoleGate from '@/components/RoleGate.vue'
 import { getUserInfo, roleLabel } from '@/store/user.js'
 
 export default {
+  name: 'HomePage',
+  components: { MbCard, MbCell, MbButton, MbModal, MbLoading, MbTabBar, RoleGate },
   data() {
     return {
-      BASE_URL,
-      WS_URL,
-      hostFrom: SERVER_HOST,
-      loggedIn: false,
-      userId: '',
+      name: '',
       roleText: '',
+      showModal: false,
+      loading: false,
     }
   },
   onShow() {
-    // 登录 / 退出后都会回到这里，故在 onShow 里同步（不是 onLoad）
     const info = getUserInfo()
-    this.loggedIn = isLoggedIn()
-    this.userId = info.userId || ''
+    this.name = info.name || info.userId || ''
     this.roleText = roleLabel(info.role)
   },
+  computed: {
+    avatarText() {
+      return (this.name || '?').slice(0, 1)
+    },
+    greeting() {
+      const h = new Date().getHours()
+      if (h < 6) return '夜深了，注意休息'
+      if (h < 12) return '早上好，按时吃药'
+      if (h < 18) return '下午好，记得喝水'
+      return '晚上好，别忘服药'
+    },
+  },
   methods: {
-    onLogout() {
-      uni.showModal({
-        title: '退出登录',
-        content: '退出后需要重新输入账号密码',
-        success: (res) => {
-          if (res.confirm) {
-            logout()
-          }
-        },
-      })
+    go(path) {
+      uni.reLaunch({ url: path })
     },
-    onGoLogin() {
-      uni.navigateTo({ url: '/pages/auth/login' })
+    openModal() {
+      this.showModal = true
     },
-    onGoRegister() {
-      uni.navigateTo({ url: '/pages/auth/register' })
+    toggleLoading() {
+      this.loading = true
+      setTimeout(() => (this.loading = false), 1200)
     },
   },
 }
 </script>
 
-<style>
-.content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 30rpx;
-}
-
-.logo {
-  height: 160rpx;
-  width: 160rpx;
-  margin-top: 60rpx;
-}
-
-.text-area {
-  display: flex;
-  justify-content: center;
-  margin: 30rpx 0;
-}
-
-.title {
-  font-size: 40rpx;
-  color: #333;
-}
-
-.card {
-  width: 100%;
+<style lang="scss" scoped>
+.page {
+  min-height: 100vh;
+  padding: 24rpx 24rpx calc(110rpx + env(safe-area-inset-bottom) + 24rpx);
   box-sizing: border-box;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
-  border-radius: 12rpx;
-  background-color: #f8f8f8;
 }
 
-.row {
+.hero {
+  margin: -24rpx -24rpx 24rpx;
+  padding: 48rpx 40rpx calc(48rpx + 24rpx);
+  background: $mb-gradient;
+  border-bottom-left-radius: 40rpx;
+  border-bottom-right-radius: 40rpx;
+
+  &__top {
+    display: flex;
+    align-items: center;
+  }
+
+  &__avatar {
+    width: 96rpx;
+    height: 96rpx;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    font-size: 44rpx;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__who {
+    margin-left: 24rpx;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__name {
+    font-size: 38rpx;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  &__role {
+    margin-top: 6rpx;
+    font-size: 24rpx;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  &__greeting {
+    display: block;
+    margin-top: 28rpx;
+    font-size: 30rpx;
+    color: #fff;
+  }
+}
+
+.guard-hint {
+  font-size: 26rpx;
+  color: $mb-text-3;
+  line-height: 1.6;
+}
+
+.demo-row {
   display: flex;
-  flex-direction: column;
-  margin-bottom: 20rpx;
-  word-break: break-all;
-}
+  gap: 20rpx;
 
-.label {
-  font-size: 24rpx;
-  color: #999;
-}
-
-.value {
-  font-size: 28rpx;
-  color: #333;
-}
-
-.value--ok {
-  color: #0e9f8e;
-}
-
-.actions {
-  display: flex;
-  flex-direction: row;
-}
-
-.btn {
-  flex: 1;
-  height: 84rpx;
-  line-height: 84rpx;
-  margin-right: 16rpx;
-  padding: 0;
-  border-radius: 42rpx;
-  font-size: 30rpx;
-  color: #ffffff;
-  background: linear-gradient(135deg, #12b39f 0%, #0e9f8e 100%);
-}
-
-.btn:last-child {
-  margin-right: 0;
-}
-
-.btn--ghost {
-  color: #0e9f8e;
-  background: #e3f6f3;
-}
-
-.btn--hover {
-  transform: scale(0.98);
-  opacity: 0.94;
-}
-
-.hint {
-  margin-top: 30rpx;
-  font-size: 24rpx;
-  color: #bbb;
+  .mb-btn {
+    flex: 1;
+  }
 }
 </style>
