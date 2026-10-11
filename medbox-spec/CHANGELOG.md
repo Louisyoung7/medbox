@@ -17,6 +17,19 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-11] 后端落地 MQTT 客户端与消息骨架（`feat/backend-mqtt`）
+
+`feat/backend-mqtt`（07 清单地基，P0 第 3 步）落地：打通"设备 ⇄ EMQX ⇄ 后端"的消息通道。**只做通信骨架**（连接 / 订阅 / 去重 / 在线态 / 下行 ack 重发），**不含任何业务落库** —— 各上行 topic 的业务语义留给后续分支接 `UpMessageHandler` 实现。
+
+- **`07`**：地基 `feat/backend-mqtt` 勾选完成，并补"落地"一行；本分支依赖的后续 P0 分支（`device-core` / `env-core` / `dispense-consume` / `plan-sync` 等）无需改动即可在此基础上接手业务处理
+- **`medbox-server/`**：新增 `mqtt/` 包 —— `MqttProperties` + `MqttConfig`（整包 `@ConditionalOnProperty(medbox.mqtt.enabled)`，**缺 broker 不阻塞启动**）、`MqttConnectionManager`（`MqttAsyncClient` 自动重连、`connectComplete` 里重订阅）、`MqttTopics`、`MqttInboundGateway`（统一兜异常，异常不外溢 Paho 回调线程）、`payload/`（按 03 第 3 章 1:1 的上行 DTO）、`MqttMessageDeduplicator`（**先 INSERT 抢唯一键**，冲突即重复）、`DeviceStatusService`、`DownlinkPublisher` + `PendingAckRegistry`（**内存账本**）、`DownlinkFailureListener` 告警 hook；并提前引入 `domain/Device` + `mapper/DeviceMapper`（由 `feat/device-core` 复用，**仍未实现 `DeviceOwnerResolver`**）
+- **表结构**：Flyway `V5__mqtt.sql` 新增 `mqtt_message`（上行去重，默认保留 7 天），见 06 的 2.15
+- **依赖**：`build.gradle.kts` 引入 `org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5`（**不用 Spring Integration MQTT**：底层同样是 Paho，但自动重连后的重订阅与 ack 重发要精确可控）；测试任务补 `MEDBOX_MQTT_ENABLED=false`（与已有 `SPRING_FLYWAY_ENABLED=false` 并列，CI 无中间件也能跑）
+- **配置与联调**：`application.yml` 的 `medbox.mqtt.*` 扩为结构化配置（含 ack 超时 / 最大下发次数 / 扫描间隔 / 去重保留天数）；本机没起 EMQX 时用 `medbox.mqtt.enabled=false` 或环境变量 `MEDBOX_MQTT_ENABLED=false` 跳过连接；EMQX 起法见 `medbox-server/README.md` 第 9 节
+- **测试**：`./gradlew test` 共 **132 例**（执行 128、跳过 4、失败 0）；本分支新增 **35 例**（topic 解析、payload 字段回归、去重、ack 账本重发、下行发布、入站集成测试）+ 1 例需本地 EMQX/PostgreSQL 的默认跳过集成测试（`MEDBOX_MQTT_LOCAL_TEST=true` 开启）；本地真链路验收：EMQX 发 `up/telemetry` 后端收到、重复 `msgId` 只处理一次、缺 `msgId` 丢弃、LWT 写 `online_state`
+- **⚠️ 跨分支约定（后续分支必读）**：① 业务处理一律通过新增 `UpMessageHandler` 的 `@Bean`（`supports()` 返回 `up/` 之后的子路径）接入，**不要改动本分支代码**；② **下行出口只有一个** —— `DownlinkPublisher.publish(deviceId, "schedule"|"command", payload, needAck)`，信封字段 `msgId`/`needAck` 由它注入，业务 caller 不要再自己拼；③ 下行失败目前只打日志，告警生成待 `feat/alarm-core` 替换 `DownlinkFailureListener`；④ 下行账本在内存里，**重启丢失少量待确认消息**，如需零丢失再换成带 `next_retry_at` 的表（调用方不用改）
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-11] 后端落地本地 OCR / Embedding 与向量库接入（feat/backend-ai-infra）
 
 `feat/backend-ai-infra`（07 清单地基，P0 第 2 步）落地：把 OCR 转文本、中文文本向量化、向量入库与召回三块本地能力接进 Spring 容器，为后续 P2 的 `ai-chat` / `manual-ingest` 打地基。所有 AI 操作局域网内闭环（不出网、无需 Key），仅 Chat 问答后续出网。
