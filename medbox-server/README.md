@@ -58,6 +58,8 @@ spring:
 | `V1__init_schema.sql` | `CREATE EXTENSION IF NOT EXISTS vector` + 15 张表 + 约束 + 5 个普通索引 |
 | `V2__vector_hnsw.sql` | `drug_manual_chunk` 的 HNSW 索引（余弦距离） |
 | `V3__auth.sql` | `user_biz_id_seq` 序列 + `refresh_token` + `idempotency_record`（`feat/backend-auth`，见文档 06 的 2.13 / 2.14） |
+| `V4__authz.sql` | `guardian_relation.relation_id` 业务列 + `guardian_relation_biz_id_seq` 序列 + 关系查询索引（`feat/backend-authz`，见 06 的 2.2） |
+| `V5__mqtt.sql` | `mqtt_message` 上行消息去重表（`feat/backend-mqtt`，见文档 06 的 2.15） |
 
 安全开关：`clean-disabled: true`（禁止误清库）、`validate-on-migrate: true`（脚本被改动即启动失败）、不开 `baseline-on-migrate`。
 
@@ -153,3 +155,60 @@ OCR 转文本与中文文本向量化**全部本地化、不出网、无需 Key*
     ```
   `medbox.ocr.endpoint`（默认 `http://localhost:8000/ocr`）已在 `application.yml`；`medbox.ocr.provider=cloud` 可切换到云端 OCR（本期仅骨架，未实装）。
 - **验证（本地集成测试）**：起好上面两个服务后，设环境变量 `MEDBOX_AI_LOCAL_TEST=true`，运行 `AiLocalIntegrationTest`：① 中文文本 embed→1024 维；② 渲染带文字图片 OCR→非空；③ PgVectorStore 写入 + 相似召回回环。**CI 无本地 AI 栈，该测试自动跳过。**
+
+## 9. MQTT（`feat/backend-mqtt`，见文档 03）
+
+后端以订阅方身份连本地 EMQX（**本期匿名连接，无需用户名密码**）：订阅 `medbox/+/+/up/#` 与 `medbox/+/+/status`（遗嘱），
+向 `medbox/{pk}/{deviceId}/down/{schedule|command}` 下发 QoS1 消息。业务尚未接线，本分支只负责"收得到、不重复、能下发"。
+
+### 9.1 起 EMQX（不动 `docker-compose.yml`，单独一个容器）
+
+```bash
+docker run -d --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:latest
+# Dashboard: http://localhost:18083（默认 admin/public，**务必改掉**）
+```
+
+> **不要把 1883 / 18083 做端口映射或内网穿透到公网**：匿名 broker 一旦对外，任何人都能订阅所有 topic、伪造设备数据。
+> 在教室 / 公司等公共 WiFi 下演示时用手机热点自己组网（见文档 03 第 1 章）。
+
+### 9.2 没起 EMQX 也能跑后端
+
+```bash
+MEDBOX_MQTT_ENABLED=false ./gradlew bootRun     # 或写进 application-local.yml：medbox.mqtt.enabled=false
+```
+
+MQTT 相关 Bean 全部条件装配，关闭时一个都不建；已启用但连不上时只 WARN、由 Paho 后台自动重连，**不会阻塞应用启动**。
+
+### 9.3 验收（`mosquitto_pub`，或直接用 EMQX Dashboard 的 WebSocket 客户端）
+
+```bash
+mosquitto_pub -h localhost -p 1883 -i BOXA1001 -q 1 \
+  -t 'medbox/pk001/BOXA1001/up/telemetry' \
+  -m '{"msgId":"BOXA1001-0000000124","ts":1759474487000,"sensorId":"BOXA1001-S-TH01","temperature":24.6,"humidity":52.1}'
+```
+
+期望日志（`LoggingUpMessageHandler` 打印摘要）：
+
+```
+收到上行消息 deviceId=BOXA1001 topic=medbox/pk001/BOXA1001/up/telemetry bytes=123
+```
+
+再发同一条（**同 `msgId`**）应看到 `重复 msgId 已丢弃 ...` —— 这就是本分支的核心验收点。
+
+> **注意 msgId 的去重保留 7 天**：本地重复做同一条验收时请换 `msgId`，否则第二次会被判成重发。
+
+### 9.4 相关表
+
+`V5__mqtt.sql` 建 `mqtt_message`（上行去重，按 `msgId` 唯一键，默认保留 7 天，见文档 06 的 2.15）。
+
+```bash
+docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "select msg_id, topic, received_at from mqtt_message order by id desc limit 10;"
+```
+
+### 9.5 后续分支怎么接
+
+| 要做的事 | 怎么接 |
+|----------|--------|
+| 消费某个上行 topic 的业务逻辑 | 新增一个类实现 `UpMessageHandler`（`supports()` 返回 `up/` 之后的子路径，如 `telemetry`）并注册成 `@Bean`，**不用改本分支代码** |
+| 下发计划 / 命令 | 注入 `DownlinkPublisher`，调 `publish(deviceId, "schedule"\|"command", payload, needAck)`；`msgId` / `needAck` 由它注入，别自己拼 |
+| 下发失败要告警 | 替换 `DownlinkFailureListener` 的实现即可（当前只打 WARN 日志，告警实体属 `feat/alarm-core`） |

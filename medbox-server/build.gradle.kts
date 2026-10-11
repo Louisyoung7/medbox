@@ -58,6 +58,12 @@ dependencies {
     // 只借它的 BCryptPasswordEncoder（版本由 Boot 4 的 BOM 管理），不引入 Security 过滤器链
     implementation("org.springframework.security:spring-security-crypto")
 
+    // MQTT 客户端（feat/backend-mqtt，见文档 03）：Eclipse Paho 直连本机 EMQX（localhost:1883，本期匿名）
+    // 用 implementation 而不是 runtimeOnly —— 代码里有显式的 MqttClient / MqttConnectOptions / MqttCallback 调用。
+    // 不用 Spring Integration MQTT：它底层仍是 Paho，但要精确控制「自动重连后重订阅 / QoS1 下行 ack 超时重发 / 连不上不阻塞启动」，
+    // 被 EIP 抽象包一层后调试路径更长，故直接用 Paho。
+    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
+
     // AI 地基（feat/backend-ai-infra）：本地 OCR 调用（RestClient）+ 本地 Embedding（Ollama bge-m3）+ pgvector 向量库
     // 版本由上方 spring-ai-bom:2.0.1 统一管理（适配 Boot 4，Jackson 3 一致）
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
@@ -77,7 +83,8 @@ dependencies {
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
-    // CI（GitHub Actions）里没有 PostgreSQL：测试期关掉 Flyway，否则 @SpringBootTest 启动即失败。
-    // 将来接 Testcontainers 做集成测试时，删掉这一行即可。
+    // CI（GitHub Actions）里没有 PostgreSQL / EMQX：测试期关掉 Flyway 与 MQTT 连接，否则 @SpringBootTest 启动即失败。
+    // 将来接 Testcontainers 做集成测试时，删掉这两行即可。
     environment("SPRING_FLYWAY_ENABLED", "false")
+    environment("MEDBOX_MQTT_ENABLED", "false")
 }
