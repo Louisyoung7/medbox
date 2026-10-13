@@ -17,6 +17,14 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-13] 修复 `feat/device-core` 集成测试在 CI 全红（500）
+
+`DeviceService.register` 是 `@Transactional`，CI 无 PostgreSQL → 进入方法时开连接失败 `CannotCreateTransactionException` → 统一变 500；本地装了 Postgres 故一直绿（且 Gradle 构建缓存会放大"本地假绿"）。
+
+- `DeviceCoreWebIntegrationTest` 新增 `@TestConfiguration`（`@Primary` 嵌入式 H2 `DataSource` 替换 Postgres）；`build.gradle.kts` 测试依赖加 `com.h2database:h2`
+- ⚠️ Boot 4 已移除 `@AutoConfigureTestDatabase`，改用 `@Primary` H2 方案（详见 AGENTS.md 3.1）
+- 影响端：`medbox-server/` 是 · 其余 否
+
 ## [2026-10-13] 后端落地设备主干（`feat/device-core`）
 
 `feat/device-core`（07 清单 P0 第 5 步）落地：设备注册 + 列表 / 详情 / 状态 / 事件流水四个 GET，并补上 `DeviceOwnerResolver` 实现（`requireDevice` 由此可用）。
