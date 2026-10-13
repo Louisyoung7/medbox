@@ -28,6 +28,12 @@ medbox:
   # ws:
   #   debug-endpoint-enabled: true
 
+  # —— 设备（feat/device-core，见文档 02 第 4 章）——
+  # 药箱注册时的兜底值，一般不用动；只有当产品型号 / 默认时区与默认值不同时才覆盖：
+  # device:
+  #   default-product-key: medbox-box    # Topic 第 2 层：medbox/{productKey}/{deviceId}/...
+  #   default-timezone: Asia/Shanghai
+
   # —— MQTT（feat/backend-mqtt，见文档 03）——
   # EMQX 在本机时无需覆盖（默认 tcp://localhost:1883）；本机没起 EMQX 就用下面的开关跳过连接，应用仍能正常启动：
   # mqtt:

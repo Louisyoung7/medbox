@@ -3,6 +3,8 @@ package com.medbox.server.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.medbox.server.domain.enums.DeviceType;
+import com.medbox.server.domain.enums.OnlineState;
 import java.time.OffsetDateTime;
 import lombok.Data;
 
@@ -17,6 +19,10 @@ import lombok.Data;
  * <p><b>本分支刻意不做的事</b>：不实现 {@code DeviceOwnerResolver} 扩展点
  * （设备归属老人的解析归 {@code feat/device-core}），本分支只碰状态字段。
  *
+ * <p><b>{@code feat/device-core} 的改动</b>：{@code deviceType} 与 {@code onlineState}
+ * 由 {@code String} 收紧为枚举（与 {@code RelationRole} / {@code RelationStatus} 同一实践，
+ * MyBatis-Plus 默认按枚举名映射 VARCHAR 列），登记与查询时不再有手写字符串常量的余地。
+ *
  * <p><b>主键必须 {@code IdType.AUTO}</b>：表主键是 BIGSERIAL，MyBatis-Plus 默认雪花 ID（ASSIGN_ID）
  * 会往自增列里塞一个巨大的值（见 README 第 6 节）。
  */
@@ -30,8 +36,8 @@ public class Device {
     /** 业务 ID，如 {@code BOXA1001}；同时也是 MQTT 的 clientId（文档 03 第 1 章）。 */
     private String deviceId;
 
-    /** {@code MAIN} 药箱主控 / {@code TEMP_HUMI} / {@code LIGHT} / {@code CAMERA}。 */
-    private String deviceType;
+    /** 药箱主控 / 传感器子设备，见 {@link DeviceType}。 */
+    private DeviceType deviceType;
 
     /** 子设备指向所属药箱的 {@code device_id}；主控为空。 */
     private String parentDeviceId;
@@ -48,8 +54,8 @@ public class Device {
     /** 设备本地时区（服药时间按此换算），默认 {@code Asia/Shanghai}。 */
     private String timezone;
 
-    /** {@code ONLINE} / {@code OFFLINE}，默认 {@code OFFLINE}。 */
-    private String onlineState;
+    /** 在线状态，见 {@link OnlineState}；建表默认 {@code OFFLINE}。 */
+    private OnlineState onlineState;
 
     /** 最近一次心跳 / 连接建立时间。 */
     private OffsetDateTime lastHeartbeat;

@@ -79,6 +79,13 @@ medbox:
     retention-days-unread: 30     # 未读最长保留天数
     retention-days-read: 7        # 已读后保留天数；expire_at = MIN(captured+30d, viewed+7d)
 
+  # —— 设备注册与事件流水（feat/device-core，见文档 02 第 4 章 / 06 的 2.16）——
+  device:
+    default-product-key: medbox-box    # 注册请求没填 productKey 时的兜底值；它是 Topic 第 2 层，不能为空
+    default-timezone: Asia/Shanghai    # 设备本地时区（服药时间按此换算，见文档 06 的 2.6.1）
+    event-page-size: 20                # 事件流水默认每页条数
+    event-max-page-size: 100           # 每页上限：防深分页拖垮数据库，也防客户端一次拉全量
+
   # —— 出站地址：后端作为“客户端”要连的对端 —— #
   # MQTT 接入（feat/backend-mqtt，见文档 03）：本机 EMQX，本期匿名连接（无用户名密码）
   mqtt:

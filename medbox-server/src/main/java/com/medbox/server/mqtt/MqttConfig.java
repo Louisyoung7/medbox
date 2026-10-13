@@ -2,6 +2,7 @@ package com.medbox.server.mqtt;
 
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.MqttMessageMapper;
+import java.time.Clock;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +38,15 @@ public class MqttConfig {
         return new MqttMessageDeduplicator(mqttMessageMapper, props);
     }
 
+    /**
+     * 状态服务。监听者用 {@code List} 注入（与下面 {@code mqttInboundGateway} 收
+     * {@code List<UpMessageHandler>} 同一套做法）：{@code feat/device-core} 的
+     * {@code DeviceStatusEventBridge} 会自动进这个列表；没有监听者时是空列表，零副作用。
+     */
     @Bean
-    public DeviceStatusService deviceStatusService(DeviceMapper deviceMapper) {
-        return new DeviceStatusService(deviceMapper);
+    public DeviceStatusService deviceStatusService(DeviceMapper deviceMapper,
+                                                   List<DeviceStatusChangeListener> listeners) {
+        return new DeviceStatusService(deviceMapper, Clock.systemUTC(), listeners);
     }
 
     @Bean
