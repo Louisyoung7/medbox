@@ -108,6 +108,14 @@ curl -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/ws/publish \
 端点落在 `/api/v1/**`（强制登录）并再经 `AccessService.require(elderId, READ_ALARM)` 校验归属，
 越权照样 40301 —— 能推的范围不超出调用者本来就能看到的数据。**生产务必保持关闭。**
 
+**`DEVICE_STATUS` 由 `feat/device-core` 接入（`feat/backend-ws` 时留白的一项）**：
+
+- 触发点是 **MQTT 侧的在线状态跃变**（status / 遗嘱），不是 HTTP 接口 —— 见文档 03 第 1 章；
+- 推到 **`elder:{elderId}`** 主题即可（归属老人从 `device.elder_id` 取），**不扩展 `device:` 主题** —— 当前没有消费方，`WsTopic` 保持只支持 `elder:`；
+- **只在状态真的变了才推**：主控每 60s 有心跳，每次上行都推会把小程序刷爆；
+- 设备**未登记**（局域网上任何 clientId 都能连 EMQX）时没有归属老人，无主题可推，静默跳过；
+- `medbox.ws.enabled=false` 时 `ObjectProvider` 取不到 `WsPushService`，推送静默跳过，**不影响上行链路**。
+
 ---
 
 ## 5. 小程序落地（`feat/mp-ws`）

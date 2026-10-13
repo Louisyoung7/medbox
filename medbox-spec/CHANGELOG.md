@@ -17,6 +17,19 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-13] 后端落地设备主干（`feat/device-core`）
+
+`feat/device-core`（07 清单 P0 第 5 步）落地：设备注册 + 列表 / 详情 / 状态 / 事件流水四个 GET，并补上 `DeviceOwnerResolver` 实现（`requireDevice` 由此可用）。
+
+- **`02` 第 4 章新增 4.0 节**：注册是**监护人代老人**（`WRITE_DEVICE` 仅 FAMILY，老人本人不可自注册）；**重复登记 40901、不静默改绑**；事件流水分页按时间倒序，`size` 超上限静默裁剪；查询他人设备与设备不存在**一律 40301**（不返回 40401）
+- **`06` 新增 2.16 `device_event`**（V6 建表）：本分支只写 `REGISTERED` / `ONLINE` / `OFFLINE`，`FAULT` / `COMMAND` 留给 `feat/device-fault` / `feat/device-command` 续写；V6 同时给 `device` 表补 `elder_id` / `parent_device_id` 两个索引
+- **`04` 第 4 章补 `DEVICE_STATUS` 推送约定**：触发点是 MQTT 侧状态**跃变**（非 HTTP），推到 `elder:{elderId}`；心跳每 60s 一次，只在真的变了才推，否则会刷爆小程序
+- **⚠️ 跨分支约定（后续分支必读）**：① 只有状态**真的跃变**才写 `ONLINE` / `OFFLINE`（否则单设备一天 1440 条噪声）；② `device` 表新增子设备后，其 `elder_id` 必须与父设备一致 —— 行级过滤与归属解析都依赖它；③ `medbox.device.*` 默认 productKey 为 `medbox-box`，它是 Topic 第 2 层，不能为空
+- **⚠️ 踩坑（测试侧）**：Mapper 被 `@MockitoBean` 替换后 MyBatis 不会为实体建表信息，而 **`LambdaQueryWrapper.in(...)` 与 `LambdaUpdateWrapper.set(...)` 会立即解析列名**，会抛 `can not find lambda cache for this entity`（上行链路会把它吞掉，表现为"静默什么都不做"）；`eq` / `orderBy` 是惰性的，所以看起来"有的用例能跑"。用 `support/TableInfoWarmup.init(Entity.class)` 预热（生产无此问题）
+- **依赖**：`build.gradle.kts` 新增 `mybatis-plus-jsqlparser`（分页插件 `PaginationInnerInterceptor` 自 3.5.9 起从这个 starter 里拆出去了，不显式声明就编译不过）
+- **测试**：`./gradlew test` 共 **233 例**（执行 228、跳过 5、失败 0），本分支新增 **58 例**，含 `DeviceCoreWebIntegrationTest`（`@SpringBootTest` + MockMvc 打完整链路，17 例）
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 是（`feat/mp-device` 可开始联调）· 嵌入式 否
+
 ## [2026-10-11] 小程序落地 WebSocket 封装（`feat/mp-ws`）
 
 `feat/mp-ws`（08 清单地基，P0 第 2 步）落地：小程序侧接进"后端 → 小程序"实时通道，只交付**连接与分发**，告警 / 设备状态的业务页面由后续分支消费。
