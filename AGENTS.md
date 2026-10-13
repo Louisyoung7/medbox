@@ -78,6 +78,9 @@ git log --oneline -5 -- medbox-spec/
    - 地基分支（骨架 / 统一响应 / 建表 / 认证）有单元测试即可；**从第一个功能分支起**，凡新增接口或判定逻辑，必须补集成测试（后端用 MockMvc 打真实接口链路，小程序侧至少覆盖请求层与编排层）；
    - 交付时**把测试报告贴给用户**（`./gradlew test` / npm test 的结果摘要：用例数、通过数、失败项），不要只说"已实现"；
    - 目的：把"人工手动跑一遍"从瓶颈里摘出来。用户的验证动作降级为**看报告**，不再逐接口手点。
+   - 集成测试**不依赖外部 DB（CI 无 PostgreSQL）**：CI 环境没有 Postgres（localhost:5432 不可达）。凡 `@SpringBootTest` 会触达 `@Transactional` 服务，用 `@TestConfiguration` 提供一个 `@Primary` 的**嵌入式 H2 `DataSource`** 替换真实 DataSource，Mapper 仍 `@MockitoBean` 打桩、不跑真实 SQL；SQL / 建表正确性留给真机联调。
+     - ⚠️ **Spring Boot 4 已移除 `@AutoConfigureTestDatabase`**（4.x 的 `spring-boot-test-autoconfigure` 的 jdbc 包只剩 `AutoConfigureDataSourceInitialization`），别再用它，改用 `@Primary` H2 方案。
+     - ⚠️ 怀疑"本地绿、CI 红"时，用 `./gradlew test --no-build-cache --rerun-tasks` 强跑，排除构建缓存假绿（本次 `feat/device-core` 的 CI 全红就是 `register` 的 `@Transactional` 在无 Postgres 时开连接失败，本地因装了 Postgres 一直绿）。
 2. **判定型分支先出规则表，再写代码**
    - "判定型" = 含业务规则与优先级的分支（漏服 / 错服 / 提醒触发 / 计划时间线展开 / 库存扣减 / 权限校验顺序等）；
    - 动手前先输出一张规则表给用户确认：**输入 → 判定条件与优先级 → 输出 → 边界用例**（如"容忍时长：计划级 > 老人级 > 系统 15 分钟"）；
