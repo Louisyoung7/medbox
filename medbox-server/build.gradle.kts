@@ -48,6 +48,10 @@ dependencies {
     // 持久层：MyBatis-Plus（见 07 清单地基第 3 项的《持久层框架》，首个引入点是 feat/backend-auth）
     // Boot 4 专用 starter（不是 spring-boot3-starter），版本取 Maven Central 上的最新稳定版
     implementation("com.baomidou:mybatis-plus-spring-boot4-starter:3.5.17")
+    // 分页插件 PaginationInnerInterceptor **不在** starter 里：3.5.9 起 MyBatis-Plus 把依赖 JSqlParser
+    // 的拦截器拆到了这个可选模块，starter 不传递引入，不显式声明就会在编译期报
+    // "cannot find symbol PaginationInnerInterceptor"（feat/device-core 的第一个分页接口踩到）。
+    implementation("com.baomidou:mybatis-plus-jsqlparser:3.5.17")
 
     // JWT：jjwt 0.12.x。JSON provider 用 orgjson 而不是 jjwt-jackson —— jjwt-jackson 依赖 Jackson 2，
     // 会被 Boot 4 自带的 Jackson 3（tools.jackson）BOM 顶掉，运行时直接 NoClassDefFoundError
@@ -81,6 +85,10 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     // Boot 4 把 @WebMvcTest / @AutoConfigureMockMvc 拆到了独立模块（starter-test 不再自带）
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
+    // 集成测试用 @SpringBootTest + mock Mapper，但不连真实 PostgreSQL：register 是 @Transactional，
+    // 进入方法时 Spring 要开 JDBC 连接。故内嵌 H2 充当 DataSource（见 DeviceCoreWebIntegrationTest 的
+    // @TestConfiguration），事务可正常开启、Mapper 仍是 mock、不跑任何真实 SQL。
+    testImplementation("com.h2database:h2")
     testCompileOnly("org.projectlombok:lombok")
     testAnnotationProcessor("org.projectlombok:lombok")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

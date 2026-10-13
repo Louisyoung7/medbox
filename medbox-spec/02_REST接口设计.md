@@ -284,6 +284,58 @@ GET /users/me
 
 > `deviceId` 指**药箱主控**（`device_type=MAIN`）；传感器 / 摄像头是其子设备，通过 `parent_device_id` 关联、在 `GET /devices/{deviceId}/sensors` 中列出（见文档 06 的 2.3）。子设备无独立 MQTT 连接，其在线状态由主控周期上报（见文档 03 第 3 章 `up/sensor/heartbeat`）。
 
+#### 4.0 后端落地（`feat/device-core`）
+
+本节的**注册 + 四个 GET**（列表 / 详情 / 状态 / 事件流水）已落地；`POST /devices/{id}/commands` 归 `feat/device-command`、`GET /devices/{id}/sensors` 归 `feat/device-sensor`。
+
+**谁可以注册**：`POST /devices/register` 是**监护人代老人**登记设备 —— 走 `require(elderId, WRITE_DEVICE)`，**只 FAMILY 监护人具备该权限**。老人本人（`SELF`）、医生、护理一律 40301（见 1.3 权限矩阵）。设备端**不做无 Token 自注册**，仍走 JWT。
+
+**示例：注册**
+
+```
+POST /devices/register
+{ "deviceId":"BOXA1001", "elderId":"u-1001",
+  "sensors":[{"deviceId":"BOXA1001-S-TH01","deviceType":"TEMP_HUMI"},
+             {"deviceId":"BOXA1001-S-CAM01","deviceType":"CAMERA"}] }
+
+// 响应（注册即生效；onlineState 恒为 OFFLINE —— 真正的在线要等设备连上 EMQX）
+{ "code":0, "data":{
+    "deviceId":"BOXA1001", "deviceType":"MAIN", "elderId":"u-1001",
+    "productKey":"medbox-box", "timezone":"Asia/Shanghai", "onlineState":"OFFLINE",
+    "registeredAt":"2026-10-13T01:00:00Z",
+    "sensors":[{"deviceId":"BOXA1001-S-TH01","deviceType":"TEMP_HUMI"},
+               {"deviceId":"BOXA1001-S-CAM01","deviceType":"CAMERA"}] } }
+```
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `deviceId` | 是 | 药箱主控编号，同时是 MQTT 的 clientId；4~64 位字母、数字、下划线或短横线 |
+| `elderId` | 是 | 归属老人 |
+| `productKey` | 否 | Topic 第 2 层；留空取 `medbox.device.default-product-key` |
+| `timezone` | 否 | 设备本地时区（服药计划按此换算）；留空取 `Asia/Shanghai`，非法时区 40001 |
+| `sensors[].deviceType` | 否 | **只能是 `TEMP_HUMI` / `LIGHT` / `CAMERA`**，填 `MAIN` 报 40001 |
+
+**错误码口径**（沿用 1.2 / 1.3，不新增码值）：
+
+| 场景 | 结果 |
+|------|------|
+| 未登录 / Token 失效 | 40101 |
+| 老人本人、医生、护理注册 | 40301（`WRITE_DEVICE` 仅 FAMILY） |
+| 监护关系 PENDING | 40302 |
+| **设备编号已登记（含子设备）** | **40901** —— `device_id` 唯一，不静默覆盖、不改绑。**换绑老人走后续独立接口，本分支不做** |
+| 编号格式非法 / 编号重复 / 子设备类型为 MAIN / 时区非法 / `page` 或 `size` < 1 | 40001 |
+| **查询他人设备，或设备不存在** | **一律 40301** —— 与 1.2 第 ② 条同口径，不返回 40401（防设备编号枚举） |
+| 传**子设备编号**进 `/devices/{id}`、`/status`、`/events` | 40301（这些接口的 `deviceId` 只接受主控） |
+
+**事件流水 `GET /devices/{deviceId}/events`**：分页返回，`page` 从 1 起，不传即用 `medbox.device.event-page-size`（20）；`size` 超过 `event-max-page-size`（100）静默取上限；`page`/`size` 小于 1 报 40001。按 `created_at` **倒序**（最新在前）。数据源是新增的 `device_event` 表（见文档 06 的 2.16），**本分支只写入 `REGISTERED` / `ONLINE` / `OFFLINE` 三类**，`FAULT` / `COMMAND` 由 `feat/device-fault`、`feat/device-command` 续写。
+
+**在线状态只写"跃变"**：主控每 60s 有心跳，若每次上行都写一条 `ONLINE` 事件，单台设备一天就是 1440 条噪声。故只有状态真的变了才落流水（同时推 `DEVICE_STATUS` 帧，见文档 04 第 4 章跨分支约定）。
+
+**两处刻意留空（待后续分支补，接口结构不动）**：
+
+- 表格里 `GET /devices/{deviceId}` 的**最新遥测**：读数在 `env_sample` 表，归 `feat/env-core`；本分支不提前引那张表（引了也查不出数据），届时在响应里加字段即可；
+- 表格里 `GET /devices/{deviceId}/status` 的**仓门状态**：设备侧尚未上报、`device` 表也无该列，等上报后再补。
+
 **示例：下发控制命令**
 
 ```
