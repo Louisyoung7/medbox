@@ -40,7 +40,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -54,14 +60,33 @@ import org.springframework.test.web.servlet.MockMvc;
  * → 真实 {@code AccessService} → 真实 {@code DeviceOwnerResolverImpl} → 打桩的 Mapper。
  * 权限矩阵、注册冲突、行级过滤、事件流水这些真正的业务规则都在这里验。
  *
- * <p><b>不连数据库</b>：CI 里没有 PostgreSQL（{@code build.gradle.kts} 已关掉 Flyway），
- * Mapper 全部打桩。这让测试能覆盖"判定逻辑"而不是"SQL 是否写对" —— 后者靠真机联调。
+ * <p><b>不连真实数据库</b>：CI 里没有 PostgreSQL（{@code build.gradle.kts} 已关掉 Flyway），
+ * Mapper 全部打桩。但 {@code register} 是 {@code @Transactional}，进入方法时 Spring 要开一个 JDBC 连接，
+ * 故用 {@link H2DataSourceConfig} 把 DataSource 替换成<b>嵌入式 H2</b>（内存库，不建表、Mapper 仍是 mock），
+ * 事务可正常开启、且不依赖外部 Postgres。这让测试覆盖"判定逻辑"而不是"SQL 是否写对" —— 后者靠真机联调。
  *
  * <p>token 由真实 {@link JwtProvider} 签发，第 ① 步不绕过。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 class DeviceCoreWebIntegrationTest {
+
+    /**
+     * 用嵌入式 H2 替换真实的 PostgreSQL DataSource：CI 里没有 Postgres，而 {@code register} 是
+     * {@code @Transactional}，Spring 进入方法时要开一个 JDBC 连接。H2 内存库可正常开事务，
+     * 而 Mapper 仍是 mock，不跑任何真实 SQL。这样测试既不依赖外部数据库，又能覆盖完整业务链路。
+     */
+    @TestConfiguration
+    static class H2DataSourceConfig {
+        @Bean
+        @Primary
+        public EmbeddedDatabase dataSource() {
+            return new EmbeddedDatabaseBuilder()
+                    .setType(EmbeddedDatabaseType.H2)
+                    .setName("medbox-test")
+                    .build();
+        }
+    }
 
     private static final String ELDER_ID = "u-1001";
     private static final String OTHER_ELDER_ID = "u-1002";

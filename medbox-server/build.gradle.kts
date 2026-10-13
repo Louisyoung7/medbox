@@ -85,6 +85,10 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     // Boot 4 把 @WebMvcTest / @AutoConfigureMockMvc 拆到了独立模块（starter-test 不再自带）
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
+    // 集成测试用 @SpringBootTest + mock Mapper，但不连真实 PostgreSQL：register 是 @Transactional，
+    // 进入方法时 Spring 要开 JDBC 连接。故内嵌 H2 充当 DataSource（见 DeviceCoreWebIntegrationTest 的
+    // @TestConfiguration），事务可正常开启、Mapper 仍是 mock、不跑任何真实 SQL。
+    testImplementation("com.h2database:h2")
     testCompileOnly("org.projectlombok:lombok")
     testAnnotationProcessor("org.projectlombok:lombok")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
