@@ -8,9 +8,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.medbox.server.domain.Device;
 import com.medbox.server.domain.MqttMessage;
+import com.medbox.server.domain.enums.DeviceType;
+import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.MqttMessageMapper;
+import com.medbox.server.support.TableInfoWarmup;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +50,11 @@ class MqttInboundIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // Mapper 是替身，MyBatis 不会为实体建表信息；而 LambdaUpdateWrapper.set(...) 要立即解析列名
+        // （feat/device-core 把 online_state 收成枚举后必然走到这一步），不预热会抛
+        // "can not find lambda cache for this entity"，上行链路会在 catch 里被静默吞掉。
+        TableInfoWarmup.init(Device.class);
+
         messageMapper = mock(MqttMessageMapper.class);
         deviceMapper = mock(DeviceMapper.class);
         ObjectMapper objectMapper = new JsonMapper();
@@ -60,6 +69,19 @@ class MqttInboundIntegrationTest {
             new LoggingUpMessageHandler());
         gateway = new MqttInboundGateway(props, objectMapper, deduplicator, deviceStatusService, handlers);
         when(deviceMapper.update(any(), any())).thenReturn(1);
+        // feat/device-core 起，状态更新前会先查一次设备（判跃变 + 拿归属老人用于推送），
+        // 未登记设备直接跳过 —— 这里默认让设备"已登记"，本类关注上行链路而非状态分支
+        when(deviceMapper.selectOne(any())).thenReturn(registeredDevice());
+    }
+
+    /** 一台已登记的药箱主控（OFFLINE，便于状态跃变用例触发回调）。 */
+    private static Device registeredDevice() {
+        Device device = new Device();
+        device.setDeviceId("BOXA1001");
+        device.setDeviceType(DeviceType.MAIN);
+        device.setElderId("u-1001");
+        device.setOnlineState(OnlineState.OFFLINE);
+        return device;
     }
 
     @Test
