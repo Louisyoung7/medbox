@@ -17,6 +17,16 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-14] 后端落地账号注销（`feat/backend-user-delete`）
+
+`POST /api/v1/users/me/delete`（**密码二次确认**）已可用：软删除账号并释放手机号、撤销全部 refresh token、双向解除监护关系；此后旧密码登录 40102、刷新 40101。**小程序端入口未做**（08 的 `feat/mp-user-delete`）。
+
+- ⚠️ **踩坑（写注销类接口必读）**：MyBatis-Plus 的 `updateById` **默认忽略 `null` 字段** —— `setPhone(null)` 不会进 UPDATE 语句，"置空手机号释放唯一键"会**静默失败**。注销走 `UserMapper` 的 `@Update` 手写 SQL（同理不用 `LambdaUpdateWrapper`：Mapper 打桩时 `set(...)` 立即解析列名会抛 `can not find lambda cache`）
+- **⚠️ 口径修正**：02 的 3.1 草稿里"拦截器识别 `DELETED`"与"旧 access 2 小时内仍可用"矛盾，**实现取后者、不改 `AuthInterceptor`**（保持 JWT 无状态、不每请求查 `user` 表）。判定 `DELETED` 的三处：`AuthService.login` / `refresh`、`UserService.me`
+- **`06` 的 V7 已落地**：`"user"` 表加 `status` / `deleted_at`；**业务数据不级联删除**（用药记录留痕，且保留 `user` 行才能让历史记录里的 `user_id` 继续成立）
+- **测试**：`./gradlew test` 共 **249 例**（执行 244、跳过 5、失败 0），本分支新增 16 例
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 是（`feat/mp-user-delete` 现在可以联调：注销成功后清本地凭据 + `reLaunch` 登录页）· 嵌入式 否
+
 ## [2026-10-14] 新增**账号注销**设计（此前只有"退出登录"，接口侧没有注销）
 
 调试时随手注册的账号无法清掉（退出登录只在客户端清凭据、不调后端），故补上注销。**当前只做文档设计，代码未实现** —— 后端 `feat/backend-user-delete`、小程序 `feat/mp-user-delete` 两条待办已分别进 07 / 08 的 P1。

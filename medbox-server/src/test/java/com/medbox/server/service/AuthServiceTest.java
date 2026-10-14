@@ -17,6 +17,7 @@ import com.medbox.server.common.security.JwtProvider;
 import com.medbox.server.common.security.PasswordHasher;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.UserRole;
+import com.medbox.server.domain.enums.UserStatus;
 import com.medbox.server.dto.auth.LoginRequest;
 import com.medbox.server.dto.auth.RegisterRequest;
 import com.medbox.server.dto.auth.TokenResponse;
@@ -121,6 +122,28 @@ class AuthServiceTest {
     }
 
     @Test
+    void 已注销账号登录报_40102() {
+        when(userMapper.selectOne(any())).thenReturn(deletedUser());
+
+        BizException ex = assertThrows(BizException.class,
+                () -> authService.login(new LoginRequest("13800001234", "123456")));
+        assertEquals(ErrorCode.BAD_CREDENTIALS.code(), ex.code());
+        verify(passwordHasher).matchesDummy(anyString());
+    }
+
+    @Test
+    void 已注销账号刷新报_40101() {
+        when(refreshTokenService.rotate(anyString()))
+                .thenReturn(new RefreshTokenService.Rotation("u-1001", "old-jti"));
+        when(userMapper.selectOne(any())).thenReturn(deletedUser());
+
+        BizException ex = assertThrows(BizException.class, () -> authService.refresh("a-valid-refresh-token"));
+        assertEquals(ErrorCode.UNAUTHORIZED.code(), ex.code());
+        // 已注销不再签发新令牌
+        verify(refreshTokenService, never()).issue(anyString(), anyString(), any());
+    }
+
+    @Test
     void 刷新成功返回新的一对令牌() {
         when(refreshTokenService.rotate(anyString()))
                 .thenReturn(new RefreshTokenService.Rotation("u-1001", "old-jti"));
@@ -156,6 +179,14 @@ class AuthServiceTest {
         user.setPhone("13800001234");
         user.setRole(UserRole.ELDER);
         user.setPasswordHash("$2a$10$hashed");
+        user.setStatus(UserStatus.ACTIVE);
+        return user;
+    }
+
+    /** 已注销：行还在（历史数据仍引用它），但账号不可用 —— 见 02 的 3.1。 */
+    private static User deletedUser() {
+        User user = existingUser();
+        user.setStatus(UserStatus.DELETED);
         return user;
     }
 }

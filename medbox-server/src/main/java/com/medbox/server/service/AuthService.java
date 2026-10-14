@@ -9,6 +9,7 @@ import com.medbox.server.common.security.PasswordHasher;
 import com.medbox.server.common.security.TokenType;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.UserRole;
+import com.medbox.server.domain.enums.UserStatus;
 import com.medbox.server.dto.auth.LoginRequest;
 import com.medbox.server.dto.auth.RegisterRequest;
 import com.medbox.server.dto.auth.TokenResponse;
@@ -83,11 +84,18 @@ public class AuthService {
         return response;
     }
 
-    /** 登录：{@code account} 可以是手机号或用户名。 */
+    /**
+     * 登录：{@code account} 可以是手机号或用户名。
+     *
+     * <p>**已注销的账号等同"不存在"**（40102，见 02 的 3.1）：注销时 {@code phone} / {@code username}
+     * 已置 {@code NULL}，本来就查不到；这里再判一次 {@code DELETED} 是为了兜住"用户名没填、
+     * 但有人拿着旧 user_id 直接打"这类路径，同时保证"注销后不能用旧密码登录"这件事不依赖
+     * 置空是否成功。
+     */
     public TokenResponse login(LoginRequest request) {
         User user = findByAccount(request.account());
-        if (user == null) {
-            // 陪跑一次 BCrypt：让"账号不存在"与"密码错误"耗时相当，避免被拿来枚举已注册手机号
+        if (user == null || isDeleted(user)) {
+            // 陪跑一次 BCrypt：让"账号不存在 / 已注销"与"密码错误"耗时相当，避免被拿来枚举已注册手机号
             passwordHasher.matchesDummy(request.password());
             throw BizException.of(ErrorCode.BAD_CREDENTIALS);
         }
@@ -96,11 +104,17 @@ public class AuthService {
         return issueTokens(user);
     }
 
-    /** 刷新：旧的 refresh token 立即作废（轮换），重放会撤销该用户全部会话。 */
+    /**
+     * 刷新：旧的 refresh token 立即作废（轮换），重放会撤销该用户全部会话。
+     *
+     * <p>**已注销账号的 refresh 一律 40101**（02 的 3.1）：注销已把该用户全部 refresh 置
+     * {@code REVOKED}，正常会走重放分支；这里显式再判一次，让"注销后刷新"这条路径的返回码
+     * 不依赖 token 状态机，且**不会为已注销账号再写一次撤销记录**。
+     */
     public TokenResponse refresh(String rawRefreshToken) {
         RefreshTokenService.Rotation rotation = refreshTokenService.rotate(rawRefreshToken);
         User user = findByUserId(rotation.userId());
-        BizAssert.unauthorizedIf(user == null, "账号不存在，请重新登录");
+        BizAssert.unauthorizedIf(user == null || isDeleted(user), "账号不存在或已注销，请重新登录");
 
         String role = roleName(user);
         String newRefreshToken = jwtProvider.issue(user.getUserId(), role, TokenType.REFRESH);
@@ -149,6 +163,11 @@ public class AuthService {
             current = current.getCause();
         }
         return false;
+    }
+
+    /** 已注销：注销是软删除，行还在（历史数据仍引用它），但账号已不可用。 */
+    private static boolean isDeleted(User user) {
+        return user.getStatus() == UserStatus.DELETED;
     }
 
     private String roleName(User user) {

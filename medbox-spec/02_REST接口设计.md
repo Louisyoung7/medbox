@@ -311,9 +311,11 @@ POST /users/me/delete
 
 - Flyway `V7__user_delete.sql`：`"user"` 表加 `status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'`、`deleted_at TIMESTAMPTZ`（见 06 的 2.1）；
 - `AuthService.login`：`status='DELETED'` 视为账号不存在 → **40102**（且仍白算一次 BCrypt 做耗时对齐）；
-- `AuthInterceptor`：解析出的 `userId` 对应账号为 `DELETED` → **40101**（注销后旧 access 的兜底拦截）；
-- `RefreshTokenService.rotate`：账号为 `DELETED` → **40101**，不进入重放检测分支；
-- 注销主流程在 `UserService.deleteSelf(userId, password)`：验密码 → 软删 → `revokeAll` → 双向 `guardian_relation` 置 `REVOKED`。
+- `AuthService.refresh`：账号为 `DELETED` → **40101**，且不再签发新令牌（**判定放在这里而不是 `RefreshTokenService.rotate`** —— refresh 本来就要查 `user`，不必让 token 服务反向依赖用户表）；
+- 注销主流程在 `UserService.deleteSelf(request)`（`@Transactional`）：验密码 → `UserMapper.markDeleted` 软删 → `RefreshTokenService.revokeAll` → `GuardianRelationMapper.revokeByUserId` 双向置 `REVOKED`；
+- `GET /users/me` 对已注销账号返回 **40101**（原来是 40401：账号行还在，只是不可用了）。
+
+> ⚠️ **口径修正（实现时确认）**：本节草稿曾写"`AuthInterceptor` 识别 `DELETED` → 40101"，它与上方边界用例"注销后旧 access **2 小时内仍可用**"互相矛盾。实现**采用边界用例的口径，不改拦截器** —— 保持 JWT 无状态，不为每个请求多一次 `user` 表查询（若将来要立刻失效，再引入 access 黑名单并按 `userId` 查一次，届时需给所有 `@WebMvcTest` 切片补 `UserMapper` 打桩）。
 
 **小程序侧落地（V15，`feat/mp-auth`）**：
 
@@ -329,7 +331,7 @@ POST /users/me/delete
 
 - **令牌**：HS256 签名，claims 为 `sub=userId`、`role`、`typ`（`ACCESS` / `REFRESH`，**两者必须区分**，拿 refresh 当 access 用一律拒绝）、`jti`、`iat`、`exp`；access **7200 秒**、refresh **604800 秒**，由 `medbox.jwt.*` 配置，密钥走 `MEDBOX_JWT_SECRET`（≥32 字节，**改了它已签发的 token 全部失效**）。解析失败 / 过期 / 类型不符 / 被篡改一律 **40101**。
 - **refresh 轮换（落库）**：每枚 refresh token 在 `refresh_token` 表留一行（只存 SHA-256 哈希，`token_id` = JWT 的 `jti`，见 06 的 2.13）。换新时旧行置 `ROTATED` 并指向接替者；**再次使用已 `ROTATED` / `REVOKED` 的 token 视为泄漏** —— 撤销该用户全部 refresh token 并返回 40101。
-- **密码**：BCrypt 单向哈希存 `user.password_hash`；登录失败（账号不存在 / 密码错误）统一 **40102**，且"账号不存在"时也会白算一次 BCrypt 做耗时对齐，避免被用来枚举已注册手机号。
+- **密码**：BCrypt 单向哈希存 `user.password_hash`；登录失败（账号不存在 / 密码错误）统一 **40102**，且"账号不存在"时也会白算一次 BCrypt 做耗时对齐，避免被用来枚举已注册手机号。**已注销账号同样算"不存在"**（40102）。
 - **注册校验**：`role` 只取 `ELDER` / `GUARDIAN`（其它值 40001），密码 **6~64 位**，手机号 11 位；手机号 / 用户名已存在返回 **40001**，提示取后端 `message`（如"手机号已注册"）。
 - **幂等**：仅 `POST /auth/register` 生效 —— 同一 `X-Request-Id` 重复提交只创建 1 个账号并回放首次响应；同号但请求体指纹不同 → 40001。登录 / 刷新天然幂等，不落幂等记录（免得把含 token 的响应快照写进库）。快照 TTL 24 小时（`medbox.idempotency.ttl-hours`）。
 - **登录校验范围**：`/api/v1/**` 需带 `Authorization: Bearer {access token}`，`/api/v1/auth/**` 与 `/actuator/**` 放行；**登录失败一律 40101**（40102 只用于账号密码错误）。本分支只做校验顺序的第 ① 步"是否登录"，监护关系与角色权限见 `feat/backend-authz`。
