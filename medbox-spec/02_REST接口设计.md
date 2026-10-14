@@ -185,6 +185,7 @@ curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/devices/BOXA1001-S-CAM01/
 | POST | /auth/login | **账号密码登录**（手机号 / 用户名 + 密码），返回 JWT |
 | POST | /auth/refresh | 刷新 Token |
 | GET | /users/me | 【鉴权】当前用户资料与角色 |
+| POST | /users/me/delete | 【鉴权】**注销当前账号**（软删除，密码二次确认，见 3.1） |
 | POST | /users/{elderId}/guardians | 【鉴权·监护人发起】申请绑定监护关系（创建 `PENDING` 关系） |
 | GET | /users/guardians/pending | 【鉴权·老人端】我待确认的监护请求列表 |
 | PATCH | /users/guardians/{relationId}/accept | 【鉴权·老人端】确认监护请求（置 `ACTIVE`） |
@@ -249,6 +250,70 @@ GET /users/me
 ```
 
 > 小程序只用 `userId` / `role` / `name` / `phone`（`role` 决定角色视图，见 01 第 3 章）；其余字段随后端实现追加，前端整份缓存不挑字段。
+
+#### 3.1 注销账号（账号删除 🧭，`feat/backend-user-delete`）
+
+> **"退出登录"与"注销账号"是两件事**：退出登录只在**客户端清凭据**（小程序 `store/auth.js` 的 `logout()`，**不调任何后端接口**）；注销账号是**服务端把账号置为不可用**并释放登录标识。此前只设计了前者，本节补后者。
+
+```
+POST /users/me/delete
+{ "password":"******" }
+
+// 响应
+{ "code":0, "data":{ "userId":"u-1002", "deletedAt":"2026-10-14T08:30:00Z" } }
+```
+
+- **路径为什么挂在 `/users/me` 下**：`/api/v1/auth/**` 在 `AuthInterceptor` 里是**放行**的，而注销必须先登录，故不能放 `/auth/logout` 一类路径；动作型子路径 + `POST`，与 `PATCH /users/guardians/{relationId}/accept` 同风格。
+- **必须传密码**：注销不可逆，后端用 **BCrypt 校验当前账号密码**做二次确认（前端弹窗确认不算数，接口才是唯一入口）。
+
+🧭 **规则表：输入 → 判定条件与优先级 → 输出**
+
+| 顺序 | 判定条件 | 输出 | 说明 |
+|------|----------|------|------|
+| ① | 未登录 / token 无效或过期 | **40101** | 校验顺序第 ① 步，同 1.3 |
+| ② | `password` 缺失 / 空串 / 非字符串 | **40001** | 提示取后端 `message` |
+| ③ | 账号已是 `DELETED` | **40101** | 不回 40401，避免泄漏"账号曾存在" |
+| ④ | 密码 BCrypt 校验不符 | **40102** | **不注销**；与"账号不存在"同码 |
+| ⑤ | 全部通过 | `code=0` | 执行下方数据处理 |
+
+**注销后的数据处理（软删除，按此顺序执行，不级联删除业务数据）**
+
+| 对象 | 处理 |
+|------|------|
+| `user` | `status='DELETED'`、`deleted_at=now()`；**`phone` / `username` 置 `NULL`** 释放唯一键（同一手机号可重新注册）；行本身保留，历史数据的外键仍然成立 |
+| `refresh_token` | 该用户全部生效中的行 → `REVOKED`（复用 `RefreshTokenService.revokeAll`），**注销是 `REVOKED` 的唯一主动触发点** |
+| `guardian_relation` | 该用户作为 `elder_id` **或** `guardian_id` 的全部 `PENDING` / `ACTIVE` 关系 → `REVOKED`（**双向**） |
+| 业务数据 | `device` / `medicine` / `medicine_stock` / `med_plan` / `med_record` / `env_sample` / `alarm` / `capture` / `llm_config` / `drug_manual` **全部保留不动** —— 用药记录需留痕，且设备是实物、不随账号消失 |
+| access token | **无状态，不做黑名单**：已签发的 access 最长 **2 小时**仍可用，靠 refresh 已撤销兜底（01 附录第 3 条的"服务端吊销列表"本期仍不做） |
+| WebSocket | 不主动踢连接（2 小时内自然过期）；`WsSessionManager` 若要按 `userId` 主动关闭，留作后续优化 |
+
+**边界用例**
+
+| 用例 | 结果 |
+|------|------|
+| 注销后立刻用旧 access 调业务接口 | 2 小时内仍可用（**已知且接受**的口径），之后 40101 |
+| 注销后调 `/auth/refresh` | **40101**（token 已 `REVOKED`）；此时**不再触发"重放检测撤销全部"**（该用户已无生效 token，且不必再为已注销账号写库） |
+| 注销后用旧密码登录 | **40102**（等同"账号不存在"） |
+| 用同一手机号重新注册 | 成功，分到**新的 `user_id`**，旧数据不继承 |
+| 老人注销 | 其 ACTIVE 监护关系 → `REVOKED`，监护人的"我监护的老人"里该老人消失 |
+| 监护人注销 | 只撤销**自己**的关系；老人与其他监护人不受影响 |
+| 注销后 2 小时内换一台设备重复提交 | 第二次 **40101**（账号已 `DELETED`） |
+
+> **未做（有意）**：监护人代老人注销（需扩 `Permission` 权限矩阵，见 1.3.1，留后续）；微信登录场景下的确认方式（届时改手机号 / 验证码确认）；access token 黑名单。
+
+**小程序侧落地（`feat/mp-user-delete`）**：
+
+- `src/api/user.js` 提供 `deleteAccount(password)`；注销动作**编排在 `src/store/auth.js`**（与 `logout()` 并列），成功后 `clearSession()` + `reLaunch` 登录页 —— 页面只调编排层，不要自己拼"调接口 + 清 token"；
+- 入口放在个人页（`pages/profile/profile.vue`）"退出登录"下方，**危险操作样式 + 二次确认弹窗 + 输密码**；
+- 注销请求**不要带 `noAuthRetry`**（它是正常鉴权接口，40101 走标准续期流程即可）。
+
+**后端侧落地（`feat/backend-user-delete`）**：
+
+- Flyway `V7__user_delete.sql`：`"user"` 表加 `status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'`、`deleted_at TIMESTAMPTZ`（见 06 的 2.1）；
+- `AuthService.login`：`status='DELETED'` 视为账号不存在 → **40102**（且仍白算一次 BCrypt 做耗时对齐）；
+- `AuthInterceptor`：解析出的 `userId` 对应账号为 `DELETED` → **40101**（注销后旧 access 的兜底拦截）；
+- `RefreshTokenService.rotate`：账号为 `DELETED` → **40101**，不进入重放检测分支；
+- 注销主流程在 `UserService.deleteSelf(userId, password)`：验密码 → 软删 → `revokeAll` → 双向 `guardian_relation` 置 `REVOKED`。
 
 **小程序侧落地（V15，`feat/mp-auth`）**：
 
