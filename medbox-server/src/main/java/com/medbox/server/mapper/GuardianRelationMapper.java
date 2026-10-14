@@ -2,8 +2,11 @@ package com.medbox.server.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.medbox.server.domain.GuardianRelation;
+import com.medbox.server.domain.enums.RelationStatus;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 /**
  * {@code guardian_relation} 表的 Mapper（见文档 06 的 2.2）。
@@ -23,4 +26,24 @@ public interface GuardianRelationMapper extends BaseMapper<GuardianRelation> {
      */
     @Select("SELECT 'r-' || nextval('guardian_relation_biz_id_seq')")
     String nextRelationId();
+
+    /**
+     * 账号注销时**双向**解除监护关系（见文档 02 的 3.1 / 06 的 2.2）。
+     *
+     * <p>该用户作为 {@code elder_id}（我是被监护的老人）或 {@code guardian_id}（我是监护人）
+     * 的关系都要解除 —— 否则"老人注销了，监护人的列表里还挂着这个老人"，且权限判定会因为它
+     * 仍是 {@code ACTIVE} 而放行（{@code visibleElderIds} 就是按 ACTIVE 关系算的）。
+     *
+     * <p>已是 {@code REVOKED} 的行跳过：避免把 {@code updated_at} 刷成新时间，也少写无用行。
+     *
+     * @param status {@link RelationStatus#REVOKED}
+     * @return 被解除的关系条数
+     */
+    @Update("""
+            UPDATE guardian_relation
+               SET status = #{status}
+             WHERE (elder_id = #{userId} OR guardian_id = #{userId})
+               AND status <> #{status}
+            """)
+    int revokeByUserId(@Param("userId") String userId, @Param("status") RelationStatus status);
 }

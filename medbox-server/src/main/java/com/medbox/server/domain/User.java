@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.medbox.server.domain.enums.UserRole;
+import com.medbox.server.domain.enums.UserStatus;
 import java.time.OffsetDateTime;
 import lombok.Data;
 
@@ -41,6 +42,17 @@ public class User {
 
     /** ELDER / GUARDIAN。 */
     private UserRole role;
+
+    /**
+     * 账号状态：ACTIVE 正常 / DELETED **已注销**（V7 新增，见 02 的 3.1）。
+     *
+     * <p>注销是软删除：本行保留，只把登录标识（{@code phone} / {@code username}）置空释放唯一键。
+     * 判定 {@code DELETED} 时一律按"未登录 / 账号不可用"处理（登录 40102、刷新与被访问 40101）。
+     */
+    private UserStatus status;
+
+    /** 注销时间（UTC），{@code status = DELETED} 时非空。 */
+    private OffsetDateTime deletedAt;
 
     private OffsetDateTime createdAt;
 }

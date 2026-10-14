@@ -60,6 +60,8 @@ spring:
 | `V3__auth.sql` | `user_biz_id_seq` 序列 + `refresh_token` + `idempotency_record`（`feat/backend-auth`，见文档 06 的 2.13 / 2.14） |
 | `V4__authz.sql` | `guardian_relation.relation_id` 业务列 + `guardian_relation_biz_id_seq` 序列 + 关系查询索引（`feat/backend-authz`，见 06 的 2.2） |
 | `V5__mqtt.sql` | `mqtt_message` 上行消息去重表（`feat/backend-mqtt`，见文档 06 的 2.15） |
+| `V6__device_event.sql` | `device_event` 设备事件流水 + `device` 表两个索引（`feat/device-core`，见 06 的 2.16） |
+| `V7__user_delete.sql` | `"user"` 表加 `status` / `deleted_at` 两列，**账号注销**（`feat/backend-user-delete`，见 02 的 3.1 / 06 的 2.1） |
 
 安全开关：`clean-disabled: true`（禁止误清库）、`validate-on-migrate: true`（脚本被改动即启动失败）、不开 `baseline-on-migrate`。
 
