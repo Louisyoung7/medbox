@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-14] 新增**账号注销**设计（此前只有"退出登录"，接口侧没有注销）
+
+调试时随手注册的账号无法清掉（退出登录只在客户端清凭据、不调后端），故补上注销。**当前只做文档设计，代码未实现** —— 后端 `feat/backend-user-delete`、小程序 `feat/mp-user-delete` 两条待办已分别进 07 / 08 的 P1。
+
+- **`02` 新增 3.1 注销账号**：`POST /users/me/delete`（**密码二次确认**）+ 规则表（校验顺序 × 软删除数据处理优先级 × 7 条边界用例）；⚠️ **注销接口不能放 `/auth/**` 下**（该路径在拦截器里是放行的，注销必须先登录）
+- **`06` 新增 Flyway `V7__user_delete.sql`**：`"user"` 表加 `status` / `deleted_at`；注销 = **软删除**（置 `DELETED` + `phone`/`username` 置 `NULL` 释放唯一键，**业务数据不级联删除**）；`REVOKED` 状态由此成为"注销"的主动触发点（此前只有重放保护被动触发）
+- **已知口径（后续分支遵守）**：注销**不引入 access token 黑名单**，旧 access 最长 2 小时仍可用，靠 refresh 已撤销兜底；注销后 refresh / 旧密码登录分别返 40101 / 40102
+- 影响端：`medbox-server/` 是（`feat/backend-user-delete` 待实现）· `medbox-miniapp/` 是（`feat/mp-user-delete` 待实现，依赖后端先落地）· 嵌入式 否
+
 ## [2026-10-13] 修复 `feat/device-core` 集成测试在 CI 全红（500）
 
 `DeviceService.register` 是 `@Transactional`，CI 无 PostgreSQL → 进入方法时开连接失败 `CannotCreateTransactionException` → 统一变 500；本地装了 Postgres 故一直绿（且 Gradle 构建缓存会放大"本地假绿"）。
