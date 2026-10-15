@@ -16,7 +16,17 @@ const TLS = import.meta.env.VITE_TLS === 'true'
 
 export const SERVER_HOST = HOST
 
-export const BASE_URL = `${TLS ? 'https' : 'http'}://${HOST}:${PORT}/medbox/api/v1`
+/**
+ * REST 前缀。默认拼成绝对地址；**H5 浏览器联调**时可在不入库的 `.env.local` 里写
+ * `VITE_BASE_URL=/medbox/api/v1`（同源相对路径），由 Vite dev server 反代到后端，
+ * 绕开浏览器的跨域预检（后端 REST 未开 CORS，见 README「浏览器联调」）。
+ *
+ * <p>小程序 / 真机不读 dev server，配了 `VITE_BASE_URL` 会让它们请求到自己的 origin ——
+ * 所以**这个变量只能写在 `.env.local`**，不要写进入库的 `.env.development`。
+ */
+const BASE_URL_OVERRIDE = import.meta.env.VITE_BASE_URL
+
+export const BASE_URL = BASE_URL_OVERRIDE || `${TLS ? 'https' : 'http'}://${HOST}:${PORT}/medbox/api/v1`
 export const WS_URL = `${TLS ? 'wss' : 'ws'}://${HOST}:${PORT}/medbox/ws`
 // 没有 MQTT_URL：小程序不直连 MQTT，设备侧消息一律由后端中转
 
