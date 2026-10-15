@@ -306,6 +306,7 @@ POST /users/me/delete
 - `src/api/user.js` 提供 `deleteAccount(password)`；注销动作**编排在 `src/store/auth.js`**（与 `logout()` 并列），成功后 `clearSession()` + `reLaunch` 登录页 —— 页面只调编排层，不要自己拼"调接口 + 清 token"；
 - 入口放在个人页（`pages/profile/profile.vue`）"退出登录"下方，**危险操作样式 + 二次确认弹窗 + 输密码**；
 - 注销请求**不要带 `noAuthRetry`**（它是正常鉴权接口，40101 走标准续期流程即可）。
+- **落地补充（已完成）**：成功后编排层还会调 `disconnect()` 断掉 WS —— 服务端侧不踢连接（见上），但客户端已知身份作废，不该继续以已注销身份订阅 `elder:{id}`；确认弹窗用 `MbModal` 的 `confirmType="danger"` / `confirmLoading` / `closeOnConfirm=false`（**关闭时机交给页面**：提交中要留着转圈，密码错误时要留着改密码）。
 
 **后端侧落地（`feat/backend-user-delete`）**：
 

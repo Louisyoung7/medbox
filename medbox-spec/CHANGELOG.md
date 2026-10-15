@@ -17,6 +17,17 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-15] 小程序落地注销账号入口（`feat/mp-user-delete`）
+
+`POST /users/me/delete` 的前端闭环已通：个人页"危险操作"卡片 → 二次确认弹窗输密码 → `store/auth.js` 的 `deleteAccount()` → 清凭据 + 断 WS + `reLaunch` 登录页。注销链路的另一端（后端接口已于 10-14 就绪）至此可端到端联调。
+
+- **新增 `src/api/user.js`**（用户域接口首例，全是需鉴权接口，与免鉴权的 `api/auth.js` 分开）：`deleteAccount(password)` 走 `{ silent: true, loading: '注销中' }`，**不带 `noAuthRetry`**
+- **注销编排只在 `src/store/auth.js`**（与 `logout()` 并列）：成功后 `clearSession()` + `disconnect()` + `reLaunch`；**失败原样抛 `ApiError`** 由页面渲染（40102 / 40001 / -1 都**保留**本地凭据，只有 `code=0` 才清）
+- **`MbModal` 扩了三个 prop**（`confirmType="danger"` / `confirmLoading` / `closeOnConfirm=false`）：危险操作的弹窗**关闭时机交给页面**，否则提交中弹窗自关、密码错了还得重输一遍；`MbButton` 补 `type="danger"`
+- ⚠️ **口径补充（02 的 3.1）**：服务端不踢 WS 连接，但**客户端注销成功后主动 `disconnect()`** —— 不该继续用已注销身份订阅 `elder:{id}`
+- **测试**：`npm test` 共 **74 例**（通过 73、跳过 1 —— 跳过的是需本机后端的 `ws.local.test.js`），本分支新增 11 例（请求层 7 + 编排层 4）；`npm run build:mp-weixin` 编译通过
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-14] 后端落地账号注销（`feat/backend-user-delete`）
 
 `POST /api/v1/users/me/delete`（**密码二次确认**）已可用：软删除账号并释放手机号、撤销全部 refresh token、双向解除监护关系；此后旧密码登录 40102、刷新 40101。**小程序端入口未做**（08 的 `feat/mp-user-delete`）。
