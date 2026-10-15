@@ -41,6 +41,25 @@ import { BASE_URL, WS_URL, SERVER_HOST, setServerHost } from '@/config/index.js'
 // 没有 MQTT_URL：小程序不直连 MQTT，设备消息由后端中转
 ```
 
+## 浏览器联调（H5）
+
+后端 REST **没有开 CORS**，而 H5 跑在 `:5173`、接口在 `:8080`，浏览器会因预检失败拦掉所有请求（`POST` + `application/json` 与带 `Authorization` 的 `GET` 都会触发预检）。解法是让 REST 走 **Vite dev server 反代**，`vite.config.js` 里已配好：
+
+```js
+server: { proxy: { '/medbox': { target: 'http://127.0.0.1:8080', changeOrigin: true, ws: true } } }
+```
+
+使用时在本机的 `.env.local` 再加一行（**不入库**，`.env.example` 有注释模板）：
+
+```bash
+VITE_BASE_URL=/medbox/api/v1   # REST 拼成同源相对路径 → 由 dev server 反代
+VITE_SERVER_HOST=127.0.0.1     # 仍决定 WS_URL（WebSocket 不受 CORS 限制，走直连）
+```
+
+然后 `npm run dev:h5`，用普通浏览器打开 <http://localhost:5173> 即可，**不需要**带 `--disable-web-security`。
+
+> `VITE_BASE_URL` 千万别写进入库的 `.env.development`：小程序 / 真机不经过 dev server，会请求到自己的 origin。
+
 ## 请求封装用法（`feat/mp-request`）
 
 所有 REST 调用一律走 `@/api/request.js`，**不要直接调 `uni.request`**：它负责拼 `BASE_URL`、注入 `Authorization: Bearer` 与 `X-Request-Id`（仅写操作）、按统一响应拆包、按错误码提示。

@@ -20,7 +20,8 @@
 
 <script>
 /**
- * 按钮（`feat/mp-ui-kit`）：`type` = primary(主色渐变) / ghost(主色浅底)；`block` 撑满；
+ * 按钮（`feat/mp-ui-kit`）：`type` = primary(主色渐变) / ghost(主色浅底) / **danger(危险操作实底**，
+ * `feat/mp-user-delete` 起可用，注销一类不可逆操作用**)）；`block` 撑满；
  * `loading` 显示 spinner 并禁用；`disabled` 禁用。点击 emit `click`（loading/disabled 时不触发）。
  */
 export default {
@@ -62,6 +63,12 @@ export default {
   &--ghost {
     color: $mb-primary;
     background: $mb-primary-bg;
+  }
+
+  &--danger {
+    color: #fff;
+    background: linear-gradient(135deg, #f0666a 0%, $mb-danger 100%);
+    box-shadow: 0 8rpx 20rpx rgba(229, 72, 77, 0.28);
   }
 
   &--block {

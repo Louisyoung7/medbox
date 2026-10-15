@@ -23,6 +23,41 @@
       <MbButton type="ghost" block @click="onLogout">退出登录</MbButton>
     </view>
 
+    <MbCard title="危险操作">
+      <MbCell
+        class="profile-danger__row"
+        title="注销账号"
+        label="注销后账号不可恢复，手机号可重新注册"
+        arrow
+        clickable
+        @click="onOpenDelete"
+      />
+    </MbCard>
+
+    <MbModal
+      v-model="deleteVisible"
+      title="注销账号"
+      confirm-text="确认注销"
+      cancel-text="我再想想"
+      confirm-type="danger"
+      :confirm-disabled="!password || deleting"
+      :confirm-loading="deleting"
+      :close-on-confirm="false"
+      :mask-closable="false"
+      @confirm="onConfirmDelete"
+      @cancel="onCancelDelete"
+    >
+      <text class="delete-warn">此操作不可撤销：账号将永久停用，全部登录凭据与监护关系立即失效，业务数据（用药记录等）保留但不再可登录。</text>
+      <MbField
+        v-model="password"
+        label="登录密码"
+        type="password"
+        placeholder="请输入当前账号密码"
+        :error="deleteError"
+        :disabled="deleting"
+      />
+    </MbModal>
+
     <MbTabBar />
   </view>
 </template>
@@ -31,19 +66,27 @@
 import MbCard from '@/components/MbCard.vue'
 import MbCell from '@/components/MbCell.vue'
 import MbButton from '@/components/MbButton.vue'
+import MbModal from '@/components/MbModal.vue'
+import MbField from '@/components/MbField.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import RoleGate from '@/components/RoleGate.vue'
-import { logout } from '@/store/auth.js'
+import { CODE } from '@/api/request.js'
+import { deleteAccount, logout } from '@/store/auth.js'
 import { getUserInfo, getUserId, roleLabel } from '@/store/user.js'
 
 export default {
   name: 'ProfilePage',
-  components: { MbCard, MbCell, MbButton, MbTabBar, RoleGate },
+  components: { MbCard, MbCell, MbButton, MbModal, MbField, MbTabBar, RoleGate },
   data() {
     return {
       name: '',
       userId: '',
       roleText: '',
+      // 注销弹窗的三态：显隐 / 输入的密码 / 提交流水（错误文案 + 是否在飞）
+      deleteVisible: false,
+      password: '',
+      deleteError: '',
+      deleting: false,
     }
   },
   onShow() {
@@ -66,6 +109,51 @@ export default {
           if (res.confirm) logout()
         },
       })
+    },
+
+    /**
+     * 打开注销弹窗：每次都从干净状态开始（密码不缓存 —— 这是最后一次确认，不是记住）
+     */
+    onOpenDelete() {
+      this.password = ''
+      this.deleteError = ''
+      this.deleting = false
+      this.deleteVisible = true
+    },
+
+    /** 取消注销：抹掉输入的密码，别把它留在内存里。 */
+    onCancelDelete() {
+      this.password = ''
+      this.deleteError = ''
+    },
+
+    /**
+     * 提交注销：只调 `store/auth.js` 的编排，不自己拼"调接口 + 清 token"。
+     *
+     * <p>弹窗的关闭时机由本页掌控（`close-on-confirm=false`）：成功才关；密码错误 / 网络失败时
+     * 留着让用户改密码重试。**40101 静默返回** —— 请求层已经续过期，仍失败时它自己清了凭据并
+     * `reLaunch` 到登录页，这里再 toast 一次只会重复。
+     */
+    async onConfirmDelete() {
+      if (this.deleting || !this.password) {
+        return
+      }
+      this.deleting = true
+      this.deleteError = ''
+      try {
+        await deleteAccount(this.password)
+        this.password = ''
+        this.deleteVisible = false
+      } catch (err) {
+        if (err && err.code === CODE.UNAUTHORIZED) {
+          // 登录态已失效：请求层负责清凭据与跳登录页，页面不再提示
+          this.deleteVisible = false
+          return
+        }
+        this.deleteError = (err && err.message) || '注销失败，请稍后重试'
+      } finally {
+        this.deleting = false
+      }
     },
   },
 }
@@ -126,5 +214,26 @@ export default {
 
 .profile-actions {
   margin-top: 12rpx;
+}
+
+/* 注销入口：整行走危险色（scoped 下要改 MbCell 内部元素得用 :deep） */
+.profile-danger__row {
+  :deep(.mb-cell__title) {
+    color: $mb-danger;
+    font-weight: 500;
+  }
+
+  :deep(.mb-cell__arrow) {
+    border-top-color: rgba(229, 72, 77, 0.6);
+    border-right-color: rgba(229, 72, 77, 0.6);
+  }
+}
+
+.delete-warn {
+  display: block;
+  margin-bottom: 20rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: $mb-danger;
 }
 </style>

@@ -20,9 +20,13 @@
 
 import { CODE, LOGIN_PATH, setUnauthorizedHandler } from '@/api/request.js'
 import { getMe, login as loginApi, refresh as refreshApi, register as registerApi } from '@/api/auth.js'
+import { deleteAccount as deleteAccountApi } from '@/api/user.js'
 import { clearTokens, getRefreshToken, hasToken, setTokens } from '@/store/token.js'
 import { clearUserInfo, getUserInfo, setUserInfo } from '@/store/user.js'
 import { installAuthGuard, safeTarget } from '@/store/guard.js'
+// ws.js 反向依赖本文件的 refreshAuth（WS 握手失败时的续期）—— 这是**调用时才用到**的循环：
+// 函数体内的引用靠 ESM 活绑定解析，两边都没有模块级副作用的互相读取，安全。
+import { disconnect } from '@/store/ws.js'
 
 export { HOME_PATH } from '@/store/guard.js'
 
@@ -121,6 +125,35 @@ export async function register(payload) {
 export function logout() {
   clearSession()
   uni.reLaunch({ url: LOGIN_PATH })
+}
+
+/**
+ * 注销账号（`feat/mp-user-delete`，对应 medbox-spec/02 的 3.1）：**服务端把账号置为不可用**。
+ *
+ * <p>与 {@link logout} 是两件事：退出登录只在客户端清凭据（不调任何后端接口，重新登录即可）；
+ * 注销会软删账号并释放手机号 / 用户名（同一手机号可重新注册，分到**新的** `userId`，旧数据不继承），
+ * 撤销该用户全部 refresh token 与双向监护关系 —— **不可逆**。
+ *
+ * <p>**编排为什么要放在这里**：注销涉及"调接口 + 清凭据 + 断 WS + 跳登录"四步且顺序敏感，
+ * 页面自己拼容易漏掉清用户资料或漏断 WS，导致"token 没了但资料还在"的半登录态。
+ * **页面只调本函数**，不要碰 `store/token.js`。
+ *
+ * <p>**失败一律原样抛出** {@link ApiError}，由页面按 code 决定文案（40001 / 40102 / -1 网络）。
+ * 只有拿到 `code=0` 才清本地凭据 —— 密码错误时用户还得能继续用这台设备。
+ * 40101 由请求层先自动续期并重发一次，续期失败时它已自己清过凭据并跳了登录页，页面静默 return 即可。
+ *
+ * @param {string} password 当前账号明文密码（服务端 BCrypt 二次确认，接口是唯一入口）
+ * @returns {Promise<{userId: string, deletedAt: string}>} 服务端返回的注销结果（`deletedAt` 为 UTC）
+ * @throws {ApiError} 注销未成功时抛出，调用方必须处理
+ */
+export async function deleteAccount(password) {
+  const data = await deleteAccountApi(password)
+  clearSession()
+  // 账号已停用：断开长连接，别让这条连接继续以已注销的身份订阅 `elder:{id}`
+  // （02 的 3.1 说服务端不主动踢连接、旧 access 最长 2 小时自然过期 —— 客户端这边不必陪着等）
+  disconnect()
+  uni.reLaunch({ url: LOGIN_PATH })
+  return data
 }
 
 /**
