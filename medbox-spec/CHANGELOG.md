@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-18] 07 / 08 补跨端依赖标注，《跨端依赖速查表》上线
+
+三人并行（后端 P0 / 后端 P1 / 小程序）后，只写本端依赖不够排期，故把"对端依赖"补进两份清单。
+
+- **07**：顶部约定"依赖列只写本端"；新增《五、跨端依赖速查表》= 后端分支 → 解锁哪些小程序分支的**反向索引**（由 08 的依赖列推导，**08 是唯一事实源**）；**`GET /devices/{deviceId}/expiring`（临期/过期清单）此前无任何分支认领，现明确归 `feat/medicine-core`**（`feat/stock-expiring` 只做定时扫描与 EXPIRED 告警，不重复提供该查询）
+- **08**：依赖列统一拆成「本端 / 后端」两段并补全缺失项 —— `mp-ws`→`backend-ws`、`mp-plan`→`plan-sync`（`syncState`）、`mp-plan-timeline`→`plan-core`、`mp-record`→`capture-core`（缩略图）、`mp-expiring`→`medicine-core`、`mp-alarm`→`plan-reminder` + 5 个告警来源分支、`mp-env`→`alarm-core`（阈值高亮）
+- **通行做法写进 08 顶部**：后端接口未就绪时，按 02 的字段定义先行实现 + 字段容错，后端定稿后收紧（`feat/mp-medicine` 已验证可行）
+- 影响端：`medbox-server/` 是（`/expiring` 接口归属待实现时遵守） · `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-18] 小程序落地药品档案 CRUD（`feat/mp-medicine`）
 
 `feat/mp-medicine`（08 清单 P0 第 4 步）落地：药品列表（分页 + 关键词搜索）+ 详情（禁忌 / 储存条件）+ 新建编辑（归属公共或某老人）+ 删除（40901 库存引用提示）。
