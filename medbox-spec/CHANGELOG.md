@@ -17,6 +17,23 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-18] 小程序 Node 版本统一为 24
+
+CI 与本地开发环境的 Node 版本由 20 统一到 24。Vite 5.2.8 的 engines 为 `^18 || >=20`（24 在支持范围），本机 Node 24 实测 `npm ci` / `npm test` / `build:mp-weixin` 全通，`package-lock.json`（lockfileVersion 3）无需改动。
+
+- **`ci-miniapp.yml`**：`setup-node` 的 `node-version` 20 → 24；`README.md` 与 `01` 的 CI 描述同步
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是（本地建议用 Node 24）· 嵌入式 否
+
+## [2026-10-18] 小程序落地设备列表与详情（`feat/mp-device`）
+
+`feat/mp-device`（08 清单 P0 第 3 步）落地：设备列表页展示当前用户可见的药箱主控 + 在线状态，点入详情看设备档案与传感器子设备，在线状态靠 WS 的 `DEVICE_STATUS` 帧实时刷新。
+
+- **新增 `src/api/device.js`**（`listDevices` / `getDevice`，全需鉴权）与 **`src/utils/device-status.js`**（`toOnlineState` / `applyStatus`：把 WS 的 boolean `online` 合并成 REST 的 `onlineState`，按 `deviceId` 匹配）；列表页 `pages/device/device.vue` 改造 + 新增详情页 `pages/device/detail.vue`（已在 `pages.json` 注册）
+- **WS 实时刷新**：列表/详情订阅 `DEVICE_STATUS` 按 `deviceId` 匹配更新；`RESYNC` 重拉 REST 全量；监护人列表页从列表项 `elderId` 归纳订阅主题（老人端 App.vue 已起连自己）
+- **⚠️ 口径修正（08 两处与实际后端不符）**：① 传感器子设备**没有** `GET /devices/{id}/sensors`（归 P1 `device-sensor`），改从详情接口 `GET /devices/{deviceId}` 的 `sensors[]` 取；② "详情含最新遥测"当前不可达（`env_sample` 无查询接口，温湿度/光照读数留待 `mp-env`），本期只展示在线状态 + 最后心跳
+- **测试**：`npm test` 共 **82 例**（通过 81、跳过 1 —— 需本机后端的 `ws.local.test.js`），本分支新增 8 例（请求层 3 + 状态合并 5）；`npm run build:mp-weixin` 编译通过
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-15] 小程序落地注销账号入口（`feat/mp-user-delete`）
 
 `POST /users/me/delete` 的前端闭环已通：个人页"危险操作"卡片 → 二次确认弹窗输密码 → `store/auth.js` 的 `deleteAccount()` → 清凭据 + 断 WS + `reLaunch` 登录页。注销链路的另一端（后端接口已于 10-14 就绪）至此可端到端联调。

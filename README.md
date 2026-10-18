@@ -20,7 +20,7 @@
 | Workflow | 触发目录 | 命令 |
 |----------|----------|------|
 | `ci-server.yml` | `medbox-server/**` | JDK 21 + `./gradlew build` |
-| `ci-miniapp.yml` | `medbox-miniapp/**` | Node 20 + `npm ci` + `npm run build:mp-weixin` |
+| `ci-miniapp.yml` | `medbox-miniapp/**` | Node 24 + `npm ci` + `npm run build:mp-weixin` |
 
 ## 文档
 

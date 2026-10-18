@@ -29,6 +29,13 @@
 			}
 		},
 		{
+			"path": "pages/device/detail",
+			"style": {
+				"navigationBarTitleText": "设备详情",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/medicine/medicine",
 			"style": {
 				"navigationBarTitleText": "药品",
