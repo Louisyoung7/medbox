@@ -43,6 +43,20 @@
 			}
 		},
 		{
+			"path": "pages/medicine/detail",
+			"style": {
+				"navigationBarTitleText": "药品详情",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
+			"path": "pages/medicine/edit",
+			"style": {
+				"navigationBarTitleText": "药品",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/plan/plan",
 			"style": {
 				"navigationBarTitleText": "计划",

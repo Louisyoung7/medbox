@@ -17,6 +17,16 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-18] 小程序落地药品档案 CRUD（`feat/mp-medicine`）
+
+`feat/mp-medicine`（08 清单 P0 第 4 步）落地：药品列表（分页 + 关键词搜索）+ 详情（禁忌 / 储存条件）+ 新建编辑（归属公共或某老人）+ 删除（40901 库存引用提示）。
+
+- **新增 `src/api/medicine.js`**（`listMedicines` / `getMedicine` / `saveMedicine` / `deleteMedicine`，新建与更新同走 `POST /medicines`）与 **`src/utils/medicine.js`**（payload 组装 / 分页容错 / 归属文案 / `canWriteMedicine` 纯函数）；列表页 `pages/medicine/medicine.vue` 改造 + 新增 `detail.vue` / `edit.vue`（已注册 `pages.json`）；`MbField` 扩 `type="textarea"`
+- **⚠️ 后端 `medicine-core` 未落地**（07 未勾选）：本分支按 02 第 5 章先行实现，联调待后端；**分页响应列表字段名暂定 `list`**（前端容错 `records` / `items`），后端定稿后收紧并同步 02 第 5 章新补的"小程序侧落地口径"5 条
+- **写入口仅监护人可见**：`WRITE_MEDICINE` 仅 FAMILY（02 的 1.3 矩阵），老人端只读；relationRole 未暴露前用 GUARDIAN 代理，服务端强校验不变
+- **测试**：`npm test` 共 **100 例**（通过 99、跳过 1 —— 跳过的是需本机后端的 `ws.local.test.js`），本分支新增 18 例（请求层 8 + 纯函数 10）；`npm run build:mp-weixin` 编译通过
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-18] 小程序 Node 版本统一为 24
 
 CI 与本地开发环境的 Node 版本由 20 统一到 24。Vite 5.2.8 的 engines 为 `^18 || >=20`（24 在支持范围），本机 Node 24 实测 `npm ci` / `npm test` / `build:mp-weixin` 全通，`package-lock.json`（lockfileVersion 3）无需改动。
