@@ -467,6 +467,14 @@ reason=WRONG_DRUG & medicineId=m-205 & planId=p-3301
 
 > **药箱不划分仓位 / 格子**：库存按"药箱 + 药品"管理（表 `medicine_stock`，见文档 06 的 2.5）；传感器则按**子设备**细分（`device.device_type` + `parent_device_id`），见文档 06 的 2.3。
 
+> **小程序侧落地口径（`feat/mp-medicine`；后端 `medicine-core` 未落地，先行约定）**：
+>
+> 1. **新建与更新同走 `POST /medicines`**：更新时请求体带 `medicineId`，创建不带（由后端生成）；`ownerElderId` **不传即公共字典**，传某老人 `userId` 即其私有药品。可见范围（公共 + 我监护老人的私有）由后端按 1.3.1 的 `visibleElderIds()` **行级过滤**，小程序不本地过滤。
+> 2. **分页响应形状**：`GET /medicines` 按 1. 通用约定收 `page` / `size`、返回 `total`；**列表数组字段名暂定 `list`**（小程序 `parseMedicinePage` 容错 `records` / `items`）。后端 `feat/medicine-core` 定稿后二选一收紧，并同步更新本注释与 `medbox-spec/CHANGELOG.md`。
+> 3. **删除 40901**：药品被任一药箱库存引用（`medicine_stock.medicine_id` 存在记录）时拒绝删除；小程序在删除确认弹窗内提示"该药品已被药箱库存引用，无法删除"。
+> 4. **私有药品的归属选择**：P1 `feat/mp-guardian` 前小程序没有"我监护的老人列表"接口，暂从 `GET /devices` 列表项的 `elderId` 归纳候选老人；`mp-guardian` 上线后改调老人列表接口。
+> 5. **写权限**：`POST` / `DELETE` 仅 `WRITE_MEDICINE`（02 的 1.3 矩阵，仅 FAMILY）；小程序据此只给监护人显示新建 / 编辑 / 删除入口，老人端只读，服务端仍强校验。
+
 ## 6. 服药计划与提醒
 
 | 方法 | 路径 | 说明 |

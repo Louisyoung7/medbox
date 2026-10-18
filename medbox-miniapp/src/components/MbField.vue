@@ -1,8 +1,20 @@
 <template>
   <view class="mb-field" :class="{ 'mb-field--focus': focused, 'mb-field--error': !!error }">
     <text v-if="label" class="mb-field__label">{{ label }}</text>
-    <view class="mb-field__control">
+    <view class="mb-field__control" :class="{ 'mb-field__control--multi': type === 'textarea' }">
+      <textarea
+        v-if="type === 'textarea'"
+        class="mb-field__input mb-field__textarea"
+        :value="modelValue"
+        :placeholder="placeholder"
+        :disabled="disabled"
+        placeholder-class="mb-field__placeholder"
+        @input="onInput"
+        @focus="focused = true"
+        @blur="focused = false"
+      />
       <input
+        v-else
         class="mb-field__input"
         :value="modelValue"
         :type="inputType"
@@ -25,7 +37,7 @@
 <script>
 /**
  * 表单输入（`feat/mp-ui-kit`）：label / input / 错误提示，密码类型带显隐切换。
- * `v-model` 双向绑定（modelValue）。`type` = text / password / number。
+ * `v-model` 双向绑定（modelValue）。`type` = text / password / number / **textarea（多行，`feat/mp-medicine` 起可用：禁忌、储存条件等长文本）**。
  */
 export default {
   name: 'MbField',
@@ -75,6 +87,12 @@ export default {
     border-radius: $mb-radius-sm;
     background: $mb-bg;
     transition: border-color 0.2s, background-color 0.2s;
+
+    &--multi {
+      height: auto;
+      padding: 20rpx 24rpx;
+      align-items: flex-start;
+    }
   }
 
   &--focus &__control {
@@ -91,6 +109,12 @@ export default {
     height: 100rpx;
     font-size: 30rpx;
     color: $mb-text;
+  }
+
+  &__textarea {
+    height: auto;
+    min-height: 160rpx;
+    line-height: 1.6;
   }
 
   &__placeholder {
