@@ -1,0 +1,566 @@
+/**
+ * medbox 临时 Mock 后端（medbox-miniapp/tools/mock，**前端测试专用，不替代 medbox-server**）。
+ *
+ * 用途：后端接口未落地期间，用假数据把小程序（H5 / 微信开发者工具）跑通：
+ * 登录注册、设备、药品、库存四条全部按 medbox-spec/02 的形状返回，错误码与权限口径
+ * （02 的 1.2 / 1.3）也按文档模拟，方便前端验证各分支的提示与拦截。
+ *
+ * 运行：
+ *   npm run mock               # 或 node tools/mock/src/server.js
+ *   # 默认监听 8080（src/config/index.js 的 BASE_URL 端口固定 8080，勿改）
+ *   # MOCK_ACCESS_TTL_MS=15000 npm run mock   # access token 15s 过期，验证 40101 自动续期
+ *
+ * 端到端测试（AI 完工时自动跑，见 AGENTS.md 3.1）：
+ *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 46 项检查、跑完即关
+ *
+ * 用法：把 .env.local 的 VITE_SERVER_HOST 指向运行本脚本的机器 IP（127.0.0.1 亦可），
+ * 小程序侧无需任何改动；H5 联调走既有的 Vite 反代（/medbox → 127.0.0.1:8080）。
+ *
+ * 辅助端点：POST /medbox/api/v1/__mock__/reset 重置内存数据（注销账号测试后用它恢复）。
+ *
+ * ⚠️ 纯内存、无持久化：重启即还原种子数据；不含 WebSocket（WS 状态条会显示未连接，
+ * 属预期，库存 / 药品 / 设备链路不依赖 WS）。
+ */
+
+const http = require('node:http')
+const { createSeed, DEMO_PASSWORD } = require('./data.js')
+
+const PORT = Number(process.env.MOCK_PORT || 8080)
+const API_PREFIX = '/medbox/api/v1'
+const ACCESS_TTL_MS = Number(process.env.MOCK_ACCESS_TTL_MS || 2 * 60 * 60 * 1000)
+const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+let state = createSeed()
+
+// ---------------------------------------------------------------- 基础工具
+
+/** 业务错误（携带 02 的 1.2 封闭集合内的 code 与 HTTP 状态）。 */
+class BizError extends Error {
+  constructor(code, message) {
+    super(message)
+    this.code = code
+    this.httpStatus = HTTP_STATUS[code] || 500
+  }
+}
+
+const HTTP_STATUS = {
+  0: 200,
+  40001: 400,
+  40101: 401,
+  40102: 401,
+  40301: 403,
+  40302: 403,
+  40401: 404,
+  40901: 409,
+  50000: 500,
+}
+
+const rand = () => Math.random().toString(36).slice(2, 10)
+const traceId = () => Array.from({ length: 4 }, () => Math.random().toString(16).slice(2, 10)).join('')
+
+function ok(res, data) {
+  send(res, 200, { code: 0, message: 'success', data: data === undefined ? null : data, traceId: traceId(), timestamp: Math.floor(Date.now() / 1000) })
+}
+
+function fail(res, err) {
+  const code = err instanceof BizError ? err.code : 50000
+  const message = err instanceof BizError ? err.message : '服务端内部错误'
+  const status = err instanceof BizError ? err.httpStatus : 500
+  if (!(err instanceof BizError)) console.error('[mock] 未处理异常', err)
+  send(res, status, { code, message, traceId: traceId(), timestamp: Math.floor(Date.now() / 1000) })
+}
+
+function send(res, status, body) {
+  const payload = JSON.stringify(body)
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Request-Id',
+  })
+  res.end(payload)
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = ''
+    req.on('data', (chunk) => {
+      raw += chunk
+      if (raw.length > 1e6) req.destroy()
+    })
+    req.on('end', () => {
+      if (!raw) return resolve({})
+      try {
+        resolve(JSON.parse(raw))
+      } catch (err) {
+        reject(new BizError(40001, '请求体不是合法 JSON'))
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
+const isoNow = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+const isValidDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v)
+
+// ---------------------------------------------------------------- 鉴权
+
+function currentUser(req) {
+  const auth = req.headers.authorization || ''
+  const matched = /^Bearer mock\.([^.]+)\.(\d+)\./.exec(auth)
+  if (!matched) return null
+  const exp = Number(matched[2])
+  if (!Number.isFinite(exp) || exp < Date.now()) return null
+  const user = state.users.find((u) => u.userId === matched[1])
+  if (!user || user.status !== 'ACTIVE') return null
+  return user
+}
+
+/** 必须登录；40101（未登录 / token 过期，前端会走自动续期）。 */
+function requireUser(req) {
+  const user = currentUser(req)
+  if (!user) throw new BizError(40101, '登录已失效，请重新登录')
+  return user
+}
+
+function issueTokens(user) {
+  const token = `mock.${user.userId}.${Date.now() + ACCESS_TTL_MS}.${rand()}`
+  const refreshToken = `mref.${user.userId}.${Date.now() + REFRESH_TTL_MS}.${rand()}`
+  state.refreshTokens.add(refreshToken)
+  return { token, refreshToken, expiresIn: Math.floor(ACCESS_TTL_MS / 1000) }
+}
+
+// ---------------------------------------------------------------- 权限（02 的 1.3.1）
+
+/**
+ * 对目标老人的访问身份：
+ * 'ok' 本人或 ACTIVE 监护 / 'pending' 关系 PENDING / 'none' 无关系或 REVOKED。
+ */
+function elderAccess(user, elderId) {
+  if (!elderId) return 'none'
+  if (user.role === 'ELDER') return elderId === user.userId ? 'ok' : 'none'
+  const relation = state.relations.find((r) => r.guardianId === user.userId && r.elderId === elderId)
+  if (!relation || relation.status === 'REVOKED') return 'none'
+  if (relation.status === 'PENDING') return 'pending'
+  return 'ok'
+}
+
+/** 我可见（ACTIVE）的老人 ID 集合 —— 列表行级过滤用。 */
+function visibleElderIds(user) {
+  if (user.role === 'ELDER') return [user.userId]
+  return state.relations.filter((r) => r.guardianId === user.userId && r.status === 'ACTIVE').map((r) => r.elderId)
+}
+
+/** 设备维度：不存在 / 他人设备 / 传子设备编号一律 40301（02 第 4 章 device-core 口径）。 */
+function requireDevice(user, deviceId) {
+  const device = state.devices.find((d) => d.deviceId === deviceId)
+  if (!device || device.deviceType !== 'MAIN') throw new BizError(40301, '无权限访问该资源')
+  const access = elderAccess(user, device.elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  return device
+}
+
+/** 写操作（药品档案与库存、补药入库 = WRITE_MEDICINE，仅 FAMILY；前端同口径只给监护人显入口）。
+ *  elderId 为空 = 公共字典：只校验角色，不校验关系。 */
+function requireWrite(user, elderId) {
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  if (!elderId) return
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+}
+
+function medicineAccess(user, medicine) {
+  if (!medicine.ownerElderId) return 'ok'
+  return elderAccess(user, medicine.ownerElderId)
+}
+
+function toDeviceSummary(device) {
+  const summary = {
+    deviceId: device.deviceId,
+    deviceType: device.deviceType,
+    elderId: device.elderId,
+    productKey: device.productKey,
+    timezone: device.timezone,
+    onlineState: device.onlineState,
+  }
+  // 从未上线则整个字段缺失（mp-device 的 JSDoc 口径）
+  if (device.lastHeartbeat) summary.lastHeartbeat = device.lastHeartbeat
+  summary.sensorCount = state.devices.filter((d) => d.parentDeviceId === device.deviceId).length
+  return summary
+}
+
+function toStockRow(stock) {
+  const row = {
+    stockId: stock.stockId,
+    deviceId: stock.deviceId,
+    elderId: stock.elderId,
+    medicineId: stock.medicineId,
+    quantity: stock.quantity,
+  }
+  // 后端全局 non_null：空日期字段直接省略
+  if (stock.productionDate) row.productionDate = stock.productionDate
+  if (stock.expiryDate) row.expiryDate = stock.expiryDate
+  row.updatedAt = stock.updatedAt
+  return row
+}
+
+// ---------------------------------------------------------------- 处理器
+
+async function handleLogin(req, res, body) {
+  const account = String(body.account || '').trim()
+  const password = String(body.password || '')
+  if (!account || !password) throw new BizError(40001, 'account / password 不能为空')
+  const user = state.users.find((u) => u.status === 'ACTIVE' && (u.phone === account || u.username === account))
+  // 账号不存在 / 已注销 / 密码错误，统一 40102（不区分"账号是否存在"）
+  if (!user || user.password !== password) throw new BizError(40102, '账号或密码错误')
+  const tokens = issueTokens(user)
+  ok(res, { ...tokens, userId: user.userId, role: user.role, name: user.name })
+}
+
+async function handleRegister(req, res, body) {
+  const phone = String(body.phone || '').trim()
+  const password = String(body.password || '')
+  const role = String(body.role || '').trim()
+  const username = body.username ? String(body.username).trim() : ''
+  const name = body.name ? String(body.name).trim() : ''
+  if (!phone || !password) throw new BizError(40001, 'phone / password 不能为空')
+  if (role !== 'ELDER' && role !== 'GUARDIAN') throw new BizError(40001, 'role 只能是 ELDER / GUARDIAN')
+  if (state.users.some((u) => u.phone === phone)) throw new BizError(40901, '手机号已注册')
+  if (username && state.users.some((u) => u.username === username)) throw new BizError(40901, '用户名已存在')
+  const user = {
+    userId: `u-${Date.now().toString(36)}`,
+    role,
+    name: name || (role === 'ELDER' ? '新老人' : '新监护人'),
+    phone,
+    username: username || '',
+    password,
+    status: 'ACTIVE',
+  }
+  state.users.push(user)
+  const tokens = issueTokens(user)
+  ok(res, { ...tokens, userId: user.userId, role: user.role, name: user.name })
+}
+
+async function handleRefresh(req, res, body) {
+  const refreshToken = String(body.refreshToken || '')
+  if (!state.refreshTokens.has(refreshToken)) throw new BizError(40101, '登录已失效，请重新登录')
+  const matched = /^mref\.([^.]+)\./.exec(refreshToken)
+  const user = matched && state.users.find((u) => u.userId === matched[1])
+  if (!user || user.status !== 'ACTIVE') throw new BizError(40101, '登录已失效，请重新登录')
+  // 轮换：旧 refresh 作废，发一对新的
+  state.refreshTokens.delete(refreshToken)
+  ok(res, issueTokens(user))
+}
+
+async function handleMe(req, res) {
+  const user = requireUser(req)
+  ok(res, { userId: user.userId, role: user.role, name: user.name, phone: user.phone, username: user.username })
+}
+
+async function handleDeleteAccount(req, res, body) {
+  const user = requireUser(req)
+  const password = String(body.password || '')
+  if (!password) throw new BizError(40001, 'password 不能为空')
+  if (user.password !== password) throw new BizError(40102, '账号或密码错误')
+  // 软删除：释放手机号 / 用户名唯一键，撤销 refresh token（业务数据不级联删，02 的 3.1）
+  user.status = 'DELETED'
+  user.deletedAt = isoNow()
+  user.phone = null
+  user.username = null
+  state.refreshTokens.forEach((token) => {
+    if (token.startsWith(`mref.${user.userId}.`)) state.refreshTokens.delete(token)
+  })
+  ok(res, { userId: user.userId, deletedAt: user.deletedAt })
+}
+
+async function handleListDevices(req, res) {
+  const user = requireUser(req)
+  const visible = visibleElderIds(user)
+  const list = state.devices
+    .filter((d) => d.deviceType === 'MAIN' && visible.indexOf(d.elderId) !== -1)
+    .map(toDeviceSummary)
+  ok(res, list)
+}
+
+async function handleGetDevice(req, res, deviceId) {
+  const user = requireUser(req)
+  const device = requireDevice(user, deviceId)
+  const detail = { ...toDeviceSummary(device), createdAt: device.createdAt }
+  detail.sensors = state.devices
+    .filter((d) => d.parentDeviceId === device.deviceId)
+    .map((s) => {
+      const sensor = { deviceId: s.deviceId, deviceType: s.deviceType, onlineState: s.onlineState }
+      if (s.lastHeartbeat) sensor.lastHeartbeat = s.lastHeartbeat
+      return sensor
+    })
+  ok(res, detail)
+}
+
+async function handleListMedicines(req, res, query) {
+  const user = requireUser(req)
+  const visible = visibleElderIds(user)
+  const keyword = String(query.keyword || '').trim().toLowerCase()
+  let list = state.medicines.filter((m) => !m.ownerElderId || visible.indexOf(m.ownerElderId) !== -1)
+  if (keyword) list = list.filter((m) => m.name.toLowerCase().indexOf(keyword) !== -1)
+  const page = Math.max(1, Number(query.page) || 1)
+  const size = Math.min(100, Math.max(1, Number(query.size) || 20))
+  const total = list.length
+  // 分页响应形状：02 第 5 章口径"暂定 list"（前端 parseMedicinePage 容错 records/items）
+  ok(res, { list: list.slice((page - 1) * size, page * size), total })
+}
+
+async function handleGetMedicine(req, res, medicineId) {
+  const user = requireUser(req)
+  const medicine = state.medicines.find((m) => m.medicineId === medicineId)
+  if (!medicine) throw new BizError(40401, '资源不存在')
+  const access = medicineAccess(user, medicine)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  ok(res, { ...medicine, ownerElderId: medicine.ownerElderId || undefined })
+}
+
+async function handleSaveMedicine(req, res, body) {
+  const user = requireUser(req)
+  const name = String(body.name || '').trim()
+  if (!name) throw new BizError(40001, 'name 不能为空')
+  const ownerElderId = body.ownerElderId ? String(body.ownerElderId) : ''
+  if (ownerElderId) requireWrite(user, ownerElderId)
+  else requireWrite(user, null) // 公共字典同样只有监护人能建（role 校验）
+
+  const medicineId = body.medicineId ? String(body.medicineId) : ''
+  const existing = medicineId ? state.medicines.find((m) => m.medicineId === medicineId) : null
+  if (existing) {
+    const access = medicineAccess(user, existing)
+    if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+    if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+    existing.name = name
+    existing.spec = body.spec ? String(body.spec) : ''
+    existing.dosePerTime = body.dosePerTime ? String(body.dosePerTime) : ''
+    existing.unit = body.unit ? String(body.unit) : ''
+    existing.contraindication = body.contraindication ? String(body.contraindication) : ''
+    existing.storageCond = body.storageCond ? String(body.storageCond) : ''
+    existing.ownerElderId = ownerElderId
+    ok(res, { ...existing })
+    return
+  }
+  const medicine = {
+    medicineId: medicineId || `m-${Date.now().toString(36)}`,
+    ownerElderId,
+    name,
+    spec: body.spec ? String(body.spec) : '',
+    dosePerTime: body.dosePerTime ? String(body.dosePerTime) : '',
+    unit: body.unit ? String(body.unit) : '',
+    contraindication: body.contraindication ? String(body.contraindication) : '',
+    storageCond: body.storageCond ? String(body.storageCond) : '',
+    createdAt: isoNow(),
+  }
+  state.medicines.push(medicine)
+  ok(res, { ...medicine })
+}
+
+async function handleDeleteMedicine(req, res, medicineId) {
+  const user = requireUser(req)
+  const medicine = state.medicines.find((m) => m.medicineId === medicineId)
+  if (!medicine) throw new BizError(40401, '资源不存在')
+  const access = medicineAccess(user, medicine)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  // 无任何药箱库存引用时才允许删除（02 第 5 章）
+  if (state.stocks.some((s) => s.medicineId === medicineId)) {
+    throw new BizError(40901, '药品仍被库存引用，无法删除')
+  }
+  state.medicines = state.medicines.filter((m) => m.medicineId !== medicineId)
+  ok(res, null)
+}
+
+async function handleListStocks(req, res, deviceId) {
+  const user = requireUser(req)
+  requireDevice(user, deviceId)
+  // 响应形状：02 第 5 章口径"暂按裸数组"（前端 parseStocks 容错 {list} 等）
+  const list = state.stocks.filter((s) => s.deviceId === deviceId).map(toStockRow)
+  ok(res, list)
+}
+
+/** 录入/更新与补药入库共用的参数校验（PUT 绝对值 / POST-in 增量在调用方区分）。 */
+function validateStockBody(body) {
+  const quantity = Number(body.quantity)
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new BizError(40001, 'quantity 必须为正整数')
+  }
+  const productionDate = body.productionDate ? String(body.productionDate) : ''
+  const expiryDate = body.expiryDate ? String(body.expiryDate) : ''
+  if (productionDate && !isValidDate(productionDate)) {
+    throw new BizError(40001, 'productionDate 格式应为 YYYY-MM-DD')
+  }
+  if (expiryDate && !isValidDate(expiryDate)) {
+    throw new BizError(40001, 'expiryDate 格式应为 YYYY-MM-DD')
+  }
+  return { quantity, productionDate, expiryDate }
+}
+
+/** 定位库存行并做设备 + 药品 + 写权限校验，返回 { device, medicine, stock }。 */
+function resolveStockContext(user, deviceId, medicineId) {
+  const device = requireDevice(user, deviceId)
+  const medicine = state.medicines.find((m) => m.medicineId === medicineId)
+  if (!medicine) throw new BizError(40401, '资源不存在')
+  const access = medicineAccess(user, medicine)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  requireWrite(user, device.elderId)
+  const stock = state.stocks.find((s) => s.deviceId === deviceId && s.medicineId === medicineId) || null
+  return { device, medicine, stock }
+}
+
+async function handleSaveStock(req, res, deviceId, medicineId, body) {
+  const user = requireUser(req)
+  const { device } = resolveStockContext(user, deviceId, medicineId)
+  const { quantity, productionDate, expiryDate } = validateStockBody(body)
+  const existing = state.stocks.find((s) => s.deviceId === deviceId && s.medicineId === medicineId)
+  if (existing) {
+    existing.quantity = quantity // PUT：绝对值覆盖
+    if (productionDate) existing.productionDate = productionDate
+    if (expiryDate) existing.expiryDate = expiryDate
+    existing.updatedAt = isoNow()
+    ok(res, toStockRow(existing))
+    return
+  }
+  const stock = {
+    stockId: `st-${Date.now().toString(36)}`,
+    deviceId,
+    elderId: device.elderId,
+    medicineId,
+    quantity,
+    productionDate,
+    expiryDate,
+    updatedAt: isoNow(),
+  }
+  state.stocks.push(stock)
+  ok(res, toStockRow(stock))
+}
+
+async function handleRestockStock(req, res, deviceId, medicineId, body) {
+  const user = requireUser(req)
+  const { device } = resolveStockContext(user, deviceId, medicineId)
+  const { quantity, productionDate, expiryDate } = validateStockBody(body)
+  const existing = state.stocks.find((s) => s.deviceId === deviceId && s.medicineId === medicineId)
+  if (existing) {
+    existing.quantity += quantity // POST /in：增量
+    if (productionDate) existing.productionDate = productionDate
+    if (expiryDate) existing.expiryDate = expiryDate
+    existing.updatedAt = isoNow()
+    ok(res, toStockRow(existing))
+    return
+  }
+  // 该药箱还没有此药品库存： Mock 从宽按"首录"处理（真实后端行为待定，联调时对齐）
+  const stock = {
+    stockId: `st-${Date.now().toString(36)}`,
+    deviceId,
+    elderId: device.elderId,
+    medicineId,
+    quantity,
+    productionDate,
+    expiryDate,
+    updatedAt: isoNow(),
+  }
+  state.stocks.push(stock)
+  ok(res, toStockRow(stock))
+}
+
+async function handleDeleteStock(req, res, deviceId, medicineId) {
+  const user = requireUser(req)
+  resolveStockContext(user, deviceId, medicineId)
+  const index = state.stocks.findIndex((s) => s.deviceId === deviceId && s.medicineId === medicineId)
+  if (index === -1) throw new BizError(40401, '库存记录不存在')
+  state.stocks.splice(index, 1)
+  ok(res, null)
+}
+
+function handleReset(req, res) {
+  state = createSeed()
+  ok(res, { reset: true, accounts: DEMO_ACCOUNTS })
+}
+
+// ---------------------------------------------------------------- 路由
+
+const DEMO_ACCOUNTS = [
+  { account: '13800001234', password: DEMO_PASSWORD, role: 'GUARDIAN', name: '张伟', note: '监护 2 位老人（ACTIVE），可读写' },
+  { account: '13800001235', password: DEMO_PASSWORD, role: 'GUARDIAN', name: '王芳', note: '对 u-1001 关系 PENDING（验证 40302）' },
+  { account: '13800001236', password: DEMO_PASSWORD, role: 'GUARDIAN', name: '周杰', note: '关系 REVOKED，看不到任何数据' },
+  { account: '13900000001', password: DEMO_PASSWORD, role: 'ELDER', name: '张桂英', note: '只读本人数据（写操作 40301）' },
+  { account: '13900000002', password: DEMO_PASSWORD, role: 'ELDER', name: '李德海', note: '只读本人数据' },
+]
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
+  const path = url.pathname
+  const query = Object.fromEntries(url.searchParams.entries())
+  const route = `${req.method} ${path}`
+
+  try {
+    if (req.method === 'OPTIONS') {
+      send(res, 204, null)
+      return
+    }
+    if (!path.startsWith(API_PREFIX)) {
+      throw new BizError(40401, '接口不存在')
+    }
+    const sub = path.slice(API_PREFIX.length)
+
+    // 免鉴权：凭证接口
+    if (req.method === 'POST' && sub === '/auth/login') return await handleLogin(req, res, await readBody(req))
+    if (req.method === 'POST' && sub === '/auth/register') return await handleRegister(req, res, await readBody(req))
+    if (req.method === 'POST' && sub === '/auth/refresh') return await handleRefresh(req, res, await readBody(req))
+
+    // 鉴权：用户
+    if (req.method === 'GET' && sub === '/users/me') return await handleMe(req, res)
+    if (req.method === 'POST' && sub === '/users/me/delete') return await handleDeleteAccount(req, res, await readBody(req))
+
+    // 鉴权：设备
+    if (req.method === 'GET' && sub === '/devices') return await handleListDevices(req, res)
+    let matched = /^\/devices\/([^/]+)$/.exec(sub)
+    if (req.method === 'GET' && matched) return await handleGetDevice(req, res, decodeURIComponent(matched[1]))
+
+    // 鉴权：药品
+    if (req.method === 'GET' && sub === '/medicines') return await handleListMedicines(req, res, query)
+    if (req.method === 'POST' && sub === '/medicines') return await handleSaveMedicine(req, res, await readBody(req))
+    matched = /^\/medicines\/([^/]+)$/.exec(sub)
+    if (req.method === 'GET' && matched) return await handleGetMedicine(req, res, decodeURIComponent(matched[1]))
+    if (req.method === 'DELETE' && matched) return await handleDeleteMedicine(req, res, decodeURIComponent(matched[1]))
+
+    // 鉴权：库存四条
+    matched = /^\/devices\/([^/]+)\/stocks$/.exec(sub)
+    if (req.method === 'GET' && matched) return await handleListStocks(req, res, decodeURIComponent(matched[1]))
+    matched = /^\/devices\/([^/]+)\/stocks\/([^/]+)\/in$/.exec(sub)
+    if (req.method === 'POST' && matched) {
+      return await handleRestockStock(req, res, decodeURIComponent(matched[1]), decodeURIComponent(matched[2]), await readBody(req))
+    }
+    matched = /^\/devices\/([^/]+)\/stocks\/([^/]+)$/.exec(sub)
+    if (req.method === 'PUT' && matched) {
+      return await handleSaveStock(req, res, decodeURIComponent(matched[1]), decodeURIComponent(matched[2]), await readBody(req))
+    }
+    if (req.method === 'DELETE' && matched) {
+      return await handleDeleteStock(req, res, decodeURIComponent(matched[1]), decodeURIComponent(matched[2]))
+    }
+
+    // 测试辅助
+    if (req.method === 'POST' && sub === '/__mock__/reset') return handleReset(req, res)
+
+    // 未知路径 / 方法用错：统一 40401 + HTTP 404（02 的 1.2 补充口径）
+    throw new BizError(40401, '接口不存在')
+  } catch (err) {
+    fail(res, err)
+    console.log(`[mock] ${route} -> code=${err instanceof BizError ? err.code : 500}`)
+  }
+})
+
+server.listen(PORT, () => {
+  console.log(`[mock] medbox 临时 Mock 后端已启动: http://127.0.0.1:${PORT}${API_PREFIX}`)
+  console.log('[mock] 小程序把 .env.local 的 VITE_SERVER_HOST 指向本机 IP 即可，无需改代码')
+  console.log('[mock] 演示账号（密码统一 %s）：', DEMO_PASSWORD)
+  DEMO_ACCOUNTS.forEach((a) => console.log(`         ${a.account}  ${a.role}  ${a.name}  ${a.note}`))
+  console.log('[mock] 重置数据: curl -X POST http://127.0.0.1:%d%s/__mock__/reset', PORT, API_PREFIX)
+  console.log('[mock] 模拟 token 过期: MOCK_ACCESS_TTL_MS=15000 npm run mock（验证 40101 自动续期）')
+})

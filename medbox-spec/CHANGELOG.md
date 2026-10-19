@@ -17,6 +17,25 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-19] 小程序 Mock 后端移入 `tools/mock`，端到端测试纳入 AI 完工流程
+
+后端接口未落地期间的前端自测底座：Mock 后端迁到 `medbox-miniapp/tools/mock/`，新增 `npm run test:e2e` 与 `test:all`，并把"单元测试后自动跑一遍 mock 端到端"写进 AGENTS.md。
+
+- **新增 `medbox-miniapp/tools/mock/`**：`src/server.js`（按 02 的形状 + 错误码 + 权限口径）+ `src/data.js`（06 的 2.1~2.5 种子数据，故意覆盖正常/临期/过期/未填四种库存状态）+ `test/smoke.js`（46 项端到端，自起服务、18099 端口、跑完即关）；`package.json` 新增 `mock` / `test:e2e` / `test:all` 脚本
+- **`AGENTS.md` 3.1 与第 7 节自检清单**：小程序功能分支完工时，`npm test` 之后**自动跑 `npm run test:e2e`**，两份结果一并贴报告；08 顶部"通行做法"同步补了该约定
+- **顺带修复**：`pages/medicine/edit.vue` 的 `.row > *` 通配符 WXSS 不支持（H5 能过、小程序编译报错），改显式类 `row__item` —— 属 `mp-medicine` 页面，提交时注意分支归属
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是（新增 `tools/`，测试流程变化）· 嵌入式 否
+
+## [2026-10-19] 小程序落地药箱库存（`feat/mp-stock`）
+
+`feat/mp-stock`（08 清单 P0 第 5 步）落地：药箱库存清单（按药品展示数量 / 生产日期 / 有效期 + 临期过期标签）+ 录入更新（PUT，绝对值）+ 补药入库（POST `/in`，增量、可同步更新日期）+ 移除（DELETE）；入口在设备详情页。
+
+- **新增 `src/api/stock.js`**（库存四条）与 **`src/utils/stock.js`**（`parseStocks` 容错 / `joinStockMedicine` 药品 join / `expiryTag` 复用 `datetime.expiryState` / `buildStockPayload` / `buildRestockPayload`）；新增 `pages/stock/stock.vue` 与 `pages/stock/edit.vue`（日期用 `picker mode="date"`，DATE 列无时刻、**不做 UTC 换算**），`pages/device/detail.vue` 加入口行
+- **⚠️ 后端 `medicine-core` 未落地**（07 未勾选）：按 02 第 5 章先行实现；**stocks 响应暂按裸数组**（容错 `{list}` 等）、**PUT 数量为绝对值 / POST `/in` 为增量**、**行级不内嵌药品摘要**（小程序拉药品字典 join，超出首页 100 条回退显示 `medicineId`）—— 后端定稿后收紧并同步 02 第 5 章新补的"库存四条 · 小程序侧口径"6 条
+- **写权限**：四条均属 `WRITE_MEDICINE`（仅 FAMILY），只给监护人显示写入口；`GET /devices/{id}/expiring` 明确归 P1 `mp-expiring`，本分支未实现
+- **测试**：`npm test` 共 **127 例**（通过 126、跳过 1 —— 跳过的是需本机后端的 `ws.local.test.js`），本分支新增 27 例（请求层 7 + 纯函数 20）；`npm run build:mp-weixin` 编译通过
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-18] 07 / 08 补跨端依赖标注，《跨端依赖速查表》上线
 
 三人并行（后端 P0 / 后端 P1 / 小程序）后，只写本端依赖不够排期，故把"对端依赖"补进两份清单。

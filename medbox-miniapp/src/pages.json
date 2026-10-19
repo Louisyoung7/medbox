@@ -57,6 +57,20 @@
 			}
 		},
 		{
+			"path": "pages/stock/stock",
+			"style": {
+				"navigationBarTitleText": "药箱库存",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
+			"path": "pages/stock/edit",
+			"style": {
+				"navigationBarTitleText": "库存编辑",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/plan/plan",
 			"style": {
 				"navigationBarTitleText": "计划",

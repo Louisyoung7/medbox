@@ -13,6 +13,16 @@
         <MbCell title="登记时间" :value="formatDateTime(device.createdAt)" />
       </MbCard>
 
+      <MbCard title="药箱库存">
+        <MbCell
+          title="库存清单"
+          label="数量 / 生产日期 / 有效期"
+          clickable
+          arrow
+          @click="goStock"
+        />
+      </MbCard>
+
       <MbCard title="在线状态">
         <MbCell title="当前状态">
           <template #extra>
@@ -119,6 +129,11 @@ export default {
     },
     handleResync() {
       this.load()
+    },
+    goStock() {
+      uni.navigateTo({
+        url: `/pages/stock/stock?deviceId=${encodeURIComponent(this.deviceId)}`,
+      })
     },
   },
 }

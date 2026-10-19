@@ -15,8 +15,8 @@
         />
         <MbField v-model="form.spec" label="规格" placeholder="如：0.25g×24粒" />
         <view class="row">
-          <MbField v-model="form.dosePerTime" label="默认单次剂量" placeholder="如：1" />
-          <MbField v-model="form.unit" label="单位" placeholder="片 / 粒 / ml / 瓶" />
+          <MbField v-model="form.dosePerTime" class="row__item" label="默认单次剂量" placeholder="如：1" />
+          <MbField v-model="form.unit" class="row__item" label="单位" placeholder="片 / 粒 / ml / 瓶" />
         </view>
         <MbField
           v-model="form.contraindication"
@@ -235,10 +235,11 @@ export default {
 .row {
   display: flex;
   gap: 20rpx;
+}
 
-  > * {
-    flex: 1;
-  }
+/* WXSS 不支持 `.row > *` 通配符（H5 能过、小程序编译报错），用显式类名 */
+.row__item {
+  flex: 1;
 }
 
 .segment {

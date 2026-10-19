@@ -34,7 +34,10 @@
     "build:quickapp-webview": "uni build -p quickapp-webview",
     "build:quickapp-webview-huawei": "uni build -p quickapp-webview-huawei",
     "build:quickapp-webview-union": "uni build -p quickapp-webview-union",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "node tools/mock/test/smoke.js",
+    "test:all": "vitest run && node tools/mock/test/smoke.js",
+    "mock": "node tools/mock/src/server.js"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5020620260917001",

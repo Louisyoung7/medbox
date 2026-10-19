@@ -137,6 +137,21 @@ logout()            // 清 token + 用户资料 + reLaunch 登录页
 - **真机预览**默认强制校验域名：开发阶段用「真机调试（开发版）」模式，或改走 App 端（Android / iOS）直连局域网 IP。
 - `src/manifest.json` 的 `mp-weixin.appid` **两人共用同一个**（微信公众平台「成员管理」里把对方加为开发者 / 体验成员），不要各填各的测试号。
 
+## Mock 后端与端到端测试（`tools/mock`）
+
+后端接口未落地期间的前端自测底座（**不替代 `medbox-server/`**，纯 Node 内置模块、零依赖）：
+
+```bash
+npm run mock        # 起假后端，监听 8080（BASE_URL 端口固定，勿改）
+npm run test:e2e    # 端到端冒烟：自起服务（18099 端口）、46 项检查、跑完即关
+npm run test:all    # 单元测试 + 端到端一次跑完（AI 完工时的标准动作，见 AGENTS.md 3.1）
+```
+
+- 演示账号（密码统一 `123456`）：`13800001234` 监护人张伟（全读写）/ `13900000001` 老人张桂英（只读）/ `13800001235` 王芳（PENDING→40302）等，完整清单与场景见 `tools/mock/README.md`。
+- 接口形状、错误码、权限口径全部对照 `medbox-spec/02`；字段名假设（stocks 裸数组、`{list,total}`）后端定稿后两处一起收紧。
+- 重置数据：`curl -X POST http://127.0.0.1:8080/medbox/api/v1/__mock__/reset`。
+- ⚠️ 无 WebSocket：WS 状态条显示未连接属预期；**微信侧注意 WXSS 不支持通配符 `*`**（H5 测不出，小程序编译才报错）。
+
 ## 目录结构
 
 ```

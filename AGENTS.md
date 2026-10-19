@@ -77,6 +77,7 @@ git log --oneline -5 -- medbox-spec/
 1. **功能分支必须带集成测试，并输出测试报告**
    - 地基分支（骨架 / 统一响应 / 建表 / 认证）有单元测试即可；**从第一个功能分支起**，凡新增接口或判定逻辑，必须补集成测试（后端用 MockMvc 打真实接口链路，小程序侧至少覆盖请求层与编排层）；
    - 交付时**把测试报告贴给用户**（`./gradlew test` / npm test 的结果摘要：用例数、通过数、失败项），不要只说"已实现"；
+   - **小程序侧另跑 Mock 端到端**：每个功能分支完工时，在 `npm test`（单元测试）之后**自动执行 `npm run test:e2e`**（`medbox-miniapp/tools/mock`：自起服务、自选 18099 端口、46 项检查、跑完即关，不占用 8080），单元 + 端到端两份结果一并贴给用户；后端接口未落地时的联调与回归也用 `npm run mock` 起这个假后端；
    - 目的：把"人工手动跑一遍"从瓶颈里摘出来。用户的验证动作降级为**看报告**，不再逐接口手点。
    - 集成测试**不依赖外部 DB（CI 无 PostgreSQL）**：CI 环境没有 Postgres（localhost:5432 不可达）。凡 `@SpringBootTest` 会触达 `@Transactional` 服务，用 `@TestConfiguration` 提供一个 `@Primary` 的**嵌入式 H2 `DataSource`** 替换真实 DataSource，Mapper 仍 `@MockitoBean` 打桩、不跑真实 SQL；SQL / 建表正确性留给真机联调。
      - ⚠️ **Spring Boot 4 已移除 `@AutoConfigureTestDatabase`**（4.x 的 `spring-boot-test-autoconfigure` 的 jdbc 包只剩 `AutoConfigureDataSourceInitialization`），别再用它，改用 `@Primary` H2 方案。
@@ -156,7 +157,7 @@ git stash pop                # 恢复未提交改动
 - [ ] 实现与 `medbox-spec/` 里的字段 / 错误码 / 枚举**一致**吗？
 - [ ] 改了接口或表结构 → **`medbox-spec/02` / `06` / `03` 同步改了**吗？
 - [ ] 改了文档 → **`CHANGELOG.md` 顶部加了简洁条目**吗？（**已不再维护版本号**，用日期定位；历史条目里的 V15 / V16 是旧编号，原样保留、不要回去改）
-- [ ] 是功能分支 → **写了集成测试并把测试报告给了用户**吗？是判定型分支 → **先出规则表再写代码**了吗？
+- [ ] 是功能分支 → **写了集成测试并把测试报告给了用户**吗？是判定型分支 → **先出规则表再写代码**了吗？小程序分支 → **`npm run test:e2e`（Mock 端到端）也跑了吗**？
 - [ ] 能合并的待办合并成一个分支了吗？没有为单接口 CRUD 单开分支？
 - [ ] 功能已完成 → **勾选了 07/08 待办 + 补了 CHANGELOG**，且与代码同 PR？
 - [ ] 用户要合并 → 提醒过"先更新文档再合并"吗？
