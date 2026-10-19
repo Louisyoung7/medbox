@@ -475,6 +475,15 @@ reason=WRONG_DRUG & medicineId=m-205 & planId=p-3301
 > 4. **私有药品的归属选择**：P1 `feat/mp-guardian` 前小程序没有"我监护的老人列表"接口，暂从 `GET /devices` 列表项的 `elderId` 归纳候选老人；`mp-guardian` 上线后改调老人列表接口。
 > 5. **写权限**：`POST` / `DELETE` 仅 `WRITE_MEDICINE`（02 的 1.3 矩阵，仅 FAMILY）；小程序据此只给监护人显示新建 / 编辑 / 删除入口，老人端只读，服务端仍强校验。
 
+> **库存四条 · 小程序侧口径（`feat/mp-stock`；后端 `medicine-core` 未落地，先行约定）**：
+>
+> 1. **响应形状**：`GET /devices/{deviceId}/stocks` 暂按**裸数组**返回（小程序 `parseStocks` 容错 `{list}` / `{records}` / `{items}`）；行级字段即 06 的 2.5（`stockId` / `medicineId` / `quantity` / `productionDate` / `expiryDate` / `updatedAt`），**不内嵌药品摘要** —— 名称 / 规格 / 单位由小程序拉药品字典按 `medicineId` join。后端若改为内嵌摘要，只改小程序 `utils/stock.js` 的 `joinStockMedicine` 一处。
+> 2. **请求体字段（camelCase，与 06 列名对应）**：PUT 录入/更新与 POST `/in` 补药入库均为 `{ quantity, productionDate?, expiryDate? }`；**PUT 的 `quantity` 为绝对值（覆盖写）**，**POST `/in` 的 `quantity` 为增量**；两个日期均为 `YYYY-MM-DD`（DATE 列，选填，不传即不更新该列）。
+> 3. **设备维度错误码**：沿用第 4 章 device-core 口径 —— 查询 / 操作他人设备与设备不存在**一律 40301**（不返回 40401）；数量非法等参数错误 40001。
+> 4. **日期无时区换算**：`productionDate` / `expiryDate` 是 DATE（无时刻），小程序用 `picker mode="date"` 直接收发 `YYYY-MM-DD`，**不走 1. 通用约定的 UTC 口径**（该口径的例外只有计划 `times`）。
+> 5. **`GET /devices/{deviceId}/expiring`（临期/过期清单）归 P1 `feat/mp-expiring`**，`feat/mp-stock` 不实现；库存清单页的临期 / 过期标签是**前端本地展示**（复用 `datetime.expiryState`，默认 30 天；老人级 `alarm-settings` 提前期归 P1 `feat/mp-alarm`）。
+> 6. **写权限**：四条均属 `WRITE_MEDICINE`（02 的 1.3 矩阵，仅 FAMILY）；小程序据此只给监护人显示录入 / 补药 / 移除入口，老人端只读，服务端仍强校验。
+
 ## 6. 服药计划与提醒
 
 | 方法 | 路径 | 说明 |
