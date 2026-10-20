@@ -27,6 +27,16 @@
 - **测试**：`./gradlew test` 共 **264 例**（执行 259、跳过 5、失败 0），本分支新增 `MedicineCoreWebIntegrationTest` **15 例**（MockMvc 打完整链路，`@Primary` 内嵌 H2 + Mapper `@MockitoBean` 打桩）
 - 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否 · 嵌入式 否
 
+## [2026-10-20] 小程序落地服药计划（`feat/mp-plan`）
+
+`feat/mp-plan`（08 清单 P0 第 6 步，🧭 判定型）落地：计划列表（老人选择器 + 药品概览 + 启停开关 + `syncState` 徽标）+ 创建 / 编辑（一次提醒多种药、**时间为设备本地墙钟**、过期 / 无库存药品拦截）+ 删除（级联明细）；规则表经用户确认后沉淀进 02 第 6 章。
+
+- **新增 `src/api/plan.js`**（计划六接口）与 **`src/utils/plan.js`**（规则表纯函数：`normalizeTimes` / `buildPlanPayload` / `pickableMedicines` / `parsePlansPage` / 文案函数）；改造 `pages/plan/plan.vue` + 新增 `pages/plan/edit.vue` 与 `components/PlanItemRow.vue`
+- **⚠️ 后端 `plan-core` / `plan-sync` 未落地**（07 未勾选）：按 02 第 6 章先行实现；**`times` 为设备本地墙钟、前端不做时区换算**（提交前去重 + 升序）；PATCH 请求体先行契约 `{status:'ENABLED'|'DISABLED'}`；分页响应容错 `{list,records,items}+total`；`repeatRule` 先提供 DAILY / WEEKLY —— 后端定稿后三处收紧并同步 02 第 6 章
+- **规则表已按 AGENTS.md 3.1.2 经用户确认并沉淀进 02 第 6 章**（A 时间墙钟口径 × B items 组装 × C 过期/无库存 40901 拦截 × D 启停与 syncState 契约 × E 权限与老人上下文 × F 本期不做项）
+- **mock 后端扩展计划域**：`tools/mock` 种子增 3 个计划 / 4 条明细，服务端增计划六端点（含 40901 无库存/过期校验、同计划药品去重 40001、PATCH 契约、级联删除）；**测试**：`npm test` 共 **151 例**（通过 150、跳过 1 —— 跳过的是需本机后端的 `ws.local.test.js`），本分支新增 24 例；`npm run test:e2e` 共 **64 例全通过**（新增 18 例计划用例）；`npm run build:mp-weixin` 编译通过
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-19] 小程序 Mock 后端移入 `tools/mock`，端到端测试纳入 AI 完工流程
 
 后端接口未落地期间的前端自测底座：Mock 后端迁到 `medbox-miniapp/tools/mock/`，新增 `npm run test:e2e` 与 `test:all`，并把"单元测试后自动跑一遍 mock 端到端"写进 AGENTS.md。

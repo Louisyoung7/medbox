@@ -147,7 +147,38 @@ function createSeed() {
     { stockId: 'st-7', deviceId: 'BOXA1002', elderId: 'u-1002', medicineId: 'm-201', quantity: 12, productionDate: dateOffset(-15), expiryDate: dateOffset(30), updatedAt: isoOffset(-3 * DAY) },
   ]
 
-  return { users, relations, devices, medicines, stocks, refreshTokens: new Set() }
+  // 服药计划（06 的 2.6 / 2.6.1）：times 为设备本地墙钟；覆盖 ENABLED / DISABLED、
+  // 单药 / 多药 / 带备注 / 多时间 / 两位老人 / DAILY / WEEKLY
+  const plans = [
+    {
+      planId: 'p-3301', elderId: 'u-1001', name: '早餐后',
+      times: ['08:00'], repeatRule: 'DAILY',
+      status: 'ENABLED', syncState: 'SYNCED_TO_DEVICE',
+      createdAt: isoOffset(-10 * DAY),
+    },
+    {
+      planId: 'p-3302', elderId: 'u-1001', name: '睡前',
+      times: ['21:30'], repeatRule: 'DAILY',
+      status: 'DISABLED', syncState: 'SYNCED_TO_DEVICE',
+      createdAt: isoOffset(-10 * DAY),
+    },
+    {
+      planId: 'p-3303', elderId: 'u-1002', name: '早晚各一次',
+      times: ['08:00', '20:00'], repeatRule: 'WEEKLY',
+      status: 'ENABLED', syncState: 'SYNCED_TO_DEVICE',
+      createdAt: isoOffset(-6 * DAY),
+    },
+  ]
+
+  // 计划明细：一次提醒可含多种药；sortOrder 即展示顺序
+  const planItems = [
+    { itemId: 'pi-9001', planId: 'p-3301', medicineId: 'm-201', dose: '1', unit: '粒', note: '', sortOrder: 0 },
+    { itemId: 'pi-9002', planId: 'p-3301', medicineId: 'm-202', dose: '1', unit: '片', note: '', sortOrder: 1 },
+    { itemId: 'pi-9003', planId: 'p-3302', medicineId: 'm-204', dose: '1', unit: '片', note: '嚼服', sortOrder: 0 },
+    { itemId: 'pi-9004', planId: 'p-3303', medicineId: 'm-205', dose: '10', unit: 'ml', note: '摇匀后服', sortOrder: 0 },
+  ]
+
+  return { users, relations, devices, medicines, stocks, plans, planItems, refreshTokens: new Set() }
 }
 
 module.exports = { createSeed, DEMO_PASSWORD }
