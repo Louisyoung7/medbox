@@ -6,8 +6,9 @@
 ## 用法
 
 ```bash
-npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、64 项检查、跑完即关
+npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
+                    # 端口被 medbox-server 占用时会报错说明，不会静默失败）
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、65 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 

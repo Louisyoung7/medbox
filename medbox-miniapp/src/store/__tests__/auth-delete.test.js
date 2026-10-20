@@ -64,11 +64,16 @@ beforeEach(() => {
         onError: (fn) => {
           handlers.error = fn
         },
+        readyState: 0, // CONNECTING；与真实 SocketTask 一致
         send: vi.fn(),
         close: () => {
           task.closed = true
+          task.readyState = 3 // CLOSED
         },
-        open: () => handlers.open && handlers.open(),
+        open: () => {
+          task.readyState = 1 // OPEN
+          handlers.open && handlers.open()
+        },
       }
       tasks.push(task)
       return task

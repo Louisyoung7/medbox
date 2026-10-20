@@ -18,8 +18,9 @@
  *
  * 辅助端点：POST /medbox/api/v1/__mock__/reset 重置内存数据（注销账号测试后用它恢复）。
  *
- * ⚠️ 纯内存、无持久化：重启即还原种子数据；不含 WebSocket（WS 状态条会显示未连接，
- * 属预期，库存 / 药品 / 设备链路不依赖 WS）。
+ * ⚠️ 纯内存、无持久化：重启即还原种子数据。
+ * ⚠️ WebSocket 为**最小实现**：`/medbox/ws` 只完成握手 + `ping`/`pong`（让首页状态条变绿），
+ * **不推业务帧**（ALARM / DEVICE_STATUS / REMINDER 留待 `medbox-server/` 真后端联调）。
  */
 
 const http = require('node:http')
@@ -893,6 +894,17 @@ server.on('upgrade', (req, socket) => {
     })
   })
   socket.on('error', () => socket.destroy())
+})
+
+// 端口占用要**说人话**：默认 8080 与 medbox-server 同端口，最容易遇到"真后端还开着"
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error(`[mock] 端口 ${PORT} 已被占用（多半是 medbox-server 还在跑）`)
+    console.error('[mock] 停掉占用方即可。别改端口 —— 小程序 BASE_URL 的端口固定 8080，'
+      + '换端口后小程序连不上（端到端测试的 18099 是自起自连，不走小程序配置）')
+    process.exit(1)
+  }
+  throw err
 })
 
 server.listen(PORT, () => {

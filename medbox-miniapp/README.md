@@ -18,28 +18,39 @@ npm run dev:h5          # H5，浏览器打开 http://localhost:5173
 
 | 文件 | 是否入库 | 内容 |
 |------|----------|------|
-| `.env.development` | ✅ 入库 | 与机器无关的配置（`VITE_TLS`） |
-| `.env.local` | ❌ 不入库 | 各人自己的后端 IP（`VITE_SERVER_HOST`） |
+| `.env` | ✅ 入库 | 与机器**且与构建模式**无关的默认配置（`VITE_TLS`） |
+| `.env.development` | ✅ 入库 | development 模式专属（当前为空，保留入口） |
+| `.env.local` | ❌ 不入库 | 各人自己的后端地址（`VITE_SERVER_HOST`） |
 | 本地缓存 `serverHost` | — | 真机调试时临时覆盖，**下次启动生效**，无需重新编译 |
 
 首次搭建：
 
 ```bash
 cp .env.example .env.local
-# 编辑 .env.local，把 VITE_SERVER_HOST 改成自己电脑在局域网内的 IP
+# 编辑 .env.local：开发者工具 / H5 填 127.0.0.1，真机调试填电脑的局域网 IP
 ```
 
-> Vite 中 `.env.[mode]` 优先级高于 `.env.local`，所以 **`VITE_TLS` 只改 `.env.development`**，不要写进 `.env.local`。
-> `.env.local` 不入库，因此 `git pull` 不会覆盖自己的 IP，也不用每次改回来（见 `medbox-spec/01` 的 4.5）。
+> **为什么 `VITE_TLS` 放在 `.env` 而不是 `.env.development`**：Vite 只加载当前 mode 的 `.env.[mode]`，
+> `npm run dev:*` 是 development、`uni build -p *` 是 production —— 写在 `.env.development` 的开关
+> **打包后读不到**，"上线切 https / wss"会静默失效。`.env` 对所有 mode 都是基线。
+> Vite 优先级为 `.env.[mode].local` > `.env.[mode]` > `.env.local` > `.env`，所以个人要临时改 TLS，
+> 写不入库的 `.env.local` 即可覆盖；因机器而异的 `VITE_SERVER_HOST` 则**只**写 `.env.local`，`git pull` 不会覆盖。
 
 导出内容：
 
 ```js
-import { BASE_URL, WS_URL, SERVER_HOST, setServerHost } from '@/config/index.js'
+import { BASE_URL, WS_URL, SERVER_HOST, setServerHost, normalizeHost } from '@/config/index.js'
 // BASE_URL = http://{HOST}:8080/medbox/api/v1
 // WS_URL   = ws://{HOST}:8080/medbox/ws
 // 没有 MQTT_URL：小程序不直连 MQTT，设备消息由后端中转
+
+setServerHost('http://192.168.1.23:8080/')  // 归一化后写入 192.168.1.23，返回 true
+setServerHost('')                            // 非法输入：不写入，返回 false
 ```
+
+> `HOST` 取值链：本地缓存 `serverHost` → `VITE_SERVER_HOST` → **兜底 `127.0.0.1`**（后端跑在本机）。
+> 端口固定 `8080`（与后端 `server.port` 一致），`{HOST}` 里不要再带端口。
+> `serverHost` 目前只能手动写入（设置页归 08 的 `feat/mp-devtools`），且**重启才生效**。
 
 ## 浏览器联调（H5）
 
@@ -49,16 +60,22 @@ import { BASE_URL, WS_URL, SERVER_HOST, setServerHost } from '@/config/index.js'
 server: { proxy: { '/medbox': { target: 'http://127.0.0.1:8080', changeOrigin: true, ws: true } } }
 ```
 
-使用时在本机的 `.env.local` 再加一行（**不入库**，`.env.example` 有注释模板）：
+使用时在本机的 `.env.local` 加一行（**不入库**，`.env.example` 有注释模板）：
 
 ```bash
 VITE_BASE_URL=/medbox/api/v1   # REST 拼成同源相对路径 → 由 dev server 反代
-VITE_SERVER_HOST=127.0.0.1     # 仍决定 WS_URL（WebSocket 不受 CORS 限制，走直连）
+# VITE_SERVER_HOST=127.0.0.1   # 需要真机时可填局域网 IP；不填就是兜底 127.0.0.1
 ```
 
 然后 `npm run dev:h5`，用普通浏览器打开 <http://localhost:5173> 即可，**不需要**带 `--disable-web-security`。
 
-> `VITE_BASE_URL` 千万别写进入库的 `.env.development`：小程序 / 真机不经过 dev server，会请求到自己的 origin。
+> **可以放心写在 `.env.local` 里，不会毒害小程序**（2026-10-20 起）：`VITE_BASE_URL` 是编译期常量，
+> 以前小程序产物也会带着它，把 REST 请求到自己（微信 / App）的 origin 上 —— 表现为"登录不了 / 网络异常"，
+> 与 IP 填错一模一样。现在 `src/config/index.js` 用 `process.env.UNI_PLATFORM === 'h5'` 做了平台隔离：
+> **只有 H5 认这个变量**，小程序 / App 一律忽略（配了却不在 H5 时控制台会给出告警）。
+> 所以一份 `.env.local` 可以同时喂 H5 与微信小程序，来回切不用改配置。
+>
+> `WS_URL` 永远走绝对地址：WebSocket 不受同源策略限制，没必要也不能走反代。
 
 ## 请求封装用法（`feat/mp-request`）
 
@@ -142,8 +159,8 @@ logout()            // 清 token + 用户资料 + reLaunch 登录页
 后端接口未落地期间的前端自测底座（**不替代 `medbox-server/`**，纯 Node 内置模块、零依赖）：
 
 ```bash
-npm run mock        # 起假后端，监听 8080（BASE_URL 端口固定，勿改）
-npm run test:e2e    # 端到端冒烟：自起服务（18099 端口）、46 项检查、跑完即关
+npm run mock        # 起假后端，监听 8080（BASE_URL 端口固定，勿改；端口被占会直接报是谁占了）
+npm run test:e2e    # 端到端冒烟：自起服务（18099 端口）、65 项检查、跑完即关
 npm run test:all    # 单元测试 + 端到端一次跑完（AI 完工时的标准动作，见 AGENTS.md 3.1）
 ```
 
