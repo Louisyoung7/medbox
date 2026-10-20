@@ -34,7 +34,7 @@
 1. **绝不在主分支开发**：一切改动都在 `feat/xxx` 特性分支上做。分支名取自 `medbox-spec/07`（`feat/backend-xxx`）或 `medbox-spec/08`（`feat/mp-xxx`）。
 2. **每次开工前先拉最新**：`git switch main && git pull`，代码与文档一起更新；再看 `medbox-spec/CHANGELOG.md` 判断有没有影响自己这一端。
 3. **完成特性分支、合并前必须更新文档，且与代码同 PR 提交**：勾选 07/08 待办、补 `CHANGELOG.md`、修正与实现不一致的接口/字段。
-4. **远程有更新时用 rebase，不要 merge**：切回主分支 fetch/pull，再回特性分支 `git rebase main`。
+4. **远程有更新时用 rebase，不要 merge**：切回主分支 fetch/pull，再回特性分支 `git rebase main`（冲突大概率只在 `CHANGELOG.md` 头部，处理办法见第 4 节）。
 5. **修 Bug / 重构不单独开分支记账**，但仍要走特性分支，随所在模块一起提交。
 6. **一个分支只动一个端**（见 0.1）。
 
@@ -109,6 +109,13 @@ git switch main && git pull && git switch -
 git add medbox-server/ medbox-spec/      # 或 medbox-miniapp/ medbox-spec/
 git commit -m "feat(<模块>): <说明>；docs(spec): 勾选 07/08 的 feat/xxx、补 CHANGELOG"
 ```
+
+**rebase / pull 冲突处理（`CHANGELOG.md` 头部冲突是常态，不要慌，更不要删文件）**：全员都在 `medbox-spec/CHANGELOG.md` **顶部追加**条目，所以远程更新后 rebase 时**大概率只在它头部冲突**——这正是它作为"全员变更台账"的固有成本，解法是机械的：
+
+1. **保留双方条目**：按日期排序，同一天按"已合入 main 的在前、本分支的在后"摆放；其余文件若冲突，按同样原则逐段核对，别整文件 `--ours` / `--theirs` 覆盖；
+2. 解决后 `git add` + `git rebase --continue`；
+3. ⚠️ **continue 前必须 grep 一遍 `<<<<<<<` / `=======` / `>>>>>>>`**：编辑器替换容易漏掉**文件末尾**的标记行（2026-10-20 `feat/mp-plan` rebase 就漏过一个 `>>>>>>>`，靠 continue 后的复查才抓住，已 amend 修正）；
+4. 冲突只涉及文档条目 → 直接 continue；冲突波及**代码或接口契约**（`02` / `06` / `03`）→ `npm test` / `./gradlew test` **重跑一遍再 continue**。
 
 **提醒义务**：如果用户说"这个分支做完了 / 帮我合并"，而 `medbox-spec/` 还没有文档改动，我必须先提醒：
 
