@@ -87,7 +87,7 @@ public class AccessService {
 
         // ④ 该角色是否具备此操作权限
         BizAssert.forbiddenIf(!Permission.allows(identity, permission),
-                FORBIDDEN_MESSAGE + "（" + permission.name() + "）");
+                FORBIDDEN_MESSAGE + "(" + permission.name() + ")");
         return identity;
     }
 
@@ -145,7 +145,22 @@ public class AccessService {
                 .eq(GuardianRelation::getElderId, elderId)
                 .eq(GuardianRelation::getStatus, RelationStatus.ACTIVE));
     }
+ /**
+   * 校验当前用户是「任一 FAMILY 监护人」—— 供公共药品（ownerElderId 为空）的写操作使用。
+   * 老人本人 / 护理 / 医生都没有 WRITE_MEDICINE，一律 40301。
+   */
+  public void requireFamilyGuardian() {
+      AuthContext.CurrentUser current = AuthContext.required();
+      UserRole role = UserRole.parse(current.role());
+      BizAssert.forbiddenIf(role != UserRole.GUARDIAN, FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
 
+      boolean family = guardianRelationMapper.selectList(new LambdaQueryWrapper<GuardianRelation>()
+                      .eq(GuardianRelation::getGuardianId, current.userId())
+                      .eq(GuardianRelation::getStatus, RelationStatus.ACTIVE))
+              .stream()
+              .anyMatch(relation -> relation.getRole() == null || relation.getRole() == RelationRole.FAMILY);
+      BizAssert.forbiddenIf(!family, FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
+  }
     /**
      * 第 ②③ 步：判定访问身份。不通过时抛 40301（无关系 / REVOKED / 目标不是老人）
      * 或 40302（PENDING）。
