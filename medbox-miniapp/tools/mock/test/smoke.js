@@ -143,6 +143,90 @@ async function waitReady() {
     check('旧 refresh 失效 40101', (await call('POST', '/auth/refresh', { body: { refreshToken: fresh.refreshToken } })).code === 40101)
     check('新 token 可用', (await call('GET', '/users/me', { token: refreshed.data.token })).code === 0)
 
+    console.log('== 计划（02 第 6 章） ==')
+    const plans = await call('GET', '/plans?elderId=u-1001', { token: gw.token })
+    check('u-1001 计划列表 2 个', plans.code === 0 && plans.data.total === 2 && plans.data.list.length === 2)
+    const planDetail = await call('GET', '/plans/p-3301', { token: gw.token })
+    check('计划详情含 2 种药（times 墙钟原样）', planDetail.code === 0 && planDetail.data.items.length === 2 && planDetail.data.times[0] === '08:00')
+    check('老人读计划列表', (await call('GET', '/plans?elderId=u-1001', { token: elder.token })).code === 0)
+    check('PENDING 读计划 40302', (await call('GET', '/plans?elderId=u-1001', { token: pending.token })).code === 40302)
+
+    // 创建：两种药（在 u-1001 药箱均有未过期库存）
+    const created = await call('POST', '/plans', {
+      token: gw.token,
+      body: {
+        elderId: 'u-1001',
+        name: '测试计划',
+        times: ['20:00', '08:00'],
+        repeatRule: 'DAILY',
+        items: [
+          { medicineId: 'm-201', dose: '1', unit: '粒' },
+          { medicineId: 'm-202', dose: '2', unit: '片', note: '餐后' },
+        ],
+      },
+    })
+    check('创建计划（一次两种药）', created.code === 0 && created.data.items.length === 2 && created.data.syncState === 'SYNCED_TO_DEVICE')
+    // 排序由前端 normalizeTimes 负责（utils 单测覆盖），mock 原样存取
+    check('times 墙钟原样存取', JSON.stringify(created.data.times) === JSON.stringify(['20:00', '08:00']))
+    const newPlanId = created.data.planId
+
+    // 06 的 2.6.1 约束与参数校验
+    check('过期药品加入 40901', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-203' }] } })).code === 40901)
+    check('无库存药品加入 40901', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-206' }] } })).code === 40901)
+    check('同计划药品重复 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-201' }, { medicineId: 'm-201' }] } })).code === 40001)
+    check('times 格式错 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['25:00'], items: [{ medicineId: 'm-201' }] } })).code === 40001)
+    check('items 为空 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [] } })).code === 40001)
+    check('老人创建 40301', (await call('POST', '/plans', { token: elder.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-201' }] } })).code === 40301)
+    check('PENDING 创建 40302', (await call('POST', '/plans', { token: pending.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-201' }] } })).code === 40302)
+
+    // 整体覆盖更新 + 启停 + 删除（级联）
+    const updated = await call('PUT', `/plans/${newPlanId}`, {
+      token: gw.token,
+      body: { elderId: 'u-1001', name: '测试计划-改', times: ['09:00'], repeatRule: 'WEEKLY', items: [{ medicineId: 'm-201', dose: '3' }] },
+    })
+    check('PUT 整体覆盖（1 种药 / 09:00 / WEEKLY）', updated.code === 0 && updated.data.items.length === 1 && updated.data.times[0] === '09:00' && updated.data.repeatRule === 'WEEKLY')
+    const disabled = await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'DISABLED' } })
+    check('PATCH 停用（契约 {status}）', disabled.code === 0 && disabled.data.status === 'DISABLED')
+    check('PATCH 非法状态 40001', (await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'ON' } })).code === 40001)
+    check('DELETE 删除计划', (await call('DELETE', `/plans/${newPlanId}`, { token: gw.token })).code === 0)
+    check('删除后详情 40401（级联生效）', (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).code === 40401)
+
+    console.log('== WebSocket（04 最小实现：握手 + ping/pong） ==')
+    const wsResult = await new Promise((resolve) => {
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${PORT}/medbox/ws?token=mock.u-2001.1.x&topics=elder:u-1001`,
+      )
+      const timer = setTimeout(() => {
+        try {
+          ws.close()
+        } catch (err) {
+          /* 忽略 */
+        }
+        resolve({ ok: false, why: 'timeout' })
+      }, 3000)
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'ping' }))
+      ws.onmessage = (event) => {
+        clearTimeout(timer)
+        try {
+          ws.close()
+        } catch (err) {
+          /* 忽略 */
+        }
+        let type = ''
+        try {
+          type = JSON.parse(event.data).type || ''
+        } catch (err) {
+          /* 忽略 */
+        }
+        resolve({ ok: type === 'pong', type })
+      }
+      ws.onerror = () => {
+        clearTimeout(timer)
+        resolve({ ok: false, why: 'error' })
+      }
+    })
+    check('WS 握手 + ping 回 pong', wsResult.ok, JSON.stringify(wsResult))
+
     console.log('== 重置 ==')
     const reset = await call('POST', '/__mock__/reset')
     check('reset 恢复种子数据', reset.code === 0)

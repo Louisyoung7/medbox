@@ -23,6 +23,7 @@
  */
 
 const http = require('node:http')
+const crypto = require('node:crypto')
 const { createSeed, DEMO_PASSWORD } = require('./data.js')
 
 const PORT = Number(process.env.MOCK_PORT || 8080)
@@ -478,6 +479,221 @@ async function handleDeleteStock(req, res, deviceId, medicineId) {
   ok(res, null)
 }
 
+// ---------------------------------------------------------------- 计划（02 第 6 章）
+
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/** 过期判定（06：`expiry_date` 为唯一依据；未填从宽不判过期）。 */
+function isExpiredDate(expiryDate) {
+  if (!expiryDate) return false
+  const expiry = new Date(`${expiryDate}T00:00:00Z`).getTime()
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  return expiry < today.getTime()
+}
+
+/** 药品在该老人药箱的库存状态：ok（有未过期库存）/ expired（有库存但全过期）/ no-stock。 */
+function medicineStockState(elderId, medicineId) {
+  const deviceIds = state.devices
+    .filter((d) => d.deviceType === 'MAIN' && d.elderId === elderId)
+    .map((d) => d.deviceId)
+  const rows = state.stocks.filter(
+    (s) => deviceIds.indexOf(s.deviceId) !== -1 && s.medicineId === medicineId,
+  )
+  if (!rows.length) return 'no-stock'
+  return rows.some((s) => !isExpiredDate(s.expiryDate)) ? 'ok' : 'expired'
+}
+
+function planAccess(user, plan) {
+  if (!plan) return 'none'
+  return elderAccess(user, plan.elderId)
+}
+
+/** 计划头 + items 校验（06 的 2.6.1 约束①：同计划药品不重复）；返回归一化结构。 */
+function validatePlanBody(body) {
+  const elderId = String(body.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const name = String(body.name || '').trim()
+  if (!name) throw new BizError(40001, 'name 不能为空')
+  const times = []
+  ;(Array.isArray(body.times) ? body.times : []).forEach((item) => {
+    const value = String(item || '').trim()
+    if (!TIME_PATTERN.test(value)) throw new BizError(40001, `times 格式不正确: ${value || '(空)'}`)
+    if (times.indexOf(value) === -1) times.push(value)
+  })
+  if (!times.length) throw new BizError(40001, 'times 至少需要一个')
+  const repeatRule = body.repeatRule ? String(body.repeatRule).trim() : ''
+  const rawItems = Array.isArray(body.items) ? body.items : []
+  if (!rawItems.length) throw new BizError(40001, 'items 至少需要一种药品')
+  const items = []
+  rawItems.forEach((item) => {
+    const medicineId = String((item && item.medicineId) || '').trim()
+    if (!medicineId) throw new BizError(40001, 'items[].medicineId 不能为空')
+    if (items.some((exist) => exist.medicineId === medicineId)) {
+      throw new BizError(40001, `同一计划内药品不能重复: ${medicineId}`)
+    }
+    items.push({
+      medicineId,
+      dose: item.dose ? String(item.dose) : '',
+      unit: item.unit ? String(item.unit) : '',
+      note: item.note ? String(item.note) : '',
+    })
+  })
+  return { elderId, name, times, repeatRule, items }
+}
+
+/** 创建 / 更新共用业务校验：老人可见 + 每项药品可见且有未过期库存（06 的 2.6.1 约束②）。 */
+function requirePlanWrite(user, normalized) {
+  requireWrite(user, normalized.elderId)
+  normalized.items.forEach((item) => {
+    const medicine = state.medicines.find((m) => m.medicineId === item.medicineId)
+    if (!medicine) throw new BizError(40401, `药品不存在: ${item.medicineId}`)
+    const access = medicineAccess(user, medicine)
+    if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+    if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+    const stockState = medicineStockState(normalized.elderId, item.medicineId)
+    if (stockState !== 'ok') {
+      throw new BizError(
+        40901,
+        stockState === 'expired' ? `药品已过期: ${item.medicineId}` : `药箱暂无库存: ${item.medicineId}`,
+      )
+    }
+  })
+}
+
+function planItemsOf(planId) {
+  return state.planItems
+    .filter((item) => item.planId === planId)
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+}
+
+function toPlanDetail(plan) {
+  return {
+    planId: plan.planId,
+    elderId: plan.elderId,
+    name: plan.name,
+    times: plan.times.slice(),
+    repeatRule: plan.repeatRule,
+    status: plan.status,
+    syncState: plan.syncState,
+    items: planItemsOf(plan.planId).map((item) => ({ ...item })),
+    createdAt: plan.createdAt,
+  }
+}
+
+async function handleListPlans(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  const list = state.plans.filter((plan) => plan.elderId === elderId)
+  const page = Math.max(1, Number(query.page) || 1)
+  const size = Math.min(100, Math.max(1, Number(query.size) || 20))
+  const total = list.length
+  // 列表项含 items 概览（02 第 6 章；药品名由小程序 join 药品字典）
+  ok(res, { list: list.slice((page - 1) * size, page * size).map(toPlanDetail), total })
+}
+
+async function handleGetPlan(req, res, planId) {
+  const user = requireUser(req)
+  const plan = state.plans.find((p) => p.planId === planId)
+  if (!plan) throw new BizError(40401, '资源不存在')
+  const access = planAccess(user, plan)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  ok(res, toPlanDetail(plan))
+}
+
+async function handleCreatePlan(req, res, body) {
+  const user = requireUser(req)
+  const normalized = validatePlanBody(body)
+  requirePlanWrite(user, normalized)
+  const plan = {
+    planId: `p-${Date.now().toString(36)}`,
+    elderId: normalized.elderId,
+    name: normalized.name,
+    times: normalized.times,
+    repeatRule: normalized.repeatRule,
+    status: 'ENABLED',
+    syncState: 'SYNCED_TO_DEVICE',
+    createdAt: isoNow(),
+  }
+  state.plans.push(plan)
+  normalized.items.forEach((item, index) => {
+    state.planItems.push({
+      itemId: `pi-${Date.now().toString(36)}-${index}`,
+      planId: plan.planId,
+      medicineId: item.medicineId,
+      dose: item.dose,
+      unit: item.unit,
+      note: item.note,
+      sortOrder: index,
+    })
+  })
+  ok(res, toPlanDetail(plan))
+}
+
+async function handleUpdatePlan(req, res, planId, body) {
+  const user = requireUser(req)
+  const plan = state.plans.find((p) => p.planId === planId)
+  if (!plan) throw new BizError(40401, '资源不存在')
+  const access = planAccess(user, plan)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  const normalized = validatePlanBody(body)
+  requirePlanWrite(user, normalized)
+  plan.name = normalized.name
+  plan.times = normalized.times
+  plan.repeatRule = normalized.repeatRule
+  // 整体覆盖（02 第 6 章）：旧明细全删，按新 items 重建
+  state.planItems = state.planItems.filter((item) => item.planId !== plan.planId)
+  normalized.items.forEach((item, index) => {
+    state.planItems.push({
+      itemId: `pi-${Date.now().toString(36)}-${index}`,
+      planId: plan.planId,
+      medicineId: item.medicineId,
+      dose: item.dose,
+      unit: item.unit,
+      note: item.note,
+      sortOrder: index,
+    })
+  })
+  ok(res, toPlanDetail(plan))
+}
+
+async function handleUpdatePlanStatus(req, res, planId, body) {
+  const user = requireUser(req)
+  const plan = state.plans.find((p) => p.planId === planId)
+  if (!plan) throw new BizError(40401, '资源不存在')
+  const access = planAccess(user, plan)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  // 前端先行契约：{status: 'ENABLED' | 'DISABLED'}（02 未定义 body）
+  const status = String(body.status || '').trim()
+  if (status !== 'ENABLED' && status !== 'DISABLED') {
+    throw new BizError(40001, 'status 只能是 ENABLED / DISABLED')
+  }
+  plan.status = status
+  ok(res, toPlanDetail(plan))
+}
+
+async function handleDeletePlan(req, res, planId) {
+  const user = requireUser(req)
+  const plan = state.plans.find((p) => p.planId === planId)
+  if (!plan) throw new BizError(40401, '资源不存在')
+  const access = planAccess(user, plan)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  state.plans = state.plans.filter((p) => p.planId !== planId)
+  // 级联删除明细（06 的 2.6.1 约束③）
+  state.planItems = state.planItems.filter((item) => item.planId !== planId)
+  ok(res, null)
+}
+
 function handleReset(req, res) {
   state = createSeed()
   ok(res, { reset: true, accounts: DEMO_ACCOUNTS })
@@ -545,6 +761,18 @@ const server = http.createServer(async (req, res) => {
       return await handleDeleteStock(req, res, decodeURIComponent(matched[1]), decodeURIComponent(matched[2]))
     }
 
+    // 鉴权：计划（02 第 6 章）
+    if (req.method === 'GET' && sub === '/plans') return await handleListPlans(req, res, query)
+    if (req.method === 'POST' && sub === '/plans') return await handleCreatePlan(req, res, await readBody(req))
+    matched = /^\/plans\/([^/]+)\/status$/.exec(sub)
+    if (req.method === 'PATCH' && matched) {
+      return await handleUpdatePlanStatus(req, res, decodeURIComponent(matched[1]), await readBody(req))
+    }
+    matched = /^\/plans\/([^/]+)$/.exec(sub)
+    if (req.method === 'GET' && matched) return await handleGetPlan(req, res, decodeURIComponent(matched[1]))
+    if (req.method === 'PUT' && matched) return await handleUpdatePlan(req, res, decodeURIComponent(matched[1]), await readBody(req))
+    if (req.method === 'DELETE' && matched) return await handleDeletePlan(req, res, decodeURIComponent(matched[1]))
+
     // 测试辅助
     if (req.method === 'POST' && sub === '/__mock__/reset') return handleReset(req, res)
 
@@ -556,6 +784,117 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
+// ---------------------------------------------------------------- WebSocket（04 的最小实现）
+
+const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+const PONG_FRAME = JSON.stringify({ type: 'pong' })
+
+/** 服务端帧编码（不掩码）：文本 / 控制帧通用。 */
+function wsEncodeFrame(opcode, payload) {
+  const data = Buffer.from(payload || '')
+  if (data.length < 126) {
+    return Buffer.concat([Buffer.from([0x80 | opcode, data.length]), data])
+  }
+  if (data.length < 65536) {
+    const header = Buffer.alloc(4)
+    header[0] = 0x80 | opcode
+    header[1] = 126
+    header.writeUInt16BE(data.length, 2)
+    return Buffer.concat([header, data])
+  }
+  const header = Buffer.alloc(10)
+  header[0] = 0x80 | opcode
+  header[1] = 127
+  header.writeBigUInt64BE(BigInt(data.length), 2)
+  return Buffer.concat([header, data])
+}
+
+/** 客户端帧解析（带掩码、可处理粘包 / 半包）：返回完整帧数组，残余留在闭包。 */
+function createFrameParser() {
+  let buffer = Buffer.alloc(0)
+  return (chunk) => {
+    buffer = Buffer.concat([buffer, chunk])
+    const frames = []
+    while (buffer.length >= 2) {
+      const opcode = buffer[0] & 0x0f
+      const masked = (buffer[1] & 0x80) !== 0
+      let length = buffer[1] & 0x7f
+      let offset = 2
+      if (length === 126) {
+        if (buffer.length < 4) break
+        length = buffer.readUInt16BE(2)
+        offset = 4
+      } else if (length === 127) {
+        if (buffer.length < 10) break
+        length = Number(buffer.readBigUInt64BE(2))
+        offset = 10
+      }
+      let maskKey = null
+      if (masked) {
+        if (buffer.length < offset + 4) break
+        maskKey = buffer.subarray(offset, offset + 4)
+        offset += 4
+      }
+      if (buffer.length < offset + length) break
+      const payload = Buffer.from(buffer.subarray(offset, offset + length))
+      if (maskKey) {
+        for (let i = 0; i < payload.length; i += 1) payload[i] ^= maskKey[i % 4]
+      }
+      frames.push({ opcode, payload })
+      buffer = buffer.subarray(offset + length)
+    }
+    return frames
+  }
+}
+
+/**
+ * 最小 WebSocket（04 第 1 章）：完成握手 + ping/pong 心跳，**不推业务帧**
+ * （让首页 WS 状态条变绿即够用；ALARM / DEVICE_STATUS / REMINDER 推送留待真后端联调）。
+ */
+server.on('upgrade', (req, socket) => {
+  let pathname = ''
+  try {
+    pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname
+  } catch (err) {
+    pathname = ''
+  }
+  const key = req.headers['sec-websocket-key']
+  if (pathname !== '/medbox/ws' || !key) {
+    socket.destroy()
+    return
+  }
+  const accept = crypto.createHash('sha1').update(key + WS_GUID).digest('base64')
+  socket.write(
+    'HTTP/1.1 101 Switching Protocols\r\n' +
+      'Upgrade: websocket\r\n' +
+      'Connection: Upgrade\r\n' +
+      `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
+  )
+  const parse = createFrameParser()
+  socket.on('data', (chunk) => {
+    parse(chunk).forEach((frame) => {
+      if (frame.opcode === 0x8) {
+        socket.end()
+        return
+      }
+      if (frame.opcode === 0x9) {
+        socket.write(wsEncodeFrame(0xa, frame.payload))
+        return
+      }
+      if (frame.opcode === 0x1) {
+        let type = ''
+        try {
+          type = JSON.parse(frame.payload.toString('utf8')).type || ''
+        } catch (err) {
+          type = ''
+        }
+        if (type === 'ping') socket.write(wsEncodeFrame(0x1, PONG_FRAME))
+      }
+    })
+  })
+  socket.on('error', () => socket.destroy())
+})
+
 server.listen(PORT, () => {
   console.log(`[mock] medbox 临时 Mock 后端已启动: http://127.0.0.1:${PORT}${API_PREFIX}`)
   console.log('[mock] 小程序把 .env.local 的 VITE_SERVER_HOST 指向本机 IP 即可，无需改代码')
@@ -563,4 +902,5 @@ server.listen(PORT, () => {
   DEMO_ACCOUNTS.forEach((a) => console.log(`         ${a.account}  ${a.role}  ${a.name}  ${a.note}`))
   console.log('[mock] 重置数据: curl -X POST http://127.0.0.1:%d%s/__mock__/reset', PORT, API_PREFIX)
   console.log('[mock] 模拟 token 过期: MOCK_ACCESS_TTL_MS=15000 npm run mock（验证 40101 自动续期）')
+  console.log('[mock] WebSocket: /medbox/ws 最小实现（握手 + ping/pong，不推业务帧）')
 })

@@ -7,7 +7,7 @@
 
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、46 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、64 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 
@@ -31,6 +31,9 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `GET /devices`、`GET /devices/{id}`（含 `sensors[]`）
 - `GET /medicines`（分页 + keyword，返回 `{list,total}`）、`GET /medicines/{id}`、`POST /medicines`（新建/更新同一入口）、`DELETE /medicines/{id}`（被库存引用 → **40901**）
 - `GET /devices/{id}/stocks`（裸数组）、`PUT .../stocks/{medicineId}`（数量绝对值）、`POST .../stocks/{medicineId}/in`（数量增量）、`DELETE .../stocks/{medicineId}`
+- `GET /plans?elderId=`（列表含 items 概览）、`GET /plans/{id}`（含 items 明细）、`POST /plans`、`PUT /plans/{id}`（整体覆盖）、`PATCH /plans/{id}/status`（请求体契约 `{status:'ENABLED'|'DISABLED'}`）、`DELETE /plans/{id}`（级联删明细）
+  - 业务校验照 06 的 2.6.1：同计划药品重复 / times 格式错 / items 为空 → **40001**；药品无库存或已过期 → **40901**；老人写操作 → **40301**；PENDING 监护 → **40302**
+  - 种子含 3 个计划（覆盖 ENABLED/DISABLED、单药/两种药、带备注、多时间、两位老人、DAILY/WEEKLY）；`times` 按设备本地墙钟**原样存取**（排序由前端 `normalizeTimes` 负责）
 
 ## 可验证的场景
 
@@ -49,10 +52,10 @@ curl -X POST http://127.0.0.1:8080/medbox/api/v1/__mock__/reset   # 重置内存
 
 ## 已知边界（与真后端的差异，联调时对齐）
 
-- **无 WebSocket**：WS 状态条显示未连接属预期；库存 / 药品 / 设备链路不依赖 WS。
+- **WebSocket 为最小实现**：`/medbox/ws` 完成握手 + `ping`/`pong` 心跳（首页状态条显示已连接），**不推业务帧**（ALARM / DEVICE_STATUS / REMINDER 留待真后端）。
 - 纯内存，重启即还原种子数据；不校验密码强度、不做限流。
 - 补药入库对"该药箱尚无此药品库存"从宽按首录处理（真实后端行为待定）。
-- 字段名假设（stocks 裸数组、`{list,total}`、PUT/POST-in 请求体）以 `medbox-spec/02` 第 5 章"小程序侧口径"为准，后端定稿后两处一起收紧。
+- 字段名假设（stocks 裸数组、`{list,total}`、PUT/POST-in 请求体、PATCH `{status}`）以 `medbox-spec/02` 第 5 / 6 章"小程序侧口径"为准，后端定稿后两处一起收紧。
 
 ## 目录
 

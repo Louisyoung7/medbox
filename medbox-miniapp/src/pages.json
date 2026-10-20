@@ -78,6 +78,13 @@
 			}
 		},
 		{
+			"path": "pages/plan/edit",
+			"style": {
+				"navigationBarTitleText": "计划",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/record/record",
 			"style": {
 				"navigationBarTitleText": "记录",
