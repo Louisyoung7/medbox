@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-20] 小程序统一配置出口：兜底改回环地址、TLS 开关移入 `.env`（`feat/mp-server-config`）
+
+整理 `medbox-miniapp/` 的网络配置口径。地址 / 协议（REST / WS 路径、8080 端口）**均未变**，改的是"没配环境变量时怎么兜底"与"开关放哪个文件"。
+
+- **`medbox-miniapp/`**：`src/config/index.js` 兜底 HOST 由 `192.168.1.10` 改为 **`127.0.0.1`**（语义"后端跑在本机"，不会误连别人的内网 IP；真机仍需 `.env.local` 填局域网 IP）；`setServerHost()` 写入前**归一化**（剥协议 / 端口 / 路径，容忍粘贴整串地址），非法输入不再写空串而是返回 `false`；新增导出 `normalizeHost()`
+- **`medbox-miniapp/` 环境变量分工**：`VITE_TLS` 从 `.env.development` 移到入库的 **`.env`** —— Vite 的 `.env.[mode]` 只在对应 mode 加载，`uni build`（production）读不到 `.env.development`，开关打包后恒为 `false`，"上线切 https / wss"会静默失效。`.env.development` 保留为 development 专属入口（当前为空）
+- **`medbox-miniapp/README.md`**：配置三层表补 `.env`、写清 mode 差异与优先级链；`tools/mock` 端口被占（多半是 `medbox-server` 还在跑）时报错说明并退出；mock 头注释与检查项数量对齐实际（**65 项**）
+- **⚠️ 踩坑记录：`VITE_BASE_URL` 现在只在 H5 生效**（原委见 README「浏览器联调」）：它是**编译期常量**，以前写进 `.env.local` 后小程序产物也带着它，`BASE_URL` 变成相对路径 `/medbox/api/v1`，小程序会把请求打到**自己的 origin** 上 —— 表现为"H5 能登录、小程序登录不了"，报错还是 `code=-1` 网络异常，与 IP 填错完全一样。修复：`src/config/index.js` 用 `process.env.UNI_PLATFORM === 'h5'` 做平台隔离，小程序 / App 编译时忽略该变量且给出告警。**同一份 `.env.local` 现在可以安全地同时喂 H5 与微信小程序**
+
 ## [2026-10-20] 后端落地药品档案与库存（`feat/medicine-core`）
 
 `feat/medicine-core`（07 清单 P0 第 6 步）落地：药品档案 CRUD + 药箱库存录入 / 补药，打通"公共药品 + 我监护老人的私有药品"的可见范围与写权限。
