@@ -17,6 +17,16 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-20] 后端落地药品档案与库存（`feat/medicine-core`）
+
+`feat/medicine-core`（07 清单 P0 第 6 步）落地：药品档案 CRUD + 药箱库存录入 / 补药，打通"公共药品 + 我监护老人的私有药品"的可见范围与写权限。
+
+- **`medbox-server/`**：新增 `Medicine` / `MedicineStock` 实体、`MedicineMapper` / `MedicineStockMapper`（业务号 `m-1001` / `s-1001` 走 `medicine_biz_id_seq` / `medicine_stock_biz_id_seq` 序列）；`MedicineService`（save / list / detail / delete）+ `MedicineStockService`（list / save / in / delete）；`MedicineController`（`/api/v1/medicines`）+ `MedicineStockController`（`/api/v1/devices/{deviceId}/stocks`）
+- **权限口径（02 第 5 章）**：公共药写 = 新增 `AccessService.requireFamilyGuardian()`（任一 FAMILY 监护人）；私有药写 = `require(ownerElderId, WRITE_MEDICINE)`；列表可见 = 公共 + `visibleElderIds()`；**`ownerElderId` 归属不可变**（更新接口忽略请求里的值）；越权一律 40301、删除有库存引用 40901、库存引用药品不存在 40401
+- **`06` 的 V8 已落地**：Flyway `V8__medicine.sql` 建 `medicine_biz_id_seq` / `medicine_stock_biz_id_seq` 两个业务号序列（⚠️ 不能叫 `medicine_id_seq`，那是 `medicine.id BIGSERIAL` 自动建的序列，`CREATE SEQUENCE IF NOT EXISTS` 会静默跳过导致业务号编成 `m-1`）
+- **测试**：`./gradlew test` 共 **264 例**（执行 259、跳过 5、失败 0），本分支新增 `MedicineCoreWebIntegrationTest` **15 例**（MockMvc 打完整链路，`@Primary` 内嵌 H2 + Mapper `@MockitoBean` 打桩）
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-19] 小程序 Mock 后端移入 `tools/mock`，端到端测试纳入 AI 完工流程
 
 后端接口未落地期间的前端自测底座：Mock 后端迁到 `medbox-miniapp/tools/mock/`，新增 `npm run test:e2e` 与 `test:all`，并把"单元测试后自动跑一遍 mock 端到端"写进 AGENTS.md。
