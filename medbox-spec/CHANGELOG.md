@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-20] 消除 WS 关闭时的 `closeSocket:fail WebSocket is not connected` 噪声
+
+小程序控制台在后端不可达时会被这条错误刷屏，掩盖真正的排错信息（哪个 HTTP 接口失败、WS 为什么握手失败）。
+
+- **根因不在"页面忘了判断"**：WS 是本层单例（`store/ws.js`），页面碰不到 socket。真正的原因是 `openSocket()` **每次重连都要调一次 `closeSocket()`**，而上一次握手失败时 `handleDisconnect` 已把 `socket` 置 null，于是落进 `else` 分支去调**全局** `uni.closeSocket()` —— 底层此刻并没有连接可关，于是报错。**后端没起时这条链路每 1s→2s→…→30s 触发一次**
+- **修复**：① 手上没有 task 就**不去关**（只有确实用全局 API 接过连接才关）；② 关闭前看 `SocketTask.readyState`，非 OPEN 直接跳过；③ `close()` 带 `fail` 回调，让底层的拒绝被显式吃掉而不是变成 `MiniProgramError`
+- **顺带修了同源问题**：心跳 `send()` 前同样校验 `readyState`（否则会报 `sendSocketMessage:fail`）；迟到的旧连接在它自己的 `onOpen` 里被关掉（世代号已过期，不关会一直占着小程序仅有的 5 条连接额度）
+- 回归用例 6 条，并做了变异验证：把旧逻辑改回去时用例如期失败，`stderr` 里复现了 `closeSocket:fail WebSocket is not connected`
+
 ## [2026-10-20] 小程序统一配置出口：兜底改回环地址、TLS 开关移入 `.env`（`feat/mp-server-config`）
 
 整理 `medbox-miniapp/` 的网络配置口径。地址 / 协议（REST / WS 路径、8080 端口）**均未变**，改的是"没配环境变量时怎么兜底"与"开关放哪个文件"。

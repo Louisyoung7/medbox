@@ -76,6 +76,23 @@ let desiredTopics = ''
 /** SocketTask（`uni.connectSocket` 返回）；全局事件兜底时为 null。 */
 let socket = null
 
+/** 是否曾落到"全局 API 兜底"路径（{@link bindGlobalSocket}）：决定要不要用 `uni.closeSocket`。 */
+let viaGlobal = false
+
+/**
+ * WebSocket 就绪状态（与标准 WebSocket / 微信 SocketTask.readyState 同义）。
+ *
+ * <p>**这是我们判断"还能不能操作这条连接"的唯一可靠依据**——本地 `state` 只反映我们自己的
+ * 状态机，而连接可能已经被底层回收（切后台、服务端先关、握手失败），两边不同步时去操作
+ * 就会得到 `WebSocket is not connected`。
+ */
+const READY_STATE = {
+  CONNECTING: 0,
+  OPEN: 1,
+  CLOSING: 2,
+  CLOSED: 3,
+}
+
 /**
  * 世代号：每次建连 / 断开自增，旧连接的回调凭它失效。
  *
@@ -340,7 +357,15 @@ function bindSocket(url, gen) {
     }) || null
 
   if (task && typeof task.onOpen === 'function') {
-    task.onOpen(() => handleOpen(gen))
+    task.onOpen(() => {
+      if (gen !== generation) {
+        // 迟到的旧连接：世代号已过期，它的回调在本层不再生效，
+        // 但**底层这条连接是真的开着**，不关会一直占着小程序仅有的 5 条连接额度
+        closeTask(task)
+        return
+      }
+      handleOpen(gen)
+    })
     task.onMessage((res) => handleMessage(gen, res && res.data))
     task.onClose(() => handleFailure(gen, '连接已关闭'))
     task.onError((err) => handleFailure(gen, err && err.errMsg))
@@ -360,6 +385,7 @@ function bindGlobalSocket() {
     return
   }
   globalBound = true
+  viaGlobal = true
   uni.onSocketOpen(() => handleOpen(generation))
   uni.onSocketMessage((res) => handleMessage(generation, res && res.data))
   uni.onSocketClose(() => handleFailure(generation, '连接已关闭'))
@@ -502,6 +528,11 @@ function startHeartbeat(gen) {
 }
 
 function sendPing() {
+  // 连接已被底层收走时 `send` 会报 sendSocketMessage:fail WebSocket is not connected，
+  // 与 closeSocket 同源。发之前先看 readyState —— 不发比报错强（下一次重连会自己补上）
+  if (socket && !isUsable(socket)) {
+    return
+  }
   try {
     if (socket && typeof socket.send === 'function') {
       socket.send({ data: PING_FRAME })
@@ -515,17 +546,77 @@ function sendPing() {
   }
 }
 
+/**
+ * 这条连接还能正常收发帧吗？
+ *
+ * <p>`readyState` 由底层 SocketTask 提供；**缺失时按"可用"处理**（H5 polyfill 与单测桩
+ * 不一定实现这个属性），只有**明确**不是 OPEN 才判失效 —— 宁可多试一次（下面都有 `fail`
+ * 兜底，不会污染控制台），也不要把一条活着的连接误判成死的。
+ *
+ * @param {Object} task
+ * @returns {boolean}
+ */
+function isUsable(task) {
+  const readyState = task && task.readyState
+  if (readyState === undefined || readyState === null) {
+    return true
+  }
+  return readyState === READY_STATE.OPEN
+}
+
+/** 这条连接还能调 `close()` 吗：CLOSING / CLOSED 都已经有别人在关了。 */
+function isClosable(task) {
+  const readyState = task && task.readyState
+  if (readyState === undefined || readyState === null) {
+    return true
+  }
+  return readyState === READY_STATE.OPEN
+}
+
+/**
+ * 关闭当前连接（幂等、允许无连接时调用）。
+ *
+ * <p>**这里踩过坑**：早先的实现在 `socket` 为 null 时会退到全局 `uni.closeSocket()`，
+ * 而 `openSocket()` 每次重连都要调一次 `closeSocket()` —— 一旦上一次握手失败
+ * （`handleDisconnect` 已把 `socket` 置 null），每次重连都会对着空气调一次全局关闭，
+ * 底层没有连接可关就抛 `closeSocket:fail WebSocket is not connected`。
+ * 后端没起时这条驱动重连每 1s→2s→…→30s 发一次，控制台被它刷满，
+ * 真正的排错信息（是哪个 HTTP 接口 500、WS 为什么握手失败）反而被淹了。
+ *
+ * <p>所以规矩是：**没接过连接就别去关**。我手上没有 task，就不存在"我的连接需要关"这件事。
+ */
 function closeSocket() {
-  try {
-    if (socket && typeof socket.close === 'function') {
-      socket.close()
-    } else if (typeof uni !== 'undefined' && typeof uni.closeSocket === 'function') {
-      uni.closeSocket()
+  const task = socket
+  socket = null
+  if (!task || typeof task.close !== 'function') {
+    if (viaGlobal && state === WS_STATE.OPEN && typeof uni !== 'undefined' && typeof uni.closeSocket === 'function') {
+      // 只有真走了全局 API 兜底这条路径才需要关（真机上几乎不会走到）
+      uni.closeSocket({ fail: () => {} })
     }
+    return
+  }
+  if (!isClosable(task)) {
+    return
+  }
+  closeTask(task)
+}
+
+/**
+ * 真正执行关闭：带 `fail` 回调，让底层的拒绝被**显式吃掉**，
+ * 不让它变成一条 MiniProgramError 抛到控制台。
+ *
+ * @param {Object} task
+ */
+function closeTask(task) {
+  try {
+    task.close({
+      fail: (err) => {
+        console.warn('[ws] 关闭连接被底层拒绝，忽略', err && err.errMsg)
+      },
+    })
   } catch (err) {
     console.warn('[ws] 关闭连接失败', err)
   }
-  socket = null
 }
 
 function clearHeartbeat() {

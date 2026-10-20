@@ -18,13 +18,19 @@ vi.mock('@/store/auth.js', () => ({
 /** 本地缓存：模拟 uni.getStorageSync / setStorageSync 背后的存储。 */
 const storage = {}
 
-/** 造一个假 SocketTask：注册回调由 ws.js 调，测试用 open/message/close/error 驱动。 */
+/**
+ * 造一个假 SocketTask：注册回调由 ws.js 调，测试用 open/message/close/error 驱动。
+ *
+ * <p>**`readyState` 必须跟着生命周期走**（CONNECTING→OPEN→CLOSED）：真实 SocketTask 有这个
+ * 属性，而 ws.js 现在靠它判断"这条连接还活着吗"。桩要是永远停在某个值，守卫逻辑就测不出来。
+ */
 function createTask(url, fail) {
   const handlers = {}
   const task = {
     url,
     sent: [],
     closed: false,
+    readyState: 0, // CONNECTING
     onOpen: (fn) => {
       handlers.open = fn
     },
@@ -38,15 +44,36 @@ function createTask(url, fail) {
       handlers.error = fn
     },
     send: (msg) => task.sent.push(msg && msg.data),
-    close: () => {
+    close: (opt) => {
       task.closed = true
+      task.readyState = 3 // CLOSED
+      // 底层拒绝时（如连接早断了）会回调 fail —— 真实平台行为，桩里也要能触发
+      if (opt && typeof opt.fail === 'function' && task.closeShouldFail) {
+        opt.fail({ errMsg: 'closeSocket:fail WebSocket is not connected' })
+      }
     },
     // ---- 测试驱动 ----
-    open: () => handlers.open && handlers.open(),
+    open: () => {
+      task.readyState = 1 // OPEN
+      handlers.open && handlers.open()
+    },
     message: (data) => handlers.message && handlers.message({ data }),
-    closeByServer: () => handlers.close && handlers.close(),
-    failHandshake: (msg) => fail && fail({ errMsg: msg || 'handshake failed' }),
-    errorByServer: (msg) => handlers.error && handlers.error({ errMsg: msg || 'socket error' }),
+    closeByServer: () => {
+      task.readyState = 3
+      handlers.close && handlers.close()
+    },
+    failHandshake: (msg) => {
+      task.readyState = 3
+      fail && fail({ errMsg: msg || 'handshake failed' })
+    },
+    errorByServer: (msg) => {
+      task.readyState = 3
+      handlers.error && handlers.error({ errMsg: msg || 'socket error' })
+    },
+    shut: () => {
+      // 仅把底层连接置死，**不回调**（模拟被系统回收但回调还没到）
+      task.readyState = 3
+    },
   }
   return task
 }
@@ -167,6 +194,17 @@ describe('心跳', () => {
     expect(sockets[0].sent).toHaveLength(2)
   })
 
+  it('连接已不是 OPEN 时不再发 ping（否则报 sendSocketMessage:fail）', async () => {
+    const { ws } = await loadWs()
+    ws.connect()
+    sockets[0].open()
+    vi.advanceTimersByTime(30000)
+    expect(sockets[0].sent).toHaveLength(1)
+    sockets[0].shut() // 底层断了、回调未到：心跳此刻必须哑火
+    vi.advanceTimersByTime(30000)
+    expect(sockets[0].sent).toHaveLength(1)
+  })
+
   it('断开后不再发心跳（定时器已清理）', async () => {
     const { ws } = await loadWs()
     ws.connect()
@@ -266,6 +304,59 @@ describe('断线重连', () => {
     sockets[0].closeByServer()
     expect(ws.reconnectNow()).toBe(true)
     expect(sockets).toHaveLength(2)
+  })
+})
+
+describe('关闭连接：不再对着没有连接的状态调关', () => {
+  it('握手失败后重连：**不**调用全局 uni.closeSocket（旧实现每次重连刷一条 "' +
+    'closeSocket:fail WebSocket is not connected"）', async () => {
+    const { ws } = await loadWs()
+    ws.connect()
+    // 握手失败 → handleDisconnect 已把 socket 置 null；此刻底层根本不存在连接
+    sockets[0].failHandshake()
+    vi.advanceTimersByTime(1000)
+    expect(sockets).toHaveLength(2)
+    expect(uni.closeSocket).not.toHaveBeenCalled()
+    // 再失败两次，仍然一次都不该调
+    sockets[1].failHandshake()
+    vi.advanceTimersByTime(2000)
+    expect(uni.closeSocket).not.toHaveBeenCalled()
+  })
+
+  it('底层已关闭的连接不重复 close（连接可能已被回收，本地状态还没同步）', async () => {
+    const { ws } = await loadWs()
+    ws.connect()
+    sockets[0].open()
+    sockets[0].shut() // 只有底层断了，回调没到 —— 本地还以为连着
+    ws.disconnect()
+    expect(sockets[0].closed).toBe(false)
+  })
+
+  it('正常断开仍会真的关闭 socket（别为了消报错把关掉的步骤也丢了）', async () => {
+    const { ws } = await loadWs()
+    ws.connect()
+    sockets[0].open()
+    ws.disconnect()
+    expect(sockets[0].closed).toBe(true)
+  })
+
+  it('底层拒绝关闭时不抛错：fail 回调兜住，不让它变成 MiniProgramError', async () => {
+    const { ws } = await loadWs()
+    ws.connect()
+    sockets[0].open()
+    sockets[0].closeShouldFail = true
+    expect(() => ws.disconnect()).not.toThrow()
+  })
+
+  it('迟到的旧连接会自己关掉：不占小程序仅有的 5 条连接额度', async () => {
+    const { ws } = await loadWs()
+    ws.connect()
+    const stale = sockets[0]
+    ws.reconnectNow() // 世代号自增，旧连接迟到
+    expect(sockets).toHaveLength(2)
+    stale.open() // 迟到的 onOpen
+    expect(stale.closed).toBe(true)
+    expect(sockets[1].closed).toBe(false)
   })
 })
 
