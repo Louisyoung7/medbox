@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>medbox 网络拓扑图</title>
+<style>
+  :root {
+    --client: #2563eb;
+    --backend: #7c3aed;
+    --broker: #ea580c;
+    --infra: #0d9488;
+    --device: #16a34a;
+    --external: #dc2626;
+    --ink: #1e293b;
+    --bg: #f1f5f9;
+    --panel: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header {
+    padding: 18px 24px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+  .layout { display: flex; gap: 16px; padding: 16px; align-items: stretch; }
+  .stage {
+    flex: 1 1 auto;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    min-height: 620px;
+  }
+  svg { width: 100%; height: 100%; display: block; }
+
+  .legend {
+    width: 240px;
+    flex: 0 0 240px;
+    background: var(--panel);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 12.5px;
+  }
+  .legend h3 { margin: 0 0 8px; font-size: 14px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .legend .swatch { width: 22px; height: 4px; border-radius: 2px; flex: 0 0 22px; }
+  .legend .dot { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 12px; }
+  .legend small { color: #64748b; }
+
+  .details {
+    width: 270px;
+    flex: 0 0 270px;
+    background: var(--panel);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 13px;
+  }
+  .details h3 { margin: 0 0 6px; font-size: 15px; }
+  .details .tag {
+    display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    color: #fff; margin-bottom: 10px;
+  }
+  .details .k { color: #64748b; font-weight: 600; }
+  .details ul { margin: 8px 0 0; padding-left: 18px; }
+  .details li { margin: 3px 0; }
+  .details .hint { color: #94a3b8; font-size: 12px; margin-top: 12px; }
+
+  /* node */
+  .node rect { stroke-width: 2; rx: 10; transition: opacity .15s, filter .15s; cursor: pointer; }
+  .node text { font-size: 13px; font-weight: 600; fill: #fff; pointer-events: none; }
+  .node .sub { font-size: 10.5px; font-weight: 400; fill: rgba(255,255,255,.85); }
+  .node:hover rect { filter: drop-shadow(0 4px 8px rgba(0,0,0,.2)); }
+
+  .n-client rect { fill: var(--client); stroke: #1d4ed8; }
+  .n-backend rect { fill: var(--backend); stroke: #6d28d9; }
+  .n-broker rect { fill: var(--broker); stroke: #c2410c; }
+  .n-infra rect { fill: var(--infra); stroke: #0f766e; }
+  .n-device rect { fill: var(--device); stroke: #15803d; }
+  .n-external rect { fill: var(--external); stroke: #b91c1c; stroke-dasharray: 6 4; }
+
+  /* edges */
+  .edge { fill: none; stroke-width: 2.2; transition: opacity .15s, stroke-width .15s; }
+  .e-http { stroke: #2563eb; }
+  .e-ws { stroke: #7c3aed; }
+  .e-mqtt { stroke: #ea580c; }
+  .e-wifi { stroke: #0891b2; }
+  .e-jdbc { stroke: #16a34a; }
+  .e-storage { stroke: #64748b; }
+  .e-net { stroke: #dc2626; stroke-dasharray: 7 5; }
+
+  .elabel {
+    font-size: 10.5px; fill: #334155; text-anchor: middle;
+    paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round;
+  }
+  .edash { stroke-dasharray: 3 4; opacity: .7; }
+
+  /* dim / highlight states */
+  svg.focus .node:not(.active) rect { opacity: .25; }
+  svg.focus .edge:not(.active) { opacity: .12; }
+  svg.focus .node.active rect { opacity: 1; }
+  svg.focus .edge.active { stroke-width: 3.4; opacity: 1; }
+
+  footer { padding: 4px 24px 18px; font-size: 11.5px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>medbox 家用智能药品箱 · 网络拓扑图</h1>
+  <p>局域网（内网）通信　|　协议分工：HTTP REST · MQTT(EMQX) · WebSocket · WiFi(摄像头→单片机)　|　据文档 01 / 03 / 04 绘制</p>
+</header>
+
+<div class="layout">
+  <div class="stage">
+    <svg id="topo" viewBox="0 0 1280 860" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569" />
+        </marker>
+        <marker id="arrowHl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#0f172a" />
+        </marker>
+      </defs>
+
+      <!-- ================= EDGES ================= -->
+      <g id="edges">
+        <!-- elder <-> backend (HTTP REST) -->
+        <path class="edge e-http" data-from="elder" data-to="backend"
+              d="M270,123 C380,123 360,150 470,150" marker-end="url(#arrow)" />
+        <!-- guardian <-> backend (HTTP REST + WS) -->
+        <path class="edge e-ws" data-from="guardian" data-to="backend"
+              d="M270,223 C380,223 360,180 470,180" marker-end="url(#arrow)" />
+        <!-- backend <-> emqx (MQTT up/down) -->
+        <path class="edge e-mqtt" data-from="backend" data-to="emqx"
+              d="M595,255 C560,300 560,330 555,420" marker-end="url(#arrow)" />
+        <!-- emqx <-> main (MQTT 1883) -->
+        <path class="edge e-mqtt" data-from="emqx" data-to="main"
+              d="M430,506 C300,560 260,590 245,620" marker-end="url(#arrow)" />
+        <!-- cam -> main (WiFi) -->
+        <path class="edge e-wifi" data-from="cam" data-to="main"
+              d="M650,662 C560,690 470,690 370,690" marker-end="url(#arrow)" />
+        <!-- cam -> backend (HTTP multipart) -->
+        <path class="edge e-http" data-from="cam" data-to="backend"
+              d="M770,662 C880,640 880,520 720,300 C700,260 660,220 590,200" marker-end="url(#arrow)" />
+        <!-- backend <-> pg (JDBC) -->
+        <path class="edge e-jdbc" data-from="backend" data-to="pg"
+              d="M720,165 C800,165 820,212 900,212" marker-end="url(#arrow)" />
+        <!-- backend -> ocr (HTTP) -->
+        <path class="edge e-http" data-from="backend" data-to="ocr"
+              d="M720,195 C820,210 840,300 900,308" marker-end="url(#arrow)" />
+        <!-- backend -> ollama (HTTP) -->
+        <path class="edge e-http" data-from="backend" data-to="ollama"
+              d="M720,205 C840,250 860,370 900,398" marker-end="url(#arrow)" />
+        <!-- backend -> cloudai (HTTPS 出网) -->
+        <path class="edge e-net" data-from="backend" data-to="cloudai"
+              d="M720,150 C840,120 880,92 900,92" marker-end="url(#arrow)" />
+        <!-- backend -> capture (local dir) -->
+        <path class="edge e-storage" data-from="backend" data-to="capture"
+              d="M720,215 C840,280 860,460 900,488" marker-end="url(#arrow)" />
+        <!-- sub-device dashed (no MQTT) -->
+        <path class="edge edash" data-from="th" data-to="main"
+              d="M420,628 C360,640 330,650 320,668" />
+        <path class="edge edash" data-from="lx" data-to="main"
+              d="M420,700 C360,700 330,700 320,700" />
+      </g>
+
+      <!-- ================= EDGE LABELS ================= -->
+      <g id="elabels">
+        <text class="elabel" x="360" y="135">HTTP REST</text>
+        <text class="elabel" x="360" y="210">REST + WebSocket</text>
+        <text class="elabel" x="520" y="350">MQTT 订阅 up/# · 发布 down/#</text>
+        <text class="elabel" x="320" y="585">MQTT :1883（匿名 clientId=deviceId）</text>
+        <text class="elabel" x="510" y="700">WiFi 识别结果聚合</text>
+        <text class="elabel" x="850" y="430">HTTP multipart 抓拍图片直传</text>
+        <text class="elabel" x="810" y="190">JDBC :5432</text>
+        <text class="elabel" x="845" y="320">HTTP :8000 OCR</text>
+        <text class="elabel" x="855" y="430">HTTP :11434 Embedding</text>
+        <text class="elabel" x="845" y="110">HTTPS 出网（大模型 Chat）</text>
+        <text class="elabel" x="860" y="500">本地目录 /var/medbox/captures</text>
+        <text class="elabel" x="375" y="650" style="font-size:9.5px;fill:#94a3b8">子设备（无 MQTT 连接，主控转发）</text>
+      </g>
+
+      <!-- ================= NODES ================= -->
+      <g id="nodes">
+        <g class="node n-client" id="elder" data-key="elder">
+          <rect x="60" y="90" width="210" height="66" rx="10" />
+          <text x="165" y="118" text-anchor="middle">老人端小程序</text>
+          <text class="sub" x="165" y="138" text-anchor="middle">uni-app · 近场使用者</text>
+        </g>
+        <g class="node n-client" id="guardian" data-key="guardian">
+          <rect x="60" y="190" width="210" height="66" rx="10" />
+          <text x="165" y="218" text-anchor="middle">监护端小程序</text>
+          <text class="sub" x="165" y="238" text-anchor="middle">子女 / 护理 / 家庭医生</text>
+        </g>
+
+        <g class="node n-backend" id="backend" data-key="backend">
+          <rect x="470" y="120" width="250" height="90" rx="10" />
+          <text x="595" y="152" text-anchor="middle">Java 后端</text>
+          <text class="sub" x="595" y="172" text-anchor="middle">Spring Boot 4 · :8080</text>
+          <text class="sub" x="595" y="190" text-anchor="middle">REST + WS + MQTT 消费</text>
+        </g>
+
+        <g class="node n-broker" id="emqx" data-key="emqx">
+          <rect x="430" y="420" width="250" height="86" rx="10" />
+          <text x="555" y="452" text-anchor="middle">EMQX MQTT Broker</text>
+          <text class="sub" x="555" y="472" text-anchor="middle">局域网 :1883（匿名）</text>
+          <text class="sub" x="555" y="490" text-anchor="middle">Dashboard :18083</text>
+        </g>
+
+        <g class="node n-external" id="cloudai" data-key="cloudai">
+          <rect x="900" y="60" width="260" height="64" rx="10" />
+          <text x="1030" y="88" text-anchor="middle">公网大模型 API</text>
+          <text class="sub" x="1030" y="108" text-anchor="middle">出网 · Chat 问答</text>
+        </g>
+        <g class="node n-infra" id="pg" data-key="pg">
+          <rect x="900" y="180" width="260" height="64" rx="10" />
+          <text x="1030" y="208" text-anchor="middle">PostgreSQL + pgvector</text>
+          <text class="sub" x="1030" y="228" text-anchor="middle">:5432 · 结构化 + 向量同库</text>
+        </g>
+        <g class="node n-infra" id="ocr" data-key="ocr">
+          <rect x="900" y="280" width="260" height="56" rx="10" />
+          <text x="1030" y="308" text-anchor="middle">本地 OCR 侧车</text>
+          <text class="sub" x="1030" y="326" text-anchor="middle">RapidOCR :8000 · 不出网</text>
+        </g>
+        <g class="node n-infra" id="ollama" data-key="ollama">
+          <rect x="900" y="370" width="260" height="56" rx="10" />
+          <text x="1030" y="398" text-anchor="middle">本地 Embedding</text>
+          <text class="sub" x="1030" y="416" text-anchor="middle">Ollama bge-m3 :11434</text>
+        </g>
+        <g class="node n-infra" id="capture" data-key="capture">
+          <rect x="900" y="460" width="260" height="56" rx="10" />
+          <text x="1030" y="488" text-anchor="middle">抓拍图片存储</text>
+          <text class="sub" x="1030" y="506" text-anchor="middle">/var/medbox/captures</text>
+        </g>
+
+        <g class="node n-device" id="main" data-key="main">
+          <rect x="120" y="620" width="250" height="86" rx="10" />
+          <text x="245" y="652" text-anchor="middle">药箱主控（单片机）</text>
+          <text class="sub" x="245" y="672" text-anchor="middle">MAIN · 唯一 MQTT 连接</text>
+          <text class="sub" x="245" y="690" text-anchor="middle">聚合 / 打时间戳 / 蜂鸣</text>
+        </g>
+        <g class="node n-device" id="th" data-key="th">
+          <rect x="420" y="600" width="190" height="56" rx="10" />
+          <text x="515" y="625" text-anchor="middle">温湿度传感器</text>
+          <text class="sub" x="515" y="643" text-anchor="middle">子设备 · 无 MQTT</text>
+        </g>
+        <g class="node n-device" id="lx" data-key="lx">
+          <rect x="420" y="672" width="190" height="56" rx="10" />
+          <text x="515" y="697" text-anchor="middle">光照传感器</text>
+          <text class="sub" x="515" y="715" text-anchor="middle">子设备 · 无 MQTT</text>
+        </g>
+        <g class="node n-device" id="cam" data-key="cam">
+          <rect x="650" y="630" width="240" height="64" rx="10" />
+          <text x="770" y="658" text-anchor="middle">摄像头</text>
+          <text class="sub" x="770" y="678" text-anchor="middle">识别推理 + 全量抓拍</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <div class="legend">
+    <h3>图例</h3>
+    <div class="row"><span class="dot" style="background:var(--client)"></span> 小程序端（客户端）</div>
+    <div class="row"><span class="dot" style="background:var(--backend)"></span> Java 后端</div>
+    <div class="row"><span class="dot" style="background:var(--broker)"></span> EMQX 消息中间件</div>
+    <div class="row"><span class="dot" style="background:var(--infra)"></span> 后端依赖（DB / AI / 存储）</div>
+    <div class="row"><span class="dot" style="background:var(--device)"></span> 设备 / 子设备</div>
+    <div class="row"><span class="dot" style="background:var(--external)"></span> 公网（出网）</div>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0" />
+    <h3>协议 / 链路</h3>
+    <div class="row"><span class="swatch" style="background:#2563eb"></span> HTTP REST / 图片上传</div>
+    <div class="row"><span class="swatch" style="background:#7c3aed"></span> WebSocket 推送</div>
+    <div class="row"><span class="swatch" style="background:#ea580c"></span> MQTT（EMQX）</div>
+    <div class="row"><span class="swatch" style="background:#0891b2"></span> WiFi（摄像头→单片机）</div>
+    <div class="row"><span class="swatch" style="background:#16a34a"></span> JDBC（PostgreSQL）</div>
+    <div class="row"><span class="swatch" style="background:#64748b"></span> 本地文件存储</div>
+    <div class="row"><span class="swatch" style="background:#dc2626"></span> 出网 HTTPS（虚线）</div>
+    <small>虚线细线 = 子设备无独立连接，由主控经 MQTT 转发。</small>
+  </div>
+
+  <div class="details" id="details">
+    <h3>节点详情</h3>
+    <p class="hint">点击任意节点查看说明；悬停可高亮其相关链路。当前展示整体拓扑。</p>
+  </div>
+</div>
+
+<footer>
+  数据来源：medbox-spec/01（系统架构与部署）、03（MQTT 协议）、04（WebSocket 协议）。本页为只读可视化，权威口径以文档为准。
+</footer>
+
+<script>
+  const INFO = {
+    elder: {
+      title: "老人端小程序", tag: "client", tagText: "小程序端",
+      rows: [["技术栈","uni-app（Vue3 + Vite）"],["角色","老人本人 · 近场使用者"],["地址","BASE_URL / WS_URL（仅两个，不配 MQTT_URL）"]],
+      points: ["查看本人服药计划、AI 问答、本地查看","只读本人数据，不直连 MQTT"]
+    },
+    guardian: {
+      title: "监护端小程序", tag: "client", tagText: "小程序端",
+      rows: [["角色","监护人 / 子女 / 社区护理 / 家庭医生"],["协议","HTTP REST + WebSocket(:8080/medbox/ws)"],["鉴权","JWT 握手 + elder:{elderId} 主题归属校验"]],
+      points: ["接收告警、查看全部数据、配置计划与阈值","为老人配置大模型 API Key"]
+    },
+    backend: {
+      title: "Java 后端", tag: "backend", tagText: "服务端",
+      rows: [["技术栈","Spring Boot 4 + Java 21 + Gradle"],["端口",":8080（REST /medbox/api/v1 + WS /medbox/ws）"],["职责","落库、漏服/错服/阈值判定、下行中转"]],
+      points: ["订阅 EMQX up/# 消费上报","经 WebSocket 推送告警与状态","转 REST 计划/命令为 MQTT 下行"]
+    },
+    emqx: {
+      title: "EMQX MQTT Broker", tag: "broker", tagText: "消息中间件",
+      rows: [["地址","tcp://内网IP:1883（本期匿名）"],["Dashboard","http://内网IP:18083（务必改默认密码）"],["Topic","medbox/{productKey}/{deviceId}/up|down/#"]],
+      points: ["设备⇄后端 唯一消息通道","QoS1 + msgId 幂等去重；LWT 遗嘱","下行重发：5s 超时，最多 3 次"]
+    },
+    cloudai: {
+      title: "公网大模型 API", tag: "external", tagText: "出网",
+      rows: [["用途","AI 药品问答（Chat 流式走 SSE）"],["方向","仅后端出网 HTTPS"],["依赖","监护人配置的大模型 API Key（AES 加密）"]],
+      points: ["OCR 与 Embedding 已本地化，不出网","属唯一必须写死的外网地址"]
+    },
+    pg: {
+      title: "PostgreSQL + pgvector", tag: "infra", tagText: "存储",
+      rows: [["端口",":5432"],["内容","15 张业务表 + 说明书向量同库"],["迁移","Flyway 自动建表（V1/V2）"]],
+      points: ["结构化数据与向量一并存放","CI 无 DB：测试期 SPRING_FLYWAY_ENABLED=false"]
+    },
+    ocr: {
+      title: "本地 OCR 侧车", tag: "infra", tagText: "本地 AI",
+      rows: [["地址","http://localhost:8000/ocr"],["实现","RapidOCR 本地服务"],["出网","否，无需 Key"]],
+      points: ["药品说明书识别在本地完成"]
+    },
+    ollama: {
+      title: "本地 Embedding", tag: "infra", tagText: "本地 AI",
+      rows: [["地址","http://localhost:11434"],["模型","bge-m3（维度 1024）"],["出网","否，无需 Key"]],
+      points: ["说明书向量化用于 RAG 检索"]
+    },
+    capture: {
+      title: "抓拍图片存储", tag: "infra", tagText: "存储",
+      rows: [["目录","/var/medbox/captures/YYYY-MM-DD/"],["策略","全量抓拍（正常也拍）"],["过期","未读30天 / 已读7天"]],
+      points: ["读取经短期 fileToken 鉴权","仅老人本人与 ACTIVE 监护人可见"]
+    },
+    main: {
+      title: "药箱主控（单片机）", tag: "device", tagText: "设备",
+      rows: [["类型","MAIN · 唯一 MQTT 客户端"],["clientId","= deviceId（必填）"],["职责","聚合子设备、打时间戳、蜂鸣提醒"]],
+      points: ["摄像头识别结果经 WiFi 交它聚合后上报","传感器心跳每 60s 汇总一次"]
+    },
+    th: {
+      title: "温湿度传感器", tag: "device", tagText: "子设备",
+      rows: [["类型","TEMP_HUMI（子设备）"],["连接","无独立 MQTT，靠主控转发"],["上报","up/telemetry 各发一条字段"]],
+      points: ["在线状态由主控 heartbeat 汇总","离线判定：连续 3 周期(180s)未上报"]
+    },
+    lx: {
+      title: "光照传感器", tag: "device", tagText: "子设备",
+      rows: [["类型","LIGHT（子设备）"],["连接","无独立 MQTT，靠主控转发"],["上报","up/telemetry 带 lux"]],
+      points: ["阈值由老人级 alarm_setting.env_threshold 判定"]
+    },
+    cam: {
+      title: "摄像头", tag: "device", tagText: "设备",
+      rows: [["职责","识别推理 + 全量抓拍"],["链路","识别结果→WiFi→单片机；图片→HTTP 直传"],["不直连","既不连 EMQX，也不参与判定"]],
+      points: ["图片走 HTTP multipart，不过单片机","每事件仅保留 1 张代表图"]
+    }
+  };
+
+  const svg = document.getElementById('topo');
+  const details = document.getElementById('details');
+  const nodes = svg.querySelectorAll('.node');
+  const edges = svg.querySelectorAll('.edge');
+
+  function showDetails(key) {
+    const d = INFO[key];
+    if (!d) return;
+    let html = `<h3>${d.title}</h3><span class="tag" style="background:var(--${d.tag})">${d.tagText}</span>`;
+    html += '<table style="width:100%;border-collapse:collapse">';
+    d.rows.forEach(r => { html += `<tr><td class="k" style="width:64px;vertical-align:top">${r[0]}</td><td>${r[1]}</td></tr>`; });
+    html += '</table><ul>';
+    d.points.forEach(p => html += `<li>${p}</li>`);
+    html += '</ul>';
+    details.innerHTML = html;
+  }
+
+  function highlight(key) {
+    svg.classList.add('focus');
+    nodes.forEach(n => n.classList.toggle('active', n.dataset.key === key));
+    edges.forEach(e => {
+      const on = e.dataset.from === key || e.dataset.to === key;
+      e.classList.toggle('active', on);
+      e.setAttribute('marker-end', on ? 'url(#arrowHl)' : '');
+    });
+  }
+  function clearHighlight() {
+    svg.classList.remove('focus');
+    nodes.forEach(n => n.classList.remove('active'));
+    edges.forEach(e => { e.classList.remove('active'); e.setAttribute('marker-end', 'url(#arrow)'); });
+  }
+
+  nodes.forEach(n => {
+    n.addEventListener('mouseenter', () => highlight(n.dataset.key));
+    n.addEventListener('mouseleave', clearHighlight);
+    n.addEventListener('click', () => showDetails(n.dataset.key));
+  });
+</script>
+</body>
+</html>
