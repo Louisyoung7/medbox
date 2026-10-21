@@ -178,7 +178,48 @@ function createSeed() {
     { itemId: 'pi-9004', planId: 'p-3303', medicineId: 'm-205', dose: '10', unit: 'ml', note: '摇匀后服', sortOrder: 0 },
   ]
 
-  return { users, relations, devices, medicines, stocks, plans, planItems, refreshTokens: new Set() }
+  // 服药记录（06 的 2.7）：planTime / actualTime 一律 UTC；覆盖按时 / 未按时 / 错服 / 已确认 / 两位老人。
+  // captureId 部分有值，但 capture-core 属 P1，Mock 只存 id，缩略图由前端留空占位（feat/mp-capture 接入）。
+  const records = [
+    {
+      recordId: 'rec-9001', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9001', medicineId: 'm-201',
+      deviceId: 'BOXA1001', captureId: '', actualDose: '1',
+      planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR + 5 * MINUTE),
+      onTime: true, wrongDrug: false, confirmedBy: '', confirmedAt: '',
+    },
+    {
+      recordId: 'rec-9002', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9002', medicineId: 'm-202',
+      deviceId: 'BOXA1001', captureId: '', actualDose: '1',
+      planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR + 20 * MINUTE),
+      onTime: true, wrongDrug: false, confirmedBy: '', confirmedAt: '',
+    },
+    {
+      recordId: 'rec-9003', elderId: 'u-1001', planId: 'p-3302', planItemId: 'pi-9003', medicineId: 'm-204',
+      deviceId: 'BOXA1001', captureId: '', actualDose: '1',
+      planTime: isoOffset(-2 * DAY - 3 * HOUR), actualTime: isoOffset(-2 * DAY - 3 * HOUR + 45 * MINUTE),
+      onTime: false, wrongDrug: false, confirmedBy: 'u-2001', confirmedAt: isoOffset(-2 * DAY),
+    },
+    {
+      recordId: 'rec-9004', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9001', medicineId: 'm-201',
+      deviceId: 'BOXA1001', captureId: '', actualDose: '1',
+      planTime: isoOffset(-3 * DAY - 8 * HOUR), actualTime: isoOffset(-3 * DAY - 8 * HOUR + 60 * MINUTE),
+      onTime: false, wrongDrug: true, confirmedBy: '', confirmedAt: '',
+    },
+    {
+      recordId: 'rec-9005', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
+      deviceId: 'BOXA1002', captureId: 'cap-5001', actualDose: '10',
+      planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR),
+      onTime: true, wrongDrug: false, confirmedBy: '', confirmedAt: '',
+    },
+    {
+      recordId: 'rec-9006', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
+      deviceId: 'BOXA1002', captureId: '', actualDose: '10',
+      planTime: isoOffset(-2 * DAY - 4 * HOUR), actualTime: isoOffset(-2 * DAY - 4 * HOUR),
+      onTime: true, wrongDrug: false, confirmedBy: '', confirmedAt: '',
+    },
+  ]
+
+  return { users, relations, devices, medicines, stocks, plans, planItems, records, refreshTokens: new Set() }
 }
 
 module.exports = { createSeed, DEMO_PASSWORD }

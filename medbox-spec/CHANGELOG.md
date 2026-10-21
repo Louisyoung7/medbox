@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-21] 小程序落地服药记录（列表 / 详情 / 补录，feat/mp-record）
+
+`feat/mp-record`（07 清单 P0 第 7 步）落地：记录列表与按时间 / 老人筛选、记录详情（计划与药品）、监护人补录 / 确认。
+
+- **`medbox-miniapp/`**：新增 `api/record.js`（`listRecords` / `getRecord` / `confirmRecord`）+ `utils/record.js`（分页容错、按时 / 错服标签、时间本地化）；改造 `pages/record/record.vue`（老人选择器复用 `GET /devices` 归纳 elderId + 日期区间筛选 + 状态标签）、新增 `pages/record/detail.vue`（抓拍留证占位、监护人补录 / 确认入口仅 FAMILY 可见，已注册 `pages.json`）
+- **`medbox-miniapp/tools/mock`**：新增记录假数据、三条路由（列表 / 详情 / 补录）与权限口径（老人读他人 / 越权 40301、监护 PENDING 40302、写仅 FAMILY、不存在 40401）；`smoke.js` 新增 12 项记录检查（共 **78 项**），README 同步
+- **⚠️ 后端 `record-core` 未落地**：分页响应暂定 `{list, total}`（前端 `parseRecordsPage` 已容错 `records`/`items` 与裸数组）、详情由后端 join 计划名 / 药品名、`confirm` 仅 FAMILY 可调用，后端定稿后三处收紧；**抓拍留证依赖 `capture-core`（P1，feat/mp-capture），本期详情页缩略图留空占位**
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-21] 新增服药计划后端 `feat/plan-core`（计划 CRUD + 未来待服时间线）
 
 - **后端新增接口（02 第 6 章）**：`POST/PUT/PATCH/DELETE/GET /plans` 与 `GET /plans/{planId}/next-doses`；写仅 `WRITE_PLAN`（FAMILY+DOCTOR）、读 `READ_PLAN`（全角色），越权统一 40301

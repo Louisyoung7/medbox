@@ -547,6 +547,8 @@ POST /plans
 | POST | /records/{recordId}/confirm | 【鉴权】监护人补录/确认（设备异常时手工校准） |
 | GET | /records/export?elderId=&from=&to= | 【鉴权】导出服药报告（护理/医生用） |
 
+> **小程序侧落地口径（feat/mp-record）**：列表分页响应暂定 `{list, total}`（前端 `parseRecordsPage` 已容错 `records`/`items` 与裸数组，后端定稿后收紧）；详情由后端 join 计划名 / 药品名返回（06 的 2.7 字段充足）；`POST /records/{recordId}/confirm` 仅 `WRITE_RECORD`（FAMILY）可调用，老人写 40301、监护 PENDING 40302；抓拍留证依赖 `capture-core`（P1，feat/mp-capture），本期小程序详情页缩略图留空占位、不调 `GET /captures`。
+
 ## 8. 告警（列表/处理，实时推送走 WebSocket）
 
 | 方法 | 路径 | 说明 |
