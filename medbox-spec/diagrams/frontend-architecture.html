@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>medbox 小程序前端 · 组件架构图</title>
+<style>
+  :root {
+    --fw: #475569;
+    --page: #2563eb;
+    --comp: #7c3aed;
+    --store: #0891b2;
+    --api: #ea580c;
+    --util: #16a34a;
+    --config: #0d9488;
+    --ext: #dc2626;
+    --ink: #1e293b;
+    --bg: #f1f5f9;
+    --panel: #fff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+  }
+  header { padding: 16px 24px 8px; border-bottom: 1px solid #e2e8f0; background: #fff; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+  .layout { display: flex; gap: 16px; padding: 16px; align-items: stretch; }
+  .stage { flex: 1 1 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; min-height: 720px; }
+  svg { width: 100%; height: 100%; display: block; }
+
+  .legend { width: 230px; flex: 0 0 230px; background: var(--panel); border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; font-size: 12.5px; }
+  .legend h3 { margin: 0 0 8px; font-size: 14px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .legend .dot { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 12px; }
+  .legend .swatch { width: 22px; height: 4px; border-radius: 2px; flex: 0 0 22px; }
+  .legend small { color: #64748b; }
+
+  .details { width: 290px; flex: 0 0 290px; background: var(--panel); border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; font-size: 13px; overflow: auto; }
+  .details h3 { margin: 0 0 6px; font-size: 15px; }
+  .details .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; color: #fff; margin-bottom: 10px; }
+  .details .k { color: #64748b; font-weight: 600; }
+  .details ul { margin: 8px 0 0; padding-left: 18px; }
+  .details li { margin: 3px 0; }
+  .details .hint { color: #94a3b8; font-size: 12px; margin-top: 12px; }
+
+  .node rect { stroke-width: 2; transition: opacity .15s, filter .15s; cursor: pointer; }
+  .node text { font-size: 12.5px; font-weight: 700; fill: #fff; pointer-events: none; }
+  .node .sub { font-size: 10px; font-weight: 400; fill: rgba(255,255,255,.88); }
+  .node:hover rect { filter: drop-shadow(0 4px 8px rgba(0,0,0,.2)); }
+
+  .n-fw rect { fill: var(--fw); stroke: #334155; }
+  .n-page rect { fill: var(--page); stroke: #1d4ed8; }
+  .n-comp rect { fill: var(--comp); stroke: #6d28d9; }
+  .n-store rect { fill: var(--store); stroke: #0e7490; }
+  .n-api rect { fill: var(--api); stroke: #c2410c; }
+  .n-util rect { fill: var(--util); stroke: #15803d; }
+  .n-config rect { fill: var(--config); stroke: #0f766e; }
+  .n-ext rect { fill: var(--ext); stroke: #b91c1c; }
+
+  .edge { fill: none; stroke-width: 2.1; transition: opacity .15s, stroke-width .15s; }
+  .e-flow { stroke: #475569; }
+  .e-http { stroke: #2563eb; }
+  .e-ws { stroke: #7c3aed; }
+  .e-cross { stroke: #94a3b8; stroke-dasharray: 4 4; }
+
+  .elabel { font-size: 10px; fill: #334155; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+
+  svg.focus .node:not(.active) rect { opacity: .22; }
+  svg.focus .edge:not(.active) { opacity: .1; }
+  svg.focus .node.active rect { opacity: 1; }
+  svg.focus .edge.active { stroke-width: 3.2; opacity: 1; }
+
+  footer { padding: 4px 24px 18px; font-size: 11.5px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>medbox 小程序前端 · 组件架构图</h1>
+  <p>uni-app + Vue3（Vite 构建）　|　自研 JS 模块式 store（无 Pinia）　|　据 <code>medbox-miniapp/src</code> 实际结构绘制</p>
+</header>
+
+<div class="layout">
+  <div class="stage">
+    <svg id="topo" viewBox="0 0 1400 1060" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569" />
+        </marker>
+        <marker id="arrowHl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#0f172a" />
+        </marker>
+      </defs>
+
+      <!-- ============ EDGES ============ -->
+      <g id="edges">
+        <path class="edge e-flow" data-from="fw" data-to="pages" d="M700,118 L700,150" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="pages" data-to="comp" d="M700,270 L700,300" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="pages" data-to="store" d="M620,270 L620,430" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="pages" data-to="api" d="M700,270 L700,592" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="comp" data-to="store" d="M780,400 L780,430" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="store" data-to="api" d="M660,562 L660,592" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="api" data-to="store" d="M740,592 L740,562" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="store" data-to="utils" d="M700,562 C560,640 460,700 380,742" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="store" data-to="config" d="M700,562 C820,640 900,700 970,742" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="api" data-to="utils" d="M380,712 L380,742" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="api" data-to="config" d="M970,712 L970,742" marker-end="url(#arrow)"/>
+        <path class="edge e-http" data-from="api" data-to="ext-rest" d="M450,712 C450,810 380,860 300,884" marker-end="url(#arrow)"/>
+        <path class="edge e-ws" data-from="store" data-to="ext-ws" d="M820,562 C980,700 820,840 660,884" marker-end="url(#arrow)"/>
+      </g>
+
+      <!-- ============ EDGE LABELS ============ -->
+      <g id="elabels">
+        <text class="elabel" x="700" y="138">onLaunch 装机 / 起连</text>
+        <text class="elabel" x="700" y="290" style="font-size:9px">渲染</text>
+        <text class="elabel" x="600" y="420" style="font-size:9px">登录态 / WS / 用户</text>
+        <text class="elabel" x="700" y="585" style="font-size:9px">调接口</text>
+        <text class="elabel" x="800" y="420" style="font-size:9px">智能组件订阅</text>
+        <text class="elabel" x="652" y="583" style="font-size:9px;fill:#0e7490">refreshApi / 401 接管</text>
+        <text class="elabel" x="752" y="583" style="font-size:9px;fill:#c2410c">Bearer / clearTokens</text>
+        <text class="elabel" x="510" y="650" style="font-size:9px">ws-frame / datetime</text>
+        <text class="elabel" x="880" y="650" style="font-size:9px">WS_URL</text>
+        <text class="elabel" x="380" y="732" style="font-size:9px;fill:#15803d">error / uuid</text>
+        <text class="elabel" x="970" y="732" style="font-size:9px;fill:#0f766e">BASE_URL</text>
+        <text class="elabel" x="360" y="852" style="font-size:9px;fill:#2563eb">REST 出站</text>
+        <text class="elabel" x="900" y="800" style="font-size:9px;fill:#7c3aed">WS 出站</text>
+      </g>
+
+      <!-- ============ NODES ============ -->
+      <g id="nodes">
+        <!-- 框架层 -->
+        <g class="node n-fw" id="fw" data-key="fw">
+          <rect x="120" y="40" width="1160" height="78" rx="10"/>
+          <text x="700" y="68" text-anchor="middle">uni-app 框架层（运行期）</text>
+          <text class="sub" x="700" y="90" text-anchor="middle">App.vue · main.js · pages.json(路由表) · manifest.json · uni.scss · index.html · vite.config.js</text>
+        </g>
+
+        <!-- 页面层 -->
+        <g class="node n-page" id="pages" data-key="pages">
+          <rect x="120" y="150" width="1160" height="120" rx="10"/>
+          <text x="700" y="180" text-anchor="middle">页面层（pages/ · 8 功能区 / 14 个 .vue）</text>
+          <text class="sub" x="700" y="202" text-anchor="middle">auth: login, register　|　index: index（首页）</text>
+          <text class="sub" x="700" y="222" text-anchor="middle">device: device, detail　|　medicine: medicine, detail, edit</text>
+          <text class="sub" x="700" y="242" text-anchor="middle">plan: plan, edit　|　stock: stock, edit　|　profile: profile　|　record: record</text>
+        </g>
+
+        <!-- 组件层 -->
+        <g class="node n-comp" id="comp" data-key="comp">
+          <rect x="120" y="300" width="1160" height="100" rx="10"/>
+          <text x="700" y="328" text-anchor="middle">通用 UI 组件层（components/）</text>
+          <text class="sub" x="700" y="350" text-anchor="middle">纯展示：MbButton · MbCard · MbCell · MbField · MbEmpty · MbLoading · MbModal · MbNavbar · MbTabBar · PlanItemRow</text>
+          <text class="sub" x="700" y="372" text-anchor="middle">智能组件：WsStatusBar（订阅 store/ws）· RoleGate（角色门控，联动 utils/permission）</text>
+        </g>
+
+        <!-- 状态/连接层 -->
+        <g class="node n-store" id="store" data-key="store">
+          <rect x="120" y="430" width="1160" height="132" rx="10"/>
+          <text x="700" y="460" text-anchor="middle">状态与连接层（store/ · 自研 JS 模块式，无 Pinia）</text>
+          <text class="sub" x="700" y="482" text-anchor="middle">token.js（凭据唯一读写）· auth.js（登录/注册/登出/refreshAuth/setupAuth 编排）</text>
+          <text class="sub" x="700" y="502" text-anchor="middle">user.js（用户资料 + ROLE: ELDER/GUARDIAN）· guard.js（uni.addInterceptor 路由守卫白名单）</text>
+          <text class="sub" x="700" y="522" text-anchor="middle">ws.js（WebSocket 单例：连接 / 30s 心跳 / 指数退避重连 / 按 type 分发）</text>
+        </g>
+
+        <!-- 接口层 -->
+        <g class="node n-api" id="api" data-key="api">
+          <rect x="120" y="592" width="1160" height="120" rx="10"/>
+          <text x="700" y="622" text-anchor="middle">接口层（api/）</text>
+          <text class="sub" x="700" y="644" text-anchor="middle">request.js（统一出口：拼 BASE_URL · 注入 Bearer/X-Request-Id · 40101 续期重试 · loading）</text>
+          <text class="sub" x="700" y="666" text-anchor="middle">业务 API：auth · user · device · medicine · plan · stock</text>
+        </g>
+
+        <!-- 工具层 -->
+        <g class="node n-util" id="utils" data-key="utils">
+          <rect x="120" y="742" width="520" height="108" rx="10"/>
+          <text x="380" y="772" text-anchor="middle">工具层（utils/）</text>
+          <text class="sub" x="380" y="794" text-anchor="middle">ws-frame（帧解析/分类）· error（ApiError/CODE）</text>
+          <text class="sub" x="380" y="812" text-anchor="middle">uuid（requestId）· permission（ENTRY_ROLES）</text>
+          <text class="sub" x="380" y="830" text-anchor="middle">datetime · device-status · plan · medicine · stock</text>
+        </g>
+
+        <!-- 配置层 -->
+        <g class="node n-config" id="config" data-key="config">
+          <rect x="660" y="742" width="620" height="108" rx="10"/>
+          <text x="970" y="772" text-anchor="middle">配置层（config/）</text>
+          <text class="sub" x="970" y="794" text-anchor="middle">index.js：BASE_URL / WS_URL / setServerHost（运行时改服务器 IP）</text>
+          <text class="sub" x="970" y="812" text-anchor="middle">tabbar.js：底部栏配置</text>
+          <text class="sub" x="970" y="830" text-anchor="middle">无 MQTT_URL —— 小程序不直连设备，消息经后端中转</text>
+        </g>
+
+        <!-- 后端外部 -->
+        <g class="node n-ext" id="ext-rest" data-key="ext-rest">
+          <rect x="120" y="884" width="360" height="92" rx="10"/>
+          <text x="300" y="914" text-anchor="middle">后端 REST</text>
+          <text class="sub" x="300" y="936" text-anchor="middle">:8080 /medbox/api/v1</text>
+        </g>
+        <g class="node n-ext" id="ext-ws" data-key="ext-ws">
+          <rect x="500" y="884" width="320" height="92" rx="10"/>
+          <text x="660" y="914" text-anchor="middle">后端 WebSocket</text>
+          <text class="sub" x="660" y="936" text-anchor="middle">/medbox/ws（握手带 token + topics + lastEventId）</text>
+        </g>
+        <g class="node n-ext" id="ext-note" data-key="ext-note">
+          <rect x="840" y="884" width="440" height="92" rx="10"/>
+          <text x="1060" y="912" text-anchor="middle">设备消息经后端中转</text>
+          <text class="sub" x="1060" y="934" text-anchor="middle">小程序不直连 MQTT；摄像头/传感器由药箱主控 → 后端 → 推送</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <div class="legend">
+    <h3>分层（自上而下依赖）</h3>
+    <div class="row"><span class="dot" style="background:var(--fw)"></span> 框架层</div>
+    <div class="row"><span class="dot" style="background:var(--page)"></span> 页面层</div>
+    <div class="row"><span class="dot" style="background:var(--comp)"></span> UI 组件层</div>
+    <div class="row"><span class="dot" style="background:var(--store)"></span> 状态 / 连接层</div>
+    <div class="row"><span class="dot" style="background:var(--api)"></span> 接口层</div>
+    <div class="row"><span class="dot" style="background:var(--util)"></span> 工具层</div>
+    <div class="row"><span class="dot" style="background:var(--config)"></span> 配置层</div>
+    <div class="row"><span class="dot" style="background:var(--ext)"></span> 后端（外部）</div>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0" />
+    <h3>链路</h3>
+    <div class="row"><span class="swatch" style="background:#2563eb"></span> REST 出站</div>
+    <div class="row"><span class="swatch" style="background:#7c3aed"></span> WebSocket 出站</div>
+    <div class="row"><span class="swatch" style="background:#475569"></span> 内部依赖</div>
+  </div>
+
+  <div class="details" id="details">
+    <h3>组件详情</h3>
+    <p class="hint">点击任意组件查看其包含的文件与职责；悬停可高亮相关链路。当前展示整体架构。</p>
+  </div>
+</div>
+
+<footer>
+  数据来源：medbox-miniapp 前端源码结构（pages / components / store / api / utils / config）。本页为只读可视化，权威口径以代码与 medbox-spec 文档为准。
+</footer>
+
+<script>
+  const INFO = {
+    "fw": { title:"uni-app 框架层（运行期）", tag:"fw", tagText:"框架", rows:[["构建","Vite + uni-app + Vue3"],["路由","pages.json 注册，无框架级守卫"]], points:["App.vue.onLaunch：setupAuth() 装机 + WsStatusBar 起连","main.js：入口与全局样式","pages.json：页面路由表 / TabBar","manifest.json：各端应用配置","uni.scss：主题变量（$mb-*）","index.html / vite.config.js：H5 与构建配置"] },
+    "pages": { title:"页面层（pages/）", tag:"page", tagText:"页面", rows:[["结构","8 功能区 / 14 个 .vue"],["注册","pages.json"]], points:["auth: login.vue, register.vue","index: index.vue（首页 / 设备概览）","device: device.vue, detail.vue","medicine: medicine.vue, detail.vue, edit.vue","plan: plan.vue, edit.vue","stock: stock.vue, edit.vue","profile: profile.vue","record: record.vue"] },
+    "comp": { title:"通用 UI 组件层（components/）", tag:"comp", tagText:"组件", rows:[["库","Mb* 通用组件"],["智能组件","2 个依赖 store/utils"]], points:["纯展示：MbButton / MbCard / MbCell / MbField","MbEmpty / MbLoading / MbModal / MbNavbar","MbTabBar / PlanItemRow","智能：WsStatusBar（订阅 store/ws 状态条）","智能：RoleGate（联动 utils/permission 角色门控）","页面一律复用，禁止各页重复造 UI"] },
+    "store": { title:"状态与连接层（store/）", tag:"store", tagText:"状态", rows:[["形态","自研 JS 模块式（无 Pinia）"],["约束","token 唯一读写，避免半登录态"]], points:["token.js：access/refresh token 本地唯一读写","auth.js：login/register/logout/refreshAuth/setupAuth 编排","user.js：用户资料缓存 + ROLE(ELDER/GUARDIAN)","guard.js：uni.addInterceptor 路由白名单拦截","ws.js：WebSocket 单例（连接/30s 心跳/指数退避重连/按 type 分发）","auth↔ws 为调用时引用，ESM 活绑定，安全"] },
+    "api": { title:"接口层（api/）", tag:"api", tagText:"接口", rows:[["出口","request.js 唯一"],["业务","6 个领域 API"]], points:["request.js：拼 BASE_URL、注入 Bearer/X-Request-Id","40101 → auth.handleUnauthorized 续期并重发原请求","统一拆 code/message/data、分流错误码、loading 并发计数","业务 API：auth / user / device / medicine / plan / stock","页面/模块一律走这里，不直接 uni.request"] },
+    "utils": { title:"工具层（utils/）", tag:"util", tagText:"工具", rows:[["性质","纯函数"],["复用","被各层引用"]], points:["ws-frame.js：帧解析 / 分类（PONG/业务/RESYNC）","error.js：ApiError 与 CODE 错误码表","uuid.js：X-Request-Id 生成","permission.js：ENTRY_ROLES 入口角色表","datetime / device-status / plan / medicine / stock"] },
+    "config": { title:"配置层（config/）", tag:"config", tagText:"配置", rows:[["原则","禁在页面写死 IP"],["扩展","运行时改服务器地址"]], points:["index.js：BASE_URL / WS_URL 统一出口","setServerHost / clearServerHost（真机调试改 IP）","tabbar.js：底部栏配置","无 MQTT_URL：小程序不直连设备，消息经后端中转"] },
+    "ext-rest": { title:"后端 REST 接口", tag:"ext", tagText:"外部", rows:[["地址",":8080 /medbox/api/v1"],["协议","HTTP JSON（code/message/data）"]], points:["业务请求唯一出站点（api/request.js）","40101 触发本地续期重试","无 CORS：H5 联调靠 Vite 反代"] },
+    "ext-ws": { title:"后端 WebSocket", tag:"ext", tagText:"外部", rows:[["路径","/medbox/ws"],["握手","?token=&topics=&lastEventId="]], points:["实时推送唯一出站点（store/ws.js）","30s 心跳 / 指数退避重连 / 断线补推","小程序同时仅 1 条连接（单例）"] },
+    "ext-note": { title:"设备消息经后端中转", tag:"ext", tagText:"外部", rows:[["约束","小程序不直连 MQTT"]], points:["摄像头/传感器由药箱主控经 WiFi 聚合","设备消息一律走后端 MQTT → WS 中转给小程序","避免小程序持有设备 MQTT 凭据"] }
+  };
+
+  const svg = document.getElementById('topo');
+  const details = document.getElementById('details');
+  const nodes = svg.querySelectorAll('.node');
+  const edges = svg.querySelectorAll('.edge');
+
+  function showDetails(key){ const d = INFO[key]; if(!d) return;
+    let html = `<h3>${d.title}</h3><span class="tag" style="background:var(--${d.tag})">${d.tagText}</span>`;
+    html += '<table style="width:100%;border-collapse:collapse">';
+    d.rows.forEach(r => { html += `<tr><td class="k" style="width:64px;vertical-align:top">${r[0]}</td><td>${r[1]}</td></tr>`; });
+    html += '</table><ul>';
+    d.points.forEach(p => html += `<li>${p}</li>`);
+    html += '</ul>';
+    details.innerHTML = html;
+  }
+  function highlight(key){ svg.classList.add('focus');
+    nodes.forEach(n => n.classList.toggle('active', n.dataset.key === key));
+    edges.forEach(e => { const on = e.dataset.from === key || e.dataset.to === key;
+      e.classList.toggle('active', on); e.setAttribute('marker-end', on ? 'url(#arrowHl)' : ''); });
+  }
+  function clearHighlight(){ svg.classList.remove('focus');
+    nodes.forEach(n => n.classList.remove('active'));
+    edges.forEach(e => { e.classList.remove('active'); e.setAttribute('marker-end', 'url(#arrow)'); });
+  }
+  nodes.forEach(n => { n.addEventListener('mouseenter', () => highlight(n.dataset.key));
+    n.addEventListener('mouseleave', clearHighlight);
+    n.addEventListener('click', () => showDetails(n.dataset.key)); });
+</script>
+</body>
+</html>
