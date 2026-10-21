@@ -78,9 +78,15 @@ describe('daysUntil / expiryState', () => {
     expect(daysUntil('2026-10-11', NOW)).toBe(0)
   })
   it('expiryState ok / expiring / expired', () => {
-    expect(expiryState('2026-12-01', 30)).toBe('ok')
-    expect(expiryState('2026-10-20', 30)).toBe('expiring')
-    expect(expiryState('2026-10-10', 30)).toBe('expired')
+    // 相对当前日期取值，避免硬编码日期随日历推移失效
+    const future = (n) => {
+      const d = new Date()
+      d.setDate(d.getDate() + n)
+      return d.toISOString().slice(0, 10)
+    }
+    expect(expiryState(future(60), 30)).toBe('ok')
+    expect(expiryState(future(10), 30)).toBe('expiring')
+    expect(expiryState(future(-10), 30)).toBe('expired')
   })
   it('解析失败 expiryState = unknown', () => {
     expect(expiryState('bad')).toBe('unknown')
