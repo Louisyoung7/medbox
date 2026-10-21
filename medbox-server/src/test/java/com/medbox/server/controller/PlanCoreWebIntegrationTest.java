@@ -67,8 +67,8 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>真实链路：MockMvc → Controller → 真实 {@code PlanService} → 真实 {@code AccessService}
  *  → 打桩的 Mapper（不跑真实 SQL，H2 仅充当 DataSource 让事务可开）。
- * 覆盖：权限(40301)、times 校验(40001)、库存/过期(40901)、列表/详情、启停、级联删除、
- * 以及 next-doses 的时区换算与 DAILY 展开。
+ * 覆盖：权限(40301)、times 校验(40001)、库存/过期(40901)、创建/修改(PUT)整体覆盖、
+ * 列表/详情、启停、级联删除、以及 next-doses 的时区换算与 DAILY 展开。
  *
  * <p><b>时区换算要可确定性断言</b>：{@code PlanService} 的 {@code Clock} 不能由测试注入
  * （它的 @Autowired 构造固定用 {@code Clock.systemUTC()}），故这里用 {@code @Primary} 注册一个
@@ -264,6 +264,136 @@ class PlanCoreWebIntegrationTest {
                 .andExpect(jsonPath("$.code").value(40301));
 
         verify(medPlanMapper, never()).insert(any(MedPlan.class));
+    }
+
+    // ———————————————— 修改（PUT 整体覆盖） ————————————————
+
+    @Test
+    @DisplayName("修改：FAMILY 监护人 + 有未过期库存 → 200，字段整体覆盖、旧明细先删后插")
+    void 修改成功() throws Exception {
+        givenGuardianGuards(ELDER_ID);
+        givenMainDevice(ELDER_ID, "Asia/Shanghai");
+        givenMedicine("m-1001");
+        givenStock(ELDER_ID, "m-1001", 5, LocalDate.parse("2026-12-31"));
+        when(medPlanMapper.selectOne(any()))
+                .thenReturn(plan("p-1001", ELDER_ID));
+        when(medPlanMapper.updateById(any(MedPlan.class))).thenReturn(1);
+        when(medPlanItemMapper.delete(any())).thenReturn(1);
+        when(medPlanItemMapper.nextItemId()).thenReturn("pi-2001");
+        when(medPlanItemMapper.insert(any(MedPlanItem.class))).thenReturn(1);
+
+        mockMvc.perform(put("/api/v1/plans/{planId}", "p-1001")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"elderId":"u-1001","name":"晚餐后",
+                                 "times":["20:00"],"repeatRule":"DAILY",
+                                 "items":[{"medicineId":"m-1001","dose":"2","unit":"片"}]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.planId").value("p-1001"))
+                .andExpect(jsonPath("$.data.name").value("晚餐后"))
+                .andExpect(jsonPath("$.data.times[0]").value("20:00"))
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].itemId").value("pi-2001"))
+                .andExpect(jsonPath("$.data.items[0].dose").value("2"));
+
+        verify(medPlanMapper).updateById(any(MedPlan.class));
+        verify(medPlanItemMapper).delete(any());
+    }
+
+    @Test
+    @DisplayName("修改：times 格式非法 → 40001（findForWrite 先定位、再校验）")
+    void 修改Times非法() throws Exception {
+        when(medPlanMapper.selectOne(any()))
+                .thenReturn(plan("p-1001", ELDER_ID));
+        givenGuardianGuards(ELDER_ID);
+
+        mockMvc.perform(put("/api/v1/plans/{planId}", "p-1001")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"times":["25:00"],"items":[{"medicineId":"m-1001"}]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
+
+        verify(medPlanMapper, never()).updateById(any(MedPlan.class));
+    }
+
+    @Test
+    @DisplayName("修改：引用的药品不存在 → 40401")
+    void 修改药品不存在() throws Exception {
+        when(medPlanMapper.selectOne(any()))
+                .thenReturn(plan("p-1001", ELDER_ID));
+        givenGuardianGuards(ELDER_ID);
+        when(medicineMapper.selectOne(any())).thenReturn(null);
+
+        mockMvc.perform(put("/api/v1/plans/{planId}", "p-1001")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"times":["08:00"],"items":[{"medicineId":"m-9999"}]}
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(40401));
+    }
+
+    @Test
+    @DisplayName("修改：药品无合格库存 / 已过期 → 40901")
+    void 修改库存或过期() throws Exception {
+        when(medPlanMapper.selectOne(any()))
+                .thenReturn(plan("p-1001", ELDER_ID));
+        givenGuardianGuards(ELDER_ID);
+        givenMainDevice(ELDER_ID, "Asia/Shanghai");
+        givenMedicine("m-1001");
+        givenStock(ELDER_ID, "m-1001", 5, LocalDate.parse("2026-10-01")); // 过期
+
+        mockMvc.perform(put("/api/v1/plans/{planId}", "p-1001")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"times":["08:00"],"items":[{"medicineId":"m-1001"}]}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(40901));
+
+        verify(medPlanMapper, never()).updateById(any(MedPlan.class));
+    }
+
+    @Test
+    @DisplayName("修改：非监护陌生人 → 40301")
+    void 修改非监护() throws Exception {
+        when(medPlanMapper.selectOne(any()))
+                .thenReturn(plan("p-1001", ELDER_ID));
+        // 不置监护关系 → AccessService 判无 WRITE_PLAN
+
+        mockMvc.perform(put("/api/v1/plans/{planId}", "p-1001")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(STRANGER_ID, "GUARDIAN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"times":["08:00"],"items":[{"medicineId":"m-1001"}]}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40301));
+
+        verify(medPlanMapper, never()).updateById(any(MedPlan.class));
+    }
+
+    @Test
+    @DisplayName("修改：计划不存在 → 40301（防枚举，与详情同口径）")
+    void 修改计划不存在() throws Exception {
+        when(medPlanMapper.selectOne(any())).thenReturn(null);
+        givenGuardianGuards(ELDER_ID);
+
+        mockMvc.perform(put("/api/v1/plans/{planId}", "p-9999")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"times":["08:00"],"items":[{"medicineId":"m-1001"}]}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40301));
     }
 
     // ———————————————— 列表 / 详情 ————————————————
