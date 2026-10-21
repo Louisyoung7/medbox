@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>medbox Java 后端 · 组件架构图</title>
+<style>
+  :root {
+    --ext: #dc2626;
+    --in: #2563eb;
+    --sec: #7c3aed;
+    --svc: #0891b2;
+    --comm: #ea580c;
+    --persist: #16a34a;
+    --config: #64748b;
+    --ink: #1e293b;
+    --bg: #f1f5f9;
+    --panel: #fff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+  }
+  header { padding: 16px 24px 8px; border-bottom: 1px solid #e2e8f0; background: #fff; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+  .layout { display: flex; gap: 16px; padding: 16px; align-items: stretch; }
+  .stage { flex: 1 1 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; min-height: 720px; }
+  svg { width: 100%; height: 100%; display: block; }
+
+  .legend { width: 230px; flex: 0 0 230px; background: var(--panel); border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; font-size: 12.5px; }
+  .legend h3 { margin: 0 0 8px; font-size: 14px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .legend .swatch { width: 22px; height: 4px; border-radius: 2px; flex: 0 0 22px; }
+  .legend .dot { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 12px; }
+  .legend small { color: #64748b; }
+
+  .details { width: 280px; flex: 0 0 280px; background: var(--panel); border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; font-size: 13px; overflow: auto; }
+  .details h3 { margin: 0 0 6px; font-size: 15px; }
+  .details .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; color: #fff; margin-bottom: 10px; }
+  .details .k { color: #64748b; font-weight: 600; }
+  .details ul { margin: 8px 0 0; padding-left: 18px; }
+  .details li { margin: 3px 0; }
+  .details .hint { color: #94a3b8; font-size: 12px; margin-top: 12px; }
+
+  .node rect { stroke-width: 2; transition: opacity .15s, filter .15s; cursor: pointer; }
+  .node text { font-size: 12.5px; font-weight: 700; fill: #fff; pointer-events: none; }
+  .node .sub { font-size: 10px; font-weight: 400; fill: rgba(255,255,255,.85); }
+  .node:hover rect { filter: drop-shadow(0 4px 8px rgba(0,0,0,.2)); }
+
+  .n-ext rect { fill: var(--ext); stroke: #b91c1c; }
+  .n-in rect { fill: var(--in); stroke: #1d4ed8; }
+  .n-sec rect { fill: var(--sec); stroke: #6d28d9; }
+  .n-svc rect { fill: var(--svc); stroke: #0e7490; }
+  .n-comm rect { fill: var(--comm); stroke: #c2410c; }
+  .n-persist rect { fill: var(--persist); stroke: #15803d; }
+  .n-config rect { fill: var(--config); stroke: #475569; }
+
+  .edge { fill: none; stroke-width: 2.1; transition: opacity .15s, stroke-width .15s; }
+  .e-http { stroke: #2563eb; }
+  .e-ws { stroke: #7c3aed; }
+  .e-mqtt { stroke: #ea580c; }
+  .e-jdbc { stroke: #16a34a; }
+  .e-ai { stroke: #0d9488; }
+  .e-net { stroke: #dc2626; stroke-dasharray: 7 5; }
+  .e-flow { stroke: #475569; }
+  .e-cross { stroke: #94a3b8; stroke-dasharray: 4 4; }
+
+  .elabel { font-size: 10px; fill: #334155; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+
+  svg.focus .node:not(.active) rect { opacity: .22; }
+  svg.focus .edge:not(.active) { opacity: .1; }
+  svg.focus .node.active rect { opacity: 1; }
+  svg.focus .edge.active { stroke-width: 3.2; opacity: 1; }
+
+  footer { padding: 4px 24px 18px; font-size: 11.5px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>medbox Java 后端 · 组件架构图</h1>
+  <p>Spring Boot 4 + Java 21 + MyBatis-Plus　|　按包分层：接入 / 安全 / 业务 / 通信集成 / 持久 + 横切配置　|　据 <code>medbox-server/src/main/java/com/medbox/server</code> 实际结构绘制</p>
+</header>
+
+<div class="layout">
+  <div class="stage">
+    <svg id="topo" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569" />
+        </marker>
+        <marker id="arrowHl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#0f172a" />
+        </marker>
+      </defs>
+
+      <!-- ============ EDGES ============ -->
+      <g id="edges">
+        <!-- inbound -->
+        <path class="edge e-http" data-from="ext-miniapp" data-to="pkg-controller" d="M470,92 C540,110 600,140 720,150" marker-end="url(#arrow)"/>
+        <path class="edge e-ws" data-from="ext-miniapp" data-to="pkg-wsapi" d="M520,92 C760,110 980,140 1180,150" marker-end="url(#arrow)"/>
+        <path class="edge e-mqtt" data-from="ext-device" data-to="ext-emqx" d="M160,100 L160,150" marker-end="url(#arrow)"/>
+        <path class="edge e-mqtt" data-from="ext-emqx" data-to="pkg-mqttin" d="M160,270 L470,270" marker-end="url(#arrow)"/>
+
+        <!-- cross-cutting web -->
+        <path class="edge e-cross" data-from="pkg-web" data-to="pkg-controller" d="M965,210 L760,210" marker-end="url(#arrow)"/>
+        <path class="edge e-cross" data-from="pkg-web" data-to="pkg-wsapi" d="M965,210 L1180,210" marker-end="url(#arrow)"/>
+
+        <!-- 接入 -> 安全 -->
+        <path class="edge e-flow" data-from="pkg-controller" data-to="pkg-sec" d="M600,270 C660,285 700,295 760,300" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="pkg-wsapi" data-to="pkg-sec" d="M1180,270 C1080,285 980,295 900,300" marker-end="url(#arrow)"/>
+        <path class="edge e-flow" data-from="pkg-mqttin" data-to="pkg-sec" d="M470,270 C560,285 640,295 720,300" marker-end="url(#arrow)"/>
+
+        <!-- 安全 -> 业务 -->
+        <path class="edge e-flow" data-from="pkg-sec" data-to="pkg-svc" d="M830,380 L830,400" marker-end="url(#arrow)"/>
+
+        <!-- 业务 -> 持久 -->
+        <path class="edge e-jdbc" data-from="pkg-svc" data-to="pkg-mapper" d="M560,510 C560,580 560,650 560,720" marker-end="url(#arrow)"/>
+        <path class="edge e-jdbc" data-from="pkg-svc" data-to="pkg-domain" d="M1080,510 C1080,580 1080,650 1080,720" marker-end="url(#arrow)"/>
+
+        <!-- 业务 -> 通信集成 -->
+        <path class="edge e-mqtt" data-from="pkg-svc" data-to="pkg-mqttout" d="M480,510 L480,540" marker-end="url(#arrow)"/>
+        <path class="edge e-ws" data-from="pkg-svc" data-to="pkg-wspush" d="M820,510 L820,540" marker-end="url(#arrow)"/>
+        <path class="edge e-ai" data-from="pkg-svc" data-to="pkg-ai" d="M1170,510 L1170,540" marker-end="url(#arrow)"/>
+
+        <!-- outbound 通信 -> 外部 -->
+        <path class="edge e-mqtt" data-from="pkg-mqttout" data-to="ext-emqx" d="M480,680 C320,560 220,360 170,270" marker-end="url(#arrow)"/>
+        <path class="edge e-ws" data-from="pkg-wspush" data-to="ext-miniapp" d="M820,680 C720,480 600,260 500,92" marker-end="url(#arrow)"/>
+        <path class="edge e-ai" data-from="pkg-ai" data-to="ext-localai" d="M1340,600 C1388,540 1388,60 1362,48" marker-end="url(#arrow)"/>
+        <path class="edge e-net" data-from="pkg-ai" data-to="ext-cloudai" d="M1340,650 C1394,600 1394,130 1362,114" marker-end="url(#arrow)"/>
+
+        <!-- 持久 -> 数据库 -->
+        <path class="edge e-jdbc" data-from="pkg-mapper" data-to="ext-pg" d="M560,850 C580,870 610,890 660,900" marker-end="url(#arrow)"/>
+
+        <!-- 横切配置 -->
+        <path class="edge e-cross" data-from="pkg-config" data-to="pkg-svc" d="M160,640 C260,560 420,470 520,420" marker-end="url(#arrow)"/>
+        <path class="edge e-cross" data-from="pkg-config" data-to="pkg-mapper" d="M160,720 C320,740 420,760 460,790" marker-end="url(#arrow)"/>
+      </g>
+
+      <!-- ============ EDGE LABELS ============ -->
+      <g id="elabels">
+        <text class="elabel" x="600" y="118">HTTP REST</text>
+        <text class="elabel" x="860" y="120">WebSocket</text>
+        <text class="elabel" x="160" y="128">MQTT :1883</text>
+        <text class="elabel" x="315" y="262">up/# 订阅</text>
+        <text class="elabel" x="862" y="200" style="font-size:9px;fill:#94a3b8">AuthInterceptor</text>
+        <text class="elabel" x="1072" y="200" style="font-size:9px;fill:#94a3b8">握手鉴权</text>
+        <text class="elabel" x="680" y="292" style="font-size:9px">鉴权</text>
+        <text class="elabel" x="1040" y="292" style="font-size:9px">握手</text>
+        <text class="elabel" x="595" y="640" style="font-size:9px">读写</text>
+        <text class="elabel" x="1095" y="640" style="font-size:9px">读写</text>
+        <text class="elabel" x="455" y="530" style="font-size:9px">下发</text>
+        <text class="elabel" x="845" y="530" style="font-size:9px">推送</text>
+        <text class="elabel" x="1195" y="530" style="font-size:9px">OCR</text>
+        <text class="elabel" x="305" y="470" style="font-size:9px;fill:#c2410c">down/# 发布</text>
+        <text class="elabel" x="640" y="380" style="font-size:9px;fill:#7c3aed">WS 推送</text>
+        <text class="elabel" x="1372" y="420" transform="rotate(-90 1372 420)" style="font-size:9px;fill:#0d9488">OCR / Embedding</text>
+        <text class="elabel" x="1372" y="280" transform="rotate(-90 1372 280)" style="font-size:9px;fill:#dc2626">Chat 出网</text>
+        <text class="elabel" x="600" y="892" style="font-size:9px;fill:#16a34a">JDBC :5432</text>
+      </g>
+
+      <!-- ============ NODES ============ -->
+      <g id="nodes">
+        <!-- 外部系统 -->
+        <g class="node n-ext" id="ext-miniapp" data-key="ext-miniapp">
+          <rect x="350" y="20" width="240" height="72" rx="10"/>
+          <text x="470" y="48" text-anchor="middle">小程序端</text>
+          <text class="sub" x="470" y="68" text-anchor="middle">REST / WebSocket 客户端</text>
+        </g>
+        <g class="node n-ext" id="ext-device" data-key="ext-device">
+          <rect x="40" y="20" width="240" height="80" rx="10"/>
+          <text x="160" y="50" text-anchor="middle">药箱设备</text>
+          <text class="sub" x="160" y="70" text-anchor="middle">主控(MAIN) MQTT 客户端</text>
+        </g>
+        <g class="node n-ext" id="ext-emqx" data-key="ext-emqx">
+          <rect x="40" y="150" width="240" height="120" rx="10"/>
+          <text x="160" y="185" text-anchor="middle">EMQX Broker</text>
+          <text class="sub" x="160" y="205" text-anchor="middle">MQTT :1883（匿名）</text>
+          <text class="sub" x="160" y="223" text-anchor="middle">设备⇄后端通道</text>
+          <text class="sub" x="160" y="241" text-anchor="middle">Dashboard :18083</text>
+        </g>
+        <g class="node n-ext" id="ext-localai" data-key="ext-localai">
+          <rect x="1080" y="16" width="280" height="58" rx="10"/>
+          <text x="1220" y="40" text-anchor="middle">本地 AI 侧车</text>
+          <text class="sub" x="1220" y="58" text-anchor="middle">OCR :8000 / Embedding :11434</text>
+        </g>
+        <g class="node n-ext" id="ext-cloudai" data-key="ext-cloudai">
+          <rect x="1080" y="82" width="280" height="58" rx="10"/>
+          <text x="1220" y="106" text-anchor="middle">公网大模型 API</text>
+          <text class="sub" x="1220" y="124" text-anchor="middle">HTTPS 出网 · Chat 问答</text>
+        </g>
+        <g class="node n-ext" id="ext-pg" data-key="ext-pg">
+          <rect x="500" y="900" width="320" height="72" rx="10"/>
+          <text x="660" y="928" text-anchor="middle">PostgreSQL + pgvector</text>
+          <text class="sub" x="660" y="948" text-anchor="middle">:5432 · 结构化 + 向量同库</text>
+        </g>
+
+        <!-- 接入层 -->
+        <g class="node n-in" id="pkg-mqttin" data-key="pkg-mqttin">
+          <rect x="320" y="150" width="300" height="120" rx="10"/>
+          <text x="470" y="180" text-anchor="middle">MQTT 入站网关</text>
+          <text class="sub" x="470" y="200" text-anchor="middle">mqtt/</text>
+          <text class="sub" x="470" y="218" text-anchor="middle">InboundGateway · 幂等去重</text>
+          <text class="sub" x="470" y="236" text-anchor="middle">Up/Ack Handler</text>
+        </g>
+        <g class="node n-in" id="pkg-controller" data-key="pkg-controller">
+          <rect x="640" y="150" width="240" height="120" rx="10"/>
+          <text x="760" y="180" text-anchor="middle">REST Controllers</text>
+          <text class="sub" x="760" y="200" text-anchor="middle">controller/</text>
+          <text class="sub" x="760" y="218" text-anchor="middle">Auth/User/Device/</text>
+          <text class="sub" x="760" y="236" text-anchor="middle">Medicine/Stock</text>
+        </g>
+        <g class="node n-in" id="pkg-web" data-key="pkg-web">
+          <rect x="900" y="150" width="160" height="120" rx="10"/>
+          <text x="980" y="178" text-anchor="middle">横切 Web</text>
+          <text class="sub" x="980" y="196" text-anchor="middle">common/web</text>
+          <text class="sub" x="980" y="214" text-anchor="middle">Interceptor</text>
+          <text class="sub" x="980" y="232" text-anchor="middle">全局异常 / Trace</text>
+        </g>
+        <g class="node n-in" id="pkg-wsapi" data-key="pkg-wsapi">
+          <rect x="1080" y="150" width="280" height="120" rx="10"/>
+          <text x="1220" y="180" text-anchor="middle">WebSocket 接入</text>
+          <text class="sub" x="1220" y="200" text-anchor="middle">ws/ 接入</text>
+          <text class="sub" x="1220" y="218" text-anchor="middle">握手鉴权 · 连接管理</text>
+          <text class="sub" x="1220" y="236" text-anchor="middle">心跳 · 重连补推</text>
+        </g>
+
+        <!-- 安全层 -->
+        <g class="node n-sec" id="pkg-sec" data-key="pkg-sec">
+          <rect x="320" y="300" width="1020" height="80" rx="10"/>
+          <text x="830" y="330" text-anchor="middle">安全与鉴权</text>
+          <text class="sub" x="830" y="352" text-anchor="middle">common/security + AccessService · JWT · AuthContext · RBAC+数据归属双重校验</text>
+        </g>
+
+        <!-- 业务层 -->
+        <g class="node n-svc" id="pkg-svc" data-key="pkg-svc">
+          <rect x="320" y="400" width="1020" height="110" rx="10"/>
+          <text x="830" y="432" text-anchor="middle">业务服务层</text>
+          <text class="sub" x="830" y="454" text-anchor="middle">service/ · Auth/User/RefreshToken · Device/DeviceEvent</text>
+          <text class="sub" x="830" y="472" text-anchor="middle">Medicine/MedicineStock · Idempotency</text>
+          <text class="sub" x="830" y="490" text-anchor="middle">OwnerResolverImpl · DeviceStatusEventBridge</text>
+        </g>
+
+        <!-- 通信 / 集成层 -->
+        <g class="node n-comm" id="pkg-mqttout" data-key="pkg-mqttout">
+          <rect x="320" y="540" width="320" height="140" rx="10"/>
+          <text x="480" y="568" text-anchor="middle">设备下行 / 状态</text>
+          <text class="sub" x="480" y="588" text-anchor="middle">mqtt/ 出站</text>
+          <text class="sub" x="480" y="606" text-anchor="middle">DownlinkPublisher(唯一出口)</text>
+          <text class="sub" x="480" y="624" text-anchor="middle">PendingAckRegistry 重发</text>
+          <text class="sub" x="480" y="642" text-anchor="middle">DeviceStatus 跃迁</text>
+          <text class="sub" x="480" y="660" text-anchor="middle">Transport/ConnectionManager</text>
+        </g>
+        <g class="node n-comm" id="pkg-wspush" data-key="pkg-wspush">
+          <rect x="660" y="540" width="320" height="140" rx="10"/>
+          <text x="820" y="568" text-anchor="middle">实时推送</text>
+          <text class="sub" x="820" y="588" text-anchor="middle">ws/ 推送</text>
+          <text class="sub" x="820" y="606" text-anchor="middle">WsPushService(唯一出口)</text>
+          <text class="sub" x="820" y="624" text-anchor="middle">SessionManager · EventBuffer</text>
+          <text class="sub" x="820" y="642" text-anchor="middle">按主题缓冲 200条/10min</text>
+          <text class="sub" x="820" y="660" text-anchor="middle">IdleSessionReaper</text>
+        </g>
+        <g class="node n-comm" id="pkg-ai" data-key="pkg-ai">
+          <rect x="1000" y="540" width="340" height="140" rx="10"/>
+          <text x="1170" y="568" text-anchor="middle">AI 集成</text>
+          <text class="sub" x="1170" y="588" text-anchor="middle">ai/</text>
+          <text class="sub" x="1170" y="606" text-anchor="middle">OcrClient(接口)</text>
+          <text class="sub" x="1170" y="624" text-anchor="middle">LocalOcrClient(实装)</text>
+          <text class="sub" x="1170" y="642" text-anchor="middle">CloudOcrClient(骨架)</text>
+          <text class="sub" x="1170" y="660" text-anchor="middle">按 provider 切换</text>
+        </g>
+
+        <!-- 持久层 -->
+        <g class="node n-persist" id="pkg-mapper" data-key="pkg-mapper">
+          <rect x="320" y="720" width="480" height="130" rx="10"/>
+          <text x="560" y="750" text-anchor="middle">Mapper 层</text>
+          <text class="sub" x="560" y="772" text-anchor="middle">mapper/ · MyBatis-Plus</text>
+          <text class="sub" x="560" y="792" text-anchor="middle">Device/Medicine/MedicineStock/</text>
+          <text class="sub" x="560" y="810" text-anchor="middle">DeviceEvent/User/GuardianRelation/</text>
+          <text class="sub" x="560" y="828" text-anchor="middle">RefreshToken/Idempotency/MqttMessage</text>
+        </g>
+        <g class="node n-persist" id="pkg-domain" data-key="pkg-domain">
+          <rect x="820" y="720" width="520" height="130" rx="10"/>
+          <text x="1080" y="750" text-anchor="middle">领域模型</text>
+          <text class="sub" x="1080" y="772" text-anchor="middle">domain/ + enums/</text>
+          <text class="sub" x="1080" y="792" text-anchor="middle">Device · Medicine · MedicineStock</text>
+          <text class="sub" x="1080" y="810" text-anchor="middle">DeviceEvent · User · GuardianRelation</text>
+          <text class="sub" x="1080" y="828" text-anchor="middle">RefreshToken · Idempotency · MqttMessage</text>
+        </g>
+
+        <!-- 横切配置 -->
+        <g class="node n-config" id="pkg-config" data-key="pkg-config">
+          <rect x="40" y="540" width="240" height="320" rx="10"/>
+          <text x="160" y="575" text-anchor="middle">横切配置</text>
+          <text class="sub" x="160" y="598" text-anchor="middle">config/</text>
+          <text class="sub" x="160" y="620" text-anchor="middle">WebMvcConfig</text>
+          <text class="sub" x="160" y="642" text-anchor="middle">MybatisPlusConfig</text>
+          <text class="sub" x="160" y="664" text-anchor="middle">DeviceConfig</text>
+          <text class="sub" x="160" y="686" text-anchor="middle">DeviceProperties</text>
+          <text class="sub" x="160" y="720" text-anchor="middle" style="font-size:9px">+ common/exception</text>
+          <text class="sub" x="160" y="740" text-anchor="middle" style="font-size:9px">(BizException/</text>
+          <text class="sub" x="160" y="760" text-anchor="middle" style="font-size:9px">ErrorCode/Assert)</text>
+          <text class="sub" x="160" y="790" text-anchor="middle" style="font-size:9px">+ TraceContext</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <div class="legend">
+    <h3>分层</h3>
+    <div class="row"><span class="dot" style="background:var(--ext)"></span> 外部系统</div>
+    <div class="row"><span class="dot" style="background:var(--in)"></span> 接入层</div>
+    <div class="row"><span class="dot" style="background:var(--sec)"></span> 安全与鉴权</div>
+    <div class="row"><span class="dot" style="background:var(--svc)"></span> 业务服务层</div>
+    <div class="row"><span class="dot" style="background:var(--comm)"></span> 通信 / 集成</div>
+    <div class="row"><span class="dot" style="background:var(--persist)"></span> 持久层</div>
+    <div class="row"><span class="dot" style="background:var(--config)"></span> 横切配置 / 异常</div>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0" />
+    <h3>链路</h3>
+    <div class="row"><span class="swatch" style="background:#2563eb"></span> HTTP REST 入站</div>
+    <div class="row"><span class="swatch" style="background:#7c3aed"></span> WebSocket（入站/推送）</div>
+    <div class="row"><span class="swatch" style="background:#ea580c"></span> MQTT（设备⇄后端）</div>
+    <div class="row"><span class="swatch" style="background:#16a34a"></span> JDBC（MyBatis-Plus）</div>
+    <div class="row"><span class="swatch" style="background:#0d9488"></span> AI 本地调用</div>
+    <div class="row"><span class="swatch" style="background:#dc2626"></span> 出网 HTTPS（虚线）</div>
+    <div class="row"><span class="swatch" style="background:#94a3b8"></span> 横切（虚线）</div>
+  </div>
+
+  <div class="details" id="details">
+    <h3>组件详情</h3>
+    <p class="hint">点击任意组件查看其包含的类与职责；悬停可高亮相关链路。当前展示整体架构。</p>
+  </div>
+</div>
+
+<footer>
+  数据来源：medbox-server 源码包结构（controller / service / mqtt / ws / ai / mapper / domain / common / config）。本页为只读可视化，权威口径以代码与 medbox-spec 文档为准。
+</footer>
+
+<script>
+  const INFO = {
+    "ext-miniapp": { title:"小程序端", tag:"ext", tagText:"外部", rows:[["协议","HTTP REST + WebSocket"]], points:["BASE_URL=/medbox/api/v1","WS_URL=/medbox/ws","不直接连 MQTT"] },
+    "ext-device": { title:"药箱设备（主控 MAIN）", tag:"ext", tagText:"外部", rows:[["协议","MQTT :1883（匿名）"],["clientId","= deviceId"]], points:["唯一 MQTT 客户端","摄像头识别经 WiFi 聚合后上报","传感器由主控转发"] },
+    "ext-emqx": { title:"EMQX Broker", tag:"ext", tagText:"外部", rows:[["端口",":1883 / Dashboard :18083"],["Topic","medbox/{pk}/{deviceId}/up|down/#"]], points:["设备⇄后端消息总线","QoS1 + msgId 幂等；LWT 遗嘱","下行重发 5s×3（后端侧账本）"] },
+    "ext-localai": { title:"本地 AI 侧车", tag:"ext", tagText:"外部", rows:[["OCR",":8000 RapidOCR"],["Embedding",":11434 Ollama bge-m3"]], points:["本地化、不出网、无需 Key","说明书 OCR 与向量化"] },
+    "ext-cloudai": { title:"公网大模型 API", tag:"ext", tagText:"外部", rows:[["方向","仅后端出网 HTTPS"]], points:["AI 药品问答（Chat 流式 SSE）","Key 由监护人配置并 AES 加密"] },
+    "ext-pg": { title:"PostgreSQL + pgvector", tag:"ext", tagText:"外部", rows:[["端口",":5432"],["内容","15 表 + 说明书向量同库"]], points:["Flyway 自动迁移（V1/V2）","CI 测试期关闭 Flyway"] },
+
+    "pkg-controller": { title:"REST Controllers", tag:"in", tagText:"接入层", rows:[["包","controller/"],["前缀","/medbox/api/v1"]], points:["AuthController / UserController","DeviceController / MedicineController","MedicineStockController","校验后委托 service，不写业务"] },
+    "pkg-web": { title:"横切 Web（common/web）", tag:"in", tagText:"接入层", rows:[["包","common/web"]], points:["AuthInterceptor：JWT 校验","GlobalExceptionHandler：统一响应+错误码","TraceIdFilter：链路追踪"] },
+    "pkg-wsapi": { title:"WebSocket 接入（ws/）", tag:"in", tagText:"接入层", rows:[["包","ws/ 接入部分"],["端点","/medbox/ws?token=&topics="]], points:["MedboxWebSocketHandler：连接/心跳/补推","WsHandshakeInterceptor：握手鉴权","WsConfig / WsDebugController（默认不装配）"] },
+    "pkg-mqttin": { title:"MQTT 入站网关（mqtt/）", tag:"in", tagText:"接入层", rows:[["包","mqtt/ 入站"],["订阅","up/#"]], points:["MqttInboundGateway 消费上报","MqttMessageDeduplicator 按 msgId 去重","UpMessageHandler / AckUpMessageHandler","LoggingUpMessageHandler"] },
+
+    "pkg-sec": { title:"安全与鉴权", tag:"sec", tagText:"安全层", rows:[["包","common/security + service/AccessService"]], points:["JwtProvider / JwtPayload / TokenType","AuthContext / AccessIdentity","Permission / PasswordHasher","DeviceOwnerResolver：设备归属解析","AccessService：RBAC + 数据归属双重校验（可见老人集合）"] },
+
+    "pkg-svc": { title:"业务服务层（service/）", tag:"svc", tagText:"业务层", rows:[["包","service/"]], points:["AuthService / UserService / RefreshTokenService","DeviceService / DeviceEventService","MedicineService / MedicineStockService","IdempotencyService（幂等）","DeviceOwnerResolverImpl / DeviceStatusEventBridge（状态→WS 桥接）"] },
+
+    "pkg-mqttout": { title:"设备下行 / 状态（mqtt/ 出站）", tag:"comm", tagText:"通信集成", rows:[["包","mqtt/ 出站"],["出口","DownlinkPublisher（唯一）"]], points:["下行统一注入 msgId/needAck 信封","PendingAckRegistry：5s 超时重发×3","MqttTransport / MqttConnectionManager","DeviceStatusService / DeviceStatusChangeListener","DownlinkFailureListener（失败告警）"] },
+    "pkg-wspush": { title:"实时推送（ws/ 推送）", tag:"comm", tagText:"通信集成", rows:[["包","ws/ 推送"],["出口","WsPushService（唯一）"]], points:["WsSessionManager：topic→session 倒排","WsEventBuffer：按主题 200条/10min","WsEventId / WsFrame / WsFrameType","WsSubscription / WsTopic","WsIdleSessionReaper：90s 空闲回收"] },
+    "pkg-ai": { title:"AI 集成（ai/）", tag:"comm", tagText:"通信集成", rows:[["包","ai/"],["切换","medbox.ocr.provider"]], points:["OcrClient 抽象接口","LocalOcrClient（实装：RapidOCR 侧车）","CloudOcrClient（骨架：云端 API）","OcrProperties / OcrException / AiConfig"] },
+
+    "pkg-mapper": { title:"Mapper 层（mapper/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"]], points:["DeviceMapper / MedicineMapper","MedicineStockMapper / DeviceEventMapper","UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
+    "pkg-domain": { title:"领域模型（domain/）", tag:"persist", tagText:"持久层", rows:[["包","domain/ + enums/"]], points:["Device / Medicine / MedicineStock","DeviceEvent / User / GuardianRelation","RefreshToken / IdempotencyRecord / MqttMessage","enums/：设备类型/告警类型/状态等枚举"] },
+
+    "pkg-config": { title:"横切配置 / 异常", tag:"config", tagText:"横切", rows:[["包","config/ + common/exception"],["原则","通道细节收口、调用方零改动"]], points:["WebMvcConfig / MybatisPlusConfig","DeviceConfig / DeviceProperties","common/exception：BizException / BizAssert / ErrorCode","TraceContext（链路上下文）"] }
+  };
+
+  const svg = document.getElementById('topo');
+  const details = document.getElementById('details');
+  const nodes = svg.querySelectorAll('.node');
+  const edges = svg.querySelectorAll('.edge');
+
+  function showDetails(key){ const d = INFO[key]; if(!d) return;
+    let html = `<h3>${d.title}</h3><span class="tag" style="background:var(--${d.tag})">${d.tagText}</span>`;
+    html += '<table style="width:100%;border-collapse:collapse">';
+    d.rows.forEach(r => { html += `<tr><td class="k" style="width:60px;vertical-align:top">${r[0]}</td><td>${r[1]}</td></tr>`; });
+    html += '</table><ul>';
+    d.points.forEach(p => html += `<li>${p}</li>`);
+    html += '</ul>';
+    details.innerHTML = html;
+  }
+  function highlight(key){ svg.classList.add('focus');
+    nodes.forEach(n => n.classList.toggle('active', n.dataset.key === key));
+    edges.forEach(e => { const on = e.dataset.from === key || e.dataset.to === key;
+      e.classList.toggle('active', on); e.setAttribute('marker-end', on ? 'url(#arrowHl)' : ''); });
+  }
+  function clearHighlight(){ svg.classList.remove('focus');
+    nodes.forEach(n => n.classList.remove('active'));
+    edges.forEach(e => { e.classList.remove('active'); e.setAttribute('marker-end', 'url(#arrow)'); });
+  }
+  nodes.forEach(n => { n.addEventListener('mouseenter', () => highlight(n.dataset.key));
+    n.addEventListener('mouseleave', clearHighlight);
+    n.addEventListener('click', () => showDetails(n.dataset.key)); });
+</script>
+</body>
+</html>
