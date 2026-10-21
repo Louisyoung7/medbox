@@ -17,6 +17,13 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-21] 新增服药计划后端 `feat/plan-core`（计划 CRUD + 未来待服时间线）
+
+- **后端新增接口（02 第 6 章）**：`POST/PUT/PATCH/DELETE/GET /plans` 与 `GET /plans/{planId}/next-doses`；写仅 `WRITE_PLAN`（FAMILY+DOCTOR）、读 `READ_PLAN`（全角色），越权统一 40301
+- **`med_plan` 新增 `sync_state` 列（V9，默认 `PENDING`）**：本期只置 `PENDING`，真正的 `SYNCED_TO_DEVICE`/`SYNC_FAILED` 状态机归 `feat/plan-sync`；动手前先读 06 §2.6 与 `V9__plan.sql` 注释（V1~V8 别改）
+- **时区口径不变**：`times` 仍是设备本地墙钟，next-doses 按老人 MAIN 设备 `device.timezone`（缺省 `Asia/Shanghai`）换算 `scheduledTimeUtc`/`scheduledTimeLocal`；本期 `repeatRule` 仅 `DAILY`
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（时间线页仍归 P1 `feat/mp-plan-timeline`）· 嵌入式 否
+
 ## [2026-10-20] 消除 WS 关闭时的 `closeSocket:fail WebSocket is not connected` 噪声
 
 小程序控制台在后端不可达时会被这条错误刷屏，掩盖真正的排错信息（哪个 HTTP 接口失败、WS 为什么握手失败）。
