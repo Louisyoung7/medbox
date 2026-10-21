@@ -695,6 +695,82 @@ async function handleDeletePlan(req, res, planId) {
   ok(res, null)
 }
 
+// ---------------------------------------------------------------- 记录（02 第 7 章；capture-core 属 P1，缩略图前端留空占位）
+
+/** 取 ISO 字符串的日期部分（YYYY-MM-DD），用于 from/to 日粒度过滤。 */
+function dateOf(iso) {
+  return iso ? String(iso).slice(0, 10) : ''
+}
+
+/** 记录 → 视图对象：join 计划名 / 药品名（与计划详情同样从 state 派生，保持单一数据源）。 */
+function buildRecordView(record) {
+  const plan = state.plans.find((p) => p.planId === record.planId) || null
+  const item = state.planItems.find((it) => it.itemId === record.planItemId) || null
+  const medicine = state.medicines.find((m) => m.medicineId === record.medicineId) || null
+  const view = {
+    recordId: record.recordId,
+    elderId: record.elderId,
+    planId: record.planId,
+    planItemId: record.planItemId,
+    medicineId: record.medicineId,
+    deviceId: record.deviceId,
+    captureId: record.captureId || undefined,
+    actualDose: record.actualDose,
+    planTime: record.planTime,
+    actualTime: record.actualTime,
+    onTime: !!record.onTime,
+    wrongDrug: !!record.wrongDrug,
+    confirmedBy: record.confirmedBy || undefined,
+    confirmedAt: record.confirmedAt || undefined,
+    planName: (plan && plan.name) || '未命名计划',
+    medicineName: (medicine && medicine.name) || record.medicineId || '未知药品',
+    medicineDose: (item && item.dose) || (medicine && medicine.dosePerTime) || '',
+    medicineUnit: (item && item.unit) || (medicine && medicine.unit) || '',
+  }
+  return view
+}
+
+async function handleListRecords(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  const from = String(query.from || '').trim()
+  const to = String(query.to || '').trim()
+  let list = state.records.filter((r) => r.elderId === elderId)
+  if (from && isValidDate(from)) list = list.filter((r) => dateOf(r.planTime) >= from)
+  if (to && isValidDate(to)) list = list.filter((r) => dateOf(r.planTime) <= to)
+  const page = Math.max(1, Number(query.page) || 1)
+  const size = Math.min(100, Math.max(1, Number(query.size) || 20))
+  const total = list.length
+  // 分页响应形状：02 第 7 章口径暂定 {list,total}（前端 parseRecordsPage 容错 records/items）
+  ok(res, { list: list.slice((page - 1) * size, page * size).map(buildRecordView), total })
+}
+
+async function handleGetRecord(req, res, recordId) {
+  const user = requireUser(req)
+  const record = state.records.find((r) => r.recordId === recordId)
+  if (!record) throw new BizError(40401, '资源不存在')
+  const access = elderAccess(user, record.elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  ok(res, buildRecordView(record))
+}
+
+async function handleConfirmRecord(req, res, recordId, body) {
+  const user = requireUser(req)
+  const record = state.records.find((r) => r.recordId === recordId)
+  if (!record) throw new BizError(40401, '资源不存在')
+  // 写权限：仅 FAMILY（GUARDIAN）且关系 ACTIVE（requireWrite 内部已校验 40301 / 40302）
+  requireWrite(user, record.elderId)
+  record.confirmedBy = user.userId
+  record.confirmedAt = isoNow()
+  if (body && body.note) record.note = String(body.note)
+  ok(res, buildRecordView(record))
+}
+
 function handleReset(req, res) {
   state = createSeed()
   ok(res, { reset: true, accounts: DEMO_ACCOUNTS })
@@ -773,6 +849,15 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && matched) return await handleGetPlan(req, res, decodeURIComponent(matched[1]))
     if (req.method === 'PUT' && matched) return await handleUpdatePlan(req, res, decodeURIComponent(matched[1]), await readBody(req))
     if (req.method === 'DELETE' && matched) return await handleDeletePlan(req, res, decodeURIComponent(matched[1]))
+
+    // 鉴权：记录（02 第 7 章；capture-core 属 P1，缩略图由前端留空占位）
+    if (req.method === 'GET' && sub === '/records') return await handleListRecords(req, res, query)
+    matched = /^\/records\/([^/]+)\/confirm$/.exec(sub)
+    if (req.method === 'POST' && matched) {
+      return await handleConfirmRecord(req, res, decodeURIComponent(matched[1]), await readBody(req))
+    }
+    matched = /^\/records\/([^/]+)$/.exec(sub)
+    if (req.method === 'GET' && matched) return await handleGetRecord(req, res, decodeURIComponent(matched[1]))
 
     // 测试辅助
     if (req.method === 'POST' && sub === '/__mock__/reset') return handleReset(req, res)

@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 65 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 78 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -190,6 +190,27 @@ async function waitReady() {
     check('PATCH 非法状态 40001', (await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'ON' } })).code === 40001)
     check('DELETE 删除计划', (await call('DELETE', `/plans/${newPlanId}`, { token: gw.token })).code === 0)
     check('删除后详情 40401（级联生效）', (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).code === 40401)
+
+    console.log('== 记录（02 第 7 章） ==')
+    const records = await call('GET', '/records?elderId=u-1001', { token: gw.token })
+    check('u-1001 记录列表 4 条', records.code === 0 && records.data.total === 4 && records.data.list.length === 4)
+    check('列表 join 计划名/药品名', records.data.list.every((r) => r.planName && r.medicineName))
+    check('列表含按时/错服布尔', records.data.list.every((r) => typeof r.onTime === 'boolean' && typeof r.wrongDrug === 'boolean'))
+    const recDetail = await call('GET', '/records/rec-9001', { token: gw.token })
+    check('记录详情（关联计划）', recDetail.code === 0 && recDetail.data.recordId === 'rec-9001' && recDetail.data.planName === '早餐后')
+    check('老人读他人记录 40301', (await call('GET', '/records/rec-9005', { token: elder.token })).code === 40301)
+    check('PENDING 读记录 40302', (await call('GET', '/records/rec-9001', { token: pending.token })).code === 40302)
+    const future = await call('GET', '/records?elderId=u-1001&from=2999-01-01', { token: gw.token })
+    check('未来 from 过滤为空', future.code === 0 && future.data.total === 0)
+    const wide = await call('GET', '/records?elderId=u-1001&from=2000-01-01&to=2999-12-31', { token: gw.token })
+    check('宽区间仍 4 条', wide.code === 0 && wide.data.total === 4)
+    const confirm = await call('POST', '/records/rec-9002/confirm', { token: gw.token, body: { note: '已核对' } })
+    check('监护人补录/确认成功', confirm.code === 0 && confirm.data.confirmedBy === 'u-2001')
+    check('老人补录 40301', (await call('POST', '/records/rec-9002/confirm', { token: elder.token, body: {} })).code === 40301)
+    check('PENDING 补录 40302', (await call('POST', '/records/rec-9002/confirm', { token: pending.token, body: {} })).code === 40302)
+    const confirmDetail = await call('GET', '/records/rec-9002', { token: gw.token })
+    check('确认后详情带 confirmedAt', confirmDetail.code === 0 && confirmDetail.data.confirmedAt)
+    check('记录不存在 40401', (await call('GET', '/records/rec-9999', { token: gw.token })).code === 40401)
 
     console.log('== WebSocket（04 最小实现：握手 + ping/pong） ==')
     const wsResult = await new Promise((resolve) => {

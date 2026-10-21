@@ -8,7 +8,7 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、65 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、78 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 
@@ -35,6 +35,9 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `GET /plans?elderId=`（列表含 items 概览）、`GET /plans/{id}`（含 items 明细）、`POST /plans`、`PUT /plans/{id}`（整体覆盖）、`PATCH /plans/{id}/status`（请求体契约 `{status:'ENABLED'|'DISABLED'}`）、`DELETE /plans/{id}`（级联删明细）
   - 业务校验照 06 的 2.6.1：同计划药品重复 / times 格式错 / items 为空 → **40001**；药品无库存或已过期 → **40901**；老人写操作 → **40301**；PENDING 监护 → **40302**
   - 种子含 3 个计划（覆盖 ENABLED/DISABLED、单药/两种药、带备注、多时间、两位老人、DAILY/WEEKLY）；`times` 按设备本地墙钟**原样存取**（排序由前端 `normalizeTimes` 负责）
+- `GET /records?elderId=&from=&to=`（分页 + 时间区间过滤，列表 join 计划名/药品名）、`GET /records/{id}`（关联计划与抓拍留证占位）、`POST /records/{id}/confirm`（监护人补录/确认）
+  - 权限口径照 02 的 1.3.1 与 1.2：老人读他人 / 越权 → **40301**；监护 PENDING → **40302**；写操作仅 FAMILY → **40301**；不存在 → **40401**
+  - 种子含 6 条记录（覆盖 u-1001/u-1002、按时/未按时/错服、已确认与未确认、部分带 `captureId`）；`capture-core` 属 P1，详情缩略图由前端留空占位
 
 ## 可验证的场景
 

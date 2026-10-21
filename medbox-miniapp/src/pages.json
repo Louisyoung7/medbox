@@ -92,6 +92,13 @@
 			}
 		},
 		{
+			"path": "pages/record/detail",
+			"style": {
+				"navigationBarTitleText": "记录详情",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/profile/profile",
 			"style": {
 				"navigationBarTitleText": "我的",
