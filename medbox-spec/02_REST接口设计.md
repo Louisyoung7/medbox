@@ -57,6 +57,7 @@
 | 42901 | 429 | 触发限流 |
 | 50000 | 500 | 服务端内部错误 |
 | 50310 | 503 | AI 大模型服务暂不可用 / API Key 无效 |
+| 40902 | 409 | 活跃账号禁止经管理接口硬删（测试数据清理：`/admin/users` 硬删 `ACTIVE` 用户） |
 
 > **上表是封闭集合**：新增错误码必须同时改本表与后端 `ErrorCode` 枚举，二者不一致即视为缺陷。
 >
@@ -579,3 +580,55 @@ POST /plans
 | GET | /env/history?deviceId=&from=&to=&interval= | 【鉴权】历史曲线（小程序图表） |
 
 > **环境阈值按老人统一配置**（不再按药品单独设置），走 `PUT /alarm-settings?elderId=` 的 `envThreshold` 字段（见第 8 章）；判定口径见文档 01 的 5.4。
+
+---
+
+## 10. 管理员接口（测试数据清理，dev/QA 工具）
+
+> 本期 `medbox-admin/` 只做「测试数据清理」这一个 dev/QA 工具（其余管理功能待定，设计见 `09`）。所有接口为 **`ADMIN` 角色门禁**，独立于现有 elder 中心的 `AccessService`（见 01 第 3 章）。
+> 角色建模与种子账号见 06 的 2.1（`UserRole` 增加 `ADMIN` + `V10__admin_seed.sql` 种子账号）；前端页面方案见 `09` 第五/六章。
+
+基础前缀同现有：`/medbox/api/v1`；所有接口需 `Authorization: Bearer <token>` **且 `role == ADMIN`**，否则 `40301`。
+
+### 10.1 列出用户（供挑测试号）
+
+`GET /api/v1/admin/users`
+
+| Query     | 类型   | 说明 |
+|-----------|--------|------|
+| `status`  | string | 可选：`ACTIVE` / `DELETED`；缺省=全部 |
+| `keyword` | string | 可选：LIKE 匹配 `phone` 或 `username`（仅对非空列生效；软删账号这两列已置 NULL） |
+| `role`    | string | 可选：`GUARDIAN` / `ELDER` / `ADMIN` |
+| `page`    | int    | 默认 1 |
+| `size`    | int    | 默认 20，上限 100 |
+
+- 响应：`R<PageResult<AdminUserRow>>`，`AdminUserRow = { userId, role, name, phone, username, status, createdAt }`。
+  - 软删（`status=DELETED`）账号的 `phone` / `username` 已置 NULL（见 06 的 2.1 `V7__user_delete.sql`），这两列对它们为空，挑选用 `userId` + `status` + `createdAt`。
+- 错误：非 ADMIN → `40301`。
+
+### 10.2 清理（硬删 + 级联）
+
+`DELETE /api/v1/admin/users/{userId}`
+
+- 护栏：目标 `status == ACTIVE` → **拒绝**，返回 `40902`（见 1.2）。
+- 通过护栏后：**硬删该用户 + 级联清其孤儿数据**（应用层按依赖顺序删，不依赖物理外键）。
+- 响应：`R<Void>`（`code=0`）。
+- 错误：`40902`（活跃账号）/ `40301`（非 ADMIN）/ `40401`（userId 不存在）。
+
+> **为什么硬删而非软删**：测试痕迹要彻底清除（软删只置 `DELETED` + 清空手机/用户名，但仍留行与孤儿数据，达不到清理目的）；正因如此才要 `ADMIN` + ACTIVE 护栏双重保护。
+
+### 10.3 级联清理范围（按依赖顺序）
+
+目标 `userId` 可能同时是「老人」（拥有 device / medicine / stock / plan / record）与「监护人」（拥有 relation）。**先删子表，再删 `user` 头**，实现前务必对照 06 复核所有 `user_id` / `elder_id` / `guardian_id` 列：
+
+1. `med_plan_item`：`WHERE plan_id IN (SELECT plan_id FROM med_plan WHERE elder_id = ?)`
+2. `med_plan`：`WHERE elder_id = ?`
+3. `guardian_relation`：`WHERE elder_id = ? OR guardian_id = ?`（两侧都清）
+4. `device`：`WHERE elder_id = ?`
+5. `medicine_stock`：`WHERE elder_id = ?`
+6. `medicine`：`WHERE owner_elder_id = ?`
+7. `med_record`：`WHERE elder_id = ? OR guardian_id = ?`　⚠️ 健康留痕数据，仅测试账号可删
+8. 其余含 `user_id` / `elder_id` / `guardian_id` 的表（`capture` / `env_sample` / `alarm` / `alarm_setting` / `refresh_token` / `idempotency_record` 等）：实现前对照 06 逐一确认并纳入级联；与用户无关的表（`drug_manual` / `drug_manual_chunk` / `llm_config` 等）不删。
+9. `user`：`WHERE user_id = ?`
+
+> 顺序为逻辑干净（先子后父）；当前库无物理外键，顺序不影响删除成败，但保持「子→父」便于排查。

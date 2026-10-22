@@ -1,7 +1,7 @@
 # 家用智能药品箱 · 后端 / 小程序接口设计文档（文档集）
 
 > 范围：Java 后端（Spring Boot）+ uni-app 小程序　|　协议：HTTP REST、MQTT（EMQX）、WebSocket　|　版本见 `CHANGELOG.md`
-> 仓库：**单仓多目录** —— 后端 `medbox-server/`、小程序 `medbox-miniapp/`、Web 前端 `medbox-admin/`（本期占位、暂不实现）；文档即本目录 `medbox-spec/`，**不再用 git subtree 同步**（见文末《文档就在本仓库》）。
+> 仓库：**单仓多目录** —— 后端 `medbox-server/`、小程序 `medbox-miniapp/`、Web 前端 `medbox-admin/`（本期先做「测试数据清理」dev/QA 工具，设计见 `09`）；文档即本目录 `medbox-spec/`，**不再用 git subtree 同步**（见文末《文档就在本仓库》）。
 > 通信方式：当前全部为局域网（内网）通信，无公网域名。
 > 变更记录见 `CHANGELOG.md`。
 
@@ -18,7 +18,7 @@
 | `06_数据库设计.md` | 全部数据库设计：实体关系、PostgreSQL 关系表建表 DDL、pgvector 说明书向量表 | 后端 |
 | `07_特性分支清单_后端.md` | **Java 后端的特性分支清单**：按**实施顺序**组织 —— 地基 → P0 主干闭环 → P1 完善 → P2 锦上添花（35 个分支）；**第五章《跨端依赖速查表》**给出"后端分支 → 解锁哪些小程序分支"的反向索引 | 后端 |
 | `08_特性分支清单_小程序.md` | **uni-app 小程序的特性分支清单**：同样按实施顺序组织，跟随后端进度（23 个分支）；**每个分支的依赖列分「本端 / 后端」两段**，标明要等后端哪个分支落地 | 小程序 |
-| （暂无 09） | Web 前端 `medbox-admin/` 本期占位暂不实现，等后端与小程序完成后再补清单与接口设计 | — |
+| `09_管理后台设计_medbox-admin.md` | Web 管理后台 `medbox-admin/` 设计：定位、ADMIN 角色、测试数据清理接口（`/admin/users` 列出 + 级联硬删）与前端方案（本期只做 dev/QA 清理工具） | 后端 / Web |
 | `CHANGELOG.md` | 版本变更记录：改了什么、影响哪个端 / 目录 | 全员 |
 | `diagrams/`（**本目录子目录**） | 架构与拓扑图：`backend-architecture.html`（后端架构）、`frontend-architecture.html`（前端组件架构）、`network-topology.{drawio,html,png,svg}`（网络拓扑源文件与导出） | 全员 |
 | `AGENTS.md`（**仓库根**，不在本目录） | **给 AI 助手的工作约定**：目录约定、特性分支流程、开工 pull / 完工同步文档（与代码同 PR）、远程更新 rebase、AI 的提醒义务 | AI 助手 / 全员 |
@@ -31,7 +31,7 @@
 |------|------|------|
 | `medbox-server/` | Java 后端（Spring Boot 4 / Java 21 + Gradle），任务清单见 `07` | ✅ 实现 |
 | `medbox-miniapp/` | uni-app 小程序（Vue3 + Vite），任务清单见 `08` | ✅ 实现 |
-| `medbox-admin/` | Web 前端 / 管理后台 | ⏸ **本期占位，暂不实现**（无 09 清单，接口待设计） |
+| `medbox-admin/` | Web 前端 / 管理后台 | ⏸ **本期先做「测试数据清理」dev/QA 工具**（设计见 `09`），其余管理功能待定 |
 | `medbox-spec/` | 本文档集（唯一权威副本） | ✅ |
 
 > 文档里的相对路径示例（如 `src/main/resources/application.yml`、`src/config/index.js`）**均相对对应端的子目录**，不是仓库根；详见 01 的 4.0 与 07 / 08 顶部说明。
