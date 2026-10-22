@@ -139,7 +139,7 @@
 - **列表类接口的行级过滤**：用 `AccessService.visibleElderIds()` 一次取"我可见的老人 ID 集合"做 IN 过滤（如药品的"公共药品 + 我监护老人的私有药品"），避免逐条判定的 N+1。
 - **设备维度**：`requireDevice(deviceId, Permission)` 依赖 `DeviceOwnerResolver` 扩展点，**本分支只定义接口不实现**，由 `feat/device-core` 引入 `DeviceMapper` 后补（未接入时抛 50000 并打日志）。
 - **非 Web 线程（定时任务 / MQTT 消费）没有 `AuthContext`**：不要走 `AccessService`，直接调 Mapper。
-- **未做（有意）**：监护关系的申请 / 确认 / 解除接口（P1 `feat/guardian-relation`）、`GET /users/{elderId}/profile`（P1 `feat/user-profile`）。
+- **未做（有意）**：`GET /users/{elderId}/profile`（P1 `feat/user-profile`）。监护关系的申请 / 确认 / 解除写接口已由 `feat/guardian-relation` 交付，见 3.2。
 
 ### 1.4 接口调试（curl）
 
@@ -338,6 +338,111 @@ POST /users/me/delete
 - **幂等**：仅 `POST /auth/register` 生效 —— 同一 `X-Request-Id` 重复提交只创建 1 个账号并回放首次响应；同号但请求体指纹不同 → 40001。登录 / 刷新天然幂等，不落幂等记录（免得把含 token 的响应快照写进库）。快照 TTL 24 小时（`medbox.idempotency.ttl-hours`）。
 - **登录校验范围**：`/api/v1/**` 需带 `Authorization: Bearer {access token}`，`/api/v1/auth/**` 与 `/actuator/**` 放行；**登录失败一律 40101**（40102 只用于账号密码错误）。本分支只做校验顺序的第 ① 步"是否登录"，监护关系与角色权限见 `feat/backend-authz`。
 - **未做**：微信登录、短信验证码、限流（`feat/ai-limit`）；`GET /users/me` 已由 `feat/backend-authz` 交付，落地口径见 1.3.1（《后端侧落地（`feat/backend-authz`）》）。
+
+#### 3.2 监护关系写接口（🧭，`feat/guardian-relation`）
+
+> `feat/backend-authz` 只做了**判定**（读接口的 `require` 校验），没做关系的**创建 / 确认 / 解除**。本节补 4 个写接口，仍是两步绑定：① 监护人申请 → `PENDING`；② 老人确认 → `ACTIVE`，监护人才真正获得读写权限（未确认前访问该老人数据仍返回 **40302**，见 1.3）。这 4 个接口**没有对应 `Permission` 权限位**（判定型写操作），按「账号角色 + 身份」手动校验。
+
+**4 个接口一览**（都挂 `/api/v1/users`，全部【鉴权】）
+
+| 方法 | 路径 | 谁可用 | 作用 |
+|------|------|--------|------|
+| POST | `/users/{elderId}/guardians` | 监护人（GUARDIAN） | 申请绑定，建 `PENDING` |
+| GET | `/users/guardians/pending` | 老人（ELDER） | 我的待确认列表（join 带监护人姓名 + 手机） |
+| PATCH | `/users/guardians/{relationId}/accept` | 老人本人 | 确认，置 `ACTIVE` 并指定角色 |
+| DELETE | `/users/guardians/{relationId}` | 关系任一方 | 拒绝 / 解除，软删置 `REVOKED` |
+
+**① 申请绑定**
+
+```
+POST /users/{elderId}/guardians
+Authorization: Bearer {监护人 token}     // 无请求体
+
+// 成功（新建，role 未指定故省略）
+{ "code":0, "data":{ "relationId":"r-1001", "elderId":"u-1001",
+                     "guardianId":"u-2001", "status":"PENDING", "createdAt":"2026-10-22T08:00:00Z" } }
+```
+
+🧭 **规则表：输入 → 判定条件与优先级 → 输出**
+
+| 顺序 | 判定条件 | 输出 | 说明 |
+|------|----------|------|------|
+| ① | 未登录 / token 无效 | **40101** | AuthInterceptor 兜底 |
+| ② | 当前角色 ≠ `GUARDIAN`（老人本人等） | **40301** | 只有监护人能发起申请 |
+| ③ | 目标 `elderId` 不是真实老人 | **40301** | `AccessService.requireElder`，防枚举 |
+| ④ | 无既有关系 | `code=0` 建 `PENDING` | `relationId` 由服务端序列生成 |
+| ⑤ | 已有 `PENDING` / `ACTIVE` | **40901** | 重复申请 |
+| ⑥ | 已有 `REVOKED` | `code=0` 改回 `PENDING` | 重新申请，**清空 `role`**（`updateById` 忽略 null，走显式 SQL） |
+
+**② 待确认列表**
+
+```
+GET /users/guardians/pending
+
+// 响应
+{ "code":0, "data":[ { "relationId":"r-1001", "elderId":"u-1001", "guardianId":"u-2001",
+                       "guardianName":"张三", "guardianPhone":"13800001234", "createdAt":"..." } ] }
+```
+
+| 顺序 | 判定条件 | 输出 |
+|------|----------|------|
+| ① | 未登录 | **40101** |
+| ② | 当前角色 ≠ `ELDER` | **40301** |
+| ③ | 通过 | `code=0` 返回本人 `PENDING` 关系列表，join `user` 带监护人姓名 + 手机，按 `createdAt` 升序 |
+
+**③ 确认（置 ACTIVE）**
+
+```
+PATCH /users/guardians/{relationId}/accept
+{ "role":"FAMILY" }        // 必填，FAMILY / DOCTOR / NURSE 三选一
+
+// 成功
+{ "code":0, "data":{ "relationId":"r-1001", "elderId":"u-1001", "guardianId":"u-2001",
+                     "role":"FAMILY", "status":"ACTIVE", "createdAt":"..." } }
+```
+
+| 顺序 | 判定条件 | 输出 | 说明 |
+|------|----------|------|------|
+| ① | 未登录 | **40101** | |
+| ② | 当前角色 ≠ `ELDER` | **40301** | |
+| ③ | `role` 缺失 / 空白 / 超长（`@Valid`）或非法值（`parse` 失败） | **40001** | 只能 FAMILY / DOCTOR / NURSE |
+| ④ | `relationId` 查不到 | **40301** | 防枚举，不回 40401 |
+| ⑤ | `relation.elderId` ≠ 当前老人 | **40301** | 只能确认发给自己的 |
+| ⑥ | 关系已非 `PENDING` | **40901** | 只允许 PENDING→ACTIVE |
+| ⑦ | 通过 | `code=0` 置 `ACTIVE` 并落角色 | |
+
+**④ 拒绝 / 解除**
+
+```
+DELETE /users/guardians/{relationId}
+
+// 成功（无 data）
+{ "code":0 }
+```
+
+| 顺序 | 判定条件 | 输出 | 说明 |
+|------|----------|------|------|
+| ① | 未登录 | **40101** | |
+| ② | `relationId` 查不到 | **40301** | 防枚举 |
+| ③ | 当前用户既非关系里的老人、也非监护人 | **40301** | 只能任一方解除 |
+| ④ | 通过 | `code=0` 软删置 `REVOKED` | 已是 `REVOKED` 则幂等跳过 |
+
+**边界用例**
+
+| 用例 | 结果 |
+|------|------|
+| 申请后、确认前，监护人访问该老人数据 | **40302**（关系仍 PENDING，见 1.3） |
+| 解除后再申请 | 成功，`REVOKED` → `PENDING`（`role` 清空，走重申请分支） |
+| 陌生人对 `relationId` 做 accept / delete | **40301**（与"查不到"同码，防枚举） |
+| 老人 / 监护人注销 | 双向关系置 `REVOKED`（见 3.1 注销后的数据处理） |
+
+**落地（`feat/guardian-relation`）**：
+
+- `GuardianRelationService` 4 个方法 `apply` / `pendingList` / `accept` / `revoke`（`@Transactional`），`findById` 查不到一律 **40301**；
+- `GuardianRelationMapper` 新增 `reactivatePending` 用显式 `@Update`（`SET role=NULL`），因 `updateById` 忽略 null 字段；`nextRelationId()` / `revokeByUserId()` 已在 `feat/backend-authz` / `feat/backend-user-delete` 建好；
+- `AccessService` 新增公开 `requireElder(elderId)`（复用私有 `isElder`），目标非老人 40301；
+- 3 个 DTO 在 `dto/guardian/`：`GuardianAcceptRequest`（record + `@NotBlank @Size(max=16) role`）、`GuardianPendingResponse`、`GuardianRelationResponse`；
+- 集成测试 `GuardianRelationWebIntegrationTest` **16 例全通过**（apply 6 + pending 2 + accept 6 + delete 2；照 MedicineCore 基座：`@SpringBootTest + @AutoConfigureMockMvc` + H2 `@Primary` + `@MockitoBean`）。
 
 ## 4. 设备管理（命令实际经 MQTT 下行）
 

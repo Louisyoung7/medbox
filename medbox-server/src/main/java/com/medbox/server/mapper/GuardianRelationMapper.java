@@ -46,4 +46,12 @@ public interface GuardianRelationMapper extends BaseMapper<GuardianRelation> {
                AND status <> #{status}
             """)
     int revokeByUserId(@Param("userId") String userId, @Param("status") RelationStatus status);
+
+    @Update("""
+              UPDATE guardian_relation
+                 SET status = #{status}, role = NULL
+               WHERE id = #{id}
+              """)
+
+    int reactivatePending(@Param("id")Long id,@Param("status")RelationStatus status);
 }
