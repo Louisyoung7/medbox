@@ -141,9 +141,10 @@ class PlanCoreWebIntegrationTest {
         @Primary
         public PlanService planService(MedPlanMapper medPlanMapper, MedPlanItemMapper medPlanItemMapper,
                                       MedicineMapper medicineMapper, MedicineStockMapper medicineStockMapper,
-                                      DeviceMapper deviceMapper, AccessService accessService) {
+                                      DeviceMapper deviceMapper, AccessService accessService,
+                                      org.springframework.context.ApplicationEventPublisher eventPublisher) {
             return new PlanService(medPlanMapper, medPlanItemMapper, medicineMapper,
-                    medicineStockMapper, deviceMapper, accessService, FIXED_CLOCK);
+                    medicineStockMapper, deviceMapper, accessService, FIXED_CLOCK, eventPublisher);
         }
     }
 

@@ -635,7 +635,9 @@ POST /plans
 >
 > **C. 过期 / 无库存药品禁止加入（06 约束②）**：前端按"该老人在其可见设备上的库存行"预判——任一设备有未过期库存即可加入；全部库存已过期置灰提示"已过期"；无任何库存行置灰提示"无库存"；**库存数据拉取失败时不拦截**（后端创建时返回 40901 兜底）；临期可加入、仅文字提示。
 >
-> **D. 启停与 syncState 回显**：`PATCH /plans/{planId}/status` 请求体**前端先行契约为 `{status: 'ENABLED'|'DISABLED'}`**（取值对照 06 的 2.6 `status` 默认 `ENABLED`；本表原文未定义 body，后端 `plan-core` 定稿后对齐并更新此处）；`syncState` 仅回显——`feat/plan-core` 落地后初始值恒为 **`PENDING`**（06 §2.6 新增列、默认 `PENDING`），真正的 `SYNCED_TO_DEVICE` / `SYNC_FAILED` 由后续 `feat/plan-sync` 写入；本例 `SYNCED_TO_DEVICE` 为下发成功后的终态，前端须兼容 `PENDING` 展示为"待同步"，未知值原样展示、无字段不渲染。
+> **D. 启停与 syncState 回显**：`PATCH /plans/{planId}/status` 请求体**前端先行契约为 `{status: 'ENABLED'|'DISABLED'}`**（取值对照 06 的 2.6 `status` 默认 `ENABLED`；本表原文未定义 body，后端 `plan-core` 定稿后对齐并更新此处）；`syncState` 仅回显——`feat/plan-core` 落地后初始值恒为 **`PENDING`**（06 §2.6 新增列、默认 `PENDING`），真正的 `SYNCED_TO_DEVICE` / `SYNC_FAILED` 由 **`feat/plan-sync`（已实现）** 写入；本例 `SYNCED_TO_DEVICE` 为下发成功后的终态，前端须兼容 `PENDING` 展示为"待同步"，未知值原样展示、无字段不渲染。
+>
+> 前端触发映射（后端 `plan-sync`，见 03 第 3 章）：创建 / 修改 / 启用（`ENABLED`）→ 下行 `down/schedule` 的 `op=UPSERT`（含完整 `items` 数组）；删除 / 停用（`DISABLED`）→ `op=DELETE`（设备停该计划提醒）；设备回执 `up/ack` 后翻 `SYNCED_TO_DEVICE`，回执 `FAILED` 或 5s 超时重发 3 次仍无回执则翻 `SYNC_FAILED`。无老人 MAIN 设备 / MQTT 禁用时安全降级，`syncState` 保持 `PENDING`。
 >
 > **E. 权限与老人上下文**：写操作（创建 / 修改 / 启停 / 删除）仅 `WRITE_PLAN`（1.3 矩阵，FAMILY + DOCTOR）；小程序据此只给监护人显写入口，老人端只读，服务端强校验。`elderId`：老人端取自身；监护人端从 `GET /devices` 列表项的 `elderId` 归纳（P1 `feat/mp-guardian` 上线后改调老人列表接口）。
 >
