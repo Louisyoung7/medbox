@@ -17,6 +17,23 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-22] 拆分管理后台文档：后端接口契约归位 02/06，09 仅留前端页面
+
+`09` 原把 ADMIN 接口契约、级联删除、角色建模与前端页面混在一起。按「02 是 REST 唯一权威、06 是库表唯一权威」口径拆分：
+
+- **`02` 第 10 章新增《管理员接口（测试数据清理）》**：收编 `09` 原第三/四章 —— `GET /admin/users`、`DELETE /admin/users/{userId}`（硬删+级联、ACTIVE 拒绝 `40902`）、级联清理顺序；**错误码 `40902` 补入 1.2**（活跃账号禁止经管理接口硬删）
+- **`06` 的 2.1 `user.role` 补 `ADMIN`**、`V10__admin_seed.sql`（种子管理员账号）补入 Flyway 清单
+- **`07` 补 `feat/backend-admin-cleanup`** 分支条目（此前清单缺失）
+- **`09` 精简**：删除后端接口/角色/级联章节，改为指向 02 第 10 章 + 06；仅保留定位、前端方案（Vue3+Element Plus、`/test-data` 清理页）、前端侧安全护栏、分支计划与已确认事项（决策记录）
+- 影响端：`medbox-server/` 是（实现 `feat/backend-admin-cleanup` 时照 02 第 10 章 + 06 V10）· `medbox-miniapp/` 否 · 嵌入式 否 · `medbox-admin/` 是（前端按 09 第六章 + 02 第 10 章调用）
+
+## [2026-10-21] 新增管理后台设计文档 `09`（medbox-admin · 测试数据清理工具）
+
+- **新增 `medbox-spec/09_管理后台设计_medbox-admin.md`**：规划 Web 管理后台 `medbox-admin/`，本期只做「测试数据清理」dev/QA 工具；含 ADMIN 角色方案、`GET /api/v1/admin/users` 列出 + `DELETE /api/v1/admin/users/{userId}` 级联硬删、级联范围、安全护栏、前端（Vue3+Element Plus）方案与分支计划
+- **索引更新（`00_README_文档索引.md`）**：把「暂无 09」替换为对 `09` 的引用；目录约定表里 `medbox-admin/` 由「占位暂不实现」改为「本期先做测试数据清理工具」
+- **新增错误码（待落地时补入 02 第 1.2）**：`40902` 活跃账号禁止经管理接口硬删（仅设计，尚未写代码）
+- 影响端：`medbox-server/` 否（纯文档）· `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-21] 小程序落地服药记录（列表 / 详情 / 补录，feat/mp-record）
 
 `feat/mp-record`（07 清单 P0 第 7 步）落地：记录列表与按时间 / 老人筛选、记录详情（计划与药品）、监护人补录 / 确认。
