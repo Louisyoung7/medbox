@@ -1,8 +1,10 @@
 package com.medbox.server.mqtt;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -32,6 +34,7 @@ public class PendingAckRegistry implements SmartLifecycle {
     private final MqttProperties props;
     private final DownlinkFailureListener failureListener;
     private final ConcurrentHashMap<String, PendingDownlink> pending = new ConcurrentHashMap<>();
+    private final List<DownlinkCompletionListener> completionListeners = new CopyOnWriteArrayList<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private volatile Sender sender;
@@ -46,6 +49,25 @@ public class PendingAckRegistry implements SmartLifecycle {
     public interface Sender {
 
         void resend(PendingDownlink entry);
+    }
+
+    /**
+     * 下行"最终结算"回调接口：一条下行要么被设备回执（成功 / 明确失败），要么超时放弃，
+     * 都会走到这里（与 {@link DownlinkFailureListener} 的区别：后者只关心"失败"，本接口两者都通知，
+     * 便于 {@code feat/plan-sync} 把 {@code sync_state} 翻成终态）。
+     *
+     * <p><b>为什么单独一个接口</b>：失败告警（{@code alarm-core}）和计划同步状态是两件独立的事，
+     * 各自注册自己的监听者即可，互不耦合；注册方用 {@link #addCompletionListener} 追加，不会顶掉别人。
+     */
+    public interface DownlinkCompletionListener {
+
+        /**
+         * @param msgId    下行消息 ID
+         * @param deviceId 目标设备
+         * @param success  是否成功（{@code true}=设备回执 OK；{@code false}=回执 FAILED 或超时放弃）
+         * @param reason   失败原因（成功为 {@code null}；超时为固定文案；设备明确失败时为 {@code up/ack.reason}）
+         */
+        void onComplete(String msgId, String deviceId, boolean success, String reason);
     }
 
     @Override
@@ -83,6 +105,11 @@ public class PendingAckRegistry implements SmartLifecycle {
         this.sender = sender;
     }
 
+    /** 追加一条"最终结算"监听者（成功 / 失败都会回调），可多次调用、互不覆盖。 */
+    public void addCompletionListener(DownlinkCompletionListener listener) {
+        completionListeners.add(listener);
+    }
+
     /** 登记一条待回执的下行消息（首次发送已完成，故 attempts 从 1 起算）。 */
     public void register(PendingDownlink entry) {
         pending.put(entry.msgId(), entry);
@@ -106,6 +133,7 @@ public class PendingAckRegistry implements SmartLifecycle {
             // 设备明确说"做不了"，重发毫无意义；交给失败 hook（将来由 feat/alarm-core 生成告警）
             failureListener.onFailed(removed.deviceId(), removed.topic(), removed.msgId(), reason);
         }
+        fireComplete(removed.msgId(), removed.deviceId(), ok, reason);
         return true;
     }
 
@@ -168,5 +196,16 @@ public class PendingAckRegistry implements SmartLifecycle {
         pending.remove(entry.msgId());
         log.warn("下行下发失败 msgId={} topic={} attempts={}：{}", entry.msgId(), entry.topic(), entry.attempts(), reason);
         failureListener.onFailed(entry.deviceId(), entry.topic(), entry.msgId(), reason);
+        fireComplete(entry.msgId(), entry.deviceId(), false, reason);
+    }
+
+    private void fireComplete(String msgId, String deviceId, boolean success, String reason) {
+        for (DownlinkCompletionListener listener : completionListeners) {
+            try {
+                listener.onComplete(msgId, deviceId, success, reason);
+            } catch (RuntimeException ex) {
+                log.warn("下行完成回调异常 msgId={}：{}", msgId, ex.getMessage());
+            }
+        }
     }
 }

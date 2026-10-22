@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -92,18 +93,21 @@ public class PlanService {
     private final DeviceMapper deviceMapper;
     private final AccessService accessService;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public PlanService(MedPlanMapper medPlanMapper, MedPlanItemMapper medPlanItemMapper,
                        MedicineMapper medicineMapper, MedicineStockMapper medicineStockMapper,
-                       DeviceMapper deviceMapper, AccessService accessService) {
+                       DeviceMapper deviceMapper, AccessService accessService,
+                       ApplicationEventPublisher eventPublisher) {
         this(medPlanMapper, medPlanItemMapper, medicineMapper, medicineStockMapper,
-                deviceMapper, accessService, Clock.systemUTC());
+                deviceMapper, accessService, Clock.systemUTC(), eventPublisher);
     }
 
     public PlanService(MedPlanMapper medPlanMapper, MedPlanItemMapper medPlanItemMapper,
                        MedicineMapper medicineMapper, MedicineStockMapper medicineStockMapper,
-                       DeviceMapper deviceMapper, AccessService accessService, Clock clock) {
+                       DeviceMapper deviceMapper, AccessService accessService, Clock clock,
+                       ApplicationEventPublisher eventPublisher) {
         this.medPlanMapper = medPlanMapper;
         this.medPlanItemMapper = medPlanItemMapper;
         this.medicineMapper = medicineMapper;
@@ -111,6 +115,7 @@ public class PlanService {
         this.deviceMapper = deviceMapper;
         this.accessService = accessService;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     // ———————————————— 创建 ————————————————
@@ -139,6 +144,7 @@ public class PlanService {
         medPlanMapper.insert(plan);
 
         List<PlanItemResponse> itemResponses = saveItems(plan.getPlanId(), request.items());
+        publishSync(plan.getPlanId(), request.elderId(), PlanSyncEvent.Op.UPSERT);
         return PlanResponse.from(plan, itemResponses);
     }
 
@@ -163,6 +169,7 @@ public class PlanService {
         medPlanItemMapper.delete(new LambdaQueryWrapper<MedPlanItem>()
                 .eq(MedPlanItem::getPlanId, planId));
         List<PlanItemResponse> itemResponses = saveItems(planId, request.items());
+        publishSync(planId, plan.getElderId(), PlanSyncEvent.Op.UPSERT);
         return PlanResponse.from(plan, itemResponses);
     }
 
@@ -177,6 +184,8 @@ public class PlanService {
                 "status 仅支持 ENABLED / DISABLED");
         plan.setStatus(status);
         medPlanMapper.updateById(plan);
+        PlanSyncEvent.Op op = STATUS_ENABLED.equals(status) ? PlanSyncEvent.Op.UPSERT : PlanSyncEvent.Op.DELETE;
+        publishSync(planId, plan.getElderId(), op);
         return PlanResponse.from(plan, itemResponsesOf(plan.getPlanId()));
     }
 
@@ -186,9 +195,23 @@ public class PlanService {
     @Transactional
     public void delete(String planId) {
         MedPlan plan = findForWrite(planId);
+        String elderId = plan.getElderId();
         medPlanItemMapper.delete(new LambdaQueryWrapper<MedPlanItem>()
                 .eq(MedPlanItem::getPlanId, planId));
         medPlanMapper.deleteById(plan.getId());
+        publishSync(planId, elderId, PlanSyncEvent.Op.DELETE);
+    }
+
+    /**
+     * 发布计划变更事件，由 {@code MqttPlanScheduleSync} 在事务提交后下行到设备。
+     *
+     * <p>放在各写方法末尾：事件被 Spring 缓冲到事务提交后才派发（{@code AFTER_COMMIT}），
+     * 监听器回查时一定能拿到已提交数据；{@code eventPublisher} 为空（如测试里手动构造的实例）时跳过。
+     */
+    private void publishSync(String planId, String elderId, PlanSyncEvent.Op op) {
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new PlanSyncEvent(planId, elderId, op));
+        }
     }
 
     // ———————————————— 查询 ————————————————
