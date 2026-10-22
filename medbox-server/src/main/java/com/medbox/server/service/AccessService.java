@@ -161,6 +161,19 @@ public class AccessService {
               .anyMatch(relation -> relation.getRole() == null || relation.getRole() == RelationRole.FAMILY);
       BizAssert.forbiddenIf(!family, FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
   }
+
+ /**
+       * 校验目标 userId 确实是老人账号 —— 供监护关系写接口（申请 /
+  确认等）使用，
+       * 这些接口没有对应 Permission 位，无法走 {@link
+  #require}。目标不是老人 → 40301。
+       */
+      public void requireElder(String elderId) {
+          BizAssert.notBlank(elderId, "elderId 不能为空");
+          BizAssert.forbiddenIf(!isElder(elderId), FORBIDDEN_MESSAGE);
+      }
+
+
     /**
      * 第 ②③ 步：判定访问身份。不通过时抛 40301（无关系 / REVOKED / 目标不是老人）
      * 或 40302（PENDING）。
