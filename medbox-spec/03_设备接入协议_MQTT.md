@@ -122,6 +122,8 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 > 设备按 `items` 逐种取药并**逐条上报**；本次提醒下所有 item 都上报才算完成，缺任一种药由后端判 MISS（见文档 06 的 2.6.1）。
 
+> `op` 取值：`UPSERT`（新增 / 修改 / 启用，覆盖写该计划，载荷含完整 `times` / `repeat` / `alarm` / `items`）与 `DELETE`（删除 / 停用，设备按 `planId` 停该计划提醒，其余字段可空）。服务端由 `feat/plan-sync` 在计划写事务提交后下发，设备回执 `up/ack` 成功 → 后端把 `med_plan.sync_state` 翻成 `SYNCED_TO_DEVICE`；回执 `FAILED` 或 5s 超时（重发 3 次仍无回执） → `SYNC_FAILED`。
+
 ## 4. 摄像头识别链路（WiFi → 单片机 → MQTT）
 
 摄像头负责"取药是否正确 / 是否发生"的识别推理，**它既不直接连 EMQX 发 MQTT 消息**，也不参与业务判定，而是作为单片机的一个外设，通过 **WiFi** 与单片机通信：

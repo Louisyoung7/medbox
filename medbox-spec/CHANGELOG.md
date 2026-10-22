@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-22] feat/plan-sync 落地：计划经 MQTT 下行到设备并回执驱动 sync_state
+
+后端分支 `feat/plan-sync`（P0 第 8 步）完成：保存/启停/删除服药计划后，经 `down/schedule` 把计划（含 `items` 数组）推送到老人 MAIN 药箱；设备 `up/ack` 成功→`med_plan.sync_state=SYNCED_TO_DEVICE`，回执 `FAILED` 或 5s 超时（重发 3 次）放弃→`SYNC_FAILED`。
+
+- **`03` 第 3 章**：`down/schedule` 补 `op=DELETE` 语义（删除/停用下发，其余字段可空）与 `sync_state` 回执驱动口径
+- **`02` 第 6 章 D 段**：`syncState` 终态由 `feat/plan-sync` 写入（已实现），补前端触发映射（UPSERT/DELETE 与回执口径）
+- **`07`**：`feat/plan-sync` 勾选 `[x]`
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（仅解锁 mp-plan 同步状态回显的契约）· 嵌入式 否
+
 ## [2026-10-22] 拆分管理后台文档：后端接口契约归位 02/06，09 仅留前端页面
 
 `09` 原把 ADMIN 接口契约、级联删除、角色建模与前端页面混在一起。按「02 是 REST 唯一权威、06 是库表唯一权威」口径拆分：
