@@ -1,5 +1,5 @@
 package com.medbox.server.controller;
-
+import org.springframework.web.bind.annotation.PathVariable;
 import com.medbox.server.dto.R;
 import com.medbox.server.dto.user.DeleteAccountRequest;
 import com.medbox.server.dto.user.DeleteAccountResponse;
@@ -47,4 +47,10 @@ public class UserController {
     public R<DeleteAccountResponse> deleteMe(@Valid @RequestBody DeleteAccountRequest request) {
         return R.ok(userService.deleteSelf(request));
     }
+
+     /** 指定老人的基础资料（监护人可见，见文档 02 第 3 章）。 */
+     @GetMapping("/{elderId}/profile")
+     public R<UserProfileResponse> profile(@PathVariable String elderId){
+        return R.ok(userService.profile(elderId));
+     }
 }

@@ -1,5 +1,5 @@
 package com.medbox.server.service;
-
+import com.medbox.server.common.security.Permission;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.medbox.server.common.exception.BizAssert;
 import com.medbox.server.common.exception.ErrorCode;
@@ -34,15 +34,17 @@ public class UserService {
     private final GuardianRelationMapper guardianRelationMapper;
     private final RefreshTokenService refreshTokenService;
     private final PasswordHasher passwordHasher;
-
+    private final AccessService accessService;
     public UserService(UserMapper userMapper,
                        GuardianRelationMapper guardianRelationMapper,
                        RefreshTokenService refreshTokenService,
-                       PasswordHasher passwordHasher) {
+                       PasswordHasher passwordHasher,
+                       AccessService accessService) {
         this.userMapper = userMapper;
         this.guardianRelationMapper = guardianRelationMapper;
         this.refreshTokenService = refreshTokenService;
         this.passwordHasher = passwordHasher;
+        this.accessService=accessService;
     }
 
     /**
@@ -105,4 +107,28 @@ public class UserService {
     private static boolean isDeleted(User user) {
         return user != null && user.getStatus() == UserStatus.DELETED;
     }
+     /**
+       * 指定老人的基础资料（feat/user-profile，见文档 02 第 3 章）。
+       *
+       * <p>「监护人可见」= 老人本人，或与老人存在 ACTIVE
+  监护关系的监护人；判定交给
+       * {@link AccessService#require}（复用 {@code READ_GUARDIAN} ——
+  它本就是「老人本人 + 所有
+       * ACTIVE 监护角色可读」）。PENDING → 40302；无关系 / REVOKED /
+  目标非老人 → 40301（防枚举）。
+       */
+      public UserProfileResponse profile(String elderId){
+        accessService.require(elderId,Permission.READ_GUARDIAN);
+        User user=findByUserId(elderId);
+        BizAssert.notFound(user,"老人不存在");
+        return new UserProfileResponse(
+                user.getUserId(),
+                user.getRole() == null ? null : user.getRole().name(),
+                user.getName(),
+                user.getPhone(),
+                user.getUsername()
+        );
+      }
+
+
 }

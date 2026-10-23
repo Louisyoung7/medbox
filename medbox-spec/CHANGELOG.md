@@ -17,6 +17,12 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-23] 后端落地用户资料查询 `GET /users/{elderId}/profile`（feat/user-profile）
+
+- **`02` 第 3 章**：补 `GET /users/{elderId}/profile` 响应示例与可见性口径（老人本人 / ACTIVE 监护人可见；`PENDING`→40302、无关系/`REVOKED`/目标非老人→40301 防枚举）；1.3 的"未做（有意）"更新为"已由 `feat/user-profile` 交付"
+- **`07`**：勾选 `feat/user-profile`
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 是（`mp-profile` 分支按此口径拉老人资料）· 嵌入式 否
+
 ## [2026-10-23] feat/miss-alarm 落地：定时扫描漏服、生成 MISS 告警并经 WS 推送
 
 后端分支 `feat/miss-alarm`（P0 第 10 步）完成：仅定时扫描（`@Scheduled` 每 60s，窗口 `[now-lookback, now-tolerance]`），按设备时区展开 `times` 槽、比对 `med_record`（三级容忍 `MissToleranceResolver`），**任一 item 缺失即生成 1 条 MISS**（`message` 列全部缺失药，`medicine_id` 记第一个），落 `alarm` 后推 `ALARM` 帧；`dedup_key = MISS:{planId}:{slotUTC}` + 部分唯一索引去重，重启/重扫同槽不重复告警。跳过规则：计划非 ENABLED、`sync_state=SYNC_FAILED`、主控设备离线（`medbox.alarm.miss.skip-when-device-offline` 默认开）。本分支只落库 + 推 WS，**REST 列表/已读/处理归 `feat/alarm-core`**。
