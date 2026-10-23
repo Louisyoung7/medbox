@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-23] feat/miss-alarm 落地：定时扫描漏服、生成 MISS 告警并经 WS 推送
+
+后端分支 `feat/miss-alarm`（P0 第 10 步）完成：仅定时扫描（`@Scheduled` 每 60s，窗口 `[now-lookback, now-tolerance]`），按设备时区展开 `times` 槽、比对 `med_record`（三级容忍 `MissToleranceResolver`），**任一 item 缺失即生成 1 条 MISS**（`message` 列全部缺失药，`medicine_id` 记第一个），落 `alarm` 后推 `ALARM` 帧；`dedup_key = MISS:{planId}:{slotUTC}` + 部分唯一索引去重，重启/重扫同槽不重复告警。跳过规则：计划非 ENABLED、`sync_state=SYNC_FAILED`、主控设备离线（`medbox.alarm.miss.skip-when-device-offline` 默认开）。本分支只落库 + 推 WS，**REST 列表/已读/处理归 `feat/alarm-core`**。
+
+- **`06` 的 2.9**：`alarm` 补 `alarm_biz_id_seq`（前缀 `a-`，坑同 `med_record_biz_id_seq` 不叫 `alarm_id_seq`）、`dedup_key` 列 + 部分唯一索引 `uk_alarm_dedup_key`；沉淀 🧭 判定规则表（8 条）；Flyway 清单补 `V12__miss_alarm.sql`（V11 已预留给 admin 种子，本迁移用 V12）
+- **`02` 第 8 章**：MISS 条目补"由 `feat/miss-alarm` 生成并推 WS、REST 归 `alarm-core`"说明
+- **`07`**：`feat/miss-alarm` 勾选 `[x]`
+- 影响端：`medbox-server/` 是（新增 `MissAlarmScanner` / `PlanSlotResolver`（抽自 dispense 的就近槽）/ `Alarm` 实体 + `AlarmMapper`、三处 Mapper 查询、`SchedulingConfig`（把 `@EnableScheduling` 从 `WsConfig` 挪出，与 WS 开关解耦）、`medbox.alarm.miss.*` 配置、`V12__miss_alarm.sql`）· `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-23] feat/dispense-consume 落地：消费 up/event/dispense 落 med_record + 扣库存 + 业务幂等
 
 后端分支 `feat/dispense-consume`（P0 第 9 步）完成：新增 `up/event/dispense` 处理器，按"计划时间就近槽 + 单侧容忍窗口"重算 `onTime` 落 `med_record`（含 `capture_id`），按识别到的药品扣减 `medicine_stock`（`actualDose` 解析失败取 1、不足扣到 0、错服也扣），两层幂等（`msgId` 网关已完成 + `med_record` 部分唯一索引 `(plan_item_id, plan_time)` 冲突回滚），落库后发 `DispenseRecordedEvent` 供 `miss-alarm` / `wrong-drug-alarm` 消费（本分支不推 WS、不生成告警、不提供 REST）。
