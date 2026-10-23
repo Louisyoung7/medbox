@@ -8,7 +8,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
@@ -25,12 +24,11 @@ import tools.jackson.databind.ObjectMapper;
  * 单调递增的事件 id 用于补推），STOMP 的 destination / 订阅语义表达不了"按 lastEventId 补增量"，
  * 还会白引入一层消息代理概念。
  *
- * <p><b>{@code @EnableScheduling} 放在这里</b>：目前唯一的定时任务就是 {@link WsIdleSessionReaper}，
- * 通道关掉时它也不该跑；将来出现别的定时任务再挪到独立的 SchedulingConfig。
+ * <p><b>定时任务已挪走</b>：{@code @EnableScheduling} 原挂在本类，现移到独立的 {@code SchedulingConfig}
+ * （feat/miss-alarm）——本包带 {@code medbox.ws.enabled} 条件，关 WS 不应连带关掉漏服扫描等定时任务。
  */
 @Configuration
 @EnableWebSocket
-@EnableScheduling
 @EnableConfigurationProperties(WsProperties.class)
 @ConditionalOnProperty(prefix = "medbox.ws", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class WsConfig implements WebSocketConfigurer {

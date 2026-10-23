@@ -117,6 +117,14 @@ medbox:
       max-events: 200                    # 每个主题最多保留的事件条数（文档 04 第 1 章）
       window-minutes: 10                 # 补推窗口：只保留最近 10 分钟的事件
 
+  # —— 漏服判定与 MISS 告警（feat/miss-alarm，见文档 06 的 2.9 / 02 第 8 章）——
+  alarm:
+    miss:
+      enabled: ${MEDBOX_ALARM_MISS_ENABLED:true}  # 逃生开关：false 时定时扫描整体不跑（CI / 排障用）
+      scan-interval-ms: 60000                     # 扫描间隔（毫秒），每 60s 扫一次
+      lookback-minutes: 1440                       # 回看窗口（分钟）= 24h，防服务重启后漏判又不至于扫太久
+      skip-when-device-offline: true               # 主控离线时跳过该老人，避免"上报不了=漏服"误判
+
   ai:
     base-url: https://api.example.com/v1 # 公网大模型，属后端出网方向（唯一必须写死的外网地址）
 
