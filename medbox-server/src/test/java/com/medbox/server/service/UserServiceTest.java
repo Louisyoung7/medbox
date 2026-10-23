@@ -42,8 +42,9 @@ class UserServiceTest {
     private final GuardianRelationMapper guardianRelationMapper = mock(GuardianRelationMapper.class);
     private final RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
     private final PasswordHasher passwordHasher = mock(PasswordHasher.class);
+    private final AccessService accessService = mock(AccessService.class);
     private final UserService userService =
-            new UserService(userMapper, guardianRelationMapper, refreshTokenService, passwordHasher);
+            new UserService(userMapper, guardianRelationMapper, refreshTokenService, passwordHasher, accessService);
 
     @AfterEach
     void tearDown() {

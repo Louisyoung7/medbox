@@ -139,7 +139,7 @@
 - **列表类接口的行级过滤**：用 `AccessService.visibleElderIds()` 一次取"我可见的老人 ID 集合"做 IN 过滤（如药品的"公共药品 + 我监护老人的私有药品"），避免逐条判定的 N+1。
 - **设备维度**：`requireDevice(deviceId, Permission)` 依赖 `DeviceOwnerResolver` 扩展点，**本分支只定义接口不实现**，由 `feat/device-core` 引入 `DeviceMapper` 后补（未接入时抛 50000 并打日志）。
 - **非 Web 线程（定时任务 / MQTT 消费）没有 `AuthContext`**：不要走 `AccessService`，直接调 Mapper。
-- **未做（有意）**：`GET /users/{elderId}/profile`（P1 `feat/user-profile`）。监护关系的申请 / 确认 / 解除写接口已由 `feat/guardian-relation` 交付，见 3.2。
+- **`GET /users/{elderId}/profile`（P1 `feat/user-profile`）已交付**：老人基础信息，监护人可见，见第 3 章。监护关系的申请 / 确认 / 解除写接口已由 `feat/guardian-relation` 交付，见 3.2。
 
 ### 1.4 接口调试（curl）
 
@@ -251,6 +251,19 @@ GET /users/me
 ```
 
 > 小程序只用 `userId` / `role` / `name` / `phone`（`role` 决定角色视图，见 01 第 3 章）；其余字段随后端实现追加，前端整份缓存不挑字段。
+
+**指定老人资料（监护人可见）**
+
+```
+GET /users/{elderId}/profile
+
+// 响应：结构同 /users/me；null 字段按全局 non_null 规则省略（如老人无 username 则不返回该键）
+{ "code":0, "data":{ "userId":"u-1001", "role":"ELDER",
+                     "name":"张三", "phone":"13800001234", "username":"zhangsan" } }
+```
+
+- **可见性**：老人本人，或与老人存在 `ACTIVE` 监护关系的监护人 —— 复用 `AccessService.require(elderId, READ_GUARDIAN)`，判定顺序见 1.3（① 40101 → ②③ 关系 → ④ 权限矩阵）。
+- **越权口径（同 1.3 防枚举）**：无关系 / `REVOKED` / 目标不是老人 → **40301**；关系 `PENDING` → **40302**（老人端尚未确认）。
 
 #### 3.1 注销账号（账号删除 🧭，`feat/backend-user-delete`）
 
