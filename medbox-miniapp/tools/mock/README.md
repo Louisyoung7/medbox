@@ -8,7 +8,7 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、78 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、104 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 
@@ -26,6 +26,8 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 | 13900000001 | ELDER | 张桂英 | 只读本人；写操作（新建药品 / 库存）→ **40301** |
 | 13900000002 | ELDER | 李德海 | 只读本人 |
 
+> 监护绑定演示：张伟（u-2001）已 ACTIVE 监护两位老人；王芳（u-2002）对 u-1001 **PENDING** → 张桂英登录后可在"监护关系"页看到待确认请求；周杰（u-2003）关系 REVOKED → 可在"监护关系"页对李德海（u-1002）重新申请（复活为 PENDING）。
+
 ## 覆盖的接口（均按 02 的形状与错误码）
 
 - `POST /auth/login`、`POST /auth/register`、`POST /auth/refresh`（轮换）、`GET /users/me`、`POST /users/me/delete`
@@ -38,6 +40,9 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `GET /records?elderId=&from=&to=`（分页 + 时间区间过滤，列表 join 计划名/药品名）、`GET /records/{id}`（关联计划与抓拍留证占位）、`POST /records/{id}/confirm`（监护人补录/确认）
   - 权限口径照 02 的 1.3.1 与 1.2：老人读他人 / 越权 → **40301**；监护 PENDING → **40302**；写操作仅 FAMILY → **40301**；不存在 → **40401**
   - 种子含 6 条记录（覆盖 u-1001/u-1002、按时/未按时/错服、已确认与未确认、部分带 `captureId`）；`capture-core` 属 P1，详情缩略图由前端留空占位
+- `POST /users/{elderId}/guardians`（申请，无请求体）、`GET /users/guardians/pending`（老人端待确认，join 姓名+手机，按 `createdAt` 升序）、`PATCH /users/guardians/{relationId}/accept`（确认，请求体 `{role}` 必填，FAMILY/DOCTOR/NURSE）、`DELETE /users/guardians/{relationId}`（拒绝 / 解除，任一方，幂等）
+  - 权限口径照 02 的 3.2 规则表：非监护人申请 / 目标不是老人 / 查不到 / 非关系双方 → **40301**（防枚举，不回 40401）；已有 PENDING/ACTIVE → **40901**；REVOKED → 复活为 PENDING 并清空 role；非老人看列表 / 监护人点确认 → **40301**；role 缺失或非法 → **40001**；重复确认（已非 PENDING）→ **40901**
+  - 种子 4 条关系（gr-1/gr-2 ACTIVE、gr-3 PENDING、gr-4 REVOKED），`createdAt` 相对运行时刻计算
 
 ## 可验证的场景
 
@@ -47,6 +52,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - 补药入库：数量为增量，日期选填（不传不更新）
 - 老人端登录 → 写入口隐藏、直接调写接口 40301
 - token 过期自动续期：`MOCK_ACCESS_TTL_MS=15000 npm run mock`，等 15s 后再操作，页面无感续期
+- 监护绑定：王芳登录 → 对 u-1001 重复申请 40901；张桂英登录 → 待确认列表见王芳，确认（选 DOCTOR）后王芳即可读 u-1001 数据；周杰对 u-1001 重新申请（REVOKED 复活）→ 确认前访问 40302；撤销 / 拒绝后关系 REVOKED，可再次申请
 
 ## 测试辅助
 

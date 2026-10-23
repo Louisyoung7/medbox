@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 78 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 104 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -211,6 +211,49 @@ async function waitReady() {
     const confirmDetail = await call('GET', '/records/rec-9002', { token: gw.token })
     check('确认后详情带 confirmedAt', confirmDetail.code === 0 && confirmDetail.data.confirmedAt)
     check('记录不存在 40401', (await call('GET', '/records/rec-9999', { token: gw.token })).code === 40401)
+
+    console.log('== 监护关系（02 的 3.2） ==')
+    const elder2 = await login('13900000002')
+    check('第二位老人登录', elder2 && elder2.role === 'ELDER' && elder2.userId === 'u-1002')
+    // ① 申请：周杰（gr-4 REVOKED）对新老人 u-1002 走"无既有关系"新建分支
+    const applied = await call('POST', '/users/u-1002/guardians', { token: revoked.token })
+    check('申请新老人建 PENDING', applied.code === 0 && applied.data.status === 'PENDING' && applied.data.elderId === 'u-1002' && applied.data.guardianId === 'u-2003' && !!applied.data.relationId)
+    check('申请响应省略 role（未指定）', applied.code === 0 && !('role' in applied.data))
+    const newRelId = applied.data && applied.data.relationId
+    // ⑤ 重复申请：PENDING / ACTIVE 均 40901
+    check('重复申请（PENDING）40901', (await call('POST', '/users/u-1001/guardians', { token: pending.token })).code === 40901)
+    check('重复申请（ACTIVE）40901', (await call('POST', '/users/u-1001/guardians', { token: gw.token })).code === 40901)
+    // ⑥ REVOKED 复活为 PENDING（清空 role）
+    const revived = await call('POST', '/users/u-1001/guardians', { token: revoked.token })
+    check('REVOKED 复活为 PENDING', revived.code === 0 && revived.data.status === 'PENDING' && revived.data.relationId === 'gr-4' && !('role' in revived.data))
+    // ②③ 非监护人 / 目标不是真实老人 → 40301（防枚举）
+    check('老人发起申请 40301', (await call('POST', '/users/u-1002/guardians', { token: elder.token })).code === 40301)
+    check('目标不是老人 40301', (await call('POST', '/users/u-2002/guardians', { token: gw.token })).code === 40301)
+    check('目标不存在 40301', (await call('POST', '/users/u-9999/guardians', { token: gw.token })).code === 40301)
+    // ② 待确认列表：张桂英有 gr-3（王芳）+ 复活的 gr-4（周杰）
+    const pendList = await call('GET', '/users/guardians/pending', { token: elder.token })
+    check('待确认列表 2 条', pendList.code === 0 && pendList.data.length === 2)
+    check('按 createdAt 升序（gr-3 在前）', pendList.code === 0 && pendList.data[0].relationId === 'gr-3' && pendList.data[1].relationId === 'gr-4')
+    check('join 监护人姓名+手机', pendList.code === 0 && pendList.data[0].guardianName === '王芳' && pendList.data[0].guardianPhone === '13800001235' && pendList.data[1].guardianName === '周杰')
+    check('非老人看待确认 40301', (await call('GET', '/users/guardians/pending', { token: gw.token })).code === 40301)
+    // ③ 确认：张桂英确认王芳为 DOCTOR
+    const accepted = await call('PATCH', '/users/guardians/gr-3/accept', { token: elder.token, body: { role: 'DOCTOR' } })
+    check('确认置 ACTIVE 并落角色', accepted.code === 0 && accepted.data.status === 'ACTIVE' && accepted.data.role === 'DOCTOR' && accepted.data.elderId === 'u-1001')
+    check('重复确认 40901', (await call('PATCH', '/users/guardians/gr-3/accept', { token: elder.token, body: { role: 'FAMILY' } })).code === 40901)
+    check('非法 role 40001', (await call('PATCH', '/users/guardians/gr-4/accept', { token: elder.token, body: { role: 'BOSS' } })).code === 40001)
+    check('role 缺失 40001', (await call('PATCH', '/users/guardians/gr-4/accept', { token: elder.token, body: {} })).code === 40001)
+    check('确认他人的关系 40301', (await call('PATCH', '/users/guardians/gr-1/accept', { token: elder2.token, body: { role: 'FAMILY' } })).code === 40301)
+    check('监护人点确认 40301', (await call('PATCH', '/users/guardians/gr-4/accept', { token: pending.token, body: { role: 'FAMILY' } })).code === 40301)
+    // ④ 拒绝 / 解除：老人拒绝周杰（gr-4）；周杰撤销对 u-1002 的申请
+    check('老人拒绝 PENDING', (await call('DELETE', '/users/guardians/gr-4', { token: elder.token })).code === 0)
+    check('监护人撤销申请', (await call('DELETE', `/users/guardians/${newRelId}`, { token: revoked.token })).code === 0)
+    check('重复解除幂等', (await call('DELETE', `/users/guardians/${newRelId}`, { token: revoked.token })).code === 0)
+    check('陌生人解除 40301', (await call('DELETE', '/users/guardians/gr-1', { token: elder2.token })).code === 40301)
+    check('解除不存在的关系 40301', (await call('DELETE', '/users/guardians/gr-9999', { token: gw.token })).code === 40301)
+    // 解除后再申请：REVOKED → PENDING（同一 relationId 复活）
+    const reapplied = await call('POST', '/users/u-1002/guardians', { token: revoked.token })
+    check('解除后重新申请（同 relationId 复活）', reapplied.code === 0 && reapplied.data.status === 'PENDING' && reapplied.data.relationId === newRelId)
+    check('重申请后 PENDING 访问老人数据 40302', (await call('GET', '/devices/BOXA1002', { token: revoked.token })).code === 40302)
 
     console.log('== WebSocket（04 最小实现：握手 + ping/pong） ==')
     const wsResult = await new Promise((resolve) => {

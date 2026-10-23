@@ -771,6 +771,101 @@ async function handleConfirmRecord(req, res, recordId, body) {
   ok(res, buildRecordView(record))
 }
 
+// ---------------------------------------------------------------- 监护关系四条（02 的 3.2）
+
+/** 关系响应形状：role 未指定时省略（02 的 3.2 示例口径）。 */
+function toRelationView(relation) {
+  const view = {
+    relationId: relation.relationId,
+    elderId: relation.elderId,
+    guardianId: relation.guardianId,
+    status: relation.status,
+    createdAt: relation.createdAt,
+  }
+  if (relation.role) view.role = relation.role
+  return view
+}
+
+/** ① 申请绑定（监护人发起，无请求体）：无关系新建 / REVOKED 复活 / PENDING·ACTIVE 40901。 */
+async function handleApplyGuardian(req, res, elderId) {
+  const user = requireUser(req)
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '只有监护人账号可以发起监护申请')
+  // 目标必须是真实老人（防枚举，与"无权限"同码，不回 40401）
+  const elder = state.users.find((u) => u.userId === elderId && u.role === 'ELDER' && u.status === 'ACTIVE')
+  if (!elder) throw new BizError(40301, '目标用户不存在或不是老人账号')
+  const existing = state.relations.find((r) => r.guardianId === user.userId && r.elderId === elderId)
+  if (existing && existing.status !== 'REVOKED') throw new BizError(40901, '已存在进行中或已生效的监护关系')
+  if (existing) {
+    // REVOKED → 复活为 PENDING，并清空 role（后端 reactivatePending 显式置 NULL）
+    existing.status = 'PENDING'
+    existing.role = null
+    existing.createdAt = isoNow()
+    return ok(res, toRelationView(existing))
+  }
+  const relation = {
+    relationId: `gr-${rand()}`,
+    guardianId: user.userId,
+    elderId,
+    role: null,
+    status: 'PENDING',
+    createdAt: isoNow(),
+  }
+  state.relations.push(relation)
+  ok(res, toRelationView(relation))
+}
+
+/** ② 待确认列表（老人端）：join 监护人姓名 + 手机，按 createdAt 升序。 */
+async function handlePendingGuardians(req, res) {
+  const user = requireUser(req)
+  if (user.role !== 'ELDER') throw new BizError(40301, '只有老人账号可以查看待确认列表')
+  const list = state.relations
+    .filter((r) => r.elderId === user.userId && r.status === 'PENDING')
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    .map((r) => {
+      const guardian = state.users.find((u) => u.userId === r.guardianId)
+      return {
+        relationId: r.relationId,
+        elderId: r.elderId,
+        guardianId: r.guardianId,
+        guardianName: (guardian && guardian.name) || '',
+        guardianPhone: (guardian && guardian.phone) || '',
+        createdAt: r.createdAt,
+      }
+    })
+  ok(res, list)
+}
+
+/** ③ 确认（老人本人）：role 必填（FAMILY / DOCTOR / NURSE），仅 PENDING → ACTIVE。 */
+async function handleAcceptGuardian(req, res, relationId, body) {
+  const user = requireUser(req)
+  if (user.role !== 'ELDER') throw new BizError(40301, '只有老人账号可以确认监护请求')
+  const role = String((body && body.role) || '').trim()
+  if (!role) throw new BizError(40001, 'role 不能为空')
+  if (role !== 'FAMILY' && role !== 'DOCTOR' && role !== 'NURSE') {
+    throw new BizError(40001, 'role 只能是 FAMILY / DOCTOR / NURSE')
+  }
+  // 查不到 → 40301（防枚举，不回 40401）
+  const relation = state.relations.find((r) => r.relationId === relationId)
+  if (!relation) throw new BizError(40301, '监护关系不存在')
+  if (relation.elderId !== user.userId) throw new BizError(40301, '只能确认发给自己的监护请求')
+  if (relation.status !== 'PENDING') throw new BizError(40901, '该监护请求已被处理')
+  relation.role = role
+  relation.status = 'ACTIVE'
+  ok(res, toRelationView(relation))
+}
+
+/** ④ 拒绝 / 解除（关系任一方）：软删置 REVOKED，幂等。 */
+async function handleRevokeGuardian(req, res, relationId) {
+  const user = requireUser(req)
+  const relation = state.relations.find((r) => r.relationId === relationId)
+  if (!relation) throw new BizError(40301, '监护关系不存在')
+  if (relation.elderId !== user.userId && relation.guardianId !== user.userId) {
+    throw new BizError(40301, '只有关系双方可以解除监护关系')
+  }
+  if (relation.status !== 'REVOKED') relation.status = 'REVOKED'
+  ok(res, null)
+}
+
 function handleReset(req, res) {
   state = createSeed()
   ok(res, { reset: true, accounts: DEMO_ACCOUNTS })
@@ -858,6 +953,19 @@ const server = http.createServer(async (req, res) => {
     }
     matched = /^\/records\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetRecord(req, res, decodeURIComponent(matched[1]))
+
+    // 鉴权：监护关系四条（02 的 3.2）
+    matched = /^\/users\/([^/]+)\/guardians$/.exec(sub)
+    if (req.method === 'POST' && matched) {
+      return await handleApplyGuardian(req, res, decodeURIComponent(matched[1]))
+    }
+    if (req.method === 'GET' && sub === '/users/guardians/pending') return await handlePendingGuardians(req, res)
+    matched = /^\/users\/guardians\/([^/]+)\/accept$/.exec(sub)
+    if (req.method === 'PATCH' && matched) {
+      return await handleAcceptGuardian(req, res, decodeURIComponent(matched[1]), await readBody(req))
+    }
+    matched = /^\/users\/guardians\/([^/]+)$/.exec(sub)
+    if (req.method === 'DELETE' && matched) return await handleRevokeGuardian(req, res, decodeURIComponent(matched[1]))
 
     // 测试辅助
     if (req.method === 'POST' && sub === '/__mock__/reset') return handleReset(req, res)

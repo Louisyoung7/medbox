@@ -23,6 +23,7 @@ import { getMe, login as loginApi, refresh as refreshApi, register as registerAp
 import { deleteAccount as deleteAccountApi } from '@/api/user.js'
 import { clearTokens, getRefreshToken, hasToken, setTokens } from '@/store/token.js'
 import { clearUserInfo, getUserInfo, setUserInfo } from '@/store/user.js'
+import { clearMyApplications } from '@/store/guardian.js'
 import { installAuthGuard, safeTarget } from '@/store/guard.js'
 // ws.js 反向依赖本文件的 refreshAuth（WS 握手失败时的续期）—— 这是**调用时才用到**的循环：
 // 函数体内的引用靠 ESM 活绑定解析，两边都没有模块级副作用的互相读取，安全。
@@ -230,8 +231,11 @@ async function applySession(data) {
   }
 }
 
-/** 清登录态：凭据与用户资料一起清（二者必须成对，避免半登录态）。 */
+/** 清登录态：凭据与用户资料一起清（二者必须成对，避免半登录态）。
+ *  监护申请缓存（`store/guardian.js`）属于当前账号，一并清掉 —— 换账号登录不该看到上一个
+ *  监护人发起的申请。 */
 function clearSession() {
   clearTokens()
   clearUserInfo()
+  clearMyApplications()
 }
