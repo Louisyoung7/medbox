@@ -17,6 +17,16 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-23] feat/dispense-consume 落地：消费 up/event/dispense 落 med_record + 扣库存 + 业务幂等
+
+后端分支 `feat/dispense-consume`（P0 第 9 步）完成：新增 `up/event/dispense` 处理器，按"计划时间就近槽 + 单侧容忍窗口"重算 `onTime` 落 `med_record`（含 `capture_id`），按识别到的药品扣减 `medicine_stock`（`actualDose` 解析失败取 1、不足扣到 0、错服也扣），两层幂等（`msgId` 网关已完成 + `med_record` 部分唯一索引 `(plan_item_id, plan_time)` 冲突回滚），落库后发 `DispenseRecordedEvent` 供 `miss-alarm` / `wrong-drug-alarm` 消费（本分支不推 WS、不生成告警、不提供 REST）。
+
+- **`06` 的 2.7**：`med_record` 补 `record_id` 前缀 `mr-`（`med_record_biz_id_seq`，`START 1001`，坑：序列不能叫 `med_record_id_seq`）、`source` 列、`V10__dispense.sql` 索引；沉淀 🧭 判定规则表（准入 / 就近槽 / 三级容忍 / 单侧窗口 / 库存 / 幂等 / 事件）；Flyway 清单补 `V8`/`V9`/`V10`，原预留的 `V10__admin_seed.sql` 顺延到 `V11`
+- **`06` 的 2.5**：补"库存双重扣减"口径——`dispense` 权威扣减，`inventory-consume` 只按 `quantity` 绝对值校准、不做 delta 累加
+- **`03` 第 3 章 / 第 4 章**：`onTime` 后端重算算法（就近槽 + 单侧窗口 + 三级容忍）指针，指向 06 §2.7
+- **`07`**：`feat/dispense-consume` 勾选 `[x]`
+- 影响端：`medbox-server/` 是（新增 `DispenseUpMessageHandler` / `DispenseConsumeService` / `DeviceTimezoneResolver` / `MissToleranceResolver` / `MedRecord` / `AlarmSetting` 及 Mapper、`MedicineStockMapper.deduct`、`V10__dispense.sql`，并把 `PlanService.resolveTimezone` 委托给 `DeviceTimezoneResolver`）· `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-22] feat/plan-sync 落地：计划经 MQTT 下行到设备并回执驱动 sync_state
 
 后端分支 `feat/plan-sync`（P0 第 8 步）完成：保存/启停/删除服药计划后，经 `down/schedule` 把计划（含 `items` 数组）推送到老人 MAIN 药箱；设备 `up/ack` 成功→`med_plan.sync_state=SYNCED_TO_DEVICE`，回执 `FAILED` 或 5s 超时（重发 3 次）放弃→`SYNC_FAILED`。
