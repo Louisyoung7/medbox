@@ -5,12 +5,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.medbox.server.common.exception.BizAssert;
 import com.medbox.server.common.security.Permission;
 import com.medbox.server.service.AccessService;
-import com.medbox.server.domain.Device;
 import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.MedicineStock;
 import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.MedPlanItem;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.dto.PageResult;
 import com.medbox.server.dto.plan.NextDoseItemResponse;
 import com.medbox.server.dto.plan.NextDoseResponse;
@@ -24,7 +22,6 @@ import com.medbox.server.mapper.MedPlanItemMapper;
 import com.medbox.server.mapper.MedPlanMapper;
 import com.medbox.server.mapper.MedicineMapper;
 import com.medbox.server.mapper.MedicineStockMapper;
-import com.medbox.server.mapper.DeviceMapper;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -79,7 +76,6 @@ public class PlanService {
     private static final String STATUS_DISABLED = "DISABLED";
     private static final String SYNC_PENDING = "PENDING";
     private static final String REPEAT_DAILY = "DAILY";
-    private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Shanghai");
     private static final int DEFAULT_DAYS = 7;
     private static final int MAX_DAYS = 60;
     private static final int MAX_DOSES = 200;
@@ -90,7 +86,7 @@ public class PlanService {
     private final MedPlanItemMapper medPlanItemMapper;
     private final MedicineMapper medicineMapper;
     private final MedicineStockMapper medicineStockMapper;
-    private final DeviceMapper deviceMapper;
+    private final DeviceTimezoneResolver timezoneResolver;
     private final AccessService accessService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
@@ -98,21 +94,21 @@ public class PlanService {
     @Autowired
     public PlanService(MedPlanMapper medPlanMapper, MedPlanItemMapper medPlanItemMapper,
                        MedicineMapper medicineMapper, MedicineStockMapper medicineStockMapper,
-                       DeviceMapper deviceMapper, AccessService accessService,
+                       DeviceTimezoneResolver timezoneResolver, AccessService accessService,
                        ApplicationEventPublisher eventPublisher) {
         this(medPlanMapper, medPlanItemMapper, medicineMapper, medicineStockMapper,
-                deviceMapper, accessService, Clock.systemUTC(), eventPublisher);
+                timezoneResolver, accessService, Clock.systemUTC(), eventPublisher);
     }
 
     public PlanService(MedPlanMapper medPlanMapper, MedPlanItemMapper medPlanItemMapper,
                        MedicineMapper medicineMapper, MedicineStockMapper medicineStockMapper,
-                       DeviceMapper deviceMapper, AccessService accessService, Clock clock,
+                       DeviceTimezoneResolver timezoneResolver, AccessService accessService, Clock clock,
                        ApplicationEventPublisher eventPublisher) {
         this.medPlanMapper = medPlanMapper;
         this.medPlanItemMapper = medPlanItemMapper;
         this.medicineMapper = medicineMapper;
         this.medicineStockMapper = medicineStockMapper;
-        this.deviceMapper = deviceMapper;
+        this.timezoneResolver = timezoneResolver;
         this.accessService = accessService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
@@ -413,20 +409,9 @@ public class PlanService {
 
     // ———————————————— 内部：时区解析 ————————————————
 
-    /** 取老人 MAIN 主控设备的 timezone；无设备 / 空 / 非法 → Asia/Shanghai。 */
+    /** 取老人 MAIN 主控设备的 timezone；无设备 / 空 / 非法 → Asia/Shanghai（委托公共组件）。 */
     private ZoneId resolveTimezone(String elderId) {
-        Device device = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
-                .eq(Device::getElderId, elderId)
-                .eq(Device::getDeviceType, DeviceType.MAIN));
-        if (device != null && device.getTimezone() != null && !device.getTimezone().isBlank()) {
-            try {
-                return ZoneId.of(device.getTimezone().trim());
-            } catch (Exception e) {
-                log.warn("老人的 MAIN 设备时区非法，回退默认时区 elderId={} timezone={}",
-                        elderId, device.getTimezone());
-            }
-        }
-        return DEFAULT_ZONE;
+        return timezoneResolver.resolve(elderId);
     }
 
     // ———————————————— 内部：明细读写 ————————————————
