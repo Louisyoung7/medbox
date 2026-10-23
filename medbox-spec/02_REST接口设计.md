@@ -680,12 +680,14 @@ POST /plans
 
 | type | 触发来源 | 说明 |
 |------|----------|------|
-| MISS | 后端判定 | 计划时间+容忍时长内未收到该计划服药事件 |
+| MISS | 后端判定 | 计划时间+容忍时长内未收到该计划服药事件（**`feat/miss-alarm` 定时判定生成并经 WS 推送**，见 06 §2.9 规则表；**本分支只落库 + 推 WS，不提供下列 REST**） |
 | WRONG_DRUG | 设备上报 | 摄像头识别的实际药品 ≠ 计划药品 |
 | EXPIRED | 后端判定 | 按手动录入的 `expiryDate` 扫描：临期预警 + 到期告警 |
 | ENV | 设备上报 | 温度/湿度/光照超出**该老人统一配置的 `envThreshold`**（不按药品细分，见文档 01 的 5.4） |
 | DEVICE_OFFLINE | 后端判定 | 心跳超时，设备离线超阈值（**仅主控**，传感器子设备离线不生成告警） |
 | DEVICE_FAULT | 设备上报 | 设备侧异常（`up/event/error`）：门超时 / 识别失败 / 硬件故障 |
+
+> **MISS 告警归属**：`feat/miss-alarm`（07 P0 第 10 步）负责**生成** MISS 告警（落 `alarm` 表 + 经 WebSocket 推 `ALARM` 帧，见 04 第 3 章）；**查询/已读/处理与阈值配置（`PUT /alarm-settings` 等的 `missTolerateMin` 即三级容忍的老人级）归 `feat/alarm-core`**（P1，依赖本分支）。本分支不新增任何 REST。
 
 ## 9. 环境监测
 
