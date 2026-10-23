@@ -12,15 +12,11 @@ import com.medbox.server.mapper.MedRecordMapper;
 import com.medbox.server.mapper.MedicineStockMapper;
 import com.medbox.server.mqtt.payload.DispenseEventPayload;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -59,6 +55,7 @@ public class DispenseConsumeService {
     private final MedicineStockMapper medicineStockMapper;
     private final DeviceTimezoneResolver timezoneResolver;
     private final MissToleranceResolver toleranceResolver;
+    private final PlanSlotResolver planSlotResolver;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
@@ -71,7 +68,8 @@ public class DispenseConsumeService {
     public DispenseConsumeService(MedRecordMapper medRecordMapper, MedPlanMapper medPlanMapper,
                                   MedPlanItemMapper medPlanItemMapper, DeviceMapper deviceMapper,
                                   MedicineStockMapper medicineStockMapper, DeviceTimezoneResolver timezoneResolver,
-                                  MissToleranceResolver toleranceResolver, ApplicationEventPublisher eventPublisher) {
+                                  MissToleranceResolver toleranceResolver, PlanSlotResolver planSlotResolver,
+                                  ApplicationEventPublisher eventPublisher) {
         this.medRecordMapper = medRecordMapper;
         this.medPlanMapper = medPlanMapper;
         this.medPlanItemMapper = medPlanItemMapper;
@@ -79,6 +77,7 @@ public class DispenseConsumeService {
         this.medicineStockMapper = medicineStockMapper;
         this.timezoneResolver = timezoneResolver;
         this.toleranceResolver = toleranceResolver;
+        this.planSlotResolver = planSlotResolver;
         this.eventPublisher = eventPublisher;
         this.clock = Clock.systemUTC();
     }
@@ -122,7 +121,7 @@ public class DispenseConsumeService {
             return Optional.empty();
         }
 
-        // —— 2. plan_time 就近槽匹配（跨天取 D-1/D/D+1 三天候选）——
+        // —— 2. plan_time 就近槽匹配（跨天取 D-1/D/D+1 三天候选，委托公共组件展开）——
         long ts = tsOrNow(payload.getTs());
         OffsetDateTime actualTime = OffsetDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneOffset.UTC);
         ZoneId zone = timezoneResolver.resolve(device.getElderId());
@@ -184,32 +183,25 @@ public class DispenseConsumeService {
 
     /**
      * 取与 {@code ts} 时间差最小的计划槽作为 {@code plan_time}。
-     * 候选 = {@code ts} 本地日期的 D-1 / D / D+1 三天 × 全部 {@code times}（覆盖跨天边界）；
-     * 差值相同时取较早的槽。
+     * 委托 {@link PlanSlotResolver#expandSlots} 展开 {@code ts} 前后各 1 天的全部槽后取最近者，
+     * 与漏服扫描共用同一套"本地墙钟 times → 具体瞬时"的换算（文档 06 §2.6.1）。
      */
     private OffsetDateTime nearestSlot(long ts, ZoneId zone, List<String> times) {
         if (times == null || times.isEmpty()) {
             return null;
         }
-        LocalDate base = LocalDate.ofInstant(Instant.ofEpochMilli(ts), zone);
+        Instant instant = Instant.ofEpochMilli(ts);
+        // 以 ts 为中心 ±1 天展开，等价于原实现 D-1/D/D+1 三天候选
+        List<OffsetDateTime> candidates = planSlotResolver.expandSlots(
+                instant.minus(1, java.time.temporal.ChronoUnit.DAYS),
+                instant.plus(1, java.time.temporal.ChronoUnit.DAYS), zone, times);
         OffsetDateTime best = null;
         long bestDiff = Long.MAX_VALUE;
-        for (int d = -1; d <= 1; d++) {
-            LocalDate date = base.plusDays(d);
-            for (String time : times) {
-                try {
-                    LocalTime lt = LocalTime.parse(time);
-                    LocalDateTime ldt = LocalDateTime.of(date, lt);
-                    OffsetDateTime slot = ZonedDateTime.of(ldt, zone).toOffsetDateTime();
-                    long diff = Math.abs(Duration.between(slot.toInstant(), Instant.ofEpochMilli(ts)).toMillis());
-                    if (diff < bestDiff || (diff == bestDiff && (best == null || slot.isBefore(best)))) {
-                        bestDiff = diff;
-                        best = slot;
-                    }
-                } catch (RuntimeException e) {
-                    // 计划里混入了非法时间字符串（理论上 create/update 已校验），跳过该槽
-                    log.debug("dispense 跳过非法 times 槽 deviceId time={}：{}", time, e.getMessage());
-                }
+        for (OffsetDateTime slot : candidates) {
+            long diff = Math.abs(Duration.between(slot.toInstant(), instant).toMillis());
+            if (diff < bestDiff || (diff == bestDiff && (best == null || slot.isBefore(best)))) {
+                bestDiff = diff;
+                best = slot;
             }
         }
         return best;
