@@ -36,6 +36,7 @@ import com.medbox.server.mapper.MedPlanItemMapper;
 import com.medbox.server.mapper.MedPlanMapper;
 import com.medbox.server.mapper.UserMapper;
 import com.medbox.server.service.AccessService;
+import com.medbox.server.service.DeviceTimezoneResolver;
 import com.medbox.server.service.PlanService;
 import com.medbox.server.support.TableInfoWarmup;
 import java.time.Clock;
@@ -141,10 +142,10 @@ class PlanCoreWebIntegrationTest {
         @Primary
         public PlanService planService(MedPlanMapper medPlanMapper, MedPlanItemMapper medPlanItemMapper,
                                       MedicineMapper medicineMapper, MedicineStockMapper medicineStockMapper,
-                                      DeviceMapper deviceMapper, AccessService accessService,
+                                      DeviceTimezoneResolver timezoneResolver, AccessService accessService,
                                       org.springframework.context.ApplicationEventPublisher eventPublisher) {
             return new PlanService(medPlanMapper, medPlanItemMapper, medicineMapper,
-                    medicineStockMapper, deviceMapper, accessService, FIXED_CLOCK, eventPublisher);
+                    medicineStockMapper, timezoneResolver, accessService, FIXED_CLOCK, eventPublisher);
         }
     }
 
