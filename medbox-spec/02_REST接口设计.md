@@ -444,6 +444,14 @@ DELETE /users/guardians/{relationId}
 - 3 个 DTO 在 `dto/guardian/`：`GuardianAcceptRequest`（record + `@NotBlank @Size(max=16) role`）、`GuardianPendingResponse`、`GuardianRelationResponse`；
 - 集成测试 `GuardianRelationWebIntegrationTest` **16 例全通过**（apply 6 + pending 2 + accept 6 + delete 2；照 MedicineCore 基座：`@SpringBootTest + @AutoConfigureMockMvc` + H2 `@Primary` + `@MockitoBean`）。
 
+**小程序侧落地（`feat/mp-guardian`）**：
+
+- `src/api/guardian.js` 四个函数与上表四条一一对应：申请**无请求体**；accept 请求体 `{ role }` 必填（`FAMILY` / `DOCTOR` / `NURSE`）；解除成功无 `data`。错误码按 1.2 封闭集合兑现，页面 `silent: true` 自绘文案；
+- **"输入老人账号"= 老人用户ID（`userId`）**：本节没有"按手机号 / 用户名查找老人"的接口（`GET /users/{elderId}/profile` 归 `feat/user-profile`，也不是查找入口），绑定页输入框即 `elderId`，页面引导监护人向老人索取（老人可在"我的"页面查看自己的用户ID）；
+- **"我的申请"是设备本地视图**（`src/store/guardian.js`，storage key `guardianApplications`）：后端只有老人端的 pending 列表，**没有"我发起的申请列表"接口**。监护人发起后本地落一份（申请响应即时写入），`store/auth.js` 的 `clearSession()`（登出 / 续期失败）一并清掉。老人确认 / 拒绝后本地不会自动同步，页面因此把两个动作分开：**撤销**（仅本地 PENDING 时显示，调解除接口，服务端对 `REVOKED` 幂等）与**移除记录**（仅清本地缓存 —— 关系可能已被确认成 `ACTIVE`，误调解除接口会真解除监护）；
+- **40302 提示**：`utils/error.js` 已有默认文案"监护关系未生效，请等待老人确认"；页面按 `CODE.GUARDIAN_PENDING` 自绘，不重复 toast（同 plan 页既有写法）；
+- 老人在确认弹窗里单选 `FAMILY` / `DOCTOR` / `NURSE`（每选一项显示该角色的一句权限说明，口径取 1.3 权限矩阵），未选择时确认键禁用；拒绝经二次确认后走解除接口。
+
 ## 4. 设备管理（命令实际经 MQTT 下行）
 
 | 方法 | 路径 | 说明 |

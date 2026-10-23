@@ -27,6 +27,17 @@
 - **`07`**：`feat/dispense-consume` 勾选 `[x]`
 - 影响端：`medbox-server/` 是（新增 `DispenseUpMessageHandler` / `DispenseConsumeService` / `DeviceTimezoneResolver` / `MissToleranceResolver` / `MedRecord` / `AlarmSetting` 及 Mapper、`MedicineStockMapper.deduct`、`V10__dispense.sql`，并把 `PlanService.resolveTimezone` 委托给 `DeviceTimezoneResolver`）· `medbox-miniapp/` 否 · 嵌入式 否
 
+## [2026-10-23] 小程序落地监护绑定（申请 / 待确认 / 确认 / 解除，feat/mp-guardian）
+
+`feat/mp-guardian`（08 清单 P1 第 1 项）落地：监护人输入老人用户ID 发起申请（PENDING 即时可见、可撤销），老人端待确认列表确认（指定 FAMILY / DOCTOR / NURSE）或拒绝。后端 `guardian-relation` 四条接口已落地，本分支按 02 的 3.2 契约实现，**无前端先行契约**。
+
+- **`medbox-miniapp/`**：新增 `api/guardian.js`（四条接口封装）、`utils/guardian.js`（角色 / 状态文案、`parsePendingList`、`normalizeElderId`）、`store/guardian.js`（"我的申请"本地缓存，`clearSession` 即清）、`pages/guardian/guardian.vue`（按角色分屏；注册 `pages.json`，首页功能入口加"监护关系"一行）
+- **`medbox-miniapp/tools/mock`**：补齐四条路由与权限口径（非监护人 / 目标非老人 / 查不到 / 非关系双方 → 40301 防枚举；PENDING·ACTIVE 重复申请 → 40901；REVOKED 复活清 role；非法 / 缺失 role → 40001；重复确认 → 40901）；种子 `relations` 补 `createdAt`；smoke 新增 26 项（共 **104 项**）
+- **`02` 的 3.2**：补"小程序侧落地"小节 —— "输入老人账号"= 用户ID（无按手机号查号接口）、"我的申请"本地视图边界、撤销 vs 移除记录语义
+- **`AGENTS.md`（仓库根）**：3.1 的 Mock 检查项计数由过期的"46 项"更正为 104 项
+- **测试报告**：`npm test` 232 通过 / 1 跳过（本分支新增 36 例：api 11 + utils 11 + store 14）；`npm run test:e2e` 104 通过 / 0 失败
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-22] feat/plan-sync 落地：计划经 MQTT 下行到设备并回执驱动 sync_state
 
 后端分支 `feat/plan-sync`（P0 第 8 步）完成：保存/启停/删除服药计划后，经 `down/schedule` 把计划（含 `items` 数组）推送到老人 MAIN 药箱；设备 `up/ack` 成功→`med_plan.sync_state=SYNCED_TO_DEVICE`，回执 `FAILED` 或 5s 超时（重发 3 次）放弃→`SYNC_FAILED`。

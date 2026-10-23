@@ -41,12 +41,13 @@ function createSeed() {
     { userId: 'u-2003', role: 'GUARDIAN', name: '周杰', phone: '13800001236', username: 'zhoujie', password: DEMO_PASSWORD, status: 'ACTIVE' },
   ]
 
-  // 监护关系（06 的 2.2）：PENDING 用于验证 40302；REVOKED 用于验证"看不到任何数据"
+  // 监护关系（06 的 2.2）：PENDING 用于验证 40302；REVOKED 用于验证"看不到任何数据"。
+  // createdAt 为 UTC（02 的 3.2：pending 列表按 createdAt 升序、申请响应回带）
   const relations = [
-    { relationId: 'gr-1', guardianId: 'u-2001', elderId: 'u-1001', role: 'FAMILY', status: 'ACTIVE' },
-    { relationId: 'gr-2', guardianId: 'u-2001', elderId: 'u-1002', role: 'FAMILY', status: 'ACTIVE' },
-    { relationId: 'gr-3', guardianId: 'u-2002', elderId: 'u-1001', role: 'FAMILY', status: 'PENDING' },
-    { relationId: 'gr-4', guardianId: 'u-2003', elderId: 'u-1001', role: 'FAMILY', status: 'REVOKED' },
+    { relationId: 'gr-1', guardianId: 'u-2001', elderId: 'u-1001', role: 'FAMILY', status: 'ACTIVE', createdAt: isoOffset(-30 * DAY) },
+    { relationId: 'gr-2', guardianId: 'u-2001', elderId: 'u-1002', role: 'FAMILY', status: 'ACTIVE', createdAt: isoOffset(-25 * DAY) },
+    { relationId: 'gr-3', guardianId: 'u-2002', elderId: 'u-1001', role: 'FAMILY', status: 'PENDING', createdAt: isoOffset(-2 * DAY) },
+    { relationId: 'gr-4', guardianId: 'u-2003', elderId: 'u-1001', role: 'FAMILY', status: 'REVOKED', createdAt: isoOffset(-10 * DAY) },
   ]
 
   // 设备（06 的 2.3）：MAIN 主控 + 传感器子设备；子设备 elderId 与父一致

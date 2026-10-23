@@ -20,6 +20,7 @@
         <MbCell title="药品管理" value="公共与私有药品" arrow clickable @click="go('/pages/medicine/medicine')" />
         <MbCell title="服药计划" value="提醒与剂量" arrow clickable @click="go('/pages/plan/plan')" />
         <MbCell title="服药记录" value="按时 / 错服明细" arrow clickable @click="go('/pages/record/record')" />
+        <MbCell title="监护关系" value="绑定与待确认" arrow clickable @click="go('/pages/guardian/guardian')" />
       </MbCard>
 
       <RoleGate entry="alarmSettings">
