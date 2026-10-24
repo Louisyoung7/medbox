@@ -17,6 +17,12 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] 09 文档改造：转为分支清单，后端分支回归 07
+
+- `medbox-spec/09` 由"管理后台设计稿"改为**特性分支清单**（结构同 `07`/`08`）：本期只认领 `feat/admin-testdata-cleanup`（测试数据清理 dev/QA 工具），原设计稿的定位 / 角色 / 前端方案 / 已确认事项折进该分支条目的「内容」；原"第六章 分支计划"里登记的 `feat/backend-admin-cleanup` 移除——该后端分支早已在 `07` 第三章单项登记，`07` 为唯一事实源，09 仅以依赖列引用。
+- 同步更新：`00_README_文档索引.md`（09 改为分支清单描述）、`AGENTS.md` 0.1（`medbox-admin/` 本期有 09 分支清单 + 首分支 `feat/admin-testdata-cleanup`，去掉"无 09 清单 / 本期占位"陈旧表述；分支命名补充 `09`/`feat/admin-xxx`）、`07` 的 `feat/backend-admin-cleanup` 备注（指向 09 分支清单）、`01_系统架构与部署.md`（第 3 章 / 4.0 目录树 / 地址规划表中 `medbox-admin/` 的"本期不实现 / 无任务清单"陈旧表述改为指向 09 分支清单）。
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 否 · `medbox-admin/` 待 `feat/admin-testdata-cleanup` 认领（端内未动）· 嵌入式 否
+
 ## [2026-10-24] feat/backend-devtools 修复：WsDebugController 恒 401（收窄 _debug 鉴权排除范围）
 
 - `WebMvcConfig` 原把整个 `/api/v1/_debug/**` 一刀切免登录，误伤需鉴权的 `WsDebugController`（`/api/v1/_debug/ws/publish`）：其 `publish()` 调 `AccessService.require` 依赖 `AuthInterceptor` 写入的 `AuthContext`，被排除后 `AuthContext` 恒为空 → 带合法 token 也恒返 401。

@@ -18,7 +18,7 @@
 | `06_数据库设计.md` | 全部数据库设计：实体关系、PostgreSQL 关系表建表 DDL、pgvector 说明书向量表 | 后端 |
 | `07_特性分支清单_后端.md` | **Java 后端的特性分支清单**：按**实施顺序**组织 —— 地基 → P0 主干闭环 → P1 完善 → P2 锦上添花（35 个分支）；**第五章《跨端依赖速查表》**给出"后端分支 → 解锁哪些小程序分支"的反向索引 | 后端 |
 | `08_特性分支清单_小程序.md` | **uni-app 小程序的特性分支清单**：同样按实施顺序组织，跟随后端进度（23 个分支）；**每个分支的依赖列分「本端 / 后端」两段**，标明要等后端哪个分支落地 | 小程序 |
-| `09_管理后台设计_medbox-admin.md` | Web 管理后台 `medbox-admin/` 设计：定位、ADMIN 角色、测试数据清理接口（`/admin/users` 列出 + 级联硬删）与前端方案（本期只做 dev/QA 清理工具） | 后端 / Web |
+| `09_管理后台设计_medbox-admin.md` | **Web 管理后台 `medbox-admin/` 的特性分支清单**（结构同 `07`/`08`）：本期只认领 `feat/admin-testdata-cleanup`（测试数据清理 dev/QA 工具），接口契约见 `02` 第 10 章 / `06` 的 2.1 | 后端 / Web |
 | `CHANGELOG.md` | 版本变更记录：改了什么、影响哪个端 / 目录 | 全员 |
 | `diagrams/`（**本目录子目录**） | 架构与拓扑图：`backend-architecture.html`（后端架构）、`frontend-architecture.html`（前端组件架构）、`network-topology.{drawio,html,png,svg}`（网络拓扑源文件与导出） | 全员 |
 | `AGENTS.md`（**仓库根**，不在本目录） | **给 AI 助手的工作约定**：目录约定、特性分支流程、开工 pull / 完工同步文档（与代码同 PR）、远程更新 rebase、AI 的提醒义务 | AI 助手 / 全员 |
@@ -31,7 +31,7 @@
 |------|------|------|
 | `medbox-server/` | Java 后端（Spring Boot 4 / Java 21 + Gradle），任务清单见 `07` | ✅ 实现 |
 | `medbox-miniapp/` | uni-app 小程序（Vue3 + Vite），任务清单见 `08` | ✅ 实现 |
-| `medbox-admin/` | Web 前端 / 管理后台 | ⏸ **本期先做「测试数据清理」dev/QA 工具**（设计见 `09`），其余管理功能待定 |
+| `medbox-admin/` | Web 前端 / 管理后台 | ⏸ **本期先做「测试数据清理」dev/QA 工具**（分支清单见 `09`），其余管理功能待定 |
 | `medbox-spec/` | 本文档集（唯一权威副本） | ✅ |
 
 > 文档里的相对路径示例（如 `src/main/resources/application.yml`、`src/config/index.js`）**均相对对应端的子目录**，不是仓库根；详见 01 的 4.0 与 07 / 08 顶部说明。
