@@ -677,6 +677,8 @@ POST /plans
 | GET | /records/export?elderId=&from=&to= | 【鉴权】导出服药报告（护理/医生用） |
 
 > **小程序侧落地口径（feat/mp-record）**：列表分页响应暂定 `{list, total}`（前端 `parseRecordsPage` 已容错 `records`/`items` 与裸数组，后端定稿后收紧）；详情由后端 join 计划名 / 药品名返回（06 的 2.7 字段充足）；`POST /records/{recordId}/confirm` 仅 `WRITE_RECORD`（FAMILY）可调用，老人写 40301、监护 PENDING 40302；抓拍留证依赖 `capture-core`（P1，feat/mp-capture），本期小程序详情页缩略图留空占位、不调 `GET /captures`。
+>
+> **`POST /records/{recordId}/confirm` 单接口双语义（record-core 落地补充，2026-10-24）**：`feat/record-core` 用**一个**端点承担"校准已有记录"与"补录新建"两件事——先按 `{recordId}` 查库：① **命中已有记录 → 校准**：仅覆盖请求体里**非空**的 `actualTime`/`actualDose`/`onTime`/`wrongDrug`，`source` 恒置 `MANUAL`（不给设备改回 CAMERA 的机会）；② **记录不存在 → 新建（补录=创建）**：此时路径 `{recordId}` 被**忽略**，由 `med_record_biz_id_seq` 服务端生成新 `mr-` 号并在响应返回（不破坏序列约定），请求体须带 `elderId`/`planId`/`planItemId`/`medicineId`（缺任一带 40001，计划/药品查不到带 40401），`source=MANUAL`，`planTime` 经 `PlanSlotResolver` + 设备时区就近槽重算（无 `planId`/算不出则 NULL）。列表/详情不暴露文件流，只回传 `captureId`（取文件归 `capture-core`）；列表项带 `hasCapture` 供缩略图占位。
 
 ## 8. 告警（列表/处理，实时推送走 WebSocket）
 
