@@ -17,6 +17,12 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] feat/backend-devtools 修复：WsDebugController 恒 401（收窄 _debug 鉴权排除范围）
+
+- `WebMvcConfig` 原把整个 `/api/v1/_debug/**` 一刀切免登录，误伤需鉴权的 `WsDebugController`（`/api/v1/_debug/ws/publish`）：其 `publish()` 调 `AccessService.require` 依赖 `AuthInterceptor` 写入的 `AuthContext`，被排除后 `AuthContext` 恒为空 → 带合法 token 也恒返 401。
+- 改为只排除 `DevtoolsController` 的 `seed` / `mqtt/**` 端点，`/api/v1/_debug/ws/**` 恢复走鉴权（与 `WsDebugController` 文档既定的"强制登录 + 归属校验、越权 40301"一致）；`DevtoolsControllerTest.noLoginRequired` 仍免登录不受影响。
+- 影响端：`medbox-server/` 是（`config/WebMvcConfig` 一处）· `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-24] feat/backend-devtools 落地：联调辅助（种子数据 + 服务端模拟上报）
 
 后端分支 `feat/backend-devtools`（P2）完成：新增 `devtools/` 包，提供两个调试端点（均受 `medbox.devtools.enabled` 开关门禁，默认关闭、生产零暴露面，路径落在 `/api/v1/**` 仍被 `AuthInterceptor` 强制登录）：
