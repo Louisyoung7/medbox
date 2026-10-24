@@ -871,6 +871,72 @@ function handleReset(req, res) {
   ok(res, { reset: true, accounts: DEMO_ACCOUNTS })
 }
 
+// ---------------------------------------------------------------- 联调辅助（02 的 1.5）
+
+/**
+ * `POST /_debug/seed`：一键播种最小链路数据集。
+ *
+ * <p>形状对齐后端 `DevtoolsSeedService` / `SeedResult`（含两个 access token），
+ * 使 02 §1.5 与 03 §5 的 curl 示例在本 Mock 上同样跑得通。
+ * **免登录**（真后端把 seed / mqtt/** 排除在 AuthInterceptor 之外，见 `WebMvcConfig`）。
+ *
+ * <p>⚠️ 返回的是 **Mock 自己的种子 ID**（`u-2001` / `m-201` / `p-3301` ...），与后端
+ * devtools 种子的 `u-1001` / `m-205` 并不相同；页面只用它回填 `deviceId`，不依赖其它 ID。
+ */
+function handleSeed(req, res, query) {
+  // reset 先清后种：必须在取用户 / 签发 token **之前**，否则 token 指向被清掉的用户
+  if (query.reset === 'true') {
+    state = createSeed()
+  }
+  const guardian = state.users.find((u) => u.userId === 'u-2001') || state.users[0]
+  const elder = state.users.find((u) => u.role === 'ELDER') || state.users[0]
+  const device = state.devices.find((d) => d.deviceType === 'MAIN')
+  const stock = state.stocks[0]
+  const plan = state.plans[0]
+  const planItem = plan ? state.planItems.find((pi) => pi.planId === plan.planId) : null
+  const guardianTokens = issueTokens(guardian)
+  const elderTokens = issueTokens(elder)
+  ok(res, {
+    // 内存态下"是否新建"不可考，固定报 false（已存在、跳过写入）—— 与后端幂等语义一致
+    created: false,
+    guardianUserId: guardian.userId,
+    guardianPhone: guardian.phone,
+    guardianToken: guardianTokens.token,
+    elderUserId: elder.userId,
+    elderPhone: elder.phone,
+    elderToken: elderTokens.token,
+    deviceId: device ? device.deviceId : 'BOXA1001',
+    medicineIds: state.medicines.map((m) => m.medicineId),
+    stockId: stock ? stock.stockId : 's-1001',
+    planId: plan ? plan.planId : 'p-3301',
+    planItemId: planItem ? planItem.itemId : 'pi-9001',
+  })
+}
+
+/**
+ * `POST /_debug/mqtt/publish`：服务端模拟设备上报。
+ *
+ * <p>**Mock 不接真 EMQX**：只做参数校验（deviceId / subTopic 必填、payload 必须是字符串、
+ * deviceId 必须是 Mock 里存在的设备 —— 与后端 `DevtoolsMqttSimService` 的 BizAssert 对齐）
+ * 并回显收到的 payload，**不落库、不推 WS**，也不校验 payload 里的业务 ID
+ * （Mock 种子 ID 与后端 devtools 种子不同，如光照子设备这里是 `-S-LGT01`）。
+ * 要在 Mock 上验证"落库 → WS 推送"请连真后端。
+ */
+function handleMqttPublish(req, res, body) {
+  if (!body || !body.deviceId) throw new BizError(40001, 'deviceId 不能为空')
+  if (!body.subTopic) throw new BizError(40001, 'subTopic 不能为空')
+  if (body.payload !== undefined && body.payload !== null && typeof body.payload !== 'string') {
+    // 后端 DTO 把 payload 声明为 String，传对象会被 Jackson 拒掉 —— Mock 提前暴露这个错
+    throw new BizError(40001, 'payload 必须是 JSON 字符串')
+  }
+  const device = state.devices.find((d) => d.deviceId === body.deviceId)
+  if (!device) throw new BizError(40001, `设备不存在: ${body.deviceId}`)
+  console.log(
+    `[mock] 模拟上报 -> medbox/${body.productKey || device.productKey}/${body.deviceId}/up/${body.subTopic}`,
+  )
+  ok(res, null)
+}
+
 // ---------------------------------------------------------------- 路由
 
 const DEMO_ACCOUNTS = [
@@ -969,6 +1035,12 @@ const server = http.createServer(async (req, res) => {
 
     // 测试辅助
     if (req.method === 'POST' && sub === '/__mock__/reset') return handleReset(req, res)
+
+    // 联调辅助（02 的 1.5）：免登录，与真后端 WebMvcConfig 的排除口径一致
+    if (req.method === 'POST' && sub === '/_debug/seed') return handleSeed(req, res, query)
+    if (req.method === 'POST' && sub === '/_debug/mqtt/publish') {
+      return handleMqttPublish(req, res, await readBody(req))
+    }
 
     // 未知路径 / 方法用错：统一 40401 + HTTP 404（02 的 1.2 补充口径）
     throw new BizError(40401, '接口不存在')
