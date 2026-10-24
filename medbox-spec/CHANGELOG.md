@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] feat/record-core 落地：服药记录查询与监护人手工补录/校准
+
+后端分支 `feat/record-core`（P0 第 11 步）完成：新增 `RecordController`（`GET /records` 分页筛选、`GET /records/{recordId}` 详情、`POST /records/{recordId}/confirm`）+ `RecordService`；列表/详情由后端 join 计划名/药名、`hasCapture`/`captureId` 供小程序缩略图占位与抓拍取用（文件流归 `capture-core`）；`confirm` 为**单接口双语义**——命中记录则校准（仅覆盖请求体非空字段、`source` 恒 `MANUAL`），未命中则新建（补录=创建，必填四项、校验计划/药品存在、路径 id 忽略并由 `med_record_biz_id_seq` 生成新 `mr-` 号返回、`planTime` 经就近槽重算或 NULL）。权限矩阵严格：写仅 FAMILY（老人写 40301、监护 PENDING 40302、越权 40301）、详情记录不存在 40401。不动 Flyway（字段/序列已由 `dispense-consume` 就绪）。
+
+- **`02` 第 7 章**：新增 `confirm` 单接口双语义落地说明（校准 vs 新建、覆盖规则、`source=MANUAL` 恒定、新建忽略路径 id 由服务端生成、`planTime` 重算）
+- **`06` 的 2.7**：补 `source` 在补录/校准恒为 `MANUAL`、新建 `planTime` 经就近槽重算或 NULL 的口径
+- **`07`**：`feat/record-core` 勾选 `[x]`
+- 影响端：`medbox-server/` 是（新增 `RecordController`/`RecordService`/`dto/record/` 三文件 + 集成测试 `RecordCoreWebIntegrationTest` 12 例）· `medbox-miniapp/` 否（联调待 `mp-record` 认领）· 嵌入式 否
+
 ## [2026-10-23] 后端落地用户资料查询 `GET /users/{elderId}/profile`（feat/user-profile）
 
 - **`02` 第 3 章**：补 `GET /users/{elderId}/profile` 响应示例与可见性口径（老人本人 / ACTIVE 监护人可见；`PENDING`→40302、无关系/`REVOKED`/目标非老人→40301 防枚举）；1.3 的"未做（有意）"更新为"已由 `feat/user-profile` 交付"
