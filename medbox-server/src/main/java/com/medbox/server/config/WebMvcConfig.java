@@ -1,5 +1,6 @@
 package com.medbox.server.config;
 
+import com.medbox.server.common.web.AdminAuthInterceptor;
 import com.medbox.server.common.web.AuthInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -28,9 +29,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
+    private final AdminAuthInterceptor adminAuthInterceptor;
 
-    public WebMvcConfig(AuthInterceptor authInterceptor) {
+    public WebMvcConfig(AuthInterceptor authInterceptor, AdminAuthInterceptor adminAuthInterceptor) {
         this.authInterceptor = authInterceptor;
+        this.adminAuthInterceptor = adminAuthInterceptor;
     }
 
     @Override
@@ -44,5 +47,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/api/v1/auth/**",
                         "/api/v1/_debug/seed", "/api/v1/_debug/mqtt/**",
                         "/actuator/**");
+
+        // 管理接口独立角色守卫：必须排在 AuthInterceptor 之后（前缀已被其覆盖、AuthContext 已写入，
+        // 否则拦截器按顺序执行会先跑本守卫、拿到空 AuthContext 误报 401）。非 ADMIN → 40301。
+        registry.addInterceptor(adminAuthInterceptor)
+                .addPathPatterns("/api/v1/admin/**");
     }
 }
