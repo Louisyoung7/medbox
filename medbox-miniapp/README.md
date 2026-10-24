@@ -39,18 +39,63 @@ cp .env.example .env.local
 导出内容：
 
 ```js
-import { BASE_URL, WS_URL, SERVER_HOST, setServerHost, normalizeHost } from '@/config/index.js'
+import { BASE_URL, WS_URL, SERVER_HOST, DEFAULT_HOST, setServerHost, getServerHost, clearServerHost, normalizeHost } from '@/config/index.js'
 // BASE_URL = http://{HOST}:8080/medbox/api/v1
 // WS_URL   = ws://{HOST}:8080/medbox/ws
 // 没有 MQTT_URL：小程序不直连 MQTT，设备消息由后端中转
 
 setServerHost('http://192.168.1.23:8080/')  // 归一化后写入 192.168.1.23，返回 true
 setServerHost('')                            // 非法输入：不写入，返回 false
+getServerHost()                              // 读运行时覆盖（'' = 未覆盖，仍走默认）
+clearServerHost()                            // 清除覆盖，回落默认
 ```
 
 > `HOST` 取值链：本地缓存 `serverHost` → `VITE_SERVER_HOST` → **兜底 `127.0.0.1`**（后端跑在本机）。
 > 端口固定 `8080`（与后端 `server.port` 一致），`{HOST}` 里不要再带端口。
-> `serverHost` 目前只能手动写入（设置页归 08 的 `feat/mp-devtools`），且**重启才生效**。
+> `serverHost` 可由**应用内「开发调试」页**写入（见下文，`feat/mp-devtools` 已落地），也可手动写入缓存，且**重启才生效**。
+
+## 开发调试（`feat/mp-devtools`）
+
+「我的 → 开发调试」（`pages/devtools/devtools.vue`）：真机调试时 IP 常变，在这里改一次即可，
+**存本地缓存、重启小程序后生效**，不必重新编译。页面含三块：
+
+| 区块 | 内容 |
+|------|------|
+| 服务器地址（HOST） | 展示当前地址与生效 URL；输入框可粘贴整串地址（保存时自动剥协议 / 端口 / 路径）；「恢复默认」清掉覆盖回落到 `.env.local` / `.env` |
+| 局域网联调说明 | 微信开发者工具「不校验合法域名」勾选、真机调试（开发版）流程、"只需配一个 HOST" |
+| 没有真设备？ | **可点**：「一键播种数据」调 `POST /_debug/seed`（回显账号 / 设备 / 双 token，点 token 复制，并自动回填设备 ID）；下方直接罗列 7 种事件预设，点哪行发哪条（调 `POST /_debug/mqtt/publish`） |
+页面逻辑分层：HOST 读写薄封装在 `src/utils/devtools.js`，报文构造（事件预设 + msgId + 错误文案归一）在 `src/utils/devtools-sim.js`，
+请求层在 `src/api/devtools.js`，底层 HOST 读写与归一化在 `src/config/index.js`。
+
+```js
+import { seedDebugData, publishDeviceEvent } from '@/api/devtools.js'
+import { SIM_EVENT_PRESETS, buildSimPayload, devtoolsErrorMessage } from '@/utils/devtools-sim.js'
+
+await seedDebugData()                                  // 播种，返回 { guardianToken, elderToken, deviceId, ... }
+await publishDeviceEvent({                             // 服务端版 mosquitto_pub
+  deviceId: 'BOXA1001',
+  subTopic: 'event/dispense',
+  payload: buildSimPayload('dispense-on-time', 'BOXA1001'),  // ⚠️ JSON 字符串
+})
+```
+
+- 事件预设 7 种：服药·按时 / 服药·错服 / 服药·迟到 / 温湿度遥测 / 传感器心跳 / 设备异常 / 库存变更，报文与 `medbox-spec/03` 第 5 章示例同形态。
+- **每行预设右侧有「落库 / 仅日志」标签，发送后有结果面板**（topic + msgId + 效果说明 + 「去记录页查看」）。目前只有 `event/dispense` 有专属处理器（`dispense-consume` 已落地，写 `med_record` + 扣库存）；`telemetry` / `sensor/heartbeat` / `event/error` / `inventory` 对应的后端分支（`env-core` / `device-sensor` / `device-fault` / `inventory-consume`）**尚未落地**，消息只被 `LoggingUpMessageHandler` 兜底记一行日志、**不改任何数据** —— 点之前就会标出来，别期待界面变化。
+- **后端未开 `medbox.devtools.enabled` 时接口 404**，页面会用 `devtoolsErrorMessage` 提示"去后端开开关"，不会只说"服务端内部错误"。
+- ⚠️ **服药类预设的两个后端约束**（`utils/devtools-sim.js` 已按此构造，页面也有说明）：
+  1. `onTime` 由后端拿 `ts` **现算**（`!actualTime.isAfter(planTime + 容忍)`），payload 里的 `onTime` 被忽略 —— 所以 `ts` 按"设备本地墙钟"构造（UTC+8，与 devtools 种子的 `device.timezone` 一致），而不是 `Date.now()`，否则下午点"按时"会落一条 `onTime=false` 的记录；
+  2. `med_record` 有 `(plan_item_id, plan_time)` 部分唯一索引（06 的 2.7 规则 6），**同计划项的同计划时间只落一条**。devtools 种子只有 1 个计划项 × 每日 08:00，**槽位是有限资源** —— 因此服药类每次点击都通过持久化计数器（`utils/devtools.js` 的 `takeNextSlotOffset`，缓存 key `simSlotSeq`，刷新小程序不归零）**换一个新的日历天**，不会"点一次就废"。结果面板回显本次落在哪个槽，页面也预告下一个槽。
+- Mock 后端（`tools/mock`）也已实现这两个端点（免登录，与真后端 `WebMvcConfig` 口径一致），`npm run test:e2e` 覆盖 9 项检查；但 Mock 不接 EMQX，只做参数校验与回显，**不落库、不推 WS**。
+
+```js
+import { readServerHost, saveServerHost, resetServerHost } from '@/utils/devtools.js'
+
+readServerHost()        // '' = 仍走编译期默认值；否则返回已覆盖的 HOST
+saveServerHost('http://192.168.1.23:8080/medbox/')  // 归一化后写入，返回 true；非法输入返回 false 且不写缓存
+resetServerHost()       // 清除运行时覆盖
+```
+
+> 调试页需登录后才可用（不在 `store/guard.js` 白名单内），不按角色限制。
 
 ## 浏览器联调（H5）
 
@@ -174,7 +219,7 @@ npm run test:all    # 单元测试 + 端到端一次跑完（AI 完工时的标�
 ```
 medbox-miniapp/
 ├── src/
-│   ├── pages/        # 页面
+│   ├── pages/        # 页面（含 devtools 开发调试页）
 │   ├── components/   # 复用组件（mp-ui-kit）
 │   ├── api/          # 接口封装（mp-request）
 │   ├── store/        # 全局状态（mp-auth）
