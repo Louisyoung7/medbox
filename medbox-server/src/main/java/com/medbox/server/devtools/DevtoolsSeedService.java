@@ -42,7 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code p-3301} / {@code pi-9001}），让 02 §1.4、03 §5 的示例直接可跑。
  *
  * <p><b>幂等</b>：监护人已存在则整批跳过（直接返回已有 ID + 重新签发 token）；{@code reset=true}
- * 先按外键逆序清掉种子数据再重种。
+ * 先按外键逆序清掉种子数据再重种。监护人缺失但其它种子实体残留（例如上次播种后单独删了用户）时，
+ * 非 reset 分支也会先按固定 ID 清残留再插入，可自愈、不会因部分残留而报 DuplicateKey。
  *
  * <p><b>不触发 plan-sync</b>：计划经 Mapper 直写，不会发 {@code PlanSyncEvent}，避免无设备时产生 SYNC_FAILED 噪音。
  */
@@ -108,6 +109,9 @@ public class DevtoolsSeedService {
         if (existsGuardian(s.getGuardianUserId())) {
             return result(false, s, medicineIds);
         }
+        // 监护人不在：可能是首次播种，也可能是上次播种后用户被单独删除导致残留（设备/计划/药品还在）。
+        // 先按固定 ID 清掉任何残留的种子数据，再整批插入——保证可重复、可自愈，不再因部分残留而 DuplicateKey。
+        clearSeed(s);
         insertAll(s);
         return result(true, s, medicineIds);
     }
@@ -151,8 +155,10 @@ public class DevtoolsSeedService {
 
         User elder = new User();
         elder.setUserId(s.getElderUserId());
+        elder.setPhone(s.getElderPhone());
         elder.setName(s.getElderName());
         elder.setRole(UserRole.ELDER);
+        elder.setPasswordHash(passwordHasher.hash(s.getElderPassword()));
         elder.setStatus(UserStatus.ACTIVE);
         elder.setCreatedAt(OffsetDateTime.now());
         userMapper.insert(elder);
@@ -261,8 +267,10 @@ public class DevtoolsSeedService {
     }
 
     private SeedResult result(boolean created, DevtoolsProperties.Seed s, List<String> medicineIds) {
-        String token = jwtProvider.issue(s.getGuardianUserId(), UserRole.GUARDIAN.name(), TokenType.ACCESS);
-        return new SeedResult(created, s.getGuardianUserId(), s.getGuardianPhone(), token,
-                s.getElderUserId(), s.getDeviceId(), medicineIds, STOCK_ID, PLAN_ID, PLAN_ITEM_ID);
+        String guardianToken = jwtProvider.issue(s.getGuardianUserId(), UserRole.GUARDIAN.name(), TokenType.ACCESS);
+        String elderToken = jwtProvider.issue(s.getElderUserId(), UserRole.ELDER.name(), TokenType.ACCESS);
+        return new SeedResult(created, s.getGuardianUserId(), s.getGuardianPhone(), guardianToken,
+                s.getElderUserId(), s.getElderPhone(), elderToken, s.getDeviceId(),
+                medicineIds, STOCK_ID, PLAN_ID, PLAN_ITEM_ID);
     }
 }

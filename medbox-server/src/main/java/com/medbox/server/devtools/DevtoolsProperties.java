@@ -44,7 +44,7 @@ public class DevtoolsProperties {
         private String guardianPhone = "13800001234";
 
         /** 调试监护人密码（明文，仅本地联调用，不进真实账号体系）。 */
-        private String guardianPassword = "Dev@123456";
+        private String guardianPassword = "123456";
 
         /** 调试监护人展示名。 */
         private String guardianName = "调试监护人";
@@ -57,6 +57,12 @@ public class DevtoolsProperties {
 
         /** 调试老人展示名。 */
         private String elderName = "调试老人";
+
+        /** 调试老人手机号（同时也是登录账号，与 §7 注册示例对齐）。 */
+        private String elderPhone = "13800008888";
+
+        /** 调试老人密码（明文，仅本地联调用，不进真实账号体系）。 */
+        private String elderPassword = "123456";
 
         /** 调试药箱主控设备 ID（同时是 MQTT clientId）。 */
         private String deviceId = "BOXA1001";
@@ -113,6 +119,22 @@ public class DevtoolsProperties {
 
         public void setElderName(String elderName) {
             this.elderName = elderName;
+        }
+
+        public String getElderPhone() {
+            return elderPhone;
+        }
+
+        public void setElderPhone(String elderPhone) {
+            this.elderPhone = elderPhone;
+        }
+
+        public String getElderPassword() {
+            return elderPassword;
+        }
+
+        public void setElderPassword(String elderPassword) {
+            this.elderPassword = elderPassword;
         }
 
         public String getDeviceId() {

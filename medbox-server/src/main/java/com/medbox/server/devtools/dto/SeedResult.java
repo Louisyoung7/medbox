@@ -25,6 +25,12 @@ public record SeedResult(
         /** 调试老人业务 ID。 */
         String elderUserId,
 
+        /** 调试老人手机号（登录账号）。 */
+        String elderPhone,
+
+        /** 老人 access token（2 小时），可直接用于 {@code Authorization: Bearer}（老人视角只读本人数据）。 */
+        String elderToken,
+
         /** 调试药箱主控设备 ID。 */
         String deviceId,
 
