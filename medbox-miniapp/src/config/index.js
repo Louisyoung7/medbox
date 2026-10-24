@@ -5,8 +5,8 @@
  * 业务代码一律从这里取后端地址，**禁止在页面 / api 里写死 IP**。
  */
 
-const STORAGE_KEY = 'serverHost'
-const PORT = '8080'
+export const STORAGE_KEY = 'serverHost'
+export const PORT = '8080'
 
 // 编译期默认值：来自 .env / .env.development（入库）与 .env.local（不入库，各人填自己的 IP）
 //
@@ -14,7 +14,7 @@ const PORT = '8080'
 // 它的语义是"后端就跑在这台机器上"（微信开发者工具 / H5 都属于同一台机器），
 // 落到别的网段也不会误连。真机型场景必须显式配：写 .env.local 后重编译，
 // 或由设置页写本地缓存 `serverHost`（见 {@link setServerHost}）。
-const DEFAULT_HOST = import.meta.env.VITE_SERVER_HOST || '127.0.0.1'
+export const DEFAULT_HOST = import.meta.env.VITE_SERVER_HOST || '127.0.0.1'
 // 运行时覆盖：真机调试时 IP 常变，改一次不必重新编译（下次启动生效）
 const HOST = uni.getStorageSync(STORAGE_KEY) || DEFAULT_HOST
 // VITE_TLS 写在入库的 .env（不是 .env.development）：后者只在 development 模式加载，
@@ -111,4 +111,21 @@ export function setServerHost(host) {
 /** 清除运行时覆盖，回落到 `.env.local` / `.env` 的编译期默认值 */
 export function clearServerHost() {
   uni.removeStorageSync(STORAGE_KEY)
+}
+
+/**
+ * 读取当前运行时覆盖的后端 HOST（本地缓存 `serverHost`），未设置时返回空串。
+ *
+ * <p>供"开发调试"页展示当前值用：它要区分"用户已手动设置过"与"仍走编译期默认"
+ * 两种情况，而 {@link HOST}（模块加载时算好的常量）已经把两者合并成一个值、
+ * 看不出是不是被覆盖过，所以另开一个只读缓存的方法。
+ *
+ * <p>**与 {@link SERVER_HOST} 的区别**：本函数实时读缓存，`SERVER_HOST` 是模块加载时的
+ * 快照；设置页写入后 `SERVER_HOST` 不会变（下次启动生效），要提示用户重启。
+ *
+ * @returns {string} 归一化后的 HOST；未覆盖返回空串
+ */
+export function getServerHost() {
+  const stored = uni.getStorageSync(STORAGE_KEY)
+  return typeof stored === 'string' ? stored : ''
 }

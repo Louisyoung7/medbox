@@ -37,6 +37,14 @@ async function loadConfig(storage, options = {}) {
   if (options.platform) {
     process.env.UNI_PLATFORM = options.platform
   }
+  // 先显式清空 VITE_BASE_URL，再套用 options.env 覆盖。
+  //
+  // <p>**为什么必须清**：Vitest 会把本机 `.env.local` 注入 `import.meta.env`，
+  // 而 H5 反代联调的 `.env.local` 里就写着 `VITE_BASE_URL=/medbox/api/v1` ——
+  // 不显式清，"H5 但未配 VITE_BASE_URL"这条用例在**本机必红**（CI 没有 `.env.local`，
+  // 所以只有本地红，极易被误判成"代码写错了"）。清成空串与"真的没配"等价
+  // （`config/index.js` 里 `IS_H5 ? import.meta.env.VITE_BASE_URL : ''` 取到 '' 即回落）。
+  vi.stubEnv('VITE_BASE_URL', '')
   Object.entries(options.env || {}).forEach(([key, value]) => vi.stubEnv(key, value))
   // eslint-disable-next-line no-undef
   const config = await import('@/config/index.js')
