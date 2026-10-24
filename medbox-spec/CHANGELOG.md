@@ -17,6 +17,13 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] feat(admin-testdata-cleanup) 测试数据清理 Web 工具（medbox-admin/）落地
+
+- `09`：`feat/admin-testdata-cleanup` 勾选为已完成；第 4 点种子账号落地引用由 `V10` 顺延为 `V11`（与 CHANGELOG 同日条目一致）。
+- `medbox-admin/`（新建，Vue3 + Vite + Element Plus + Pinia + Vue Router + Vitest）：`/login` 复用 `POST /auth/login`、ADMIN 路由守卫、axios 封装解包 `R<T>` 并映射 `40902/40301/40401/40102/40101`；`/test-data` 筛选条 + 用户表格 + 批量入口 + 顶部护栏横幅 + 二次确认弹框（手输 userId / 数量）+ 可选审计；前端护栏①默认视图仅显 DELETED 或 `test*`/`1380000*` 测试号。全部按 `02` 第 10 章 / 第 3 章契约调用，未新增后端接口。
+- 测试：`npm test` **9 通过 / 0 失败**（api 层 4 + 护栏纯函数 5）；`npm run build` 通过。admin 暂无 Mock 端到端工具，以 Vitest 单测覆盖请求层与护栏逻辑。
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 否 · `medbox-admin/` 是（首个前端分支）· 嵌入式 否
+
 ## [2026-10-24] feat(device-sensor) 传感器子设备心跳消费 + 180s 离线判定 + `GET /devices/{id}/sensors` 落地
 
 - **新增接口**：`GET /devices/{deviceId}/sensors`（鉴权，READ_DEVICE）返回该药箱下传感器子设备列表（`deviceId` / `deviceType` / `onlineState` / `lastHeartbeat`）。此前 08 清单 `feat/mp-device` 标注"该接口不存在、详情从 `sensors[]` 取"——现在两个入口都可用，小程序可按需切换。

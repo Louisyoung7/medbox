@@ -17,7 +17,7 @@
 
 ## 一、本期分支（dev/QA 工具）
 
-- [ ] 🔧 **`feat/admin-testdata-cleanup`** 测试数据清理工具
+- [x] 🔧 **`feat/admin-testdata-cleanup`** 测试数据清理工具
   - 依赖：本端 无；**后端 `feat/backend-admin-cleanup`（见 `07` 第三章）** —— ADMIN 角色门禁 + `GET /admin/users`（列出+筛选）+ `DELETE /admin/users/{userId}`（硬删+级联清理，`ACTIVE` 拒绝 `40902`）+ 种子管理员账号
   - 参考：02 第 10 章、06 的 2.1（V11）、原设计稿《已确认事项》
   - 内容：
@@ -33,7 +33,7 @@
     1. 前端栈默认 **Vue 3 + Vite + Element Plus**（React + Ant Design 亦可但用户无偏好，按默认落地，不另起 React 工程）
     2. ADMIN 落地采用 **方案 A** —— `UserRole` 增加 `ADMIN` + `V11__admin_seed.sql` 种子账号 + 独立角色守卫（后端建模见 `02` 第 10 章 / `06` 的 2.1）；不采用方案 B 白名单
     3. 本期**只做「测试数据清理」这一个工具**，`medbox-admin/` 不搭产品后台框架（路由壳 / 通用登录 / 看板等）
-    4. 种子 admin 凭证：`username=admin`、`password=public`、`status=ACTIVE`、`role=ADMIN`；**不做首次强制改密**（后端落地见 `06` 的 V10）
+    4. 种子 admin 凭证：`username=admin`、`password=public`、`status=ACTIVE`、`role=ADMIN`；**不做首次强制改密**（后端落地见 `06` 的 V11，原写 V10 系笔误，V10 已被 dispense 占用，见 CHANGELOG [2026-10-24]）
 
 ---
 
