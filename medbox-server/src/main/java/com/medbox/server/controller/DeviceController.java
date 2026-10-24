@@ -64,6 +64,12 @@ public class DeviceController {
         return R.ok(deviceService.status(deviceId));
     }
 
+    /** 该药箱下的传感器子设备列表（温湿度 / 光照 / 摄像头，含各自在线状态），feat/device-sensor。 */
+    @GetMapping("/{deviceId}/sensors")
+    public R<List<DeviceDetailResponse.SensorSummary>> sensors(@PathVariable("deviceId") String deviceId) {
+        return R.ok(deviceService.sensors(deviceId));
+    }
+
     /**
      * 设备事件流水（分页，按时间倒序）。
      *

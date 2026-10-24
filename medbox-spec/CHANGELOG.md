@@ -17,6 +17,13 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] feat(device-sensor) 传感器子设备心跳消费 + 180s 离线判定 + `GET /devices/{id}/sensors` 落地
+
+- **新增接口**：`GET /devices/{deviceId}/sensors`（鉴权，READ_DEVICE）返回该药箱下传感器子设备列表（`deviceId` / `deviceType` / `onlineState` / `lastHeartbeat`）。此前 08 清单 `feat/mp-device` 标注"该接口不存在、详情从 `sensors[]` 取"——现在两个入口都可用，小程序可按需切换。
+- **子设备在线状态口径**（与 03 第 3 章 / 06 的 2.3 一致，无口径变更）：消费 `up/sensor/heartbeat`，`online=true` 置 ONLINE 并刷 `last_heartbeat`，`online=false` 立即 OFFLINE（不刷心跳）；每 60s 扫描，ONLINE 且超 **180s** 未刷心跳的子设备判 OFFLINE；**子设备离线不生成 DEVICE_OFFLINE 告警**；跃变写设备事件流水并推 WS `DEVICE_STATUS`（payload 带 `parentDeviceId`）。
+- **新增配置** `medbox.device.sensor-offline-after-ms`（默认 180000）与 `medbox.device.sensor-scan-interval-ms`（默认 60000）。
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（可后续切用新接口，非必须） · 嵌入式 否
+
 ## [2026-10-24] feat(backend-admin-cleanup) 管理后台测试数据清理（ADMIN 接口）落地
 
 - `07`：`feat/backend-admin-cleanup` 勾选为已完成；修正其 `V10__admin_seed.sql` 笔误为 `V11`（V10 已被 dispense 占用）。

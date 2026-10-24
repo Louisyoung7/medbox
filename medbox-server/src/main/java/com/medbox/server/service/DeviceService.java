@@ -209,6 +209,22 @@ public class DeviceService {
     }
 
     /**
+     * 该药箱下的传感器子设备列表（{@code feat/device-sensor}，见文档 02 第 4 章 / 06 的 2.3）。
+     *
+     * <p>与详情的 {@code sensors} 字段同源同构：权限沿用 {@link #requireMain}（READ_DEVICE，
+     * 查不到一律 40301 防枚举），响应项直接复用 {@link DeviceDetailResponse.SensorSummary}。
+     */
+    public List<DeviceDetailResponse.SensorSummary> sensors(String deviceId) {
+        requireMain(deviceId);
+        return deviceMapper.selectList(new LambdaQueryWrapper<Device>()
+                        .eq(Device::getParentDeviceId, deviceId)
+                        .orderByAsc(Device::getDeviceId))
+                .stream()
+                .map(DeviceDetailResponse.SensorSummary::from)
+                .toList();
+    }
+
+    /**
      * 设备事件流水（分页，按时间倒序）。
      *
      * @param page 页码，从 1 起；不传即第 1 页
