@@ -37,6 +37,9 @@ public enum ErrorCode {
     /** 状态冲突（如设备离线无法下发命令、药品仍被库存引用无法删除）。 */
     CONFLICT(40901, HttpStatus.CONFLICT, "状态冲突"),
 
+    /** 活跃账号禁止经管理接口硬删（测试数据清理：{@code DELETE /admin/users/{userId}} 拒绝 ACTIVE 用户）。 */
+    ADMIN_ACTIVE_CONFLICT(40902, HttpStatus.CONFLICT, "活跃账号禁止经管理接口硬删"),
+
     /** 触发限流。 */
     TOO_MANY_REQUESTS(42901, HttpStatus.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试"),
 
