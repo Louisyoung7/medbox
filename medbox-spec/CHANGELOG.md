@@ -17,6 +17,14 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] docs(spec) 修正 _debug 端点鉴权口径：seed / mqtt 免登录（承接 mp-devtools 条目标记的待确认项）
+
+- `medbox-spec/02` 的 1.5 原称 `_debug` 端点"仍被 `AuthInterceptor` 强制登录，`Authorization` 不能省"，与代码不符：`WebMvcConfig` 实际已把 `/api/v1/_debug/seed` 与 `/api/v1/_debug/mqtt/**` 从拦截范围单独排除（`DevtoolsControllerTest.noLoginRequired` 验证不带 `Authorization` 也返回 200）。该错误表述源自 `feat/backend-devtools` 落地时的文档，其后的"收窄 `_debug` 鉴权排除范围"修复只改了代码与 CHANGELOG、漏改 02，本次补齐。
+- 同步修正 02 的 1.5 与 03 的 5.5 里的 curl 示例（去掉误导性的 `-H "Authorization: Bearer <任意已登录用户>"`），并补两点说明：① 免登录的理由是端点已由 `medbox.devtools.enabled` 门禁（关闭时 `DevtoolsController` 不装配、访问返回 `40401` —— 依赖 `application.yml` 的 `throw-exception-if-no-handler-found: true` + `add-mappings: false` + `GlobalExceptionHandler`）；② **同前缀的 `/_debug/ws/publish` 仍必须登录**（要走 `AccessService.require` 归属校验，依赖 `AuthContext`），两者免登录策略刻意不同，防止后来者把整个 `_debug/**` 一刀切。
+- 顺带在 02 的 1.5 明确 `mqtt/publish` 的 `payload` 必须是 JSON **字符串**（后端 DTO 声明为 `String` 并原样透传，传对象会被 Jackson 拒掉）—— 这是小程序 `feat/mp-devtools` 联调时实际踩到的坑。
+- 纯文档修正，**无代码与接口契约变更**；历史条目（含 2026-10-24 `feat/mp-devtools` 里"未改，需后端侧确认"的标注）按约定不回改，以本条为准。
+- 影响端：`medbox-server/` 否（仅文档）· `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-24] feat/mp-devtools 落地：小程序「开发调试」页（运行时改 HOST + 联调说明 + 调试端点）
 
 - `medbox-miniapp` 新增单页 `pages/devtools/devtools.vue`（「我的 → 开发调试」，需登录、不限角色）：**服务器地址**（当前地址 / 生效 URL 预览 / 输入保存 / 恢复默认，写本地缓存 `serverHost`，**重启后生效**）+ **局域网联调说明**（不校验合法域名勾选、真机调试（开发版）流程、只需配一个 HOST）+ **后端调试端点可点**（`POST /_debug/seed` 一键播种并回显双 token 可复制、自动回填设备 ID；`POST /_debug/mqtt/publish` 模拟上报，7 种事件预设**直接罗列在卡片里、点哪行发哪条**，报文与 03 §5 同形态）。**每行带「落库 / 仅日志」标签，发送后出结果面板**（topic + msgId + 效果说明 + 「去记录页查看」）：目前仅 `event/dispense` 有专属处理器（`dispense-consume` 已落地），`telemetry` / `sensor/heartbeat` / `event/error` / `inventory` 的后端分支未落地、仅被兜底处理器记日志不改数据 —— 提前标出以免误判。
