@@ -17,6 +17,16 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] feat/mp-devtools 落地：小程序「开发调试」页（运行时改 HOST + 联调说明 + 调试端点）
+
+- `medbox-miniapp` 新增单页 `pages/devtools/devtools.vue`（「我的 → 开发调试」，需登录、不限角色）：**服务器地址**（当前地址 / 生效 URL 预览 / 输入保存 / 恢复默认，写本地缓存 `serverHost`，**重启后生效**）+ **局域网联调说明**（不校验合法域名勾选、真机调试（开发版）流程、只需配一个 HOST）+ **后端调试端点可点**（`POST /_debug/seed` 一键播种并回显双 token 可复制、自动回填设备 ID；`POST /_debug/mqtt/publish` 模拟上报，7 种事件预设**直接罗列在卡片里、点哪行发哪条**，报文与 03 §5 同形态）。**每行带「落库 / 仅日志」标签，发送后出结果面板**（topic + msgId + 效果说明 + 「去记录页查看」）：目前仅 `event/dispense` 有专属处理器（`dispense-consume` 已落地），`telemetry` / `sensor/heartbeat` / `event/error` / `inventory` 的后端分支未落地、仅被兜底处理器记日志不改数据 —— 提前标出以免误判。
+- **服药类预设按后端两条约束构造**（`utils/devtools-sim.js`，页面亦有说明）：① `onTime` 由后端拿 `ts` 现算（`!actualTime.isAfter(planTime + 容忍)`，`DispenseConsumeService`），payload 的 `onTime` 被忽略 —— 故 `ts` 按设备本地墙钟（UTC+8）取计划槽后数分钟而非 `Date.now()`，否则下午点"按时"会落 `onTime=false`；② `med_record` 的 `(plan_item_id, plan_time)` 部分唯一索引（06 的 2.7 规则 6）使同槽只落一条，而 devtools 种子仅 1 个计划项 × 每日 08:00、**槽位有限** —— 故服药类每次点击经**持久化计数器**（`takeNextSlotOffset`，key `simSlotSeq`，刷新不归零）换一个新日历天，不会"点一次就废"（早期写死 今天/昨天/前天，点完三轮后必触发幂等，实测后修正）。
+- 分层：`src/api/devtools.js`（请求）+ `src/utils/devtools-sim.js`（事件预设 / msgId / payload 序列化 / 错误文案归一，纯函数）+ `src/utils/devtools.js`（HOST 读写薄封装）；`src/config/index.js` 补 `getServerHost()` 并导出 `DEFAULT_HOST` / `STORAGE_KEY` / `PORT`（`setServerHost` / `clearServerHost` / `normalizeHost` 早已由 `feat/mp-request` 落地）。
+- `tools/mock` 同步实现这两个 `_debug` 端点（**免登录**，与真后端 `WebMvcConfig` 排除 `seed` / `mqtt/**` 的口径一致；Mock 不接 EMQX，只做参数校验与回显，不落库不推 WS）；`npm run test:e2e` 增至 **113 项**（新增 9 项）。
+- **顺带修一个测试隔离坑**：`config/__tests__/index.test.js` 的 helper 未隔离 `VITE_BASE_URL`，本机 `.env.local`（H5 反代联调）会把它漏进 `import.meta.env`，导致"H5 未配 VITE_BASE_URL 回落绝对地址"用例**本地必红、CI 绿**（CI 无 `.env.local`）。helper 里显式 `vi.stubEnv('VITE_BASE_URL', '')` 修复，各用例断言意图不变。
+- ⚠️ **发现一处后端文档与代码不一致（未改，需后端侧确认）**：`medbox-spec/02` 的 1.5 称 `_debug` 端点"仍被 `AuthInterceptor` 强制登录，`Authorization` 不能省"，但 `WebMvcConfig` 实际已把 `seed` / `mqtt/**` 排除（免登录，见 `feat/backend-devtools` 2026-10-24 的修复）。前端按"带 token 但不强依赖"实现，两种行为下都能跑。
+- 影响端：`medbox-miniapp/` 是（新页 + api/util 三处 + 一个测试 helper + mock 两端点）· `medbox-server/` 否 · 嵌入式 否
+
 ## [2026-10-24] 09 文档改造：转为分支清单，后端分支回归 07
 
 - `medbox-spec/09` 由"管理后台设计稿"改为**特性分支清单**（结构同 `07`/`08`）：本期只认领 `feat/admin-testdata-cleanup`（测试数据清理 dev/QA 工具），原设计稿的定位 / 角色 / 前端方案 / 已确认事项折进该分支条目的「内容」；原"第六章 分支计划"里登记的 `feat/backend-admin-cleanup` 移除——该后端分支早已在 `07` 第三章单项登记，`07` 为唯一事实源，09 仅以依赖列引用。
