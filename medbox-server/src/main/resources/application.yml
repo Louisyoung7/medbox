@@ -136,3 +136,16 @@ medbox:
     refresh-token-ttl-seconds: 604800   # refresh token 7 天，轮换制（换新即作废旧的）
   idempotency:
     ttl-hours: 24                       # X-Request-Id 幂等记录保留时长（目前只保护 POST /auth/register）
+
+  # —— 联调辅助（feat/backend-devtools，见文档 02 的 1.4 / 03 第 5 章）——
+  # 调试端点总开关：默认关闭；本地联调置 true 才装配 POST /api/v1/_debug/seed 与 /_debug/mqtt/publish
+  devtools:
+    enabled: false
+    seed:
+      guardian-phone: "13800001234"     # 与 02 §1.4 示例对齐
+      guardian-password: "Dev@123456"   # 本地联调用明文，不进真实账号体系
+      guardian-user-id: "u-1001"        # 与 02 §1.4 登录返回示例对齐
+      elder-user-id: "e-1001"           # 与 02 §1.4 示例对齐
+      device-id: "BOXA1001"             # 与 03 §5 示例对齐（MQTT clientId）
+      product-key: medbox-box
+      timezone: Asia/Shanghai

@@ -17,6 +17,18 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] feat/backend-devtools 落地：联调辅助（种子数据 + 服务端模拟上报）
+
+后端分支 `feat/backend-devtools`（P2）完成：新增 `devtools/` 包，提供两个调试端点（均受 `medbox.devtools.enabled` 开关门禁，默认关闭、生产零暴露面，路径落在 `/api/v1/**` 仍被 `AuthInterceptor` 强制登录）：
+- `POST /api/v1/_debug/seed`：以系统身份经各 `Mapper` 直写最小数据集（1 监护人 `u-1001`/老人 `e-1001`/`ACTIVE` 监护关系 + 药箱 `BOXA1001` + 3 传感器 + 公共药 `m-205`/私有药 `m-206` + 库存 `s-1001` + 计划 `p-3301`/`pi-9001`），幂等（已存在跳过，`?reset=true` 先清后种），响应带监护人 token；
+- `POST /api/v1/_debug/mqtt/publish`：复用 `MqttTransport` 发到 `medbox/{productKey}/{deviceId}/up/{subTopic}`，等价于服务端版 `mosquitto_pub`，流经真实入站链路；MQTT 未连返回 `50000`。
+集成测试 `DevtoolsControllerTest` + `DevtoolsGatingTest` 共 9 例覆盖门禁/登录强制/seed 幂等与 reset/mqtt 拼装与错误码，全绿。
+
+- **`02` 的 1.4**：新增 §1.5「快速起联调数据」，给 seed 与 mqtt/publish 示例并复用固定 ID（`u-1001`/`e-1001`/`BOXA1001`/`m-205`/`p-3301`/`pi-9001`）
+- **`03` 第 5 章**：新增 §5.5「服务端模拟上报」，替代/补充 `mosquitto_pub`
+- **`07`**：`feat/backend-devtools` 勾选 `[x]`
+- 影响端：`medbox-server/` 是（新增 `devtools/` 4 文件 + `config/DevtoolsConfig` + application.yml `medbox.devtools` 段 + 集成测试）· `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-24] feat/record-core 落地：服药记录查询与监护人手工补录/校准
 
 后端分支 `feat/record-core`（P0 第 11 步）完成：新增 `RecordController`（`GET /records` 分页筛选、`GET /records/{recordId}` 详情、`POST /records/{recordId}/confirm`）+ `RecordService`；列表/详情由后端 join 计划名/药名、`hasCapture`/`captureId` 供小程序缩略图占位与抓拍取用（文件流归 `capture-core`）；`confirm` 为**单接口双语义**——命中记录则校准（仅覆盖请求体非空字段、`source` 恒 `MANUAL`），未命中则新建（补录=创建，必填四项、校验计划/药品存在、路径 id 忽略并由 `med_record_biz_id_seq` 生成新 `mr-` 号返回、`planTime` 经就近槽重算或 NULL）。权限矩阵严格：写仅 FAMILY（老人写 40301、监护 PENDING 40302、越权 40301）、详情记录不存在 40401。不动 Flyway（字段/序列已由 `dispense-consume` 就绪）。
