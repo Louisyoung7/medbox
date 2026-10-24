@@ -177,13 +177,15 @@ curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/devices/BOXA1001-S-CAM01/
 
 **1）一键播种最小数据集** `POST /api/v1/_debug/seed`
 
-返回 1 监护人（`13800001234` / 密码 `Dev@123456`，userId `u-1001`）+ 1 老人（`e-1001`）+ `ACTIVE` 监护关系 + 1 药箱主控（`BOXA1001`）+ 3 传感器子设备（`BOXA1001-S-TH01` 温湿度 / `BOXA1001-S-LX01` 光照 / `BOXA1001-S-CAM01` 摄像头）+ 公共药 `m-205`（阿司匹林）+ 老人私有药 `m-206`（甲硝唑）+ 库存 `s-1001` + 计划 `p-3301`（含计划项 `pi-9001`，每日 `08:00`）。响应里**直接带监护人 access token**，可立刻复用：
+返回 1 监护人（`13800001234` / 密码 `123456`，userId `u-1001`）+ 1 老人（userId `e-1001` / 手机号 `13800008888` / 密码 `123456`）+ `ACTIVE` 监护关系 + 1 药箱主控（`BOXA1001`）+ 3 传感器子设备（`BOXA1001-S-TH01` 温湿度 / `BOXA1001-S-LX01` 光照 / `BOXA1001-S-CAM01` 摄像头）+ 公共药 `m-205`（阿司匹林）+ 老人私有药 `m-206`（甲硝唑）+ 库存 `s-1001` + 计划 `p-3301`（含计划项 `pi-9001`，每日 `08:00`）。响应里**直接带监护人 access token 与老人 access token**，可立刻复用：
 
 ```bash
 # 播种（幂等：已存在则跳过写入；?reset=true 先清后种）
-TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed \
+GUARDIAN_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed \
   -H "Authorization: Bearer <任意已登录用户的 token>" | jq -r .data.guardianToken)
-echo "$TOKEN"
+ELDER_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed \
+  -H "Authorization: Bearer <任意已登录用户的 token>" | jq -r .data.elderToken)
+echo "$GUARDIAN_TOKEN"; echo "$ELDER_TOKEN"
 ```
 
 > 端点落在 `/api/v1/**`，仍被 `AuthInterceptor` 强制登录——`Authorization: Bearer <token>` 不能省；`medbox.devtools.enabled=false` 时该路径直接返回 `40401`。
@@ -194,7 +196,7 @@ echo "$TOKEN"
 
 ```bash
 curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
+  -H "Authorization: Bearer $GUARDIAN_TOKEN" -H "Content-Type: application/json" -d '{
     "deviceId":"BOXA1001",
     "subTopic":"event/dispense",
     "payload":"{\"msgId\":\"BOXA1001-000123\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\"}"

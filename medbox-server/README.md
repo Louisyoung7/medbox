@@ -113,25 +113,54 @@ docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox \
 自测（本机）：
 
 ```bash
-# 1) 注册（带上 X-Request-Id，重复提交只会建一个号）
+# 1) 注册监护人（带上 X-Request-Id，重复提交只会建一个号）
 curl -s -X POST http://localhost:8080/medbox/api/v1/auth/register \
   -H 'Content-Type: application/json' -H 'X-Request-Id: 8f2c1a9e3b7d4c1a9f0e2d5b6a7c8f10' \
   -d '{"phone":"13800001234","password":"123456","role":"GUARDIAN","name":"李四"}' | jq
+
+# 1b) 注册老人本人（同一个注册接口，role 换成 ELDER；老人是设备近场使用者，只读本人数据）
+curl -s -X POST http://localhost:8080/medbox/api/v1/auth/register \
+  -H 'Content-Type: application/json' -H 'X-Request-Id: 9a1b2c3d4e5f60718293a4b5c6d7e8f09' \
+  -d '{"phone":"13800008888","password":"123456","role":"ELDER","name":"王爷爷"}' | jq
 
 # 2) 登录拿 access token
 TOKEN=$(curl -s -X POST http://localhost:8080/medbox/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"account":"13800001234","password":"123456"}' | jq -r '.data.token')
 
-# 3) 业务接口一律带 -H "Authorization: Bearer $TOKEN"（未带 / 过期 → 40101；40102 只出现在登录/注册）
+# 3) 业务接口一律带 -H "Authorization: Bearer $TOKEN"（未带 / 过期 → 40101；40102 出现在登录 / 注册 / 注销密码错误）
 
 # 4) 刷新（旧的 refresh token 立即作废，重放会撤销该用户全部会话）
 curl -s -X POST http://localhost:8080/medbox/api/v1/auth/refresh \
   -H 'Content-Type: application/json' -d '{"refreshToken":"..."}' | jq
+
+# 5) 注销当前登录账号（feat/backend-user-delete，见文档 02 的 3.1；不可逆，需密码二次确认）
+#    注意：是 POST /api/v1/users/me/delete（不是 DELETE），挂在需鉴权的 /api/v1/users/** 下，不放行
+curl -s -X POST http://localhost:8080/medbox/api/v1/users/me/delete \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"password":"123456"}' | jq
 ```
 
 登录校验由 `common/web/AuthInterceptor` 承担（只拦 `/api/v1/**`，放行 `/api/v1/auth/**` 与 `/actuator/**`）；
 `GET /users/me` 不在本分支（属 `feat/backend-authz`）。
+
+### 7.1 角色模型（两层，别混淆）
+
+注册接口**只接受两种账号角色**（`user.role`，见 `domain/enums/UserRole`）：
+
+- `ELDER` —— 老人本人，设备近场使用者，只读本人数据；
+- `GUARDIAN` —— 监护人 / 子女，对 ACTIVE 监护关系下的老人可读可写。
+
+**`DOCTOR`（家庭医生）/ `NURSE`（社区护理）/ 家属是 `FAMILY`** 不是注册角色，而是**监护关系上的角色**（`guardian_relation.role`，见 `domain/enums/RelationRole`）：
+一个 GUARDIAN 账号在**老人确认监护关系时**被标记成 FAMILY / DOCTOR / NURSE，由此决定他能对这位老人做什么（详见文档 01 第 3 章 / 02 的监护关系接口）：
+
+| 关系角色 | 能干什么（对 ACTIVE 关系下的老人） |
+|----------|--------------------------------------|
+| `FAMILY` 家属 / 子女 | 可读可写：计划、药品、库存、处理告警、阈值、代配 AI Key |
+| `DOCTOR` 家庭医生 | 制定 / 修改服药计划、维护药品禁忌知识库、看依从性报告；**不处理告警、不导出** |
+| `NURSE` 社区护理 | 所辖老人**只读** + 处理告警 + 导出记录；**不可改计划与药品** |
+
+> 所以"医生 / 护士能干什么"的开关落在**监护关系确认**那一步，不在注册接口；传 `role:DOCTOR` 给注册接口会被判非法。
 
 ## 8. 本地 AI 服务（OCR / Embedding，feat/backend-ai-infra）
 
@@ -236,3 +265,60 @@ curl -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/ws/publish \
 - 后续业务分支推送一律调 `WsPushService.publish(topic, type, payload)`，**不要自己持有 `WebSocketSession`**。
 - 本机没起应用也能跑真链路测试：`MEDBOX_WS_LOCAL_TEST=true ./gradlew test --tests '*WsLocalIntegrationTest'`
   （它会自己拉起随机端口的完整上下文，替代手工 wscat）。
+
+## 11. 联调辅助（devtools，feat/backend-devtools，见文档 02 的 1.5 / 03 的 5.5）
+
+给开发者 / QA 的局域网联调辅助端点，**全部走 `medbox.devtools.enabled` 开关**：
+
+- **默认关闭**（`application.yml` 里 `medbox.devtools.enabled: false`），`DevtoolsController` 根本不装配，`POST /api/v1/_debug/seed` 与 `/_debug/mqtt/publish` 访问即 `40401`，生产零暴露面；
+- 置 `true` 重启后才出现，**且无需登录**（端点存在与否本身已被 `devtools.enabled` 门禁，开了即代表本地开发模式，再加登录纯属冗余）；
+- 不引入新鉴权实体、不新增错误码（沿用 02 既有码）；seed 落地的全是**写死的固定 ID**（见下表），与调用者身份无关。
+
+```bash
+# 0) 开开关：把下面这段写进 application-local.yml（不入库，模板见 application-local.yml.example），
+#    然后【必须】激活 local profile 才会被加载，否则写了也不生效：
+#      ./gradlew bootRun --args='--spring.profiles.active=local'
+#    或环境变量：SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
+#
+#    application-local.yml 应含：
+#      medbox:
+#        devtools:
+#          enabled: true
+#
+#    只有 medbox.devtools.enabled=true 时，下面两个 _debug 端点才装配；无需任何登录 token。
+
+# 1) 一键播种最小数据集（返回监护人 token，可立刻复用；幂等：已存在跳过，?reset=true 先清后种）
+#    空库直接调即可，不必先注册账号/登录——seed 自己造 13800001234 监护人 + 13800008888 老人。
+TOKEN=$(curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/seed | jq -r .data.guardianToken)
+echo "$TOKEN"
+
+# 2) 服务端模拟设备上报（等价于"服务端版 mosquitto_pub"，流经真实入站网关→落库→WS 推送）
+curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
+  -H 'Content-Type: application/json' -d '{
+    "deviceId":"BOXA1001",
+    "subTopic":"event/dispense",
+    "payload":"{\"msgId\":\"BOXA1001-000123\",\"ts\":1759474487000,\"userId\":\"e-1001\",\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\"}" }'
+```
+
+> **⚠️ 别预注册保留号**：`13800001234`（监护人）与 `13800008888`（老人）是 seed 写死的保留号。若你先按第 7 节用手动注册占了其中某个手机号，再跑 seed 会因手机号唯一约束冲突而失败——直接空库跑 seed 即可，或换别的手机号做 auth 自测。
+
+> **seed 覆盖哪些角色？** 只造 **1 个 GUARDIAN（监护关系角色 `FAMILY`）+ 1 个 ELDER** 及二者一条 `ACTIVE` 监护关系，**不造 DOCTOR / NURSE 监护人**。返回的 token 是那个 `FAMILY` 监护人的。所以：
+> - 测"家属/子女"视角的读写 → 直接用 seed 给的 `guardianToken` 即可；
+> - 测"家庭医生 / 社区护理"权限 → seed **给不了**，需自己再注册一个 GUARDIAN 账号，再让老人以 `DOCTOR` / `NURSE` 确认监护关系（接口见文档 02 的监护关系章）；
+> - 测"老人本人"只读 → seed 已返回 `elderToken`（对应 `e-1001` / 手机号 `13800008888` / 密码 `123456`），直接 `Authorization: Bearer $ELDER_TOKEN` 即可，无需另走登录。
+
+播种落地的固定业务 ID（与文档 02 §1.4 / 03 §5 的示例完全对齐，使其可直接跑通）：
+
+| 实体 | 业务 ID | 备注 |
+|------|---------|------|
+| 监护人 | `13800001234` / 密码 `123456` / userId `u-1001` | 返回 `guardianToken` 即此账号 |
+| 老人 | userId `e-1001` / 手机号 `13800008888` / 密码 `123456` | 与监护人直接是 `ACTIVE` 监护关系（跳过申请→确认）；返回 `elderToken` 可直接以老人视角登录 |
+| 药箱主控 | `BOXA1001` | productKey 取 `medbox.device.default-product-key`（默认 `medbox-box`） |
+| 传感器子设备 | `BOXA1001-S-TH01`（温湿度）/ `BOXA1001-S-LX01`（光照）/ `BOXA1001-S-CAM01`（摄像头） | |
+| 药品 | `m-205`（阿司匹林，公共）+ `m-206`（甲硝唑，老人私有） | |
+| 库存 | `s-1001` | 有效期未过期 |
+| 计划 | `p-3301`（含计划项 `pi-9001`，每日 `08:00`） | |
+
+- 模拟消息若触发计划下发（`down/schedule`），设备不在场会 `SYNC_FAILED`，属预期，不视为缺陷。
+- MQTT 没启 / 没连 broker 时该端点返回 `50000`，先按第 9 节起好 EMQX。
+- 完整字段语义见文档 02 的 1.5（seed 响应结构）与 03 的 5.5（payload 与各 `subTopic` 对齐）。
