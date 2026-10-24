@@ -181,22 +181,24 @@ curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/devices/BOXA1001-S-CAM01/
 
 ```bash
 # 播种（幂等：已存在则跳过写入；?reset=true 先清后种）
-GUARDIAN_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed \
-  -H "Authorization: Bearer <任意已登录用户的 token>" | jq -r .data.guardianToken)
-ELDER_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed \
-  -H "Authorization: Bearer <任意已登录用户的 token>" | jq -r .data.elderToken)
+# 免登录：不需要 Authorization 头（见下方口径说明）
+GUARDIAN_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed | jq -r .data.guardianToken)
+ELDER_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed | jq -r .data.elderToken)
 echo "$GUARDIAN_TOKEN"; echo "$ELDER_TOKEN"
 ```
 
-> 端点落在 `/api/v1/**`，仍被 `AuthInterceptor` 强制登录——`Authorization: Bearer <token>` 不能省；`medbox.devtools.enabled=false` 时该路径直接返回 `40401`。
+> **鉴权口径（2026-10-24 修正）**：`_debug/seed` 与 `_debug/mqtt/**` **免登录** —— `WebMvcConfig` 把这两个路径从 `AuthInterceptor` 的 `/api/v1/**` 里单独排除（`DevtoolsControllerTest.noLoginRequired` 即验证不带 `Authorization` 也能 200）。理由是端点本身已由 `medbox.devtools.enabled` 门禁：该属性为 false 时 `DevtoolsController` 根本不装配，访问返回 `40401`（`application.yml` 配了 `spring.mvc.throw-exception-if-no-handler-found: true` 与 `add-mappings: false`，未命中路径经 `GlobalExceptionHandler` 统一成 40401），生产零暴露面；开启即代表"本地开发模式"，再要求登录纯属冗余摩擦。带了 token 也无害，只是不生效、也不需要。
+>
+> ⚠️ **同前缀的 `/_debug/ws/publish` 仍必须登录**：它要走 `AccessService.require` 做归属校验（越权照样 40301），而该校验依赖 `AuthInterceptor` 写入的 `AuthContext`。因此**不能**把整个 `/api/v1/_debug/**` 一刀切免登录—— Devtools 与 WsDebug 的免登录策略是刻意不同的（见 `medbox-spec/04` 与 `WebMvcConfig` 注释）。
 
 **2）服务端模拟设备上报** `POST /api/v1/_debug/mqtt/publish`
 
-等价于"服务端版 `mosquitto_pub`"：把报文发到 `medbox/{productKey}/{deviceId}/up/{subTopic}`，流经真实入站网关 → 各 `UpMessageHandler` → 落库 → WS 推送整条链路。无真设备时也能端到端验证（详见文档 03 第 5 章）。`payload` 透传原始 JSON：
+等价于"服务端版 `mosquitto_pub`"：把报文发到 `medbox/{productKey}/{deviceId}/up/{subTopic}`，流经真实入站网关 → 各 `UpMessageHandler` → 落库 → WS 推送整条链路。无真设备时也能端到端验证（详见文档 03 第 5 章）。`payload` 透传原始 JSON（**必须是 JSON 字符串**，后端 DTO 声明为 `String` 并原样透传，传对象会被 Jackson 拒掉）：
 
 ```bash
+# 免登录：不需要 Authorization 头（带了也无害，但不生效、也不需要）
 curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
-  -H "Authorization: Bearer $GUARDIAN_TOKEN" -H "Content-Type: application/json" -d '{
+  -H "Content-Type: application/json" -d '{
     "deviceId":"BOXA1001",
     "subTopic":"event/dispense",
     "payload":"{\"msgId\":\"BOXA1001-000123\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\"}"

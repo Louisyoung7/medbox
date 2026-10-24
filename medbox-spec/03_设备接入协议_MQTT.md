@@ -200,13 +200,13 @@ mosquitto_sub -h 192.168.1.10 -p 1883 -i debugger-01 \
 没有真设备、或不想装 `mosquitto` 时，可用后端调试端点 `POST /api/v1/_debug/mqtt/publish` 在**服务端**直接把报文发到上行 topic，效果等价于上面的 `mosquitto_pub`，且会流经真实入站网关 → 各 `UpMessageHandler` → 落库 → WS 推送整条链路（需先按文档 02 的 1.5 置 `medbox.devtools.enabled: true` 并播种数据）：
 
 ```bash
-# 先播种拿 token（见 02 的 1.5）
-TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed \
-  -H "Authorization: Bearer <任意已登录用户>" | jq -r .data.guardianToken)
+# 先播种拿 token（见 02 的 1.5）—— seed 与 mqtt/publish 均免登录，不需要 Authorization 头；
+# 这里拿 token 只是为了后面验证"播种出来的账号能正常登录/调用业务接口"
+TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed | jq -r .data.guardianToken)
 
 # 等价于 mosquitto_pub -t medbox/medbox-box/BOXA1001/up/event/dispense -m '{...}'
 curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
+  -H "Content-Type: application/json" -d '{
     "deviceId":"BOXA1001",
     "subTopic":"event/dispense",
     "payload":"{\"msgId\":\"BOXA1001-0000000124\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\",\"imageId\":null}"
@@ -214,5 +214,6 @@ curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
 ```
 
 - `productKey` 缺省取 `medbox.device.default-product-key`（默认 `medbox-box`），故完整 topic 为 `medbox/medbox-box/BOXA1001/up/event/dispense`；也可在 body 里显式传 `productKey` 覆盖。
+- `seed` 与 `mqtt/publish` 均**免登录**（由 `medbox.devtools.enabled` 门禁控制装配，关闭时访问返回 `40401`）；同前缀的 `/_debug/ws/publish` 仍必须登录，两者策略刻意不同，详见 02 的 1.5。
 - MQTT 未连 broker 时返回 `50000`，提示先启动 EMQX。
 - 上行子路径 `subTopic` 与 03 第 2 章一致：`telemetry` / `sensor/heartbeat` / `event/dispense` / `event/error` / `inventory` / `cap/heartbeat` 等。
