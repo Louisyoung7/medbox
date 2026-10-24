@@ -13,6 +13,17 @@
       <MbCell title="角色" :value="roleText" />
     </MbCard>
 
+    <!-- 开发调试（feat/mp-devtools）：真机联调时改后端 HOST，不必重新编译 -->
+    <MbCard title="开发调试">
+      <MbCell
+        title="服务器地址与联调说明"
+        label="局域网联调：改后端 HOST、真机调试流程"
+        arrow
+        clickable
+        @click="onOpenDevtools"
+      />
+    </MbCard>
+
     <RoleGate entry="alarmSettings">
       <MbCard title="监护台">
         <text class="guard-hint">仅监护人可见：告警设置、环境阈值、为老人配置 AI Key 将在此区域。</text>
@@ -101,6 +112,16 @@ export default {
     },
   },
   methods: {
+    /**
+     * 打开开发调试页（`feat/mp-devtools`）：运行时改后端 HOST + 联调说明。
+     *
+     * <p>不按角色限制（联调便利工具，不涉及业务数据）；页面**不在** `store/guard.js`
+     * 白名单里，未登录时会被守卫拦下并回跳登录页 —— 符合"调试页要登录后才可用"的预期。
+     */
+    onOpenDevtools() {
+      uni.navigateTo({ url: '/pages/devtools/devtools' })
+    },
+
     onLogout() {
       uni.showModal({
         title: '退出登录',
