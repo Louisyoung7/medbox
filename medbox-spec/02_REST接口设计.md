@@ -517,7 +517,7 @@ DELETE /users/guardians/{relationId}
 
 #### 4.0 后端落地（`feat/device-core`）
 
-本节的**注册 + 四个 GET**（列表 / 详情 / 状态 / 事件流水）已落地；`POST /devices/{id}/commands` 归 `feat/device-command`、`GET /devices/{id}/sensors` 归 `feat/device-sensor`。
+本节的**注册 + 五个 GET**（列表 / 详情 / 状态 / 事件流水 / 子设备列表）已落地；`POST /devices/{id}/commands` 归 `feat/device-command`。
 
 **谁可以注册**：`POST /devices/register` 是**监护人代老人**登记设备 —— 走 `require(elderId, WRITE_DEVICE)`，**只 FAMILY 监护人具备该权限**。老人本人（`SELF`）、医生、护理一律 40301（见 1.3 权限矩阵）。设备端**不做无 Token 自注册**，仍走 JWT。
 
