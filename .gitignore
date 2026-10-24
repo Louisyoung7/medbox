@@ -38,6 +38,7 @@ replay_pid*
 # ---------- Node / uni-app（medbox-miniapp/、medbox-admin/） ----------
 node_modules/
 dist/
+.vite/
 build/
 unpackage/
 npm-debug.log*
