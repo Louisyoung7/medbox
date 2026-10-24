@@ -171,6 +171,40 @@ curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/devices/BOXA1001-S-CAM01/
   -F "file=@capture.jpg" -F "reason=WRONG_DRUG" -F "medicineId=m-205" | jq
 ```
 
+### 1.5 快速起联调数据（feat/backend-devtools）
+
+> 面向开发者 / QA 的局域网联调辅助端点，全部走 `medbox.devtools.enabled` 开关（**默认关闭**，生产零暴露面），不引入新鉴权实体、不新增错误码。先置 `medbox.devtools.enabled: true`（见 application.yml 的 `medbox.devtools` 段），重启后可用。
+
+**1）一键播种最小数据集** `POST /api/v1/_debug/seed`
+
+返回 1 监护人（`13800001234` / 密码 `123456`，userId `u-1001`）+ 1 老人（userId `e-1001` / 手机号 `13800008888` / 密码 `123456`）+ `ACTIVE` 监护关系 + 1 药箱主控（`BOXA1001`）+ 3 传感器子设备（`BOXA1001-S-TH01` 温湿度 / `BOXA1001-S-LX01` 光照 / `BOXA1001-S-CAM01` 摄像头）+ 公共药 `m-205`（阿司匹林）+ 老人私有药 `m-206`（甲硝唑）+ 库存 `s-1001` + 计划 `p-3301`（含计划项 `pi-9001`，每日 `08:00`）。响应里**直接带监护人 access token 与老人 access token**，可立刻复用：
+
+```bash
+# 播种（幂等：已存在则跳过写入；?reset=true 先清后种）
+GUARDIAN_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed \
+  -H "Authorization: Bearer <任意已登录用户的 token>" | jq -r .data.guardianToken)
+ELDER_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed \
+  -H "Authorization: Bearer <任意已登录用户的 token>" | jq -r .data.elderToken)
+echo "$GUARDIAN_TOKEN"; echo "$ELDER_TOKEN"
+```
+
+> 端点落在 `/api/v1/**`，仍被 `AuthInterceptor` 强制登录——`Authorization: Bearer <token>` 不能省；`medbox.devtools.enabled=false` 时该路径直接返回 `40401`。
+
+**2）服务端模拟设备上报** `POST /api/v1/_debug/mqtt/publish`
+
+等价于"服务端版 `mosquitto_pub`"：把报文发到 `medbox/{productKey}/{deviceId}/up/{subTopic}`，流经真实入站网关 → 各 `UpMessageHandler` → 落库 → WS 推送整条链路。无真设备时也能端到端验证（详见文档 03 第 5 章）。`payload` 透传原始 JSON：
+
+```bash
+curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
+  -H "Authorization: Bearer $GUARDIAN_TOKEN" -H "Content-Type: application/json" -d '{
+    "deviceId":"BOXA1001",
+    "subTopic":"event/dispense",
+    "payload":"{\"msgId\":\"BOXA1001-000123\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\"}"
+  }'
+```
+
+> `productKey` 缺省取 `medbox.device.default-product-key`（默认 `medbox-box`）。MQTT 未连 broker 时返回 `50000`，提示先启动 EMQX。本端点不触发 `plan-sync` 下发（种子计划经 Mapper 直写，`syncState` 置 `PENDING`），设备不在场不会产生 `SYNC_FAILED` 噪音。
+
 ## 2. 核心数据模型
 
 > 全部实体清单与建表 DDL 见文档 06《数据库设计》。本文件只列接口用到的实体名，便于对照路径含义。
