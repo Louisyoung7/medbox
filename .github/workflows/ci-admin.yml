@@ -1,0 +1,53 @@
+name: CI · medbox-admin
+
+# 只关心前端管理后台目录：改动 medbox-server/ 或 medbox-miniapp/ 不会触发本工作流（同理见 ci-server.yml / ci-miniapp.yml）
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'medbox-admin/**'
+      - '.github/workflows/ci-admin.yml'
+  pull_request:
+    paths:
+      - 'medbox-admin/**'
+      - '.github/workflows/ci-admin.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-admin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 单测 + 构建 Web 工具
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbox-admin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: medbox-admin/package-lock.json
+
+      - name: 安装依赖（锁版本）
+        run: npm ci
+
+      # 功能分支：先跑 Vitest 单测（api 层 + 护栏纯函数），失败即中断
+      - name: 运行单测
+        run: npm test
+
+      - name: 构建 Web 产物
+        run: npm run build
+
+      # 构建产物留存，供下载后用静态服务器（如 `npx serve`）跑 dev/QA 工具；CI 不自动部署
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: medbox-admin/dist
+          if-no-files-found: warn
