@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 104 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 113 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -290,6 +290,23 @@ async function waitReady() {
       }
     })
     check('WS 握手 + ping 回 pong', wsResult.ok, JSON.stringify(wsResult))
+
+    console.log('== 联调辅助 _debug（02 的 1.5） ==')
+    // 免登录：与真后端 WebMvcConfig 把 seed / mqtt/** 排除在鉴权外的口径一致
+    const seed = await call('POST', '/_debug/seed')
+    check('seed 免登录成功', seed.code === 0 && !!seed.data)
+    check('seed 回带双 token 与设备 ID', !!seed.data.guardianToken && !!seed.data.elderToken && seed.data.deviceId === 'BOXA1001')
+    check('seed 幂等（created=false）', seed.data.created === false)
+    check('seed 的 token 真能用', (await call('GET', '/users/me', { token: seed.data.guardianToken })).code === 0)
+    const sim = await call('POST', '/_debug/mqtt/publish', {
+      body: { deviceId: 'BOXA1001', subTopic: 'event/dispense', payload: '{"msgId":"BOXA1001-0000000001","ts":1}' },
+    })
+    check('模拟上报成功（payload 为字符串）', sim.code === 0)
+    check('缺 deviceId 40001', (await call('POST', '/_debug/mqtt/publish', { body: { subTopic: 'telemetry' } })).code === 40001)
+    check('缺 subTopic 40001', (await call('POST', '/_debug/mqtt/publish', { body: { deviceId: 'BOXA1001' } })).code === 40001)
+    // 后端 DTO 把 payload 声明为 String，传对象会被 Jackson 拒掉 —— Mock 提前暴露这个错
+    check('payload 传对象 40001', (await call('POST', '/_debug/mqtt/publish', { body: { deviceId: 'BOXA1001', subTopic: 'telemetry', payload: { a: 1 } } })).code === 40001)
+    check('设备不存在 40001', (await call('POST', '/_debug/mqtt/publish', { body: { deviceId: 'BOXA9999', subTopic: 'telemetry', payload: '{}' } })).code === 40001)
 
     console.log('== 重置 ==')
     const reset = await call('POST', '/__mock__/reset')

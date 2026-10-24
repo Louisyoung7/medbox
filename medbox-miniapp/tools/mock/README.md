@@ -8,7 +8,7 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、104 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、113 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 
@@ -43,6 +43,10 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `POST /users/{elderId}/guardians`（申请，无请求体）、`GET /users/guardians/pending`（老人端待确认，join 姓名+手机，按 `createdAt` 升序）、`PATCH /users/guardians/{relationId}/accept`（确认，请求体 `{role}` 必填，FAMILY/DOCTOR/NURSE）、`DELETE /users/guardians/{relationId}`（拒绝 / 解除，任一方，幂等）
   - 权限口径照 02 的 3.2 规则表：非监护人申请 / 目标不是老人 / 查不到 / 非关系双方 → **40301**（防枚举，不回 40401）；已有 PENDING/ACTIVE → **40901**；REVOKED → 复活为 PENDING 并清空 role；非老人看列表 / 监护人点确认 → **40301**；role 缺失或非法 → **40001**；重复确认（已非 PENDING）→ **40901**
   - 种子 4 条关系（gr-1/gr-2 ACTIVE、gr-3 PENDING、gr-4 REVOKED），`createdAt` 相对运行时刻计算
+- `POST /_debug/seed`（一键播种，免登录，回带双 access token）、`POST /_debug/mqtt/publish`（服务端模拟设备上报，免登录）
+  - 与真后端口径一致：这两个路径在 `WebMvcConfig` 里被排除在 `AuthInterceptor` 之外（`medbox.devtools.enabled=false` 时真后端直接不装配、返回 404）
+  - ⚠️ **Mock 不接 EMQX**：`mqtt/publish` 只校验 `deviceId` / `subTopic` 必填、`payload` 必须是 JSON **字符串**（后端 DTO 收 `String`，传对象会被 Jackson 拒掉）、`deviceId` 须是 Mock 里存在的设备，然后打日志回显，**不落库、不推 WS**，也不校验 payload 里的业务 ID（Mock 种子 ID 与后端 devtools 种子不同，如光照子设备这里是 `-S-LGT01`）
+  - 小程序「开发调试」页（`feat/mp-devtools`）的「一键播种数据」「模拟设备上报」两个按钮打的就是这两个端点
 
 ## 可验证的场景
 
