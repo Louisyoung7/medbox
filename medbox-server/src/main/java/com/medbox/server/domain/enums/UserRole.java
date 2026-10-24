@@ -5,8 +5,11 @@ import java.util.Locale;
 /**
  * 用户角色（{@code user.role}，见文档 06 的 2.1）。
  *
- * <p>注册接口**只接受这两种**（文档 02 第 3 章）：社区护理 / 家庭医生不是小程序注册角色，
+ * <p>注册接口**只接受 {@code ELDER} / {@code GUARDIAN}**（文档 02 第 3 章）：社区护理 / 家庭医生不是小程序注册角色，
  * 它们是 {@code guardian_relation.role}（FAMILY / DOCTOR / NURSE），由老人在确认监护关系时指定。
+ *
+ * <p>{@code ADMIN} 仅供「测试数据清理」管理工具（{@code feat/backend-admin-cleanup}，见 02 第 10 章 / 06 的 2.1
+ * V11 种子账号）使用，**不是小程序注册角色**，只由种子账号 {@code admin} 持有，业务代码不生成该角色。
  */
 public enum UserRole {
 
@@ -14,7 +17,10 @@ public enum UserRole {
     ELDER,
 
     /** 监护人 / 子女（对 ACTIVE 监护关系下的老人可读可写）。 */
-    GUARDIAN;
+    GUARDIAN,
+
+    /** 管理后台（测试数据清理，ADMIN 接口门禁，见 02 第 10 章）。 */
+    ADMIN;
 
     /** 宽松解析（忽略大小写与首尾空格）；不是合法角色返回 {@code null}，由调用方决定报错码。 */
     public static UserRole parse(String value) {
