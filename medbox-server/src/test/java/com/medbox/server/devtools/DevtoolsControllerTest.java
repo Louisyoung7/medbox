@@ -49,7 +49,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 联调辅助端点的 Web 集成测试（MockMvc 打真实链路：拦截器 → 控制器 → Service 编排层）。
  *
  * <p>Mapper 全部打桩（不跑真实 SQL，符合 AGENTS.md 3.1 的"CI 无 Postgres"约束），重点验证：
- * 门禁生效、登录强制、种子幂等与 reset、模拟上报的 topic 拼装与 payload 透传、MQTT 未连接时的错误码。
+ * 门禁生效（devtools.enabled 控制装配）、免登录即可调用、种子幂等与 reset、模拟上报的 topic 拼装与 payload 透传、MQTT 未连接时的错误码。
  */
 @WebMvcTest(controllers = DevtoolsController.class, properties = "medbox.devtools.enabled=true")
 @Import({DevtoolsConfig.class, JwtProvider.class, PasswordHasher.class,
@@ -97,11 +97,16 @@ class DevtoolsControllerTest {
     }
 
     @Test
-    @DisplayName("未登录 → 401 / 40101")
-    void unauthorized() throws Exception {
+    @DisplayName("开启 devtools 时 _debug 免登录：无 token 也能播种")
+    void noLoginRequired() throws Exception {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+
         mockMvc.perform(post("/api/v1/_debug/seed").contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(40101));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.created").value(true))
+                .andExpect(jsonPath("$.data.guardianToken").exists())
+                .andExpect(jsonPath("$.data.elderToken").exists());
     }
 
     @Test
@@ -117,10 +122,12 @@ class DevtoolsControllerTest {
                 .andExpect(jsonPath("$.data.created").value(true))
                 .andExpect(jsonPath("$.data.guardianUserId").value("u-1001"))
                 .andExpect(jsonPath("$.data.elderUserId").value("e-1001"))
+                .andExpect(jsonPath("$.data.elderPhone").value("13800008888"))
                 .andExpect(jsonPath("$.data.deviceId").value("BOXA1001"))
                 .andExpect(jsonPath("$.data.planId").value("p-3301"))
                 .andExpect(jsonPath("$.data.planItemId").value("pi-9001"))
-                .andExpect(jsonPath("$.data.guardianToken").exists());
+                .andExpect(jsonPath("$.data.guardianToken").exists())
+                .andExpect(jsonPath("$.data.elderToken").exists());
 
         // 监护人 + 老人 = 2 次；关系 1 次；设备 1 主控 + 3 传感器 = 4 次；
         // 药品 2 次；库存 1 次；计划 1 次；计划项 1 次
@@ -131,6 +138,23 @@ class DevtoolsControllerTest {
         verify(medicineStockMapper).insert(any(MedicineStock.class));
         verify(medPlanMapper).insert(any(MedPlan.class));
         verify(medPlanItemMapper).insert(any(MedPlanItem.class));
+    }
+
+    @Test
+    @DisplayName("监护人缺失但有残留数据（如设备/计划）：自愈——先清残留再插入")
+    void seedHealsPartialLeftover() throws Exception {
+        when(userMapper.selectCount(any())).thenReturn(0L); // 监护人不在，但设备/计划等可能残留
+
+        mockMvc.perform(post("/api/v1/_debug/seed").contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.created").value(true))
+                .andExpect(jsonPath("$.data.guardianToken").exists());
+
+        // 先按固定 ID 清掉残留（设备被删两次：主控 + 传感器），再整批插入
+        verify(deviceMapper, times(2)).delete(any(Wrapper.class));
+        verify(userMapper, times(2)).insert(any(User.class));
+        verify(deviceMapper, times(4)).insert(any(Device.class));
     }
 
     @Test

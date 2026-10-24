@@ -19,8 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code POST /api/v1/_debug/mqtt/publish} —— 服务端模拟设备上报，等价于 {@code mosquitto_pub}。</li>
  * </ul>
  *
- * <p><b>它不是后门</b>：路径落在 {@code /api/v1/**} → 被 {@code AuthInterceptor} 强制登录；
- * 再叠加 {@code medbox.devtools.enabled} 属性门禁，生产默认零装配、零暴露面。
+ * <p><b>它不是后门</b>：端点由 {@code @ConditionalOnProperty(medbox.devtools.enabled)} 控制装配，
+ * 该属性为 false 时 {@code DevtoolsController} 根本不创建（访问即 40401），生产零暴露面。
+ * 因此这里<b>不要求登录</b>——能在本地调通它，本身就说明 {@code devtools.enabled=true}（即本地开发模式），
+ * 再加登录只是冗余摩擦；请求体/响应也完全基于写死的最小数据集 ID，与调用者身份无关。
  */
 @RestController
 @RequestMapping("/api/v1/_debug")
