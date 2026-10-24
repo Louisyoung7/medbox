@@ -17,6 +17,12 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-24] feat(backend-admin-cleanup) 管理后台测试数据清理（ADMIN 接口）落地
+
+- `07`：`feat/backend-admin-cleanup` 勾选为已完成；修正其 `V10__admin_seed.sql` 笔误为 `V11`（V10 已被 dispense 占用）。
+- `02` 第 10 章 / `06` 的 2.1 / `09`：ADMIN 角色门禁、`GET /admin/users`（列出+筛选）、`DELETE /admin/users/{userId}`（硬删+级联清理、ACTIVE 拒绝 `40902`）、`UserRole.ADMIN` 与种子账号 `admin`/`public` 已落地；`02` 与 `09` 里残留的 `V10__admin_seed.sql` 引用统一顺延为 `V11`。
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否 · `medbox-admin/` 否（前端 `feat/admin-testdata-cleanup` 待实现）
+
 ## [2026-10-24] docs(spec) 修正 _debug 端点鉴权口径：seed / mqtt 免登录（承接 mp-devtools 条目标记的待确认项）
 
 - `medbox-spec/02` 的 1.5 原称 `_debug` 端点"仍被 `AuthInterceptor` 强制登录，`Authorization` 不能省"，与代码不符：`WebMvcConfig` 实际已把 `/api/v1/_debug/seed` 与 `/api/v1/_debug/mqtt/**` 从拦截范围单独排除（`DevtoolsControllerTest.noLoginRequired` 验证不带 `Authorization` 也返回 200）。该错误表述源自 `feat/backend-devtools` 落地时的文档，其后的"收窄 `_debug` 鉴权排除范围"修复只改了代码与 CHANGELOG、漏改 02，本次补齐。
