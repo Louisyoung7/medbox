@@ -18,20 +18,20 @@
 |------|----|--------|----------|------|
 | `medbox-server/` | Java 后端 | **Spring Boot 4 + Java 21 + Gradle（Kotlin DSL）** | `medbox-spec/07` | ✅ 实现 |
 | `medbox-miniapp/` | uni-app 小程序 | Vue3 + Vite | `medbox-spec/08` | ✅ 实现 |
-| `medbox-admin/` | Web 前端 / 管理后台 | 未定 | 无（待设计） | ⏸ **本期占位，不要在这里写代码** |
+| `medbox-admin/` | Web 前端 / 管理后台 | 本期先做「测试数据清理」dev/QA 工具，分支清单见 `09` | ⏸ 仅 `feat/admin-testdata-cleanup`（设计见 `09`）；真实产品后台仍待设计 |
 | `medbox-spec/` | 本文档集（唯一权威副本） | — | — | ✅ |
 
 **给 AI 的三条硬要求**：
 
 1. **先确认自己在哪个端**：接到需求先判断落在 `medbox-server/` 还是 `medbox-miniapp/`，**不要跨端改动**（一个分支只动一个端；确实需要跨端时必须先向用户说明并尽量拆成两个分支）。
 2. **相对路径是相对端目录的**：文档里写 `src/main/resources/application.yml` 指 `medbox-server/src/main/resources/application.yml`；写 `src/config/index.js` 指 `medbox-miniapp/src/config/index.js`。**不要在仓库根建 `src/`**。
-3. **`medbox-admin/` 本期不实现**：没有 09 清单，也没有管理员接口（见 01 第 3 章）。用户若要求做 Web 前端，先提醒"文档未设计、需先补接口与清单"。
+3. **`medbox-admin/` 本期只做测试数据清理工具**：分支清单在 `09`（结构同 `07`/`08`），首个分支 `feat/admin-testdata-cleanup`，后端接口依赖 `feat/backend-admin-cleanup`（已在 `07` 第三章登记）。真实产品后台（用户管理/设备管理/统计看板等）仍待设计，届时在 `02`/`06` 补接口、在 `09` 补分支；用户若要求超出测试数据清理的 Web 前端，先提醒"文档未设计、需先补接口与清单"。
 
 ---
 
 ## 1. 铁律（AI 发现违反时，必须先提醒用户再继续）
 
-1. **绝不在主分支开发**：一切改动都在 `feat/xxx` 特性分支上做。分支名取自 `medbox-spec/07`（`feat/backend-xxx`）或 `medbox-spec/08`（`feat/mp-xxx`）。
+1. **绝不在主分支开发**：一切改动都在 `feat/xxx` 特性分支上做。分支名取自 `medbox-spec/07`（`feat/backend-xxx`）、`medbox-spec/08`（`feat/mp-xxx`）或 `medbox-spec/09`（`feat/admin-xxx`）。
 2. **每次开工前先拉最新**：`git switch main && git pull`，代码与文档一起更新；再看 `medbox-spec/CHANGELOG.md` 判断有没有影响自己这一端。
 3. **完成特性分支、合并前必须更新文档，且与代码同 PR 提交**：勾选 07/08 待办、补 `CHANGELOG.md`、修正与实现不一致的接口/字段。
 4. **远程有更新时用 rebase，不要 merge**：切回主分支 fetch/pull，再回特性分支 `git rebase main`（冲突大概率只在 `CHANGELOG.md` 头部，处理办法见第 4 节）。
