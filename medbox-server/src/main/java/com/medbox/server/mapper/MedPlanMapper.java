@@ -28,4 +28,14 @@ public interface MedPlanMapper extends BaseMapper<MedPlan> {
      */
     @Select("SELECT * FROM med_plan WHERE status = 'ENABLED' AND sync_state <> 'SYNC_FAILED'")
     List<MedPlan> selectDueForMissScan();
+
+    /**
+     * 取本次提醒扫描范围内的计划（feat/plan-reminder）。
+     *
+     * <p>判定口径与 {@link #selectDueForMissScan()} 一致：只判 {@code status='ENABLED'} 且
+     * {@code sync_state <> 'SYNC_FAILED'} 的计划——停用的不提醒、从未成功下发的设备（SYNC_FAILED）
+     * 不会提醒老人，提醒不公平。{@code sync_state} 默认 PENDING 的计划<b>照常提醒</b>。
+     */
+    @Select("SELECT * FROM med_plan WHERE status = 'ENABLED' AND sync_state <> 'SYNC_FAILED'")
+    List<MedPlan> selectDueForReminder();
 }
