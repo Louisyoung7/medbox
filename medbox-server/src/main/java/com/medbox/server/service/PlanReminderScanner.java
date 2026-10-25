@@ -88,37 +88,43 @@ public class PlanReminderScanner {
 
     /** 定时入口：每个间隔扫一次，用系统时钟。 */
     @Scheduled(fixedDelayString = "${medbox.plan-reminder.scan-interval-ms:60000}")
-    public void scheduledScan() {
-        scan(Clock.systemUTC());
+    public ScanSummary scheduledScan() {
+        return scan(Clock.systemUTC());
     }
 
     /**
-     * 核心扫描（可注入时钟便于测试）。
+     * 核心扫描（可注入时钟便于测试 / 手动触发）。
      *
-     * @param clock 时钟（测试用固定时钟）
+     * @param clock 时钟（测试或调试触发用固定时钟）
+     * @return 本次扫描汇总（扫描计划数 / 各类拦截与推送计数），便于排障与调试端点返回
      */
-    public void scan(Clock clock) {
+    public ScanSummary scan(Clock clock) {
         if (!properties.isEnabled()) {
-            return;
+            log.debug("提醒扫描跳过：plan-reminder.enabled=false");
+            return ScanSummary.empty();
         }
         Instant now = clock.instant();
         Instant windowEnd = now.plus(properties.getLeadTimeMinutes(), ChronoUnit.MINUTES);
         List<MedPlan> plans = medPlanMapper.selectDueForReminder();
         if (plans.isEmpty()) {
-            return;
+            return ScanSummary.empty();
         }
+        Counters c = new Counters();
         log.debug("提醒扫描开始：计划 {} 个，窗口 [{} ~ {}]", plans.size(), now, windowEnd);
         for (MedPlan plan : plans) {
             try {
-                scanPlan(plan, now, windowEnd);
+                scanPlan(plan, now, windowEnd, c);
             } catch (RuntimeException ex) {
                 // 单条计划出错不影响其余计划（旁路任务，失败只记日志）
                 log.warn("提醒扫描单条计划失败 planId={}：{}", plan.getPlanId(), ex.getMessage());
             }
         }
+        ScanSummary summary = c.toSummary(plans.size());
+        log.info("提醒扫描完成：{}", summary);
+        return summary;
     }
 
-    private void scanPlan(MedPlan plan, Instant now, Instant windowEnd) {
+    private void scanPlan(MedPlan plan, Instant now, Instant windowEnd, Counters c) {
         String elderId = plan.getElderId();
         ZoneId zone = timezoneResolver.resolve(elderId);
 
@@ -127,6 +133,7 @@ public class PlanReminderScanner {
             if (main == null || main.getOnlineState() != OnlineState.ONLINE) {
                 log.debug("提醒扫描跳过：主控离线或未登记 planId={} online={}",
                         plan.getPlanId(), main == null ? "无设备" : main.getOnlineState());
+                c.skippedOffline++;
                 return;
             }
         }
@@ -134,14 +141,15 @@ public class PlanReminderScanner {
         // 仅对未来 slot 提醒（含边界）：now <= slot <= now + leadTime
         List<OffsetDateTime> slots = planSlotResolver.expandSlots(now, windowEnd, zone, plan.getTimes());
         if (slots.isEmpty()) {
+            c.skippedNoFutureSlot++;
             return;
         }
         for (OffsetDateTime slot : slots) {
-            remindSlot(plan, slot);
+            remindSlot(plan, slot, c);
         }
     }
 
-    private void remindSlot(MedPlan plan, OffsetDateTime slot) {
+    private void remindSlot(MedPlan plan, OffsetDateTime slot, Counters c) {
         String elderId = plan.getElderId();
         Instant slotInstant = slot.toInstant();
         OffsetDateTime slotUtc = OffsetDateTime.ofInstant(slotInstant, ZoneOffset.UTC);
@@ -150,6 +158,7 @@ public class PlanReminderScanner {
         int taken = medRecordMapper.countTaken(plan.getPlanId(), slotUtc);
         if (taken > 0) {
             log.debug("提醒跳过：该槽已服药 planId={} slot={}", plan.getPlanId(), slotInstant);
+            c.skippedTaken++;
             return;
         }
 
@@ -165,17 +174,23 @@ public class PlanReminderScanner {
             planReminderMapper.insert(rec);
         } catch (DuplicateKeyException ex) {
             log.debug("提醒去重命中：跳过 planId={} slot={}", plan.getPlanId(), slotInstant);
+            c.skippedDedup++;
             return;
         }
 
-        pushWs(plan, slot);
+        if (pushWs(plan, slot)) {
+            c.pushed++;
+        }
     }
 
-    private void pushWs(MedPlan plan, OffsetDateTime slot) {
+    /**
+     * 经 {@link WsPushService} 推 {@code REMINDER} 帧；推送成功返回 true（计入汇总）。
+     */
+    private boolean pushWs(MedPlan plan, OffsetDateTime slot) {
         WsPushService pusher = wsPushService.getIfAvailable();
         if (pusher == null) {
             log.debug("WS 未启用，跳过 REMINDER 推送 planId={}", plan.getPlanId());
-            return;
+            return false;
         }
         try {
             List<MedPlanItem> items = medPlanItemMapper.selectList(
@@ -192,8 +207,48 @@ public class PlanReminderScanner {
             ReminderPayload payload = new ReminderPayload(
                     plan.getPlanId(), slot.toInstant().toString(), medicines);
             pusher.publish(WsTopic.elder(plan.getElderId()), WsFrameType.REMINDER, payload);
+            return true;
         } catch (RuntimeException ex) {
             log.warn("REMINDER WS 推送失败 planId={}：{}", plan.getPlanId(), ex.getMessage());
+            return false;
+        }
+    }
+
+    /** 本次扫描的各类计数（扫描过程中累加，扫描结束转成不可变汇总）。 */
+    private static final class Counters {
+        private long skippedOffline;
+        private long skippedNoFutureSlot;
+        private long skippedTaken;
+        private long skippedDedup;
+        private long pushed;
+
+        ScanSummary toSummary(long scannedPlans) {
+            return new ScanSummary(scannedPlans, pushed, skippedTaken, skippedDedup,
+                    skippedOffline, skippedNoFutureSlot);
+        }
+    }
+
+    /**
+     * 一次扫描的汇总（调试触发端点返回 / 日志排障用）。
+     *
+     * @param scannedPlans        参与扫描的候选计划数
+     * @param pushed              实际推送 REMINDER 帧的计划数
+     * @param skippedTaken        因该槽已服药而跳过的槽数
+     * @param skippedDedup        因去重表已存在而跳过的槽数
+     * @param skippedOffline      因主控离线（且开启离线跳过）而跳过的计划数
+     * @param skippedNoFutureSlot 窗口内无未来 slot 而跳过的计划数
+     */
+    public record ScanSummary(long scannedPlans, long pushed, long skippedTaken,
+                              long skippedDedup, long skippedOffline, long skippedNoFutureSlot) {
+        public static ScanSummary empty() {
+            return new ScanSummary(0, 0, 0, 0, 0, 0);
+        }
+
+        @Override
+        public String toString() {
+            return "扫描计划=" + scannedPlans + " 推送=" + pushed
+                    + " 跳过(已服)=" + skippedTaken + " 跳过(去重)=" + skippedDedup
+                    + " 跳过(离线)=" + skippedOffline + " 跳过(无未来槽)=" + skippedNoFutureSlot;
         }
     }
 }

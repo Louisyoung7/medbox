@@ -31,8 +31,10 @@ import com.medbox.server.mapper.MedicineMapper;
 import com.medbox.server.mapper.MedicineStockMapper;
 import com.medbox.server.mapper.MedPlanItemMapper;
 import com.medbox.server.mapper.MedPlanMapper;
+import com.medbox.server.mapper.PlanReminderMapper;
 import com.medbox.server.mapper.UserMapper;
 import com.medbox.server.mqtt.MqttTransport;
+import com.medbox.server.service.PlanReminderScanner;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -84,6 +86,12 @@ class DevtoolsControllerTest {
 
     @MockitoBean
     private MedPlanItemMapper medPlanItemMapper;
+
+    @MockitoBean
+    private PlanReminderMapper planReminderMapper;
+
+    @MockitoBean
+    private PlanReminderScanner planReminderScanner;
 
     @MockitoBean
     private MqttTransport mqttTransport;
@@ -239,6 +247,35 @@ class DevtoolsControllerTest {
                         .content("{\"subTopic\":\"event/dispense\",\"payload\":\"{}\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40001));
+    }
+
+    @Test
+    @DisplayName("手动触发服药提醒扫描：调用扫描器并以 ScanSummary 返回")
+    void triggerPlanReminder() throws Exception {
+        when(planReminderScanner.scan(any())).thenReturn(
+                new PlanReminderScanner.ScanSummary(1, 1, 0, 0, 0, 0));
+
+        mockMvc.perform(post("/api/v1/_debug/plan-reminder/trigger")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.pushed").value(1));
+
+        verify(planReminderScanner).scan(any());
+    }
+
+    @Test
+    @DisplayName("手动触发可带 now 参数：解析 ISO 时刻后调用扫描器")
+    void triggerPlanReminderWithNow() throws Exception {
+        when(planReminderScanner.scan(any())).thenReturn(
+                new PlanReminderScanner.ScanSummary(0, 0, 0, 0, 0, 0));
+
+        mockMvc.perform(post("/api/v1/_debug/plan-reminder/trigger?now=2026-10-25T06:00:00Z")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        verify(planReminderScanner).scan(any());
     }
 
     private String bearer(String userId, String role) {

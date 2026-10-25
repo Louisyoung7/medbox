@@ -11,6 +11,7 @@ import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.MedicineStock;
 import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.MedPlanItem;
+import com.medbox.server.domain.PlanReminder;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
@@ -24,9 +25,13 @@ import com.medbox.server.mapper.MedicineMapper;
 import com.medbox.server.mapper.MedicineStockMapper;
 import com.medbox.server.mapper.MedPlanItemMapper;
 import com.medbox.server.mapper.MedPlanMapper;
+import com.medbox.server.mapper.PlanReminderMapper;
 import com.medbox.server.mapper.UserMapper;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -77,6 +82,7 @@ public class DevtoolsSeedService {
     private final MedicineStockMapper medicineStockMapper;
     private final MedPlanMapper medPlanMapper;
     private final MedPlanItemMapper medPlanItemMapper;
+    private final PlanReminderMapper planReminderMapper;
     private final PasswordHasher passwordHasher;
     private final JwtProvider jwtProvider;
     private final DevtoolsProperties props;
@@ -84,8 +90,8 @@ public class DevtoolsSeedService {
     public DevtoolsSeedService(UserMapper userMapper, GuardianRelationMapper guardianRelationMapper,
             DeviceMapper deviceMapper, MedicineMapper medicineMapper,
             MedicineStockMapper medicineStockMapper, MedPlanMapper medPlanMapper,
-            MedPlanItemMapper medPlanItemMapper, PasswordHasher passwordHasher,
-            JwtProvider jwtProvider, DevtoolsProperties props) {
+            MedPlanItemMapper medPlanItemMapper, PlanReminderMapper planReminderMapper,
+            PasswordHasher passwordHasher, JwtProvider jwtProvider, DevtoolsProperties props) {
         this.userMapper = userMapper;
         this.guardianRelationMapper = guardianRelationMapper;
         this.deviceMapper = deviceMapper;
@@ -93,6 +99,7 @@ public class DevtoolsSeedService {
         this.medicineStockMapper = medicineStockMapper;
         this.medPlanMapper = medPlanMapper;
         this.medPlanItemMapper = medPlanItemMapper;
+        this.planReminderMapper = planReminderMapper;
         this.passwordHasher = passwordHasher;
         this.jwtProvider = jwtProvider;
         this.props = props;
@@ -140,6 +147,7 @@ public class DevtoolsSeedService {
 
     private void clearSeed(DevtoolsProperties.Seed s) {
         String deviceId = s.getDeviceId();
+        planReminderMapper.delete(new QueryWrapper<PlanReminder>().eq("plan_id", PLAN_ID));
         medPlanItemMapper.delete(new QueryWrapper<MedPlanItem>().eq("plan_id", PLAN_ID));
         medPlanMapper.delete(new QueryWrapper<MedPlan>().eq("plan_id", PLAN_ID));
         medicineStockMapper.delete(new QueryWrapper<MedicineStock>().eq("device_id", deviceId));
@@ -251,11 +259,15 @@ public class DevtoolsSeedService {
     }
 
     private void insertPlanAndItem(DevtoolsProperties.Seed s) {
+        // 计划服药时刻设为"设备本地当前时刻 +2 分钟"，使手动触发端点 / 定时扫描能立即命中，
+        // 免去联调时手算 now 的摩擦（见 feat/plan-reminder-testability）
+        ZoneId zone = ZoneId.of(s.getTimezone());
+        String nearNow = LocalTime.now(zone).plusMinutes(2).format(DateTimeFormatter.ofPattern("HH:mm"));
         MedPlan plan = new MedPlan();
         plan.setPlanId(PLAN_ID);
         plan.setElderId(s.getElderUserId());
-        plan.setName("早餐后");
-        plan.setTimes(List.of("08:00"));
+        plan.setName("调试临近提醒");
+        plan.setTimes(List.of(nearNow));
         plan.setRepeatRule("DAILY");
         plan.setMissAlarmAfterMin(null);
         plan.setAlarmRule(Map.of("miss", true, "wrongDrug", true));
