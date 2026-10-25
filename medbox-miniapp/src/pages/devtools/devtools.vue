@@ -71,7 +71,7 @@
       <MbField
         v-model="simDeviceId"
         label="设备 ID"
-        placeholder="药箱主控 deviceId，如 BOXA1001"
+        placeholder="药箱主控 deviceId，如 BOXA-DEBUG-01"
       />
 
       <MbCell

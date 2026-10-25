@@ -17,7 +17,7 @@
  *
  * const seed = await seedDebugData()          // 一键播种，返回含 token 的 SeedResult
  * await publishDeviceEvent({                  // 服务端版 mosquitto_pub
- *   deviceId: 'BOXA1001',
+ *   deviceId: 'BOXA-DEBUG-01',
  *   subTopic: 'event/dispense',
  *   payload: '{"msgId":"...","ts":...}',      // ⚠️ 透传 JSON **字符串**
  * })

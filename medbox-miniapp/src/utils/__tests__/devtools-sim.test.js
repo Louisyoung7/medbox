@@ -123,7 +123,7 @@ describe('buildSimPayload', () => {
 
   it('遥测：带 sensorId 与温湿度，不带 dispense 字段', () => {
     const body = JSON.parse(buildSimPayload('telemetry', 'BOXA1001'))
-    expect(body.sensorId).toBe('BOXA1001-S-TH01')
+    expect(body.sensorId).toBe('BOXA-DEBUG-01-S-TH01')
     expect(typeof body.temperature).toBe('number')
     expect(typeof body.humidity).toBe('number')
     expect(body.planId).toBeUndefined()
@@ -132,7 +132,7 @@ describe('buildSimPayload', () => {
   it('传感器心跳：三个子设备，摄像头离线（验证离线标注链路）', () => {
     const body = JSON.parse(buildSimPayload('sensor-heartbeat', 'BOXA1001'))
     expect(body.sensors).toHaveLength(3)
-    const cam = body.sensors.find((s) => s.sensorId === 'BOXA1001-S-CAM01')
+    const cam = body.sensors.find((s) => s.sensorId === 'BOXA-DEBUG-01-S-CAM01')
     expect(cam.online).toBe(false)
   })
 
@@ -320,6 +320,6 @@ describe('devtoolsErrorMessage', () => {
 
 describe('模块默认值', () => {
   it('默认设备 ID 与后端种子参数一致（联调示例同款）', () => {
-    expect(SIM_DEFAULT_DEVICE_ID).toBe('BOXA1001')
+    expect(SIM_DEFAULT_DEVICE_ID).toBe('BOXA-DEBUG-01')
   })
 })
