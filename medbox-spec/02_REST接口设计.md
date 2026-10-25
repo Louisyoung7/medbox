@@ -609,6 +609,15 @@ POST /devices/BOXA-DEBUG-01/commands
 { "code":0, "data":{ "commandId":"c-7f21", "state":"PENDING" } }
 ```
 
+> **小程序侧落地（`feat/mp-device-extra`；后端 `device-command` / `device-fault` 在 07 仍为 `[ ]` 未落地，按契约 + mock 先行）**：
+>
+> 1. **命令接口**：`api/device.js` 的 `sendDeviceCommand(deviceId, cmd, params, operator)` 打 `POST /devices/{id}/commands`；`cmd` ∈ `BUZZ` / `UNLOCK` / `CALIBRATE` / `REBOOT`，蜂鸣带 `params.durationSec`，`operator` 传当前用户 ID 作留痕；写操作自动注入 `X-Request-Id`。
+> 2. **命令终态观察口径（重要）**：后端**没有**命令状态查询接口，也**没有**命令相关的 WebSocket 推送帧（WS 事件只有 ALARM / DEVICE_STATUS / REMINDER / AI_STREAM / PONG / RESYNC），故前端下发后展示 `PENDING`，并刷新 `GET /devices/{id}/events` 读取由回执产生的 **COMMAND 事件**（其 `detail = { commandId, cmd, state }`，`state` ∈ `PENDING`/`SUCCESS`/`FAILED`）来反映 `PENDING→成功/失败`。**不自行发明轮询或命令 WS 帧**，后端 device-command 落地后若新增查询/推送，再在 `utils/device.js` 一处收紧。
+> 3. **设备离线 40901**：前端收到 `40901`（前端 `CODE.CONFLICT`）时提示"设备离线，无法下发"；其余错误用后端 `message` 自绘，不另弹窗。
+> 4. **权限**：命令属 `WRITE_DEVICE`（02 的 1.3 矩阵仅 `FAMILY`），设备详情页「远程控制」卡用 `RoleGate entry="deviceCommand"` 包裹（`utils/permission.js` 登记 `deviceCommand:[GUARDIAN]`），老人端不可见；事件流水属 `READ_DEVICE`，老人与监护人都可读，「设备事件」卡与独立分页页 `pages/device/events.vue` 双方可见。
+> 5. **事件接口**：`api/device.js` 的 `getDeviceEvents(deviceId, {page,size})` 打 `GET /devices/{id}/events`；分页、按 `created_at` 倒序、`page`/`size` < 1 报 40001；`utils/device.js` 的 `parseEventsPage` 容错 `{list,total}` / `{records,total}` / `{items,total}` / 裸数组，`toEventView` 归一化（FAULT 的 `detail` 为故障码 → 标签；COMMAND 的 `detail` 解析 `commandId`/`cmd`/`state`）。**心跳异常 = OFFLINE 事件**（心跳超时落），**设备侧异常 = FAULT 事件**（`DOOR_TIMEOUT` / `CAMERA_FAILED` / `HW_FAULT`）。
+> 6. **mock 先行**：`tools/mock` 补 `GET /events`（倒序分页、40301 他人/不存在/子设备编号）与 `POST /commands`（在线→PENDING 并同步落 COMMAND 事件模拟设备 ack；离线→40901；非法 cmd→40001；仅监护人），并播种 REGISTERED/ONLINE/OFFLINE + 样例 FAULT/COMMAND 事件；真实 FAULT 摄入走后端 MQTT `up/event/error`，mock 不接 EMQX，只给样例使列表可读。
+
 ### 4.1 设备抓拍图片（摄像头留证，已读 7 天 / 未读 30 天过期）
 
 摄像头识别结果的**结构化数据走 MQTT**（见文档 03 第 4 章）；**图片单独走 HTTP multipart 直传后端**。

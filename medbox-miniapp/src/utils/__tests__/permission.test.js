@@ -56,4 +56,10 @@ describe('ENTRY_ROLES 已登记项（feat/mp-profile）', () => {
     expect(canAccess(ROLE.GUARDIAN, 'elderBindGuide')).toBe(false)
     expect(canAccess('', 'elderBindGuide')).toBe(false)
   })
+
+  it('deviceCommand「远程控制」仅监护人（WRITE_DEVICE 仅 FAMILY）', () => {
+    expect(canAccess(ROLE.GUARDIAN, 'deviceCommand')).toBe(true)
+    expect(canAccess(ROLE.ELDER, 'deviceCommand')).toBe(false)
+    expect(canAccess('', 'deviceCommand')).toBe(false)
+  })
 })

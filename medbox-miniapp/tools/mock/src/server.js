@@ -314,6 +314,57 @@ async function handleGetDevice(req, res, deviceId) {
   ok(res, detail)
 }
 
+// ---------------------------------------------------------------- 设备事件 / 命令（02 第 4 章；feat/device-command / device-fault 后端未落地，Mock 先行）
+
+/**
+ * 设备事件流水（`GET /devices/{deviceId}/events`）：分页、按 created_at 倒序（最新在前）。
+ * deviceId 只接受 MAIN（requireDevice 已校验），子设备编号 → 40301。
+ */
+async function handleListEvents(req, res, deviceId, query) {
+  const user = requireUser(req)
+  requireDevice(user, deviceId) // 40301 / 40302 / 子设备 40301
+  const rawPage = Number(query.page)
+  const rawSize = Number(query.size)
+  if (
+    (query.page !== undefined && (Number.isNaN(rawPage) || rawPage < 1)) ||
+    (query.size !== undefined && (Number.isNaN(rawSize) || rawSize < 1))
+  ) {
+    throw new BizError(40001, 'page / size 不能小于 1')
+  }
+  const page = Math.max(1, Number.isNaN(rawPage) ? 1 : rawPage)
+  const size = Math.min(100, Math.max(1, Number.isNaN(rawSize) ? 20 : rawSize))
+  const list = state.events
+    .filter((e) => e.deviceId === deviceId)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+  const total = list.length
+  ok(res, { list: list.slice((page - 1) * size, page * size), total })
+}
+
+/**
+ * 下发控制命令（`POST /devices/{deviceId}/commands`）：异步受理，返回 {commandId, state:PENDING}；
+ * Mock 同步落一条 COMMAND 事件（state=SUCCESS）模拟设备 ack（真实后端经 up/ack 异步驱动，见 02 第 4 章）。
+ * 设备离线 → 40901；cmd 非法 → 40001；仅监护人（WRITE_DEVICE 仅 FAMILY）可下发。
+ */
+async function handleCommand(req, res, deviceId, body) {
+  const user = requireUser(req)
+  const device = requireDevice(user, deviceId) // 40301 / 40302 / 子设备 40301
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  if (device.onlineState === 'OFFLINE') throw new BizError(40901, '设备离线，无法下发控制命令')
+  const cmd = String((body && body.cmd) || '').trim()
+  if (!['BUZZ', 'UNLOCK', 'CALIBRATE', 'REBOOT'].includes(cmd)) {
+    throw new BizError(40001, 'cmd 只能是 BUZZ / UNLOCK / CALIBRATE / REBOOT')
+  }
+  const commandId = `c-${rand()}`
+  state.events.push({
+    eventId: `ev-${rand()}`,
+    deviceId,
+    eventType: 'COMMAND',
+    detail: { commandId, cmd, state: 'SUCCESS' },
+    createdAt: isoNow(),
+  })
+  ok(res, { commandId, state: 'PENDING' })
+}
+
 async function handleListMedicines(req, res, query) {
   const user = requireUser(req)
   const visible = visibleElderIds(user)
@@ -995,6 +1046,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && sub === '/devices') return await handleListDevices(req, res)
     let matched = /^\/devices\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetDevice(req, res, decodeURIComponent(matched[1]))
+
+    // 鉴权：设备事件流水 / 命令下发（02 第 4 章；feat/device-command / device-fault 后端未落地）
+    matched = /^\/devices\/([^/]+)\/events$/.exec(sub)
+    if (req.method === 'GET' && matched) return await handleListEvents(req, res, decodeURIComponent(matched[1]), query)
+    matched = /^\/devices\/([^/]+)\/commands$/.exec(sub)
+    if (req.method === 'POST' && matched) return await handleCommand(req, res, decodeURIComponent(matched[1]), await readBody(req))
 
     // 鉴权：药品
     if (req.method === 'GET' && sub === '/medicines') return await handleListMedicines(req, res, query)

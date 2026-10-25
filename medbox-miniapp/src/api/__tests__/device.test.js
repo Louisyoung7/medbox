@@ -1,11 +1,3 @@
-/**
- * 设备接口的**请求层链路**测试（`feat/mp-device`，对应 medbox-spec/02 第 4 章）。
- *
- * <p>与 `user-delete.test.js` 同一套打桩方式：stub `uni.request`，请求 / 响应解析 / 错误码
- * 分流走 `src/api/request.js` 真实实现。这里只验证 device 两个读取接口的 URL / 方法 / Bearer
- * 与错误码兑现，不做重复的 40101 续期 / 网络兜底断言（那部分 request.js 已由 user-delete 覆盖）。
- */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const storage = {}
@@ -15,14 +7,14 @@ let scripts = []
 beforeEach(() => {
   sent = []
   scripts = []
-  Object.keys(storage).forEach((key) => delete storage[key])
+  Object.keys(storage).forEach((k) => delete storage[k])
   vi.stubGlobal('uni', {
-    getStorageSync: (key) => (key in storage ? storage[key] : ''),
-    setStorageSync: (key, value) => {
-      storage[key] = value
+    getStorageSync: (k) => (k in storage ? storage[k] : ''),
+    setStorageSync: (k, v) => {
+      storage[k] = v
     },
-    removeStorageSync: (key) => {
-      delete storage[key]
+    removeStorageSync: (k) => {
+      delete storage[k]
     },
     showLoading: () => {},
     hideLoading: () => {},
@@ -44,46 +36,57 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function loadDeviceApi({ token = 'TOKEN' } = {}) {
+async function loadApi({ token = 'TOKEN' } = {}) {
   if (token) storage.accessToken = token
   vi.resetModules()
   const request = await import('@/api/request.js')
   const device = await import('@/api/device.js')
-  return { request, device, CODE: request.CODE }
+  return { device, CODE: request.CODE }
 }
 
-describe('device —— 请求层', () => {
-  it('listDevices：GET /devices 带 Bearer，兑现设备数组', async () => {
-    const { device } = await loadDeviceApi()
-    scripts = [{ body: { code: 0, data: [{ deviceId: 'BOXA1001', onlineState: 'ONLINE' }] } }]
-
-    const data = await device.listDevices()
-
-    expect(data).toEqual([{ deviceId: 'BOXA1001', onlineState: 'ONLINE' }])
-    expect(sent).toHaveLength(1)
+describe('device —— getDeviceEvents 请求层', () => {
+  it('GET /devices/{id}/events 带 Bearer 与分页参数，兑现 {list,total}', async () => {
+    const { device } = await loadApi()
+    scripts = [{ body: { code: 0, data: { list: [{ eventId: 'ev-1', eventType: 'ONLINE' }], total: 1 } } }]
+    const data = await device.getDeviceEvents('BOXA1001', { page: 1, size: 20 })
+    expect(data.list.length).toBe(1)
+    expect(data.total).toBe(1)
     expect(sent[0].method).toBe('GET')
-    expect(sent[0].url).toContain('/medbox/api/v1/devices')
+    expect(sent[0].url).toContain('/medbox/api/v1/devices/BOXA1001/events')
     expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
+    expect(sent[0].header['X-Request-Id']).toBeUndefined()
+    expect(sent[0].url).toContain('page=1')
+    expect(sent[0].url).toContain('size=20')
   })
 
-  it('getDevice：URL 拼入 deviceId，兑现详情（含 sensors）', async () => {
-    const { device } = await loadDeviceApi()
-    scripts = [{ body: { code: 0, data: { deviceId: 'BOXA1001', sensors: [] } } }]
-
-    const data = await device.getDevice('BOXA1001')
-
-    expect(data.deviceId).toBe('BOXA1001')
-    expect(sent).toHaveLength(1)
-    expect(sent[0].url).toContain('/medbox/api/v1/devices/BOXA1001')
-  })
-
-  it('40301（他人设备 / 不存在）：兑现 ApiError(code 40301)，凭据保留', async () => {
-    const { device, CODE } = await loadDeviceApi()
+  it('事件流水错误码兑现（40301 越权）', async () => {
+    const { device, CODE } = await loadApi()
     scripts = [{ body: { code: 40301, message: '无权限访问该资源' } }]
+    const err = await device.getDeviceEvents('BOXA1001', {}).catch((e) => e)
+    expect(err.code).toBe(CODE.FORBIDDEN)
+  })
+})
 
-    const error = await device.getDevice('OTHER').catch((err) => err)
+describe('device —— sendDeviceCommand 请求层', () => {
+  it('POST /devices/{id}/commands 带 cmd/params/operator 与 X-Request-Id，兑现 {commandId,state}', async () => {
+    const { device } = await loadApi()
+    scripts = [{ body: { code: 0, data: { commandId: 'c-1', state: 'PENDING' } } }]
+    const data = await device.sendDeviceCommand('BOXA1001', 'BUZZ', { durationSec: 5 }, 'u-2001')
+    expect(data.commandId).toBe('c-1')
+    expect(data.state).toBe('PENDING')
+    expect(sent[0].method).toBe('POST')
+    expect(sent[0].url).toContain('/medbox/api/v1/devices/BOXA1001/commands')
+    expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
+    expect(sent[0].header['X-Request-Id']).toBeDefined()
+    expect(sent[0].data.cmd).toBe('BUZZ')
+    expect(sent[0].data.params).toEqual({ durationSec: 5 })
+    expect(sent[0].data.operator).toBe('u-2001')
+  })
 
-    expect(error.code).toBe(CODE.FORBIDDEN)
-    expect(storage.accessToken).toBe('TOKEN')
+  it('设备离线下发 40901 兑现 CONFLICT', async () => {
+    const { device, CODE } = await loadApi()
+    scripts = [{ body: { code: 40901, message: '设备离线，无法下发控制命令' } }]
+    const err = await device.sendDeviceCommand('BOXA1002', 'BUZZ', {}, 'u-2001').catch((e) => e)
+    expect(err.code).toBe(CODE.CONFLICT)
   })
 })

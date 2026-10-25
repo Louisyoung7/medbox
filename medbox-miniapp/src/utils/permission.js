@@ -22,15 +22,19 @@ import { ROLE } from '@/store/user.js'
  *
  * - `alarmSettings`「监护台」（告警设置 / 环境阈值 / AI Key，归 `feat/mp-alarm` 等后续分支）：
  *   仅监护人；
- * - `elderBindGuide`「告诉监护人」绑定引导卡：仅老人（监护人不需要被引导去绑定自己）。
+ * - `elderBindGuide`「告诉监护人」绑定引导卡：仅老人（监护人不需要被引导去绑定自己）；
+ * - `deviceCommand`「远程控制」（设备命令下发，归 `feat/mp-device-extra`）：仅监护人
+ *   （02 的 1.3 矩阵 `WRITE_DEVICE` 仅 FAMILY）。
  *
  * @example
  * alarmSettings: [ROLE.GUARDIAN],
  * elderBindGuide: [ROLE.ELDER],
+ * deviceCommand: [ROLE.GUARDIAN],
  */
 export const ENTRY_ROLES = {
   alarmSettings: [ROLE.GUARDIAN],
   elderBindGuide: [ROLE.ELDER],
+  deviceCommand: [ROLE.GUARDIAN],
 }
 
 /**
