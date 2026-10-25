@@ -3,15 +3,35 @@
     <view class="profile-hero">
       <view class="profile-hero__avatar">{{ avatarText }}</view>
       <view class="profile-hero__info">
-        <text class="profile-hero__name">{{ name || '未登录' }}</text>
+        <text class="profile-hero__name">{{ displayName }}</text>
         <text class="profile-hero__role">{{ roleText }}</text>
       </view>
     </view>
 
-    <MbCard title="账号">
+    <MbCard title="个人资料">
       <MbCell title="用户ID" :value="userId || '-'" />
-      <MbCell title="角色" :value="roleText" />
+      <MbCell title="姓名" :value="fieldText(name)" />
+      <MbCell title="手机号" :value="fieldText(phone)" />
+      <MbCell title="用户名" :value="fieldText(username)" />
+      <MbCell title="角色" :value="roleText" :label="rolePermission" />
     </MbCard>
+
+    <!-- 绑定引导（feat/mp-profile）：仅老人可见（ENTRY_ROLES.elderBindGuide）。
+         落实 02 的 3.2 口径"老人可在'我的'页面查看自己的用户ID"——监护绑定要输入老人用户ID。 -->
+    <RoleGate entry="elderBindGuide">
+      <MbCard title="告诉监护人">
+        <text class="bind-hint">把用户ID {{ userId || '-' }} 告诉监护人，对方在「监护关系」页输入即可发起绑定；你确认后生效。</text>
+        <view class="bind-action">
+          <MbButton type="primary" block @click="goGuardian">去监护关系页</MbButton>
+        </view>
+      </MbCard>
+    </RoleGate>
+
+    <RoleGate entry="alarmSettings">
+      <MbCard title="监护台">
+        <text class="guard-hint">仅监护人可见：告警设置、环境阈值、为老人配置 AI Key 将在此区域。</text>
+      </MbCard>
+    </RoleGate>
 
     <!-- 开发调试（feat/mp-devtools）：真机联调时改后端 HOST，不必重新编译 -->
     <MbCard title="开发调试">
@@ -23,12 +43,6 @@
         @click="onOpenDevtools"
       />
     </MbCard>
-
-    <RoleGate entry="alarmSettings">
-      <MbCard title="监护台">
-        <text class="guard-hint">仅监护人可见：告警设置、环境阈值、为老人配置 AI Key 将在此区域。</text>
-      </MbCard>
-    </RoleGate>
 
     <view class="profile-actions">
       <MbButton type="ghost" block @click="onLogout">退出登录</MbButton>
@@ -81,9 +95,11 @@ import MbModal from '@/components/MbModal.vue'
 import MbField from '@/components/MbField.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import RoleGate from '@/components/RoleGate.vue'
+import { getMe } from '@/api/auth.js'
 import { CODE } from '@/api/request.js'
 import { deleteAccount, logout } from '@/store/auth.js'
-import { getUserInfo, getUserId, roleLabel } from '@/store/user.js'
+import { getUserInfo, roleLabel, setUserInfo } from '@/store/user.js'
+import { needsProfileRefresh, profileFieldText, rolePermissionText } from '@/utils/profile.js'
 
 export default {
   name: 'ProfilePage',
@@ -92,7 +108,11 @@ export default {
     return {
       name: '',
       userId: '',
+      role: '',
+      phone: '',
+      username: '',
       roleText: '',
+      refreshing: false,
       // 注销弹窗的三态：显隐 / 输入的密码 / 提交流水（错误文案 + 是否在飞）
       deleteVisible: false,
       password: '',
@@ -100,18 +120,71 @@ export default {
       deleting: false,
     }
   },
-  onShow() {
-    const info = getUserInfo()
-    this.name = info.name || ''
-    this.userId = info.userId || ''
-    this.roleText = roleLabel(info.role)
-  },
   computed: {
     avatarText() {
-      return (this.name || '?').slice(0, 1)
+      return (this.name || this.username || '?').slice(0, 1)
+    },
+    /** hero 姓名三级兜底：姓名 → 用户名 → "未设置姓名"（原实现空 name 误显"未登录"）。 */
+    displayName() {
+      return this.name || this.username || '未设置姓名'
+    },
+    /** 角色权限一句说明（口径取 01 第 3 章 / 02 的 1.3 权限矩阵）。 */
+    rolePermission() {
+      return rolePermissionText(this.role)
     },
   },
+  onShow() {
+    const info = getUserInfo()
+    this.applyInfo(info)
+    // 登录时 getMe 失败会留下缺 name/phone 的半份缓存：缺关键字段才静默补一次
+    // （TabBar 页 onShow 频繁，缓存满时零请求，见 utils/profile.needsProfileRefresh）
+    if (needsProfileRefresh(info)) {
+      this.refreshProfile()
+    }
+  },
   methods: {
+    fieldText: profileFieldText,
+
+    /** 把用户资料渲染到页面（onShow 与静默补齐成功后共用）。 */
+    applyInfo(info) {
+      this.name = info.name || ''
+      this.userId = info.userId || ''
+      this.role = info.role || ''
+      this.phone = info.phone || ''
+      this.username = info.username || ''
+      this.roleText = roleLabel(info.role)
+    },
+
+    /**
+     * 静默补齐 `/users/me`（`feat/mp-profile`）：不出遮罩不出 toast，失败只打 code。
+     *
+     * <p>**为什么静默**：这是背景修复（登录时拉取失败留下的半份缓存），用户并没有点
+     * "刷新"，弹 toast 会把"看资料"变成"被报错"。40101 由请求层先自动续期重发一次，
+     * 仍失败时它自己清了凭据并跳登录页，这里再提示只会重复。
+     */
+    async refreshProfile() {
+      if (this.refreshing) return
+      this.refreshing = true
+      try {
+        const me = await getMe({ silent: true })
+        if (me) {
+          // 合并写回：后端 non_null 会省略空字段，旧缓存值兜底避免抹掉已有数据
+          setUserInfo({ ...getUserInfo(), ...me })
+          this.applyInfo(getUserInfo())
+        }
+      } catch (err) {
+        // 只打 code，不打响应体（含手机号等敏感字段）
+        console.warn('[profile] 补齐用户资料失败', err && err.code ? err.code : err)
+      } finally {
+        this.refreshing = false
+      }
+    },
+
+    /** 去监护关系页（老人端的绑定引导入口；监护人在该页是申请屏，同样可用）。 */
+    goGuardian() {
+      uni.navigateTo({ url: '/pages/guardian/guardian' })
+    },
+
     /**
      * 打开开发调试页（`feat/mp-devtools`）：运行时改后端 HOST + 联调说明。
      *
@@ -231,6 +304,21 @@ export default {
   font-size: 26rpx;
   color: $mb-text-3;
   line-height: 1.6;
+}
+
+/* 绑定引导卡（feat/mp-profile）：主色浅底说明区 + 胶囊按钮 */
+.bind-hint {
+  display: block;
+  padding: 24rpx;
+  border-radius: $mb-radius-sm;
+  background: $mb-primary-bg;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: $mb-text-2;
+}
+
+.bind-action {
+  margin-top: 20rpx;
 }
 
 .profile-actions {

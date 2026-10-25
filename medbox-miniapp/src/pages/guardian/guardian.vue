@@ -31,7 +31,7 @@
         <view v-if="applications.length === 0" class="app-empty">还没有发起过监护申请</view>
         <view v-for="app in applications" :key="app.relationId" class="app">
           <view class="app__head">
-            <text class="app__elder">{{ app.elderId || '未知老人' }}</text>
+            <text class="app__elder">{{ elderLabel(app) }}</text>
             <view class="app__badge"><text class="app__badge-text">待确认</text></view>
           </view>
           <text class="app__meta">申请于 {{ relationTimeText(app.createdAt) }}</text>
@@ -120,6 +120,7 @@ import MbLoading from '@/components/MbLoading.vue'
 import MbModal from '@/components/MbModal.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import { acceptGuardian, applyGuardian, listPendingGuardians, revokeGuardian } from '@/api/guardian.js'
+import { getElderProfile } from '@/api/user.js'
 import { CODE } from '@/api/request.js'
 import {
   normalizeElderId,
@@ -129,6 +130,7 @@ import {
   relationRolePermissionText,
   relationTimeText,
 } from '@/utils/guardian.js'
+import { elderNameText } from '@/utils/profile.js'
 import { addMyApplication, loadMyApplications, removeMyApplication } from '@/store/guardian.js'
 import { getUserInfo, ROLE, roleLabel } from '@/store/user.js'
 
@@ -166,6 +168,9 @@ export default {
       applying: false,
       applyError: '',
       applications: [],
+      // elderId → 老人资料响应（GET /users/{elderId}/profile）；姓名是增强信息，失败不回填
+      elderProfiles: {},
+      resolvingNames: false,
       // 老人屏
       loading: false,
       loadError: '',
@@ -221,6 +226,7 @@ export default {
     this.name = info.name || ''
     if (this.isGuardian) {
       this.applications = loadMyApplications()
+      this.resolveElderNames()
     } else if (this.isElder) {
       this.loadPending()
     }
@@ -229,6 +235,47 @@ export default {
     relationTimeText,
 
     // ------------------------------------------------------------ 监护人屏
+
+    /**
+     * 按 elderId 批量解析老人姓名（`feat/mp-profile`）：申请卡把"u-1001"显示成"张桂英（u-1001）"。
+     *
+     * <p>**静默是硬约束**：姓名只是增强信息 —— 40302（申请中老人未确认）/ 40301（被拒 /
+     * 无关系）/ 网络失败一律不回填、不 toast，页面回退 elderId 原文。只补**缺失**的 elderId
+     * （本地申请通常 1-3 条，重复进页不重复请求）。
+     */
+    async resolveElderNames() {
+      if (this.resolvingNames) return
+      const missing = []
+      this.applications.forEach((app) => {
+        if (app.elderId && !this.elderProfiles[app.elderId] && missing.indexOf(app.elderId) === -1) {
+          missing.push(app.elderId)
+        }
+      })
+      if (missing.length === 0) return
+      this.resolvingNames = true
+      try {
+        await Promise.all(
+          missing.map((elderId) =>
+            getElderProfile(elderId, { silent: true })
+              .then((profile) => {
+                if (profile) this.elderProfiles[elderId] = profile
+              })
+              .catch((err) => {
+                // 只打 code 与 elderId，不打响应体（含手机号）
+                console.warn('[guardian] 老人姓名解析失败', elderId, err && err.code ? err.code : err)
+              })
+          )
+        )
+      } finally {
+        this.resolvingNames = false
+      }
+    },
+
+    /** 申请卡标题：解析到姓名 → "张桂英（u-1001）"；未解析 / 失败 → elderId 原文。 */
+    elderLabel(app) {
+      const text = elderNameText(this.elderProfiles[app.elderId], app.elderId)
+      return text || '未知老人'
+    },
 
     async onApply() {
       const elderId = normalizeElderId(this.elderIdInput)
@@ -242,6 +289,8 @@ export default {
         const relation = await applyGuardian(elderId, { silent: true, loading: '提交中' })
         // 申请响应即时入本地缓存：后端无"我发起的申请列表"接口，这是监护人侧唯一的可见来源
         this.applications = addMyApplication(relation || { relationId: '', elderId })
+        // 新申请的老人姓名补解析（PENDING 阶段服务端返 40302，静默回退 elderId）
+        this.resolveElderNames()
         this.elderIdInput = ''
         uni.showToast({ title: '已提交，等待老人确认', icon: 'none' })
       } catch (err) {

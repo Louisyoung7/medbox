@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 113 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 121 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -211,6 +211,17 @@ async function waitReady() {
     const confirmDetail = await call('GET', '/records/rec-9002', { token: gw.token })
     check('确认后详情带 confirmedAt', confirmDetail.code === 0 && confirmDetail.data.confirmedAt)
     check('记录不存在 40401', (await call('GET', '/records/rec-9999', { token: gw.token })).code === 40401)
+
+    console.log('== 用户资料（02 第 3 章） ==')
+    const elderProfile = await call('GET', '/users/u-1001/profile', { token: elder.token })
+    check('老人看本人资料（全字段）', elderProfile.code === 0 && elderProfile.data.userId === 'u-1001' && elderProfile.data.role === 'ELDER' && elderProfile.data.name === '张桂英' && elderProfile.data.phone === '13900000001' && elderProfile.data.username === 'guiying')
+    check('ACTIVE 监护人可看老人资料', (await call('GET', '/users/u-1001/profile', { token: gw.token })).code === 0)
+    check('PENDING 监护看老人资料 40302', (await call('GET', '/users/u-1001/profile', { token: pending.token })).code === 40302)
+    check('REVOKED 关系看老人资料 40301', (await call('GET', '/users/u-1001/profile', { token: revoked.token })).code === 40301)
+    check('目标不是老人 40301', (await call('GET', '/users/u-2002/profile', { token: gw.token })).code === 40301)
+    check('老人看他人资料 40301', (await call('GET', '/users/u-1002/profile', { token: elder.token })).code === 40301)
+    check('目标不存在 40301（防枚举）', (await call('GET', '/users/u-9999/profile', { token: gw.token })).code === 40301)
+    check('未登录看资料 40101', (await call('GET', '/users/u-1001/profile')).code === 40101)
 
     console.log('== 监护关系（02 的 3.2） ==')
     const elder2 = await login('13900000002')

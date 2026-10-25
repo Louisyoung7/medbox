@@ -43,3 +43,17 @@ describe('visibleEntries', () => {
     expect(visibleEntries(ROLE.ELDER, null)).toEqual([])
   })
 })
+
+describe('ENTRY_ROLES 已登记项（feat/mp-profile）', () => {
+  it('alarmSettings「监护台」仅监护人', () => {
+    expect(canAccess(ROLE.GUARDIAN, 'alarmSettings')).toBe(true)
+    expect(canAccess(ROLE.ELDER, 'alarmSettings')).toBe(false)
+    expect(canAccess('', 'alarmSettings')).toBe(false)
+  })
+
+  it('elderBindGuide「告诉监护人」仅老人', () => {
+    expect(canAccess(ROLE.ELDER, 'elderBindGuide')).toBe(true)
+    expect(canAccess(ROLE.GUARDIAN, 'elderBindGuide')).toBe(false)
+    expect(canAccess('', 'elderBindGuide')).toBe(false)
+  })
+})

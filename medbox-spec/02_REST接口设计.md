@@ -503,6 +503,14 @@ DELETE /users/guardians/{relationId}
 - **40302 提示**：`utils/error.js` 已有默认文案"监护关系未生效，请等待老人确认"；页面按 `CODE.GUARDIAN_PENDING` 自绘，不重复 toast（同 plan 页既有写法）；
 - 老人在确认弹窗里单选 `FAMILY` / `DOCTOR` / `NURSE`（每选一项显示该角色的一句权限说明，口径取 1.3 权限矩阵），未选择时确认键禁用；拒绝经二次确认后走解除接口。
 
+**小程序侧落地（`feat/mp-profile`）**：
+
+- **个人页数据源**：`pages/profile/profile.vue` 渲染 `store/user.js` 的缓存（即 `GET /users/me` 的结果）；`onShow` 时**缓存缺 `name` / `phone` 才静默拉一次** `/users/me` 补齐（`utils/profile.js` 的 `needsProfileRefresh` 判定 —— 登录时 `getMe` 失败会留半份缓存；TabBar 页 `onShow` 频繁，缓存满时零请求）。`api/auth.js` 的 `getMe(options)` 因此加了可选 options（传 `silent: true`，背景刷新失败只记日志不弹 toast）
+- **资料字段展示**：`{userId, role, name, phone, username}` 全字段进「个人资料」卡；null 字段按全局 non_null 省略，统一经 `profileFieldText` 兜底为"未设置"；hero 姓名三级兜底 姓名 → 用户名 → "未设置姓名"
+- **角色入口分化**（08 验收"不同角色显示不同入口"）：`utils/permission.js` 的 `ENTRY_ROLES` 登记两项 —— `alarmSettings=[GUARDIAN]`（「监护台」卡；**顺带修**：白名单此前为空，该卡片实际对老人可见，与页面注释不符）、`elderBindGuide=[ELDER]`（老人端「告诉监护人」绑定引导卡，落实 3.2 口径"老人可在'我的'页面查看自己的用户ID"）
+- **`/users/{elderId}/profile` 唯一消费点**：`pages/guardian/guardian.vue`「我的申请」卡按 elderId 拉老人姓名，展示"张桂英（u-1001）"；**40302（申请中未生效）/ 40301（被拒 / 无关系）/ 网络失败一律静默回退 elderId 原文**（`elderNameText`）—— 姓名是增强信息，不 toast、不遮罩、不阻塞列表
+- **未做（有意）**：plan / record 页老人选择器的姓名化（可复用同一接口，控范围留待后续）；资料编辑（02 第 3 章无 `PATCH /users/me`，后端定了再说）
+
 ## 4. 设备管理（命令实际经 MQTT 下行）
 
 | 方法 | 路径 | 说明 |

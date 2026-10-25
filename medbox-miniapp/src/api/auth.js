@@ -72,8 +72,12 @@ export function refresh(refreshToken) {
 /**
  * 当前用户资料与角色（需鉴权）。
  *
+ * <p>`feat/mp-profile` 起支持透传 `options`：个人页"缺字段静默补齐"场景传 `silent: true`
+ * （背景刷新失败只记日志，不弹 toast 打扰用户）；不传保持原行为。
+ *
+ * @param {Object} [options] 透传请求选项（如 `silent: true`）
  * @returns {Promise<Object>} 含 `userId` / `role`，供前端按角色切换可见入口（01 第 3 章）
  */
-export function getMe() {
-  return get('/users/me')
+export function getMe(options) {
+  return get('/users/me', undefined, options)
 }
