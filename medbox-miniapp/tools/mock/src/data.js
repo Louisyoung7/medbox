@@ -91,6 +91,29 @@ function createSeed() {
     },
   ]
 
+  // 设备事件流水（06 的 2.16）：REGISTERED/ONLINE/OFFLINE 由 device-core 写；
+  // FAULT/COMMAND 由 device-fault/device-command 续写（后端 device-command/device-fault 在 07 尚未落地）。
+  // Mock 播种样例数据，让"上下线 / 心跳异常 / 设备侧异常"可读；真实 FAULT 摄入走后端 MQTT
+  // up/event/error，Mock 不接 EMQX，只给样例；命令下发（POST /commands）会即时追加一条 COMMAND 事件。
+  const events = []
+  // 每台 MAIN 主控：登记 + 上线/离线（用 lastHeartbeat 作时间，与设备状态一致）
+  devices
+    .filter((d) => d.deviceType === 'MAIN')
+    .forEach((d) => {
+      events.push({ eventId: `ev-${d.deviceId}-reg`, deviceId: d.deviceId, eventType: 'REGISTERED', detail: null, createdAt: d.createdAt })
+      events.push({
+        eventId: `ev-${d.deviceId}-ol`,
+        deviceId: d.deviceId,
+        eventType: d.onlineState === 'ONLINE' ? 'ONLINE' : 'OFFLINE',
+        detail: null,
+        createdAt: d.lastHeartbeat || d.createdAt,
+      })
+    })
+  // 种子若干"设备侧异常"（FAULT）与一条历史命令（COMMAND），使事件列表可读
+  events.push({ eventId: 'ev-1001-door', deviceId: 'BOXA1001', eventType: 'FAULT', detail: 'DOOR_TIMEOUT', createdAt: isoOffset(-3 * HOUR) })
+  events.push({ eventId: 'ev-1001-hw', deviceId: 'BOXA1001', eventType: 'FAULT', detail: 'HW_FAULT', createdAt: isoOffset(-1 * DAY) })
+  events.push({ eventId: 'ev-1001-cmd', deviceId: 'BOXA1001', eventType: 'COMMAND', detail: { commandId: 'c-seed-1', cmd: 'BUZZ', state: 'SUCCESS' }, createdAt: isoOffset(-2 * DAY) })
+
   // 药品档案（06 的 2.4）：ownerElderId 为空 = 公共字典
   const medicines = [
     {
@@ -220,7 +243,7 @@ function createSeed() {
     },
   ]
 
-  return { users, relations, devices, medicines, stocks, plans, planItems, records, refreshTokens: new Set() }
+  return { users, relations, devices, events, medicines, stocks, plans, planItems, records, refreshTokens: new Set() }
 }
 
 module.exports = { createSeed, DEMO_PASSWORD }

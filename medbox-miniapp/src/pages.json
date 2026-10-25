@@ -36,6 +36,14 @@
 			}
 		},
 		{
+			"path": "pages/device/events",
+			"style": {
+				"navigationBarTitleText": "设备事件",
+				"navigationBarBackgroundColor": "#FFFFFF",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
 			"path": "pages/medicine/medicine",
 			"style": {
 				"navigationBarTitleText": "药品",

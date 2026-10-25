@@ -54,6 +54,17 @@
 - **测试报告**：`npm test` 305 通过 / 1 跳过（本分支新增 27 例：api 8 + utils 17 + permission 2）；`npm run test:e2e` 121 通过 / 0 失败
 - 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
 
+## [2026-10-25] 小程序落地设备命令与事件流水（feat/mp-device-extra）
+
+`feat/mp-device-extra`（08 清单 P1，= `mp-device-command` + `mp-device-events`）落地：设备详情页「远程控制」卡（蜂鸣/解锁/校准/重启，仅监护人，离线 40901，PENDING→成功/失败经事件反映）+ 新增「设备事件」分页页（上下线/心跳异常/设备侧异常可读）。
+
+- **`medbox-miniapp/`**：`api/device.js` 补 `getDeviceEvents` + `sendDeviceCommand`；新增 `utils/device.js`（CMD_LABEL / EVENT_TYPE_LABEL / FAULT_LABEL / COMMAND_STATE_LABEL / 分类 / `parseEventsPage` / `toEventView`）；`utils/permission.js` 登记 `deviceCommand:[GUARDIAN]`（WRITE_DEVICE 仅 FAMILY）；`pages/device/detail.vue`「远程控制」卡（4 按钮 + 每命令态，RoleGate 仅监护人，40901 提示"设备离线，无法下发"）+「设备事件」卡；新增 `pages/device/events.vue`（分页 + 下拉刷新 + 上拉加载）
+- **`medbox-miniapp/tools/mock`**：补 `GET /devices/{id}/events`（倒序分页、40301 他人/不存在/子设备编号）与 `POST /devices/{id}/commands`（在线→PENDING 并同步落 COMMAND 事件模拟 ack；离线→40901；非法 cmd→40001；仅监护人）；种子补 FAULT/COMMAND 事件；smoke 新增 13 项（共 **134 项**）
+- **`02` 第 4 章**：补"小程序侧落地（feat/mp-device-extra）"——命令终态经 `/events` 的 COMMAND 事件观察（后端无命令状态 GET、无命令 WS 推送帧）、离线 40901、权限与事件页口径
+- **⚠️ 后端 device-command / device-fault 在 07 仍为 `[ ]` 未落地**，本分支按 02/03 契约 + mock 先行，后端定稿后于 `utils/device.js` / mock 一处收紧
+- **测试报告**：`npm test` 新增 19 例（utils 14 + api 4 + permission 1），**合计 321 通过 / 1 跳过**；`npm run test:e2e` **134 通过 / 0 失败**（mock 检查项共 134）
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-25] Flyway 迁移编号铁律：版本号 = 合并进 main 时的「最大版本号 + 1」，禁止按 spec 规划预留槽位
 
 - **改了哪个文件**：`AGENTS.md` 新增 3.2 节（Flyway 迁移编号约定）；`06` 迁移列表顶部加铁律警告并改掉 V11/V12「预留槽位」措辞

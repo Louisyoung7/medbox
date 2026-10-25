@@ -8,7 +8,7 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、121 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、134 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 
@@ -32,6 +32,8 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 
 - `POST /auth/login`、`POST /auth/register`、`POST /auth/refresh`（轮换）、`GET /users/me`、`POST /users/me/delete`、`GET /users/{elderId}/profile`（老人基础信息，`feat/mp-profile`：本人或 ACTIVE 监护人可见；PENDING→40302；无关系/REVOKED/目标非老人→40301 防枚举；响应同 `/users/me`，`username` 选填省略）
 - `GET /devices`、`GET /devices/{id}`（含 `sensors[]`）
+- `GET /devices/{id}/events`（事件流水：分页、按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`detail` 对 FAULT 为故障码、对 COMMAND 为 `{commandId,cmd,state}`，`feat/mp-device-extra`：`REGISTERED`/`ONLINE`/`OFFLINE` 由 device-core 播种，`FAULT`/`COMMAND` 由 device-fault/device-command 续写，Mock 已播种样例）
+- `POST /devices/{id}/commands`（下发控制命令：异步受理回 `{commandId,state:PENDING}`，`cmd` ∈ `BUZZ`/`UNLOCK`/`CALIBRATE`/`REBOOT`；设备离线 → **40901**；`cmd` 非法 → **40001**；仅监护人（WRITE_DEVICE 仅 FAMILY）→ **40301**；子设备编号 → **40301**；Mock 同步落一条 COMMAND 事件（state=SUCCESS）模拟设备 ack）
 - `GET /medicines`（分页 + keyword，返回 `{list,total}`）、`GET /medicines/{id}`、`POST /medicines`（新建/更新同一入口）、`DELETE /medicines/{id}`（被库存引用 → **40901**）
 - `GET /devices/{id}/stocks`（裸数组）、`PUT .../stocks/{medicineId}`（数量绝对值）、`POST .../stocks/{medicineId}/in`（数量增量）、`DELETE .../stocks/{medicineId}`
 - `GET /plans?elderId=`（列表含 items 概览）、`GET /plans/{id}`（含 items 明细）、`POST /plans`、`PUT /plans/{id}`（整体覆盖）、`PATCH /plans/{id}/status`（请求体契约 `{status:'ENABLED'|'DISABLED'}`）、`DELETE /plans/{id}`（级联删明细）
@@ -58,6 +60,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - token 过期自动续期：`MOCK_ACCESS_TTL_MS=15000 npm run mock`，等 15s 后再操作，页面无感续期
 - 监护绑定：王芳登录 → 对 u-1001 重复申请 40901；张桂英登录 → 待确认列表见王芳，确认（选 DOCTOR）后王芳即可读 u-1001 数据；周杰对 u-1001 重新申请（REVOKED 复活）→ 确认前访问 40302；撤销 / 拒绝后关系 REVOKED，可再次申请
 - 用户资料：张桂英登录 →「我的」页个人资料卡含姓名/手机号/用户名；王芳（PENDING）在「监护关系」页的申请卡只显示 elderId（拉不到姓名，静默回退）；张伟（ACTIVE）的申请卡显示"张桂英（u-1001）"
+- 设备命令与事件（feat/mp-device-extra）：张伟（监护人）进 BOXA1001 详情 →「远程控制」卡可点 蜂鸣/解锁/校准/重启，下发后显示"下发中"并在事件列表落一条 COMMAND 成功事件；切到离线设备 BOXA1002 下发 → 提示"设备离线，无法下发"（40901）；张桂英（老人）无「远程控制」卡（WRITE_DEVICE 仅监护人）；「设备事件」卡与事件全量页可读 上线/离线/设备异常（FAULT）/控制命令 流水（Mock 播种了 门超时/硬件故障 两条异常）
 
 ## 测试辅助
 

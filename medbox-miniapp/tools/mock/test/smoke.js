@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 121 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 134 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -92,6 +92,27 @@ async function waitReady() {
     check('REVOKED 关系看不到设备', revokedDevices.code === 0 && revokedDevices.data.length === 0)
     const pendingDevice = await call('GET', '/devices/BOXA1001', { token: pending.token })
     check('PENDING 关系 40302', pendingDevice.code === 40302)
+
+    console.log('== 设备命令与事件（02 第 4 章；feat/mp-device-extra） ==')
+    // 命令下发：异步受理返回 {commandId, state:PENDING}；Mock 同步落 COMMAND 事件（state=SUCCESS）模拟设备 ack
+    const cmdRes = await call('POST', '/devices/BOXA1001/commands', { token: gw.token, body: { cmd: 'BUZZ', params: { durationSec: 5 }, operator: 'u-2001' } })
+    check('监护人在线设备下发 BUZZ → PENDING', cmdRes.code === 0 && cmdRes.data.commandId && cmdRes.data.state === 'PENDING')
+    check('离线设备下发 40901', (await call('POST', '/devices/BOXA1002/commands', { token: gw.token, body: { cmd: 'BUZZ' } })).code === 40901)
+    check('老人（无 WRITE_DEVICE）下发 40301', (await call('POST', '/devices/BOXA1001/commands', { token: elder.token, body: { cmd: 'BUZZ' } })).code === 40301)
+    check('非法 cmd 40001', (await call('POST', '/devices/BOXA1001/commands', { token: gw.token, body: { cmd: 'FLY' } })).code === 40001)
+    check('子设备编号下发 40301', (await call('POST', '/devices/BOXA1001-S-CAM01/commands', { token: gw.token, body: { cmd: 'BUZZ' } })).code === 40301)
+    check('未登录下发 40101', (await call('POST', '/devices/BOXA1001/commands', { body: { cmd: 'BUZZ' } })).code === 40101)
+    // 事件流水：倒序分页；FAULT/COMMAND 由 device-fault/device-command 续写（Mock 已播种 + 刚下发产生 COMMAND）
+    const events = await call('GET', '/devices/BOXA1001/events', { token: gw.token })
+    check('事件流水 200 且倒序', events.code === 0 && Array.isArray(events.data.list) && events.data.list.length >= 5)
+    check('FAULT 事件可读性（≥2）', events.data.list.filter((e) => e.eventType === 'FAULT').length >= 2)
+    const topCmd = events.data.list[0]
+    check('最新一条为刚下发的 COMMAND 且 ack 成功', topCmd.eventType === 'COMMAND' && topCmd.detail.commandId === cmdRes.data.commandId && topCmd.detail.state === 'SUCCESS')
+    const page2 = await call('GET', '/devices/BOXA1001/events?page=1&size=2', { token: gw.token })
+    check('分页 size=2 返回 2 条且倒序', page2.code === 0 && page2.data.list.length === 2 && page2.data.list[0].createdAt >= page2.data.list[1].createdAt)
+    check('page=0 → 40001', (await call('GET', '/devices/BOXA1001/events?page=0', { token: gw.token })).code === 40001)
+    check('老人可读事件（READ_DEVICE 双方）', (await call('GET', '/devices/BOXA1001/events', { token: elder.token })).code === 0)
+    check('子设备编号事件 40301', (await call('GET', '/devices/BOXA1001-S-CAM01/events', { token: gw.token })).code === 40301)
 
     console.log('== 药品 ==')
     const search = await call('GET', '/medicines?keyword=' + encodeURIComponent('阿莫'), { token: gw.token })
