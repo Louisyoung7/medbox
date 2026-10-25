@@ -166,8 +166,8 @@ curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/plans \
 建议配合 `jq` 查看响应；也可用 Postman / Apifox 导入同一套接口。抓拍图片上传用 `curl -F`（multipart）：
 
 ```bash
-curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/devices/BOXA1001-S-CAM01/captures \
-  -H "X-Device-Id: BOXA1001-S-CAM01" -H "X-Device-Sign: <hmac>" -H "X-Timestamp: 1759474540" \
+curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/devices/BOXA-DEBUG-01-S-CAM01/captures \
+  -H "X-Device-Id: BOXA-DEBUG-01-S-CAM01" -H "X-Device-Sign: <hmac>" -H "X-Timestamp: 1759474540" \
   -F "file=@capture.jpg" -F "reason=WRONG_DRUG" -F "medicineId=m-205" | jq
 ```
 
@@ -177,7 +177,9 @@ curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/devices/BOXA1001-S-CAM01/
 
 **1）一键播种最小数据集** `POST /api/v1/_debug/seed`
 
-返回 1 监护人（`13800001234` / 密码 `123456`，userId `u-1001`）+ 1 老人（userId `e-1001` / 手机号 `13800008888` / 密码 `123456`）+ `ACTIVE` 监护关系 + 1 药箱主控（`BOXA1001`）+ 3 传感器子设备（`BOXA1001-S-TH01` 温湿度 / `BOXA1001-S-LX01` 光照 / `BOXA1001-S-CAM01` 摄像头）+ 公共药 `m-205`（阿司匹林）+ 老人私有药 `m-206`（甲硝唑）+ 库存 `s-1001` + 计划 `p-3301`（含计划项 `pi-9001`，每日 `08:00`）。响应里**直接带监护人 access token 与老人 access token**，可立刻复用：
+返回 1 监护人（`13800001234` / 密码 `123456`，userId `u-debug-guardian`）+ 1 老人（userId `e-1001` / 手机号 `13800008888` / 密码 `123456`）+ `ACTIVE` 监护关系 + 1 药箱主控（`BOXA-DEBUG-01`）+ 3 传感器子设备（`BOXA-DEBUG-01-S-TH01` 温湿度 / `BOXA-DEBUG-01-S-LX01` 光照 / `BOXA-DEBUG-01-S-CAM01` 摄像头）+ 公共药 `m-205`（阿司匹林）+ 老人私有药 `m-206`（甲硝唑）+ 库存 `s-debug-001` + 计划 `p-3301`（含计划项 `pi-9001`，每日 `08:00`）。响应里**直接带监护人 access token 与老人 access token**，可立刻复用：
+
+> **为什么只有部分 ID 带 `debug` 段**：业务号由 `user_biz_id_seq` / `medicine_stock_biz_id_seq` 等从 **1001** 起生成 —— 清库后首个注册用户必是 `u-1001`、首个库存必是 `s-1001`，种子若占用它们会与真实数据撞唯一约束，`?reset=true` 的清理更会按固定 ID 误删真实账号 / 库存；设备号用 `BOXA-DEBUG-01` 则是为了不与真机序列号重名（`clearSeed` 会按它删设备）。而 `e-1001` / `m-205` / `p-3301` / `pi-9001` 不在业务序列生成值域内（业务号恒为前缀 + 数字、且从 1001 起），永远不会与真实数据相撞，故保留短 ID。
 
 ```bash
 # 播种（幂等：已存在则跳过写入；?reset=true 先清后种）
@@ -199,9 +201,9 @@ echo "$GUARDIAN_TOKEN"; echo "$ELDER_TOKEN"
 # 免登录：不需要 Authorization 头（带了也无害，但不生效、也不需要）
 curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
   -H "Content-Type: application/json" -d '{
-    "deviceId":"BOXA1001",
+    "deviceId":"BOXA-DEBUG-01",
     "subTopic":"event/dispense",
-    "payload":"{\"msgId\":\"BOXA1001-000123\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\"}"
+    "payload":"{\"msgId\":\"BOXA-DEBUG-01-000123\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\"}"
   }'
 ```
 
@@ -525,17 +527,17 @@ DELETE /users/guardians/{relationId}
 
 ```
 POST /devices/register
-{ "deviceId":"BOXA1001", "elderId":"u-1001",
-  "sensors":[{"deviceId":"BOXA1001-S-TH01","deviceType":"TEMP_HUMI"},
-             {"deviceId":"BOXA1001-S-CAM01","deviceType":"CAMERA"}] }
+{ "deviceId":"BOXA-DEBUG-01", "elderId":"u-1001",
+  "sensors":[{"deviceId":"BOXA-DEBUG-01-S-TH01","deviceType":"TEMP_HUMI"},
+             {"deviceId":"BOXA-DEBUG-01-S-CAM01","deviceType":"CAMERA"}] }
 
 // 响应（注册即生效；onlineState 恒为 OFFLINE —— 真正的在线要等设备连上 EMQX）
 { "code":0, "data":{
-    "deviceId":"BOXA1001", "deviceType":"MAIN", "elderId":"u-1001",
+    "deviceId":"BOXA-DEBUG-01", "deviceType":"MAIN", "elderId":"u-1001",
     "productKey":"medbox-box", "timezone":"Asia/Shanghai", "onlineState":"OFFLINE",
     "registeredAt":"2026-10-13T01:00:00Z",
-    "sensors":[{"deviceId":"BOXA1001-S-TH01","deviceType":"TEMP_HUMI"},
-               {"deviceId":"BOXA1001-S-CAM01","deviceType":"CAMERA"}] } }
+    "sensors":[{"deviceId":"BOXA-DEBUG-01-S-TH01","deviceType":"TEMP_HUMI"},
+               {"deviceId":"BOXA-DEBUG-01-S-CAM01","deviceType":"CAMERA"}] } }
 ```
 
 | 字段 | 必填 | 说明 |
@@ -570,7 +572,7 @@ POST /devices/register
 **示例：下发控制命令**
 
 ```
-POST /devices/BOXA1001/commands
+POST /devices/BOXA-DEBUG-01/commands
 { "cmd":"BUZZ", "params":{"durationSec":5}, "operator":"doctor" }
 
 // 响应（异步下发，返回受理）
@@ -594,7 +596,7 @@ POST /devices/BOXA1001/commands
 **示例：摄像头上传抓拍**
 
 ```
-POST /devices/BOXA1001-S-CAM01/captures     // 摄像头子设备自己的 deviceId
+POST /devices/BOXA-DEBUG-01-S-CAM01/captures     // 摄像头子设备自己的 deviceId
 Content-Type: multipart/form-data
 file: capture.jpg
 reason=WRONG_DRUG & medicineId=m-205 & planId=p-3301
