@@ -17,6 +17,12 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-25] Flyway 迁移编号铁律：版本号 = 合并进 main 时的「最大版本号 + 1」，禁止按 spec 规划预留槽位
+
+- **改了哪个文件**：`AGENTS.md` 新增 3.2 节（Flyway 迁移编号约定）；`06` 迁移列表顶部加铁律警告并改掉 V11/V12「预留槽位」措辞
+- 背景：V11 被预留给 admin 种子、V12 先合、admin 隔天合，致已升到 V12 的库无法补跑 V11，Flyway out-of-order 启动失败（见上面 3.2 第 4 条处置办法）
+- 影响端：`medbox-server/` 否（仅约定，无代码改动）· `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-24] feat(admin-testdata-cleanup) 测试数据清理 Web 工具（medbox-admin/）落地
 
 - `09`：`feat/admin-testdata-cleanup` 勾选为已完成；第 4 点种子账号落地引用由 `V10` 顺延为 `V11`（与 CHANGELOG 同日条目一致）。
