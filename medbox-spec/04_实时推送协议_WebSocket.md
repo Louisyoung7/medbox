@@ -63,6 +63,10 @@
 
 ---
 
+> **REMINDER 由 `feat/plan-reminder` 生成**：后端定时扫描（`@Scheduled`，每 `medbox.plan-reminder.scan-interval-ms` 默认 60s）取 `status='ENABLED' AND sync_state <> 'SYNC_FAILED'` 的计划，
+> 按设备本地时区在 `[now, now + lead-time-minutes]`（默认 10min）窗口展开"未来"服药槽，经 `WsPushService` 唯一出口推 `REMINDER` 帧到 `elder:{elderId}`。
+> **两台语义**：设备本地声光提醒为主、云端 WS 为监护端兜底（默认不要求设备在线）。**两道拦截**：① 该槽已有 `med_record`（已服）跳过；② 去重表 `plan_reminder`（`dedup_key = REMINDER:{planId}:{slotUTC}`）已存在则跳过（见 06 §2.6.x）。`REMINDER` 不是告警，不进 `alarm` 列表。
+
 ## 4. 后端落地（`feat/backend-ws`）
 
 **推送出口只有一个**：`WsPushService.publish(topic, WsFrameType, payload)` → 返回 `(eventId, 送达连接数)`。

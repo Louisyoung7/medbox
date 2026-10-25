@@ -16,6 +16,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties(AlarmProperties.class)
+@EnableConfigurationProperties({AlarmProperties.class, PlanReminderProperties.class})
 public class SchedulingConfig {
 }
