@@ -653,7 +653,97 @@ reason=WRONG_DRUG & medicineId=m-205 & planId=p-3301
 - **下载侧鉴权**：必须是**老人本人**或其 **ACTIVE 监护人**，其余角色（护理 / 医生）一律 40301 —— 比 1.3 的默认规则更严格。
 - **为什么用 query 传 token**：小程序 `<image src>` 无法携带自定义 Header，故用后端签发的**短期 `fileToken`**（5 分钟有效）拼接在 URL 上；**不要直接把长期 JWT 放 URL**（会落进日志与浏览器历史）。
 - **过期清理（已读 / 未读分开算）**：`expire_at = MIN(captured_at + 30 天, viewed_at + 7 天)` —— **未读最长保留 30 天**，**首次查看后再保留 7 天**（查看只会让过期提前，不会延长）。首次调用 `/captures/{id}/file` 读取图片流时后端自动写入 `viewed_at` 并重算 `expire_at`；天数可配 `medbox.capture.retention-days-unread`（30）/ `retention-days-read`（7）。后端每日定时任务删除到期文件与记录，监护人可手动提前删除。
-- **存储**：图片存后端主机本地目录，不落库、不暴露真实路径（表结构见文档 06 的 2.12）。
+- **存储**：图片存后端主机本地目录，不落库、不暴露真实路径（表结构见文档 06 的 2.12）；落盘路径 `{dir}/{YYYY-MM-DD}/{captureId}.{ext}`，`file_path` 入库但**绝不出现在任何响应里**。`{ext}` 由上传 `Content-Type` 推导（仅 `jpg`/`png`/`webp`，其余兜底 `jpg`），**不使用原始文件名**（防路径穿越）。
+
+#### 4.1.1 上传侧鉴权（设备身份，HMAC，不走 JWT）
+
+`POST /devices/{deviceId}/captures` 从 `AuthInterceptor` 排除，由本类自带设备鉴权。设备侧用一把**共用密钥**（写在固件与后端配置 `medbox.capture.upload-secret` 里，不入库、走 `MEDBOX_CAPTURE_UPLOAD_SECRET` 环境变量覆盖）做 HMAC 签名，携带三个 Header：
+
+| Header | 含义 |
+|--------|------|
+| `X-Device-Id` | 摄像头子设备自己的 `deviceId`，**必须与路径 `deviceId` 完全一致**（否则 40001） |
+| `X-Device-Sign` | `HMAC_SHA256(secret, deviceId + timestamp)`，**十六进制小写** |
+| `X-Timestamp` | Unix **秒**，与服务器时钟差值绝对值 **≤ 5 分钟**（防重放） |
+
+后端校验：① 签名正确（伪造 / 密钥不符 → **40101**）；② 时间戳在 ±5 分钟窗口内（超出 → **40101**）；③ `X-Device-Id == 路径 deviceId`（否则 40001）。**不做"只校验 `X-Device-Id`"的退化方案**。校验通过后后端按 `parent_device_id` 反查所属药箱与老人，只允写入该设备所属老人。
+
+```bash
+curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/devices/BOXA-DEBUG-01-S-CAM01/captures \
+  -H "X-Device-Id: BOXA-DEBUG-01-S-CAM01" \
+  -H "X-Device-Sign: $(printf '%s%s' BOXA-DEBUG-01-S-CAM01 1759474540 | openssl dgst -sha256 -hmac '<upload-secret>' -hex | awk '{print $2}')" \
+  -H "X-Timestamp: 1759474540" \
+  -F "file=@capture.jpg" -F "reason=WRONG_DRUG" -F "medicineId=m-205" \
+  -F "planId=p-3301" -F "confidence=0.62" -F "capturedAt=2026-10-04T00:04:00Z" | jq
+```
+
+#### 4.1.2 接口契约（5 个端点）
+
+**① 上传（设备 HMAC）** `POST /devices/{deviceId}/captures`　multipart/form-data
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `file` | 是 | 图片二进制 |
+| `reason` | 否 | `NORMAL` / `WRONG_DRUG` / `LOW_CONFIDENCE` / `MANUAL`，缺省 `NORMAL`，非法值 40001 |
+| `medicineId` | 否 | 关联药品 |
+| `planId` | 否 | 关联服药计划；**非空时才触发去重** |
+| `confidence` | 否 | 置信度（BigDecimal，如 `0.62`） |
+| `capturedAt` | 否 | ISO-8601 UTC，缺省取服务器当前 UTC |
+
+响应（去重命中时返回既有记录的 `captureId`/`expireAt`，本次文件流丢弃不落盘）：
+```json
+{ "code":0, "data":{ "captureId":"cap-1001", "expireAt":"2026-11-03T00:04:00Z" } }
+```
+
+**② 列表（仅元数据）** `GET /captures?elderId=&reason=&from=&to=&page=&size=`
+
+| Query | 必填 | 说明 |
+|-------|------|------|
+| `elderId` | 是 | 目标老人；走 `READ_CAPTURE`（老人本人 + FAMILY） |
+| `reason` | 否 | 按 `reason` 过滤（如只看 `WRONG_DRUG`） |
+| `from` / `to` | 否 | `capturedAt` 时间区间（ISO-8601 UTC） |
+| `page` / `size` | 否 | 默认 1 / 20，**上限 200**（图片元数据体积小，比通用约定 100 放宽） |
+
+响应：`R<PageResult<CaptureResponse>>`，`list` 中每条字段见 ④；分页字段 `total`/`page`/`size`。
+
+**③ 详情** `GET /captures/{captureId}` → `R<CaptureResponse>`
+
+**④ 抓拍元数据字段（`CaptureResponse`，②/③ 共用）**
+```json
+{ "captureId":"cap-1001", "deviceId":"BOXA-DEBUG-01-S-CAM01", "elderId":"u-1001",
+  "medicineId":"m-205", "planId":"p-3301", "reason":"WRONG_DRUG",
+  "mime":"image/jpeg", "sizeBytes":48213, "confidence":0.62,
+  "capturedAt":"2026-10-04T00:04:00Z", "viewedAt":null, "expireAt":"2026-11-03T00:04:00Z",
+  "fileToken":"<5分钟短期令牌>" }
+```
+`viewedAt` 未读为 `null`；`fileToken` 供小程序 `<image src>` 拼接 ⑤ 使用（每次取详情/列表都会重新签发，**5 分钟有效**）。
+
+**⑤ 读取图片流** `GET /captures/{captureId}/file?token=` → **直接返回二进制**（`Content-Type` 为图片、`Cache-Control: no-store`），**不走统一响应体包裹**。首次读取自动写 `viewed_at` 并据"查看后过期公式"重算 `expire_at`。
+
+**⑥ 删除（仅 FAMILY）** `DELETE /captures/{captureId}` → `R<Void>`；走 `WRITE_CAPTURE`（仅 FAMILY，老人本人 / 护理 / 医生 40301）。删库行 + 尽力删磁盘文件（文件已被清理任务清掉也不算失败）。
+
+#### 4.1.3 错误码与边界（不新增码值，沿用 1.2 / 1.3）
+
+| 端点 | 场景 | code | HTTP |
+|------|------|------|------|
+| ① 上传 | HMAC 签名错 / 时间戳超 ±5min / `X-Timestamp` 非法 | 40101 | 401 |
+| ① 上传 | `X-Device-Id ≠ 路径 deviceId` / `file` 空 / `reason` 非法 / 缺参 | 40001 | 400 |
+| ① 上传 | 设备未注册或父设备缺失（解析不出老人） | 40301 | 403 |
+| ① 上传 | 文件落盘 IO 失败 | 50000 | 500 |
+| ②/③ 列表/详情 | 未登录 / token 失效 | 40101 | 401 |
+| ②/③ 列表/详情 | 无关系 / NURSE/DOCTOR / 老人看他人 | 40301 | 403 |
+| ②/③ 列表/详情 | 监护关系 PENDING | 40302 | 403 |
+| ③ 详情 | `captureId` 不存在 | 40401 | 404 |
+| ⑤ 文件流 | `token` 缺失 / 格式非法 / `token.captureId ≠ 路径` | 40001 | 400 |
+| ⑤ 文件流 | `token` 签名无效 / 已过期 | 40101 | 401 |
+| ⑤ 文件流 | `captureId` 不存在 / 磁盘文件已被清理 | 40401 | 404 |
+| ⑤ 文件流 | 监护关系不符（二次复核，令牌泄漏也兜底） | 40301 / 40302 | 403 |
+| ⑥ 删除 | `captureId` 不存在 / 已被清理 | 40401 | 404 |
+| ⑥ 删除 | 老人本人 / NURSE / DOCTOR 调用 | 40301 | 403 |
+| ⑥ 删除 | FAMILY 但监护关系 PENDING | 40302 | 403 |
+
+> **去重规则（实现确定）**：`planId` 非空时，按 `|capturedAt − 已有 capturedAt| ≤ 60s` 判定重复，命中只保留第一张（返回既有 `captureId`/`expireAt`）；`planId` 为空不去重。
+>
+> **fileToken 结构（供调试 / 联调理解，小程序无需解析）**：`base64url(payload) + "." + base64url(HMAC(fileTokenSecret, payload))`，`payload = captureId + "|" + 过期秒`；默认 TTL 5 分钟（`medbox.capture.file-token-ttl-minutes`），密钥走 `MEDBOX_CAPTURE_FILE_TOKEN_SECRET` 覆盖。令牌只证明"曾有权读取"，文件端点仍二次走 `AccessService.require(READ_CAPTURE)` 复核监护关系。
 
 ## 5. 药品与库存管理
 
