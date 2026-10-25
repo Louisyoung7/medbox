@@ -295,9 +295,9 @@ echo "$TOKEN"
 # 2) 服务端模拟设备上报（等价于"服务端版 mosquitto_pub"，流经真实入站网关→落库→WS 推送）
 curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
   -H 'Content-Type: application/json' -d '{
-    "deviceId":"BOXA1001",
+    "deviceId":"BOXA-DEBUG-01",
     "subTopic":"event/dispense",
-    "payload":"{\"msgId\":\"BOXA1001-000123\",\"ts\":1759474487000,\"userId\":\"e-1001\",\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\"}" }'
+    "payload":"{\"msgId\":\"BOXA-DEBUG-01-000123\",\"ts\":1759474487000,\"userId\":\"e-1001\",\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\"}" }'
 ```
 
 > **⚠️ 别预注册保留号**：`13800001234`（监护人）与 `13800008888`（老人）是 seed 写死的保留号。若你先按第 7 节用手动注册占了其中某个手机号，再跑 seed 会因手机号唯一约束冲突而失败——直接空库跑 seed 即可，或换别的手机号做 auth 自测。
@@ -311,13 +311,31 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
 
 | 实体 | 业务 ID | 备注 |
 |------|---------|------|
-| 监护人 | `13800001234` / 密码 `123456` / userId `u-1001` | 返回 `guardianToken` 即此账号 |
+| 监护人 | `13800001234` / 密码 `123456` / userId `u-debug-guardian` | 返回 `guardianToken` 即此账号 |
 | 老人 | userId `e-1001` / 手机号 `13800008888` / 密码 `123456` | 与监护人直接是 `ACTIVE` 监护关系（跳过申请→确认）；返回 `elderToken` 可直接以老人视角登录 |
-| 药箱主控 | `BOXA1001` | productKey 取 `medbox.device.default-product-key`（默认 `medbox-box`） |
-| 传感器子设备 | `BOXA1001-S-TH01`（温湿度）/ `BOXA1001-S-LX01`（光照）/ `BOXA1001-S-CAM01`（摄像头） | |
+| 药箱主控 | `BOXA-DEBUG-01` | productKey 取 `medbox.device.default-product-key`（默认 `medbox-box`） |
+| 传感器子设备 | `BOXA-DEBUG-01-S-TH01`（温湿度）/ `BOXA-DEBUG-01-S-LX01`（光照）/ `BOXA-DEBUG-01-S-CAM01`（摄像头） | |
 | 药品 | `m-205`（阿司匹林，公共）+ `m-206`（甲硝唑，老人私有） | |
-| 库存 | `s-1001` | 有效期未过期 |
+| 库存 | `s-debug-001` | 有效期未过期 |
 | 计划 | `p-3301`（含计划项 `pi-9001`，每日 `08:00`） | |
+
+> **为什么只有部分 ID 带 `debug` 段**：业务号由 `user_biz_id_seq` / `medicine_stock_biz_id_seq` 等从 **1001** 起生成 —— 清库后首个注册用户必是 `u-1001`、首个库存必是 `s-1001`，种子若占用它们会与真实数据撞唯一约束，`?reset=true` 的清理更会按固定 ID **误删真实账号 / 库存**；设备号用 `BOXA-DEBUG-01` 是为了不与真机序列号重名（`clearSeed` 会按它删设备）。而 `e-1001` / `m-205` / `p-3301` / `pi-9001` 不在业务序列生成值域内（业务号恒为前缀 + 数字、且从 1001 起），永远不会与真实数据相撞，故保留短 ID。
+>
+> **从旧版本升级（历史库里有 `u-1001` / `BOXA1001` / `s-1001` 老种子）**：新种子改用上面的 debug ID，旧数据不会自动清。**为什么不直接用管理后台（medbox-admin 测试数据清理）删？** 后台的硬删护栏对**任何 `ACTIVE` 账号一律拒绝**（`AdminUserService.purge()` 抛 `40902`），而种子账号写入时状态恒为 `ACTIVE`，所以后台那条「清理」按钮对种子是**禁用**的——后台删不了种子。另外旧数据也不适合无条件自动清（有误删占用 `u-1001` 的真实账号的风险）。确认要清时**先 `SELECT` 核对，再按下述条件删除**（手机号条件用于兜底，避免误删占用了 `u-1001` 的真实账号）：
+>
+> ```sql
+> DELETE FROM med_record WHERE plan_id = 'p-3301';
+> DELETE FROM med_plan_item WHERE plan_id = 'p-3301';
+> DELETE FROM med_plan WHERE plan_id = 'p-3301';
+> DELETE FROM medicine_stock WHERE device_id = 'BOXA1001';
+> DELETE FROM device WHERE device_id = 'BOXA1001' OR device_id LIKE 'BOXA1001-S-%';
+> DELETE FROM medicine WHERE medicine_id IN ('m-205', 'm-206');
+> DELETE FROM guardian_relation WHERE relation_id = 'r-debug-001';
+> DELETE FROM "user" WHERE user_id IN ('u-1001', 'e-1001')
+>   AND phone IN ('13800001234', '13800008888');
+> ```
+>
+> 清完再点「一键播种」即可。
 
 - 模拟消息若触发计划下发（`down/schedule`），设备不在场会 `SYNC_FAILED`，属预期，不视为缺陷。
 - MQTT 没启 / 没连 broker 时该端点返回 `50000`，先按第 9 节起好 EMQX。

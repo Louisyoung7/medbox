@@ -15,7 +15,7 @@
 | 后端接入方式 | Java 后端以订阅方身份连到 EMQX（Spring Integration MQTT / Eclipse Paho），订阅 `.../up/#` 消费上报、向 `.../down/#` 发布下行 |
 | EMQX 认证 | **本期不做认证**：EMQX 保持默认匿名（`allow_anonymous=true`），设备与后端能连到 1883 即可收发。将来需要时**分两级加固**：① 关闭匿名 + 共用用户名密码 + `clientId=deviceId` 白名单 + topic ACL；② 更强的**一机一密**（每台设备独立凭据 + EMQX HTTP 认证 / HMAC 动态签名 / 按 `${clientid}` 限制 topic）。详见文档 01 附录第 2 条 |
 | 连接主体 | **一个药箱只有主设备（`MAIN`）建立 MQTT 连接**，clientId = 药箱 deviceId。温湿度 / 光照 / 摄像头等传感器是其**子设备**，不各自建连接，由主控在消息里带 `sensorId` 标明来源（见第 4 章） |
-| 消息幂等 | **所有上行消息必须带 `msgId`**，格式固定为 **`{deviceId}-{10位递增序号}`**（如 `BOXA1001-0000000124`，序号持久化、重启不归零）。断线重连重发时服务端按 `msgId` 去重，避免重复写入服药记录 / 告警 |
+| 消息幂等 | **所有上行消息必须带 `msgId`**，格式固定为 **`{deviceId}-{10位递增序号}`**（如 `BOXA-DEBUG-01-0000000124`，序号持久化、重启不归零）。断线重连重发时服务端按 `msgId` 去重，避免重复写入服药记录 / 告警 |
 | 下行确认 | 下行消息带 `msgId` 与 `needAck`；设备处理后向 `.../up/ack` 回执。**重发策略已确定：超时 5s 未回执则重发，最多 3 次**；3 次仍无回执则标记该下发失败并生成告警（见第 2 章） |
 
 EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、Topic 监控与调试发布 / 订阅。
@@ -53,13 +53,13 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 ```json
 // 温湿度传感器（TEMP_HUMI）
-{ "msgId":"BOXA1001-000123", "ts":1759474487000,
-  "sensorId":"BOXA1001-S-TH01",
+{ "msgId":"BOXA-DEBUG-01-000123", "ts":1759474487000,
+  "sensorId":"BOXA-DEBUG-01-S-TH01",
   "temperature":24.6, "humidity":52.1 }
 
 // 光照传感器（LIGHT）
-{ "msgId":"BOXA1001-000124", "ts":1759474488000,
-  "sensorId":"BOXA1001-S-LX01",
+{ "msgId":"BOXA-DEBUG-01-000124", "ts":1759474488000,
+  "sensorId":"BOXA-DEBUG-01-S-LX01",
   "lux":120 }
 ```
 
@@ -67,7 +67,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 上行·服药事件 `.../up/event/dispense`（含错服判定与摄像头识别字段）：
 ```json
-{ "msgId":"BOXA1001-000124", "ts":1759474500000,
+{ "msgId":"BOXA-DEBUG-01-000124", "ts":1759474500000,
   "planId":"p-3301", "planItemId":"pi-9001",
   "medicineId":"m-205",
   "actualDose":"1", "unit":"片", "wrongDrug":false, "onTime":true,
@@ -82,30 +82,30 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 上行·设备异常 `.../up/event/error`（**仅设备侧异常**）：
 ```json
-{ "msgId":"BOXA1001-000125", "ts":1759474512000, "type":"DOOR_TIMEOUT",
+{ "msgId":"BOXA-DEBUG-01-000125", "ts":1759474512000, "type":"DOOR_TIMEOUT",
   "detail":"仓门开启超过 60s 未关闭" }
 ```
 `type` 取值：`DOOR_TIMEOUT` 门超时 / `CAMERA_FAILED` 识别失败 / `HW_FAULT` 硬件故障。后端收到后**记入设备事件流水**（`GET /devices/{id}/events`）**并生成 `DEVICE_FAULT` 告警**（见文档 02 第 8 章）。**错服用 `dispense.wrongDrug`，不要放这里。**
 
 上行·库存变更 `.../up/inventory`（按药品，不按仓位）：
 ```json
-{ "msgId":"BOXA1001-000127", "ts":1759474530000,
+{ "msgId":"BOXA-DEBUG-01-000127", "ts":1759474530000,
   "medicineId":"m-205", "quantity":12, "delta":-1 }
 ```
 `quantity` = 变更后库存，`delta` = 本次变化量（服药 -1 / 补药 +n）。**生产日期与有效期不从设备上**，由小程序录入（见文档 02 第 5 章）。
 
 上行·传感器心跳 `.../up/sensor/heartbeat`（主控周期性汇总子设备状态）：
 ```json
-{ "msgId":"BOXA1001-000128", "ts":1759474540000,
-  "sensors":[ { "sensorId":"BOXA1001-S-TH01","online":true },
-              { "sensorId":"BOXA1001-S-LX01","online":true },
-              { "sensorId":"BOXA1001-S-CAM01","online":false } ] }
+{ "msgId":"BOXA-DEBUG-01-000128", "ts":1759474540000,
+  "sensors":[ { "sensorId":"BOXA-DEBUG-01-S-TH01","online":true },
+              { "sensorId":"BOXA-DEBUG-01-S-LX01","online":true },
+              { "sensorId":"BOXA-DEBUG-01-S-CAM01","online":false } ] }
 ```
 因为**只有主控有 MQTT 连接**，子设备没有自己的遗嘱消息，故由主控每 **60s** 汇总上报一次；后端据此更新各子设备的 `last_heartbeat` 与 `online_state`。**离线判定（已确定）：连续 3 个周期（180s）未上报即判该传感器离线**，**不生成 DEVICE_OFFLINE 告警**，仅在设备详情与 `DEVICE_STATUS` 推送中标注。
 
 上行·下行回执 `.../up/ack`（对应下行消息中的 `msgId`）：
 ```json
-{ "msgId":"BOXA1001-000126", "ts":1759474520000,
+{ "msgId":"BOXA-DEBUG-01-000126", "ts":1759474520000,
   "ackFor":"d-001", "result":"OK", "reason":null }
 ```
 `result`：`OK` / `FAILED`；`reason` 失败时给出简要原因（如 `"medicine_not_found"`）。服务端发出 `needAck:true` 的下行消息后，**5s 未收到回执则重发，最多 3 次**；仍无回执则标记下发失败并告警。
@@ -165,24 +165,24 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 - **连接 / 客户端管理**：确认设备是否在线、`clientId` 是否正确；
 - **主题监控**：实时看消息有没有发出来、内容对不对。
 
-典型用法：用 Dashboard 订阅 `medbox/{pk}/BOXA1001/up/#`，再手动发布一条 `up/event/dispense`，观察后端是否落 `med_record`、是否经 WebSocket 推送告警。
+典型用法：用 Dashboard 订阅 `medbox/{pk}/BOXA-DEBUG-01/up/#`（`BOXA-DEBUG-01` 是 devtools 种子设备，真实设备请换成自己的序列号），再手动发布一条 `up/event/dispense`，观察后端是否落 `med_record`、是否经 WebSocket 推送告警。
 
 ### 5.2 mosquitto_pub / mosquitto_sub —— 脚本造数据
 
 `mosquitto_pub` **只能发布，不能订阅**；要看回包需另开终端用 `mosquitto_sub`。
 
 ```bash
-# 模拟设备上报一次服药事件
-mosquitto_pub -h 192.168.1.10 -p 1883 -i BOXA1001 -q 1 \
-  -t 'medbox/pk/BOXA1001/up/event/dispense' \
-  -m '{"msgId":"BOXA1001-0000000124","ts":1759474500000,"planId":"p-3301",
+# 模拟设备上报一次服药事件（BOXA-DEBUG-01 = devtools 种子设备；真机请换成自己的序列号）
+mosquitto_pub -h 192.168.1.10 -p 1883 -i BOXA-DEBUG-01 -q 1 \
+  -t 'medbox/pk/BOXA-DEBUG-01/up/event/dispense' \
+  -m '{"msgId":"BOXA-DEBUG-01-0000000124","ts":1759474500000,"planId":"p-3301",
        "planItemId":"pi-9001","medicineId":"m-205","actualDose":"1","unit":"片",
        "wrongDrug":false,"onTime":true,"confidence":0.93,
        "source":"CAMERA","imageId":null}'
 
 # 同时另开一个终端看上行是否到达
 mosquitto_sub -h 192.168.1.10 -p 1883 -i debugger-01 \
-  -t 'medbox/pk/BOXA1001/up/#' -v
+  -t 'medbox/pk/BOXA-DEBUG-01/up/#' -v
 ```
 
 注意 `-i` 的 clientId 必须等于 `deviceId`，否则后端按 clientId 找不到设备。
@@ -204,16 +204,16 @@ mosquitto_sub -h 192.168.1.10 -p 1883 -i debugger-01 \
 # 这里拿 token 只是为了后面验证"播种出来的账号能正常登录/调用业务接口"
 TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed | jq -r .data.guardianToken)
 
-# 等价于 mosquitto_pub -t medbox/medbox-box/BOXA1001/up/event/dispense -m '{...}'
+# 等价于 mosquitto_pub -t medbox/medbox-box/BOXA-DEBUG-01/up/event/dispense -m '{...}'
 curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
   -H "Content-Type: application/json" -d '{
-    "deviceId":"BOXA1001",
+    "deviceId":"BOXA-DEBUG-01",
     "subTopic":"event/dispense",
-    "payload":"{\"msgId\":\"BOXA1001-0000000124\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\",\"imageId\":null}"
+    "payload":"{\"msgId\":\"BOXA-DEBUG-01-0000000124\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\",\"imageId\":null}"
   }'
 ```
 
-- `productKey` 缺省取 `medbox.device.default-product-key`（默认 `medbox-box`），故完整 topic 为 `medbox/medbox-box/BOXA1001/up/event/dispense`；也可在 body 里显式传 `productKey` 覆盖。
+- `productKey` 缺省取 `medbox.device.default-product-key`（默认 `medbox-box`），故完整 topic 为 `medbox/medbox-box/BOXA-DEBUG-01/up/event/dispense`；也可在 body 里显式传 `productKey` 覆盖。
 - `seed` 与 `mqtt/publish` 均**免登录**（由 `medbox.devtools.enabled` 门禁控制装配，关闭时访问返回 `40401`）；同前缀的 `/_debug/ws/publish` 仍必须登录，两者策略刻意不同，详见 02 的 1.5。
 - MQTT 未连 broker 时返回 `50000`，提示先启动 EMQX。
 - 上行子路径 `subTopic` 与 03 第 2 章一致：`telemetry` / `sensor/heartbeat` / `event/dispense` / `event/error` / `inventory` / `cap/heartbeat` 等。

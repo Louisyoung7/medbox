@@ -38,8 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p><b>为什么不走业务 Service</b>：{@code DeviceService.register} / {@code GuardianRelationService.apply|accept}
  * 等强耦合登录态与监护关系校验，强行注入 AuthContext 易碎。种子数据完全由我们掌控，直写更稳、也便于
- * 用文档示例里的固定业务 ID（{@code u-1001} / {@code e-1001} / {@code BOXA1001} / {@code m-205} /
- * {@code p-3301} / {@code pi-9001}），让 02 §1.4、03 §5 的示例直接可跑。
+ * 业务 ID 里会与真实数据相撞的三个加 {@code debug} 段（{@code u-debug-guardian} / {@code BOXA-DEBUG-01} /
+ * {@code s-debug-001}）；其余 {@code e-1001} / {@code m-205} / {@code p-3301} / {@code pi-9001} 不在业务序列
+ * 生成值域内，保持短 ID。详见 {@link DevtoolsProperties}。
  *
  * <p><b>幂等</b>：监护人已存在则整批跳过（直接返回已有 ID + 重新签发 token）；{@code reset=true}
  * 先按外键逆序清掉种子数据再重种。监护人缺失但其它种子实体残留（例如上次播种后单独删了用户）时，
@@ -51,19 +52,19 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(prefix = "medbox.devtools", name = "enabled", havingValue = "true")
 public class DevtoolsSeedService {
 
-    /** 公共药品业务 ID（与文档示例对齐）。 */
+    /** 公共药品业务 ID（业务序列从 {@code m-1001} 起，{@code m-205} 不在生成值域内，天然不撞）。 */
     private static final String MED_PUBLIC = "m-205";
 
     /** 老人私有药品业务 ID。 */
     private static final String MED_PRIVATE = "m-206";
 
-    /** 库存业务 ID。 */
-    private static final String STOCK_ID = "s-1001";
+    /** 库存业务 ID（业务序列从 {@code s-1001} 起，旧值会撞第一个真实库存，故加 {@code debug} 段）。 */
+    private static final String STOCK_ID = "s-debug-001";
 
-    /** 计划业务 ID（与文档示例对齐）。 */
+    /** 计划业务 ID（业务序列从 {@code p-1001} 起，{@code p-3301} 不在生成值域内）。 */
     private static final String PLAN_ID = "p-3301";
 
-    /** 计划项业务 ID（与文档示例对齐）。 */
+    /** 计划项业务 ID。 */
     private static final String PLAN_ITEM_ID = "pi-9001";
 
     /** 监护关系业务 ID（种子专用，固定值）。 */
@@ -124,8 +125,17 @@ public class DevtoolsSeedService {
         insertPlanAndItem(s);
     }
 
+    /**
+     * 种子监护人是否已落库。
+     *
+     * <p><b>必须同时校验角色</b>：只看 {@code user_id} 时，任何占用该 ID 的账号（例如用户手动注册的
+     * 老人）都会被误判为"种子已存在"，{@link #seed(boolean)} 随即直接返回、整批种子静默不写库——
+     * 前端却拿到配置里的固定账号和新签 token，看起来"播种成功"，实际库里只有那个占位账号。
+     */
     private boolean existsGuardian(String guardianUserId) {
-        return userMapper.selectCount(new QueryWrapper<User>().eq("user_id", guardianUserId)) > 0;
+        return userMapper.selectCount(new QueryWrapper<User>()
+                .eq("user_id", guardianUserId)
+                .eq("role", UserRole.GUARDIAN.name())) > 0;
     }
 
     private void clearSeed(DevtoolsProperties.Seed s) {

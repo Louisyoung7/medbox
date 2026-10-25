@@ -4,24 +4,31 @@
  * <p>只放与页面解耦的可单测逻辑：**事件预设 + payload 组装 + 错误文案归一**。
  * 实际发请求在 `src/api/devtools.js`，页面只负责把它们接起来。
  *
- * <p>业务 ID 与 `DevtoolsProperties` 的种子参数对齐（`BOXA1001` / `p-3301` / `pi-9001` /
- * `m-205` / `m-206`），使 03 §5 的 `mosquitto_pub` 示例与这里的预设**产出同一形态的报文**，
- * 在真后端上跑出来的效果与文档一致。
+ * <p>业务 ID 与 `DevtoolsProperties` 的种子参数对齐，全部落在 `debug` 命名空间
+ * （`BOXA-DEBUG-01` / `p-debug-001` / `pi-debug-001` / `m-debug-001` / `m-debug-002`），
+ * 与业务序列生成的真实 ID 物理隔离。使 03 §5.5 的 `mosquitto_pub` 示例与这里的预设
+ * **产出同一形态的报文**，在真后端上跑出来的效果与文档一致。
  */
 
 import { CODE } from '@/utils/error.js'
 
 /** 播种数据里的调试药箱主控 deviceId（与后端 `medbox.devtools.seed.device-id` 默认值一致）。 */
-export const SIM_DEFAULT_DEVICE_ID = 'BOXA1001'
+export const SIM_DEFAULT_DEVICE_ID = 'BOXA-DEBUG-01'
 
-/** 播种数据里的计划 / 计划项 / 药品 ID（03 §5 示例同款）。 */
+/**
+ * 播种数据里的计划 / 计划项 / 药品 ID（03 §5.5 示例同款）。
+ *
+ * <p>这几个**不需要** `debug` 段：业务序列从 `m-1001` / `p-1001` / `pi-1001` 起，
+ * `m-205` / `p-3301` / `pi-9001` 永远不在生成值域内，天然不会与真实数据撞。
+ */
 const SIM_PLAN_ID = 'p-3301'
 const SIM_PLAN_ITEM_ID = 'pi-9001'
 const SIM_MEDICINE_ID = 'm-205'
 const SIM_MEDICINE_PRIVATE_ID = 'm-206'
-const SIM_SENSOR_TH = 'BOXA1001-S-TH01'
-const SIM_SENSOR_LX = 'BOXA1001-S-LX01'
-const SIM_SENSOR_CAM = 'BOXA1001-S-CAM01'
+/** 传感器 ID 由主控 deviceId 派生，必须跟 `SIM_DEFAULT_DEVICE_ID` 一起变。 */
+const SIM_SENSOR_TH = 'BOXA-DEBUG-01-S-TH01'
+const SIM_SENSOR_LX = 'BOXA-DEBUG-01-S-LX01'
+const SIM_SENSOR_CAM = 'BOXA-DEBUG-01-S-CAM01'
 
 /**
  * `msgId` 自增序号（03 第 1 章：`{deviceId}-{10位递增序号}`，重启不归零由后端持久化）。

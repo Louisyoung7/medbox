@@ -17,6 +17,13 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-25] fix(backend-devtools) 种子 ID 与真实数据隔离：`u-debug-guardian` / `BOXA-DEBUG-01` / `s-debug-001`
+
+- **改了哪个文件**：`02` §1.5、`03` §5、`medbox-server/README.md` §11 的种子示例与 ID 表；`DevtoolsProperties` / `application.yml` / `DevtoolsSeedService` 的默认值；`mp-devtools` 的 `devtools-sim.js` 默认设备 ID 同步
+- 背景：`guardian-user-id` 原为 `u-1001`，与 `user_biz_id_seq`（START 1001）生成的**首个真实注册用户**必然重名；库存 `s-1001` 同理撞首个真实库存；设备 `BOXA1001` 可能与真机序列号重名。轻则 `existsGuardian` 误判"种子已存在"整批跳过（前端显示"已播种"、库里没数据），重则 `clearSeed` 按固定 ID 把真实账号 / 设备 / 库存当残留删掉。
+- 修正：会撞的三个 ID 加 `debug` 段（`u-debug-guardian` / `BOXA-DEBUG-01` / `s-debug-001`）；`e-1001` / `m-205` / `p-3301` / `pi-9001` 不在业务序列生成值域内，保留短 ID。`existsGuardian` 追加 `role=GUARDIAN` 校验，防止占用同 ID 的非种子账号再次触发静默跳过。历史库清理 SQL 见 `medbox-server/README.md` §11。
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 是（`mp-devtools` 默认设备 ID）· 嵌入式 否
+
 ## [2026-10-25] Flyway 迁移编号铁律：版本号 = 合并进 main 时的「最大版本号 + 1」，禁止按 spec 规划预留槽位
 
 - **改了哪个文件**：`AGENTS.md` 新增 3.2 节（Flyway 迁移编号约定）；`06` 迁移列表顶部加铁律警告并改掉 V11/V12「预留槽位」措辞
