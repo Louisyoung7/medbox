@@ -17,6 +17,11 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-25] feat(plan-reminder) 服药提醒推送 REMINDER（云端兜底）：定时扫描临近计划经 WS 推 REMINDER 帧，medicines[] 一次含多种药；plan_reminder 去重表 + 已服/去重两道拦截
+
+- **新增 06 §2.6.x `plan_reminder` 表** + `V13__plan_reminder.sql`（版本号合并时取 max+1）；**新增 04 §3** REMINDER 由本分支生成说明；**勾选 07** `feat/plan-reminder`
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（消费端归 `feat/mp-alarm`）· 嵌入式 否
+
 ## [2026-10-25] fix(backend-devtools) 种子 ID 与真实数据隔离：`u-debug-guardian` / `BOXA-DEBUG-01` / `s-debug-001`
 
 - **改了哪个文件**：`02` §1.5、`03` §5、`medbox-server/README.md` §11 的种子示例与 ID 表；`DevtoolsProperties` / `application.yml` / `DevtoolsSeedService` 的默认值；`mp-devtools` 的 `devtools-sim.js` 默认设备 ID 同步
