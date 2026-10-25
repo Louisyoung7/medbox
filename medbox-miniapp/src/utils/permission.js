@@ -14,18 +14,23 @@
 import { ROLE } from '@/store/user.js'
 
 /**
- * 各入口允许的角色白名单（key 与 `config/tabbar.js` 的 `TAB_ENTRIES[].key` 对齐）。
+ * 各入口允许的角色白名单（key 与 `config/tabbar.js` 的 `TAB_ENTRIES[].key` 对齐，
+ * 页面内卡片用的 `RoleGate entry` 也走同一份配置）。
  *
- * <p>本期骨架先放开（告警设置 / 计划管理等下游分支再细化），仅作示例占位。
+ * <p>`feat/mp-profile` 登记首批两项（此前为空的占位，导致页面里 `RoleGate` 包着的卡片
+ * 实际对所有角色可见）：
+ *
+ * - `alarmSettings`「监护台」（告警设置 / 环境阈值 / AI Key，归 `feat/mp-alarm` 等后续分支）：
+ *   仅监护人；
+ * - `elderBindGuide`「告诉监护人」绑定引导卡：仅老人（监护人不需要被引导去绑定自己）。
  *
  * @example
  * alarmSettings: [ROLE.GUARDIAN],
- * planManage:    [ROLE.GUARDIAN],
+ * elderBindGuide: [ROLE.ELDER],
  */
 export const ENTRY_ROLES = {
-  // 示例（下游分支取消注释并细化）：
-  // alarmSettings: [ROLE.GUARDIAN],
-  // planManage:    [ROLE.GUARDIAN],
+  alarmSettings: [ROLE.GUARDIAN],
+  elderBindGuide: [ROLE.ELDER],
 }
 
 /**

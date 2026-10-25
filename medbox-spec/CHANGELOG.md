@@ -24,6 +24,17 @@
 - 修正：会撞的三个 ID 加 `debug` 段（`u-debug-guardian` / `BOXA-DEBUG-01` / `s-debug-001`）；`e-1001` / `m-205` / `p-3301` / `pi-9001` 不在业务序列生成值域内，保留短 ID。`existsGuardian` 追加 `role=GUARDIAN` 校验，防止占用同 ID 的非种子账号再次触发静默跳过。历史库清理 SQL 见 `medbox-server/README.md` §11。
 - 影响端：`medbox-server/` 是 · `medbox-miniapp/` 是（`mp-devtools` 默认设备 ID）· 嵌入式 否
 
+## [2026-10-25] 小程序落地个人资料与角色视图（feat/mp-profile）
+
+`feat/mp-profile`（08 清单 P1）落地：个人页「账号」卡升「个人资料」卡（`/users/me` 全字段，缺字段才静默补齐），按角色分化可见入口（登记 `ENTRY_ROLES`：监护台仅监护人、新增老人绑定引导卡）；消费后端 `feat/user-profile` 的 `GET /users/{elderId}/profile`，在监护页把 elderId 解析为老人姓名。
+
+- **`medbox-miniapp/`**：`api/user.js` 补 `getElderProfile`；`api/auth.js` 的 `getMe` 支持可选 options（`silent` 背景刷新）；新增 `utils/profile.js`；`utils/permission.js` 登记 `alarmSettings` / `elderBindGuide`（**顺带修**：白名单为空导致「监护台」卡此前对老人可见）；改造 `pages/profile/profile.vue` 与 `pages/guardian/guardian.vue`（申请卡 elderId → "张桂英（u-1001）"，40302/40301/网络失败静默回退）
+- **`medbox-miniapp/tools/mock`**：补 `GET /users/{elderId}/profile` 路由与权限口径（本人或 ACTIVE 可见，PENDING→40302，越权→40301 防枚举）；smoke 新增 8 项（共 **121 项**）
+- **`02` 第 3 章**：补"小程序侧落地（feat/mp-profile）"——资料字段口径、角色入口登记、profile 接口唯一消费点与静默回退边界
+- **`AGENTS.md`（仓库根）**：3.1 的 smoke 计数更正为 121（`feat/mp-devtools` 加项时漏更，停留在 104）
+- **测试报告**：`npm test` 305 通过 / 1 跳过（本分支新增 27 例：api 8 + utils 17 + permission 2）；`npm run test:e2e` 121 通过 / 0 失败
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
 ## [2026-10-25] Flyway 迁移编号铁律：版本号 = 合并进 main 时的「最大版本号 + 1」，禁止按 spec 规划预留槽位
 
 - **改了哪个文件**：`AGENTS.md` 新增 3.2 节（Flyway 迁移编号约定）；`06` 迁移列表顶部加铁律警告并改掉 V11/V12「预留槽位」措辞

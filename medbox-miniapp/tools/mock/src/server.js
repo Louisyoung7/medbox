@@ -277,6 +277,20 @@ async function handleDeleteAccount(req, res, body) {
   ok(res, { userId: user.userId, deletedAt: user.deletedAt })
 }
 
+async function handleGetUserProfile(req, res, elderId) {
+  const user = requireUser(req)
+  // 02 第 3 章：老人本人或 ACTIVE 监护人可见；PENDING→40302；无关系/REVOKED/目标非老人→40301（防枚举）
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  const elder = state.users.find((u) => u.userId === elderId && u.role === 'ELDER')
+  if (!elder) throw new BizError(40301, '无权限访问该资源')
+  // 响应同 /users/me；null 字段按全局 non_null 省略（username 选填）
+  const profile = { userId: elder.userId, role: elder.role, name: elder.name, phone: elder.phone }
+  if (elder.username) profile.username = elder.username
+  ok(res, profile)
+}
+
 async function handleListDevices(req, res) {
   const user = requireUser(req)
   const visible = visibleElderIds(user)
@@ -971,6 +985,11 @@ const server = http.createServer(async (req, res) => {
     // 鉴权：用户
     if (req.method === 'GET' && sub === '/users/me') return await handleMe(req, res)
     if (req.method === 'POST' && sub === '/users/me/delete') return await handleDeleteAccount(req, res, await readBody(req))
+    // 注意用局部变量：下方设备段才声明 `let matched`（TDZ），这里不能提前用它
+    const profileMatch = /^\/users\/([^/]+)\/profile$/.exec(sub)
+    if (req.method === 'GET' && profileMatch) {
+      return await handleGetUserProfile(req, res, decodeURIComponent(profileMatch[1]))
+    }
 
     // 鉴权：设备
     if (req.method === 'GET' && sub === '/devices') return await handleListDevices(req, res)
