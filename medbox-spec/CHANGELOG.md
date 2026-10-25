@@ -17,6 +17,14 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-25] feat(wrong-drug-alarm) 错服判定与 WRONG_DRUG 告警：后端权威重算 + 回写 + 低置信度标记
+
+- **新增后端**：`WrongDrugAlarmService`（`@TransactionalEventListener(AFTER_COMMIT)` 消费 `DispenseRecordedEvent`）；`WrongDrugProperties`（`medbox.alarm.wrong-drug.enabled`/`confidence-threshold`，默认 true / 0.6，注册进 `SchedulingConfig`）；最小 `Capture` 领域类 + `CaptureMapper.markLowConfidence`（仅标 `LOW_CONFIDENCE`，归 `feat/capture-core` 扩展）；**无需新增 Flyway 迁移**（`alarm.dedup_key` 随 V12、`capture.reason` 随 V1 已存在）
+- **口径（用户确认）**：后端按 `planItemId` 查计划药品与上报 `medicineId` 比对重算错服（不信任设备 `wrongDrug`）；判定后回写 `med_record.wrong_drug`；低置信度只标记 `capture.reason=LOW_CONFIDENCE` 不判错服；WRONG_DRUG `level=CRITICAL`、`dedup_key=WRONG_DRUG:{recordId}`、经 `WsPushService` 推 `ALARM` 帧
+- **文档**：06 §2.7 规则 7 改"后端权威重算"、§2.9 补 WRONG_DRUG 判定规则表 + `dedup_key` 前缀、§2.12 注 `LOW_CONFIDENCE` 由本分支写入；**勾选 07** `feat/wrong-drug-alarm`
+- **合并点**：自建最小 `Capture` 实体/映射器会与后续 `feat/capture-core` 重叠，本分支先合，capture-core 应复用/扩展
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-25] feat(plan-reminder-testability) 服药提醒可测性增强：手动触发 + 真 WS 投递断言 + 临近种子
 
 - **新增 02 §1.5** `POST /api/v1/_debug/plan-reminder/trigger`（免登录，可带 `now`，返回 `ScanSummary`）；**`WebMvcConfig` 放行该路径**；扫描器 `scan(Clock)` 返回 `ScanSummary` 汇总（推送/跳过计数）；集成测试改用真实 `WsPushService`+`WsSessionManager` 断言 `REMINDER` 帧真广播到订阅连接；`DevtoolsSeedService` 种子计划时间改为"设备本地当前+2 分钟"且 reset 清理 `plan_reminder` 去重表，播种即可触发
