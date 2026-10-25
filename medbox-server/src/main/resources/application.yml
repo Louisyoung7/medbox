@@ -144,12 +144,12 @@ medbox:
   devtools:
     enabled: false
     seed:
-      guardian-phone: "13800001234"     # 与 02 §1.4 示例对齐
+      guardian-phone: "13800001234"     # 与 02 §1.5 示例对齐（保留号，勿手动注册占用）
       guardian-password: "123456"      # 本地联调用明文，不进真实账号体系
-      guardian-user-id: "u-1001"        # 与 02 §1.4 登录返回示例对齐
-      elder-user-id: "e-1001"           # 与 02 §1.4 示例对齐
-      elder-phone: "13800008888"        # 与 §7 注册示例对齐，老人可用密码登录
+      guardian-user-id: "u-debug-guardian"  # debug 命名空间：避开业务序列 u-1001（清库后首个注册用户）
+      elder-user-id: "e-1001"               # e- 前缀业务不会生成，天然隔离
+      elder-phone: "13800008888"        # 与 02 §1.5 示例对齐，老人可用密码登录
       elder-password: "123456"          # 本地联调用明文，不进真实账号体系
-      device-id: "BOXA1001"             # 与 03 §5 示例对齐（MQTT clientId）
+      device-id: "BOXA-DEBUG-01"        # 避开真机序列号（clearSeed 会按它删设备）
       product-key: medbox-box
       timezone: Asia/Shanghai
