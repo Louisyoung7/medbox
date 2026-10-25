@@ -189,7 +189,7 @@ ELDER_TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed
 echo "$GUARDIAN_TOKEN"; echo "$ELDER_TOKEN"
 ```
 
-> **鉴权口径（2026-10-24 修正）**：`_debug/seed` 与 `_debug/mqtt/**` **免登录** —— `WebMvcConfig` 把这两个路径从 `AuthInterceptor` 的 `/api/v1/**` 里单独排除（`DevtoolsControllerTest.noLoginRequired` 即验证不带 `Authorization` 也能 200）。理由是端点本身已由 `medbox.devtools.enabled` 门禁：该属性为 false 时 `DevtoolsController` 根本不装配，访问返回 `40401`（`application.yml` 配了 `spring.mvc.throw-exception-if-no-handler-found: true` 与 `add-mappings: false`，未命中路径经 `GlobalExceptionHandler` 统一成 40401），生产零暴露面；开启即代表"本地开发模式"，再要求登录纯属冗余摩擦。带了 token 也无害，只是不生效、也不需要。
+> **鉴权口径（2026-10-24 修正，2026-10-25 新增 trigger）**：`_debug/seed`、`_debug/mqtt/**` 与 `_debug/plan-reminder/trigger` **免登录** —— `WebMvcConfig` 把这三个路径从 `AuthInterceptor` 的 `/api/v1/**` 里单独排除（`DevtoolsControllerTest.noLoginRequired` 即验证不带 `Authorization` 也能 200）。理由是端点本身已由 `medbox.devtools.enabled` 门禁：该属性为 false 时 `DevtoolsController` 根本不装配，访问返回 `40401`（`application.yml` 配了 `spring.mvc.throw-exception-if-no-handler-found: true` 与 `add-mappings: false`，未命中路径经 `GlobalExceptionHandler` 统一成 40401），生产零暴露面；开启即代表"本地开发模式"，再要求登录纯属冗余摩擦。带了 token 也无害，只是不生效、也不需要。
 >
 > ⚠️ **同前缀的 `/_debug/ws/publish` 仍必须登录**：它要走 `AccessService.require` 做归属校验（越权照样 40301），而该校验依赖 `AuthInterceptor` 写入的 `AuthContext`。因此**不能**把整个 `/api/v1/_debug/**` 一刀切免登录—— Devtools 与 WsDebug 的免登录策略是刻意不同的（见 `medbox-spec/04` 与 `WebMvcConfig` 注释）。
 
@@ -208,6 +208,28 @@ curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
 ```
 
 > `productKey` 缺省取 `medbox.device.default-product-key`（默认 `medbox-box`）。MQTT 未连 broker 时返回 `50000`，提示先启动 EMQX。本端点不触发 `plan-sync` 下发（种子计划经 Mapper 直写，`syncState` 置 `PENDING`），设备不在场不会产生 `SYNC_FAILED` 噪音。
+
+**3）手动触发服药提醒扫描** `POST /api/v1/_debug/plan-reminder/trigger`
+
+绕过 60s 定时器，立刻跑一次 `PlanReminderScanner`（与定时任务走**完全相同的代码路径**：去重 / 已服两道拦截照常生效）。联调时用来"立刻看到一帧 `REMINDER`"，不必等计划时间落进 `[now, now+提前量]` 窗口。`now` 为可选 ISO 时刻（`2026-10-25T06:00:00Z` 或带偏移的 `2026-10-25T14:00:00+08:00`），缺省用系统时钟——常用它把"窗口"对准某个计划的服药时刻。受 `medbox.plan-reminder.enabled` 约束：若该开关关掉，这里也只返回零汇总、不推送。响应直接返回本次扫描汇总 `ScanSummary`（各计数见下表），便于确认"推了几个 / 跳了几个"。
+
+| 字段 | 含义 |
+|------|------|
+| `scannedPlans` | 参与扫描的候选计划数（`selectDueForReminder` 命中且 `ENABLED`、非 `SYNC_FAILED`） |
+| `pushed` | 实际推送 `REMINDER` 帧的计划数 |
+| `skippedTaken` | 因该槽已有 `med_record`（已服）而跳过的槽数 |
+| `skippedDedup` | 因 `plan_reminder` 去重表已存在而跳过的槽数 |
+| `skippedOffline` | 因主控离线（且开启 `skip-when-device-offline`）而跳过的计划数 |
+| `skippedNoFutureSlot` | 窗口内无未来 slot 而跳过的计划数 |
+
+```bash
+# 免登录（与 seed / mqtt 同属 DevtoolsController 免登录策略，见下方口径）
+# 不带 now：用系统时钟立即扫一次；带 now：把窗口对准指定时刻
+curl -s -X POST "http://192.168.1.10:8080/medbox/api/v1/_debug/plan-reminder/trigger" | jq
+curl -s -X POST "http://192.168.1.10:8080/medbox/api/v1/_debug/plan-reminder/trigger?now=2026-10-25T06:00:00Z" | jq
+```
+
+> **配合种子数据使用**：`POST /api/v1/_debug/seed` 播种的计划，其服药时刻被设为"设备本地当前时刻 +2 分钟"，故播种后立刻调用本端点（不传 `now`）即可命中风入窗口、直接收到 `REMINDER` 帧；`?reset=true` 重种会一并清理 `plan_reminder` 去重记录，可重复触发验证。
 
 ## 2. 核心数据模型
 

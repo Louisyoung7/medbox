@@ -3,6 +3,12 @@ package com.medbox.server.devtools;
 import com.medbox.server.devtools.dto.MqttPublishRequest;
 import com.medbox.server.devtools.dto.SeedResult;
 import com.medbox.server.dto.R;
+import com.medbox.server.service.PlanReminderScanner;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,10 +37,13 @@ public class DevtoolsController {
 
     private final DevtoolsSeedService seedService;
     private final DevtoolsMqttSimService mqttSimService;
+    private final PlanReminderScanner planReminderScanner;
 
-    public DevtoolsController(DevtoolsSeedService seedService, DevtoolsMqttSimService mqttSimService) {
+    public DevtoolsController(DevtoolsSeedService seedService, DevtoolsMqttSimService mqttSimService,
+                              PlanReminderScanner planReminderScanner) {
         this.seedService = seedService;
         this.mqttSimService = mqttSimService;
+        this.planReminderScanner = planReminderScanner;
     }
 
     @PostMapping("/seed")
@@ -46,5 +55,31 @@ public class DevtoolsController {
     public R<Void> publishMqtt(@RequestBody(required = false) MqttPublishRequest request) {
         mqttSimService.publish(request.deviceId(), request.subTopic(), request.productKey(), request.payload());
         return R.ok();
+    }
+
+    /**
+     * 手动触发一次服药提醒扫描（绕过定时器，便于联调）。
+     *
+     * <p>与定时任务走完全相同代码路径（去重 / 已服两道拦截照常生效）。{@code now} 为可选 ISO 时刻
+     * （{@code 2026-10-25T06:00:00Z} 或带偏移的 {@code 2026-10-25T14:00:00+08:00}），缺省用系统时钟——
+     * 联调时常用它把"窗口"对准某个计划的服药时刻，立即看到 REMINDER 帧。
+     *
+     * <p>受 {@code medbox.plan-reminder.enabled} 约束：若被关掉，这里也只返回空汇总、不推送。
+     */
+    @PostMapping("/plan-reminder/trigger")
+    public R<PlanReminderScanner.ScanSummary> triggerPlanReminder(
+            @RequestParam(required = false) String now) {
+        Clock clock = (now == null || now.isBlank())
+                ? Clock.systemUTC()
+                : Clock.fixed(parseNow(now), ZoneOffset.UTC);
+        return R.ok(planReminderScanner.scan(clock));
+    }
+
+    private static Instant parseNow(String raw) {
+        try {
+            return Instant.parse(raw);
+        } catch (DateTimeParseException ex) {
+            return OffsetDateTime.parse(raw).toInstant();
+        }
     }
 }

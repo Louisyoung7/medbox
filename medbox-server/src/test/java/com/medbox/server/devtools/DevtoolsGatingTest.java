@@ -24,7 +24,8 @@ class DevtoolsGatingTest {
                 .withPropertyValues("medbox.devtools.enabled=" + enabled)
                 .withBean(DevtoolsController.class, () -> new DevtoolsController(
                         Mockito.mock(DevtoolsSeedService.class),
-                        Mockito.mock(DevtoolsMqttSimService.class)));
+                        Mockito.mock(DevtoolsMqttSimService.class),
+                        Mockito.mock(com.medbox.server.service.PlanReminderScanner.class)));
     }
 
     @Test

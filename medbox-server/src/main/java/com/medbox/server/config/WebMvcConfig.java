@@ -13,8 +13,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * <ul>
  *   <li>{@code /api/v1/auth/**} —— 注册 / 登录 / 刷新本身就是为了拿 token；</li>
  *   <li>{@code /actuator/**} —— 健康检查，Spring 原生格式，不套统一响应；</li>
- *   <li>{@code /api/v1/_debug/seed} 与 {@code /api/v1/_debug/mqtt/**} —— {@code DevtoolsController}
- *        的联调辅助端点（feat/backend-devtools）。它们**不要求登录**，因为端点本身由
+ *   <li>{@code /api/v1/_debug/seed}、{@code /api/v1/_debug/mqtt/**} 与 {@code /api/v1/_debug/plan-reminder/trigger}
+ *        —— {@code DevtoolsController} 的联调辅助端点（feat/backend-devtools）。它们**不要求登录**，因为端点本身由
  *        {@code medbox.devtools.enabled} 门禁控制：该属性为 false 时 {@code DevtoolsController} 根本不装配
  *        （访问即 40401），生产零暴露面；开启即代表「本地开发模式」，再加上登录纯属冗余摩擦。</li>
  *   <li><b>注意</b>：同前缀的 {@code WsDebugController}（{@code /api/v1/_debug/ws/**}）调试推送端点<b>必须登录</b>——
@@ -46,6 +46,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 // 不能被一刀切排除，否则 AuthContext 为空会恒返回 401。
                 .excludePathPatterns("/api/v1/auth/**",
                         "/api/v1/_debug/seed", "/api/v1/_debug/mqtt/**",
+                        "/api/v1/_debug/plan-reminder/trigger",
                         "/actuator/**");
 
         // 管理接口独立角色守卫：必须排在 AuthInterceptor 之后（前缀已被其覆盖、AuthContext 已写入，
