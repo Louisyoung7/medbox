@@ -17,12 +17,17 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-25] feat(capture-core) 文档补：02 §4.1 抓拍接口字段级契约
+
+- **文档补充**：02 §4.1 在既有设计稿基础上补充已实现的接口契约——设备 HMAC 上传鉴权（`X-Device-Id`/`X-Device-Sign`/`X-Timestamp` + ±5min 窗口）、5 端点请求/响应字段（`CaptureResponse`/`CaptureUploadResponse`）、错误码与边界表、fileToken 结构与去重/过期公式；口径与实现一致
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 否（联调参考）· 嵌入式 否
+
 ## [2026-10-25] feat(capture-core) 抓拍上传/查询/fileToken/删除：设备 HMAC 上传 + 严格可见性
 
 - **新增后端**：`CaptureController`（5 端点）、`CaptureService`（去重落盘/过期/列表/详情/文件流/删除）、`DeviceCaptureAuth`（HMAC±5min 防重放）、`CaptureFileTokenService`（5 分钟 fileToken 供小程序 `<image src>` 拼接）；扩展 `CaptureMapper`（`nextCaptureId` 用 `capture_biz_id_seq`、`selectByPlanWithinWindow`/`selectPageByElder`/`selectByCaptureId`/`markViewed`/`deleteByCaptureId`）；`WebMvcConfig` 排除上传端点；`CaptureProperties`（`medbox.capture.*`，上传/文件密钥走 env 覆盖）
 - **口径**：去重 `planId + 60s` 仅留首张；`expire_at = MIN(captured+30d, viewed+7d)`，首读写 `viewed_at` 重算；落盘本地目录 `YYYY-MM-DD/<id>.<ext>`，`file_path` 不入库不暴露；可见性严格——仅老人本人与 ACTIVE 监护人（FAMILY 可读可删、NURSE/DOCTOR 一律 40301）
 - **新增 Flyway `V14__capture.sql`**：`capture_biz_id_seq START 1001`（前缀 `cap-`，避开 `capture_id_seq` BIGSERIAL 自动序列坑）
-- **文档**：`feat/capture-core` 在 07 勾选 `[x]`；02 §4.1 / 01 §4.6 / 06 §2.12 无改动（口径一致）
+- **文档**：`feat/capture-core` 在 07 勾选 `[x]`；01 §4.6 / 06 §2.12 无改动（口径一致）；02 §4.1 接口字段级契约见上方 [2026-10-25] 补条目
 - 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（小程序侧见 `mp-capture`）· 嵌入式 否
 
 ## [2026-10-25] feat(wrong-drug-alarm) 错服判定与 WRONG_DRUG 告警：后端权威重算 + 回写 + 低置信度标记
