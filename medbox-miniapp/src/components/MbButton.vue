@@ -26,6 +26,9 @@
  */
 export default {
   name: 'MbButton',
+  // 必须声明：Vue 3 未声明的 @click 会透传到根节点变成原生监听，
+  // 与 onClick 里的 $emit('click') 叠加 → 一次点击触发两次
+  emits: ['click'],
   props: {
     type: { type: String, default: 'primary' },
     block: { type: Boolean, default: false },
