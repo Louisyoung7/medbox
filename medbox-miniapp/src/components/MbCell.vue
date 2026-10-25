@@ -25,6 +25,9 @@
  */
 export default {
   name: 'MbCell',
+  // 必须声明：Vue 3 未声明的 @click 会透传到根节点变成原生监听，
+  // 与 onClick 里的 $emit('click') 叠加 → 一次点击触发两次（devtools 发模拟上报时落了双份记录）
+  emits: ['click'],
   props: {
     title: { type: String, default: '' },
     value: { type: String, default: '' },
