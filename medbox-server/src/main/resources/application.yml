@@ -127,6 +127,13 @@ medbox:
       lookback-minutes: 1440                       # 回看窗口（分钟）= 24h，防服务重启后漏判又不至于扫太久
       skip-when-device-offline: true               # 主控离线时跳过该老人，避免"上报不了=漏服"误判
 
+  # —— 服药提醒推送（feat/plan-reminder，见文档 06 的 2.6 / 02 第 8 章）——
+  plan-reminder:
+    enabled: ${MEDBOX_PLAN_REMINDER_ENABLED:true} # 逃生开关：false 时定时扫描整体不跑（CI / 排障用）
+    scan-interval-ms: 60000                       # 扫描间隔（毫秒），每 60s 扫一次
+    lead-time-minutes: 10                          # 提前量（分钟）：计划时间前多久推送提醒
+    skip-when-device-offline: false                # 默认不跳过离线（云端兜底，提醒对监护端有价值）
+
   ai:
     base-url: https://api.example.com/v1 # 公网大模型，属后端出网方向（唯一必须写死的外网地址）
 
