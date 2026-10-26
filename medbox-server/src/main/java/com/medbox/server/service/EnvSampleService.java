@@ -40,10 +40,11 @@ import org.springframework.stereotype.Service;
  * ingest 不查权限；单条子设备解析失败只记 warn，不影响同帧其余；{@code msgId} 去重已由
  * {@code MqttInboundGateway} 完成，本类不重复做。
  *
- * <p><b>本分支不告警、不推 WS</b>：环境超标判定归 {@code feat/env-alarm}。
+ * <p><b>告警与 WS 不在本类做</b>：环境超标判定归 {@code feat/env-alarm}——{@link #ingest} 入库后返回
+ * 该样本，由 {@code TelemetryUpMessageHandler} 发布 {@code EnvSampleRecordedEvent} 触发判定。
  */
-@Service
-public class EnvSampleService {
+ @Service
+ public class EnvSampleService {
 
     private static final Logger log = LoggerFactory.getLogger(EnvSampleService.class);
 
@@ -81,25 +82,27 @@ public class EnvSampleService {
      *
      * @param mainDeviceId 上报的主控（topic 第 3 层）
      * @param payload      已反序列化的遥测负载
+     * @return 已入库的样本（归属校验失败 / 未登记 / 不属于该主控时返回 {@code null}），
+     *         供调用方发布 {@code EnvSampleRecordedEvent} 触发环境超标判定
      */
-    public void ingest(String mainDeviceId, TelemetryPayload payload) {
+    public EnvSample ingest(String mainDeviceId, TelemetryPayload payload) {
         String sensorId = payload.getSensorId();
         if (sensorId == null || sensorId.isBlank()) {
             log.warn("telemetry 缺少 sensorId，已跳过 mainDeviceId={}", mainDeviceId);
-            return;
+            return null;
         }
         Device sensor = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
                 .eq(Device::getDeviceId, sensorId));
         if (sensor == null) {
             // 未登记传感器（本期匿名连接，固件可能上报未登记子设备）是常态，不刷 warn
             log.debug("telemetry 携带未登记传感器，已跳过 mainDeviceId={} sensorId={}", mainDeviceId, sensorId);
-            return;
+            return null;
         }
         if (sensor.getParentDeviceId() == null || !sensor.getParentDeviceId().equals(mainDeviceId)) {
             // 不属于该主控：跳过，不建脏行（与 device-sensor 同口径）
             log.warn("telemetry 传感器不属于该主控，已跳过 mainDeviceId={} sensorId={} parent={}",
                     mainDeviceId, sensorId, sensor.getParentDeviceId());
-            return;
+            return null;
         }
 
         EnvSample sample = new EnvSample();
@@ -113,6 +116,7 @@ public class EnvSampleService {
         envSampleMapper.insert(sample);
         log.debug("env_sample 入库 mainDeviceId={} sensorId={} sampleTime={}",
                 mainDeviceId, sensorId, sample.getSampleTime());
+        return sample;
     }
 
     /**
