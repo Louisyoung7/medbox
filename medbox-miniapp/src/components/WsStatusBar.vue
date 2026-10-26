@@ -5,6 +5,7 @@
       <text class="ws-bar__state">{{ stateText }}</text>
       <text class="ws-bar__topics">{{ topicsText }}</text>
       <text v-if="!connected" class="ws-bar__action" @click="onReconnect">重连</text>
+      <text v-if="unreadCount > 0" class="ws-bar__badge" @click="goAlarmList">未读 {{ unreadCount }} ›</text>
     </view>
     <text v-if="eventText" class="ws-bar__event">{{ eventText }}</text>
     <text v-else class="ws-bar__event ws-bar__event--empty">暂无实时事件</text>
@@ -24,6 +25,7 @@
 import { WS_EVENT, WS_STATE, connect, getLastEvent, getState, onEvent, onStateChange, reconnectNow } from '@/store/ws.js'
 import { describeFrame } from '@/utils/ws-frame.js'
 import { formatRelative } from '@/utils/datetime.js'
+import { getAlarmState } from '@/store/alarm.js'
 
 const STATE_TEXT = {
   [WS_STATE.IDLE]: '未连接',
@@ -61,6 +63,10 @@ export default {
     topicsText() {
       return this.connected ? '' : '点击重连可立即尝试'
     },
+    /** 未读告警数（驱动角标；响应式跟踪 alarm store）。 */
+    unreadCount() {
+      return getAlarmState().unreadCount || 0
+    },
   },
   mounted() {
     const initial = getLastEvent()
@@ -94,6 +100,10 @@ export default {
     },
     onReconnect() {
       reconnectNow()
+    },
+    /** 角标点击 → 跳告警列表（全部角色可读）。 */
+    goAlarmList() {
+      uni.navigateTo({ url: '/pages/alarm/list' })
     },
   },
 }
@@ -133,12 +143,22 @@ export default {
   }
 
   &__action {
-    margin-left: auto;
+    margin-left: 16rpx;
     padding: 4rpx 20rpx;
     border-radius: $mb-radius-pill;
     background: $mb-primary-bg;
     color: $mb-primary;
     font-size: 24rpx;
+  }
+
+  &__badge {
+    margin-left: auto;
+    padding: 4rpx 20rpx;
+    border-radius: $mb-radius-pill;
+    background: $mb-danger;
+    color: #fff;
+    font-size: 24rpx;
+    font-weight: 600;
   }
 
   &__event {

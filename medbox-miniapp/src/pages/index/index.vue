@@ -20,12 +20,16 @@
         <MbCell title="药品管理" value="公共与私有药品" arrow clickable @click="go('/pages/medicine/medicine')" />
         <MbCell title="服药计划" value="提醒与剂量" arrow clickable @click="go('/pages/plan/plan')" />
         <MbCell title="服药记录" value="按时 / 错服明细" arrow clickable @click="go('/pages/record/record')" />
+        <MbCell title="告警" :value="unreadText" arrow clickable @click="go('/pages/alarm/list')" />
         <MbCell title="监护关系" value="绑定与待确认" arrow clickable @click="go('/pages/guardian/guardian')" />
       </MbCard>
 
       <RoleGate entry="alarmSettings">
         <MbCard title="监护台">
-          <text class="guard-hint">仅监护人可见：告警设置、环境阈值、为老人配置 AI Key 将在此区域。</text>
+          <view class="guard-row">
+            <text class="guard-hint">为老人配置告警与阈值、环境上下限。</text>
+            <MbButton type="ghost" size="small" @click="go('/pages/alarm/settings')">告警设置</MbButton>
+          </view>
         </MbCard>
       </RoleGate>
 
@@ -56,6 +60,7 @@ import MbTabBar from '@/components/MbTabBar.vue'
 import RoleGate from '@/components/RoleGate.vue'
 import WsStatusBar from '@/components/WsStatusBar.vue'
 import { getUserInfo, roleLabel } from '@/store/user.js'
+import { getAlarmState, refreshUnreadCount } from '@/store/alarm.js'
 
 export default {
   name: 'HomePage',
@@ -72,10 +77,17 @@ export default {
     const info = getUserInfo()
     this.name = info.name || info.userId || ''
     this.roleText = roleLabel(info.role)
+    refreshUnreadCount()
   },
   computed: {
     avatarText() {
       return (this.name || '?').slice(0, 1)
+    },
+    unreadCount() {
+      return getAlarmState().unreadCount || 0
+    },
+    unreadText() {
+      return this.unreadCount > 0 ? `${this.unreadCount} 条未读` : '暂无未读'
     },
     greeting() {
       const h = new Date().getHours()
@@ -166,6 +178,17 @@ export default {
   font-size: 26rpx;
   color: $mb-text-3;
   line-height: 1.6;
+}
+
+.guard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .guard-hint {
+    flex: 1;
+    padding-right: 20rpx;
+  }
 }
 
 .demo-row {

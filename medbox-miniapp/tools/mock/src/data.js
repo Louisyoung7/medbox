@@ -243,7 +243,64 @@ function createSeed() {
     },
   ]
 
-  return { users, relations, devices, events, medicines, stocks, plans, planItems, records, refreshTokens: new Set() }
+  // 告警（02 第 8 章；alarm-core 已落地，但 Mock 不接 EMQX，按契约播种样例让列表可读）：
+  // 覆盖 MISS（漏服）/ WRONG_DRUG（错服）/ ENV（环境超标）；DEVICE_OFFLINE / EXPIRED 两类对应后端
+  // alarm-device-offline / stock-expiring 在 07 仍为 [ ] 未落地，本期不播（列表对缺类自动少该类）。
+  // readState: UNREAD / READ；handled: 是否已处理闭环。
+  const alarms = [
+    {
+      alarmId: 'a-1001-miss-1', elderId: 'u-1001', type: 'MISS', level: 'WARN',
+      message: '08:00 计划服药未按时服用：缺 阿莫西林胶囊、阿托伐他汀钙片',
+      medicineIds: ['m-201', 'm-202'], readState: 'UNREAD', handled: false,
+      createdAt: isoOffset(-3 * HOUR),
+    },
+    {
+      alarmId: 'a-1001-wrong-1', elderId: 'u-1001', type: 'WRONG_DRUG', level: 'CRITICAL',
+      message: '摄像头识别实际药品≠计划药品：应为 硝苯地平控释片',
+      medicineIds: ['m-204'], readState: 'UNREAD', handled: false,
+      createdAt: isoOffset(-1 * DAY),
+    },
+    {
+      alarmId: 'a-1001-env-1', elderId: 'u-1001', type: 'ENV', level: 'WARN',
+      message: '客厅药箱温度偏高：31℃ 超过上限 30℃',
+      medicineIds: [], readState: 'READ', handled: false,
+      createdAt: isoOffset(-2 * DAY),
+    },
+    {
+      alarmId: 'a-1001-miss-2', elderId: 'u-1001', type: 'MISS', level: 'WARN',
+      message: '21:30 计划服药未按时服用',
+      medicineIds: [], readState: 'UNREAD', handled: false,
+      createdAt: isoOffset(-5 * HOUR),
+    },
+    {
+      alarmId: 'a-1002-miss-1', elderId: 'u-1002', type: 'MISS', level: 'WARN',
+      message: '08:00 计划服药未按时服用：缺 布洛芬混悬液',
+      medicineIds: ['m-205'], readState: 'UNREAD', handled: false,
+      createdAt: isoOffset(-4 * HOUR),
+    },
+  ]
+
+  // 告警阈值设置（02 第 8/9 章 + 06 §2.6.1）：每老人一行（elder_id UNIQUE）；GET 缺则给默认，PUT 合并。
+  const alarmSettings = {
+    'u-1001': {
+      elderId: 'u-1001', advanceMin: 10, missTolerateMin: 15,
+      envThreshold: {
+        temp: { min: 15, max: 30 },
+        humidity: { min: 30, max: 70 },
+        light: { min: 50, max: 500 },
+      },
+    },
+    'u-1002': {
+      elderId: 'u-1002', advanceMin: 10, missTolerateMin: 15,
+      envThreshold: {
+        temp: { min: 15, max: 30 },
+        humidity: { min: 30, max: 70 },
+        light: { min: 50, max: 500 },
+      },
+    },
+  }
+
+  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, planItems, records, refreshTokens: new Set() }
 }
 
 module.exports = { createSeed, DEMO_PASSWORD }

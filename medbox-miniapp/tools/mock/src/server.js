@@ -760,6 +760,142 @@ async function handleDeletePlan(req, res, planId) {
   ok(res, null)
 }
 
+// ---------------------------------------------------------------- 告警（02 第 8 章；feat/alarm-core 已落地，Mock 先行）
+
+/**
+ * 告警分页（`GET /alarms`）：按 `created_at` 倒序（最新在前）、分页；`type` / `readState` 过滤。
+ * 属 `READ_ALARM`（四角色可读），按 elderId 行级鉴权（pending→40302 / 无关系→40301）。
+ */
+async function handleListAlarms(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  const rawPage = Number(query.page)
+  const rawSize = Number(query.size)
+  if (
+    (query.page !== undefined && (Number.isNaN(rawPage) || rawPage < 1)) ||
+    (query.size !== undefined && (Number.isNaN(rawSize) || rawSize < 1))
+  ) {
+    throw new BizError(40001, 'page / size 不能小于 1')
+  }
+  const page = Math.max(1, Number.isNaN(rawPage) ? 1 : rawPage)
+  const size = Math.min(100, Math.max(1, Number.isNaN(rawSize) ? 20 : rawSize))
+  let list = state.alarms.filter((a) => a.elderId === elderId)
+  if (query.type && query.type !== 'ALL') list = list.filter((a) => a.type === query.type)
+  if (query.readState && query.readState !== 'ALL') list = list.filter((a) => a.readState === query.readState)
+  list = list.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+  const total = list.length
+  ok(res, { list: list.slice((page - 1) * size, page * size), total })
+}
+
+/**
+ * 未读告警数（`GET /alarms/unread-count`）：驱动角标；按 elderId 行级鉴权。
+ */
+async function handleUnreadCount(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  const count = state.alarms.filter((a) => a.elderId === elderId && a.readState === 'UNREAD').length
+  ok(res, { count })
+}
+
+/**
+ * 标记已读（`PATCH /alarms/{alarmId}/read`）：四角色（READ_ALARM）；告警不存在 → 40401；无关系 → 40301。
+ */
+async function handleMarkAlarmRead(req, res, alarmId) {
+  const user = requireUser(req)
+  const alarm = state.alarms.find((a) => a.alarmId === alarmId)
+  if (!alarm) throw new BizError(40401, '资源不存在')
+  const access = elderAccess(user, alarm.elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  alarm.readState = 'READ'
+  ok(res, null)
+}
+
+/**
+ * 处理/确认告警（`PATCH /alarms/{alarmId}/handle`）：`HANDLE_ALARM` = FAMILY + NURSE；小程序注册角色
+ * 仅 GUARDIAN，故此处只放行 GUARDIAN（DOCTOR/NURSE/ELDER 写返回 40301，真后端仍按 HANDLE_ALARM 强校验）。
+ */
+async function handleHandleAlarm(req, res, alarmId) {
+  const user = requireUser(req)
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  const alarm = state.alarms.find((a) => a.alarmId === alarmId)
+  if (!alarm) throw new BizError(40401, '资源不存在')
+  const access = elderAccess(user, alarm.elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  alarm.handled = true
+  alarm.readState = 'READ'
+  ok(res, null)
+}
+
+/**
+ * 查询告警配置（`GET /alarm-settings`）：四角色（READ_ALARM）；按 elderId 行级鉴权；缺则回默认。
+ */
+async function handleGetAlarmSettings(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  ok(res, state.alarmSettings[elderId] || defaultAlarmSettings(elderId))
+}
+
+/**
+ * 配置告警阈值（`PUT /alarm-settings`）：`WRITE_ALARM_SETTINGS` 仅 FAMILY（DOCTOR/NURSE/ELDER → 40301）。
+ * 字段可选、仅提供项覆盖原值（elderId 走 query）。
+ */
+async function handleSaveAlarmSettings(req, res, query, body) {
+  const user = requireUser(req)
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  const cur = state.alarmSettings[elderId] || defaultAlarmSettings(elderId)
+  if (body && typeof body === 'object') {
+    if (Number.isFinite(Number(body.advanceMin))) cur.advanceMin = Number(body.advanceMin)
+    if (Number.isFinite(Number(body.missTolerateMin))) cur.missTolerateMin = Number(body.missTolerateMin)
+    if (body.envThreshold && typeof body.envThreshold === 'object') {
+      ;['temp', 'humidity', 'light'].forEach((k) => {
+        const src = body.envThreshold[k]
+        if (src && typeof src === 'object') {
+          cur.envThreshold[k] = {
+            min: Number.isFinite(Number(src.min)) ? Number(src.min) : cur.envThreshold[k].min,
+            max: Number.isFinite(Number(src.max)) ? Number(src.max) : cur.envThreshold[k].max,
+          }
+        }
+      })
+    }
+  }
+  cur.elderId = elderId
+  state.alarmSettings[elderId] = cur
+  ok(res, null)
+}
+
+/** 告警设置默认值（老人级；字段对齐 02 第 8/9 章 + 06 §2.6.1）。 */
+function defaultAlarmSettings(elderId) {
+  return {
+    elderId,
+    advanceMin: 10,
+    missTolerateMin: 15,
+    envThreshold: {
+      temp: { min: 15, max: 30 },
+      humidity: { min: 30, max: 70 },
+      light: { min: 50, max: 500 },
+    },
+  }
+}
+
 // ---------------------------------------------------------------- 记录（02 第 7 章；capture-core 属 P1，缩略图前端留空占位）
 
 /** 取 ISO 字符串的日期部分（YYYY-MM-DD），用于 from/to 日粒度过滤。 */
@@ -1095,6 +1231,17 @@ const server = http.createServer(async (req, res) => {
     }
     matched = /^\/records\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetRecord(req, res, decodeURIComponent(matched[1]))
+
+    // 鉴权：告警（02 第 8 章；feat/alarm-core 已落地，Mock 先行）
+    if (req.method === 'GET' && sub === '/alarms') return await handleListAlarms(req, res, query)
+    if (req.method === 'GET' && sub === '/alarms/unread-count') return await handleUnreadCount(req, res, query)
+    matched = /^\/alarms\/([^/]+)\/read$/.exec(sub)
+    if (req.method === 'PATCH' && matched) return await handleMarkAlarmRead(req, res, decodeURIComponent(matched[1]))
+    matched = /^\/alarms\/([^/]+)\/handle$/.exec(sub)
+    if (req.method === 'PATCH' && matched) return await handleHandleAlarm(req, res, decodeURIComponent(matched[1]))
+    if (req.method === 'GET' && sub === '/alarm-settings') return await handleGetAlarmSettings(req, res, query)
+    matched = /^\/alarm-settings$/.exec(sub)
+    if (req.method === 'PUT' && matched) return await handleSaveAlarmSettings(req, res, query, await readBody(req))
 
     // 鉴权：监护关系四条（02 的 3.2）
     matched = /^\/users\/([^/]+)\/guardians$/.exec(sub)
