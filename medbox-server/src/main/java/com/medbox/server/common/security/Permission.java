@@ -26,6 +26,7 @@ import java.util.Set;
  *   HANDLE_ALARM                  ✅      ✅
  *   EXPORT_RECORD                 ✅      ✅
  *   CONFIG_LLM_KEY                ✅
+ *   WRITE_ALARM_SETTINGS          ✅
  *   READ_CAPTURE          ✅      ✅
  *   WRITE_CAPTURE(删除)           ✅
  *   READ_DEVICE           ✅      ✅      ✅      ✅
@@ -71,6 +72,9 @@ public enum Permission {
 
     /** 为老人配置大模型 API Key。 */
     CONFIG_LLM_KEY,
+
+    /** 配置老人级告警阈值（临期提前期 / 环境上下限 / 漏服容忍），仅监护人为老人代配。 */
+    WRITE_ALARM_SETTINGS,
 
     /** 查看服药抓拍图片（仅老人本人与 ACTIVE 监护人）。 */
     READ_CAPTURE,
@@ -119,7 +123,7 @@ public enum Permission {
     private static final Map<String, Set<Permission>> BY_RELATION_ROLE = Map.of(
             FAMILY, union(READABLE, EnumSet.of(
                     WRITE_PLAN, WRITE_MEDICINE, WRITE_RECORD,
-                    HANDLE_ALARM, EXPORT_RECORD, CONFIG_LLM_KEY,
+                    HANDLE_ALARM, EXPORT_RECORD, CONFIG_LLM_KEY, WRITE_ALARM_SETTINGS,
                     READ_CAPTURE, WRITE_CAPTURE, WRITE_DEVICE, AI_CHAT)),
             NURSE, union(READABLE, EnumSet.of(HANDLE_ALARM, EXPORT_RECORD)),
             DOCTOR, union(READABLE, EnumSet.of(WRITE_PLAN, WRITE_DRUG_MANUAL)));
