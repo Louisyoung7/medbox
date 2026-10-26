@@ -20,6 +20,7 @@ import com.medbox.server.dto.device.DeviceRegisterRequest;
 import com.medbox.server.dto.device.DeviceRegisterResponse;
 import com.medbox.server.dto.device.DeviceStatusResponse;
 import com.medbox.server.dto.device.DeviceSummaryResponse;
+import com.medbox.server.service.DeviceCommandService;
 import com.medbox.server.service.DeviceService;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -59,6 +60,10 @@ class DeviceControllerTest {
 
     @MockitoBean
     private DeviceService deviceService;
+
+    /** feat/device-command 新增的构造器依赖；本类只验契约，打桩即可。 */
+    @MockitoBean
+    private DeviceCommandService commandService;
 
     @AfterEach
     void tearDown() {

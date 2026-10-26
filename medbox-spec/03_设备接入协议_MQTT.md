@@ -124,6 +124,12 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 > `op` 取值：`UPSERT`（新增 / 修改 / 启用，覆盖写该计划，载荷含完整 `times` / `repeat` / `alarm` / `items`）与 `DELETE`（删除 / 停用，设备按 `planId` 停该计划提醒，其余字段可空）。服务端由 `feat/plan-sync` 在计划写事务提交后下发，设备回执 `up/ack` 成功 → 后端把 `med_plan.sync_state` 翻成 `SYNCED_TO_DEVICE`；回执 `FAILED` 或 5s 超时（重发 3 次仍无回执） → `SYNC_FAILED`。
 
+下行·控制命令 `.../down/command`（`feat/device-command`，REST 受理后转发，QoS1 + `needAck:true`）：
+```json
+{ "msgId":"d-102", "cmd":"BUZZ", "params":{ "durationSec":5 }, "needAck":true }
+```
+`cmd` 取值：`BUZZ` 蜂鸣 / `UNLOCK` 解锁 / `REBOOT` 重启 / `CALIBRATE` 校准（白名单见文档 02 的 4.0.1，非法值 REST 层 40001 拦截、不会到这里）。设备处理后经 `up/ack` 回执 `ackFor=msgId`：回执 OK → `device_command.state=SUCCESS`；回执 FAILED 或 5s 超时重发 3 次仍无回执 → `FAILED`（见文档 06 的 2.17）。
+
 ## 4. 摄像头识别链路（WiFi → 单片机 → MQTT）
 
 摄像头负责"取药是否正确 / 是否发生"的识别推理，**它既不直接连 EMQX 发 MQTT 消息**，也不参与业务判定，而是作为单片机的一个外设，通过 **WiFi** 与单片机通信：

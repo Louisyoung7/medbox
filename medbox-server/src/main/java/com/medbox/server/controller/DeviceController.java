@@ -2,12 +2,15 @@ package com.medbox.server.controller;
 
 import com.medbox.server.dto.PageResult;
 import com.medbox.server.dto.R;
+import com.medbox.server.dto.device.CommandSendRequest;
+import com.medbox.server.dto.device.CommandSendResponse;
 import com.medbox.server.dto.device.DeviceDetailResponse;
 import com.medbox.server.dto.device.DeviceEventResponse;
 import com.medbox.server.dto.device.DeviceRegisterRequest;
 import com.medbox.server.dto.device.DeviceRegisterResponse;
 import com.medbox.server.dto.device.DeviceStatusResponse;
 import com.medbox.server.dto.device.DeviceSummaryResponse;
+import com.medbox.server.service.DeviceCommandService;
 import com.medbox.server.service.DeviceService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -35,9 +38,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeviceController {
 
     private final DeviceService deviceService;
+    private final DeviceCommandService commandService;
 
-    public DeviceController(DeviceService deviceService) {
+    public DeviceController(DeviceService deviceService, DeviceCommandService commandService) {
         this.deviceService = deviceService;
+        this.commandService = commandService;
     }
 
     /** 药箱注册并绑定到老人（注册即生效；传感器子设备随主控一并登记）。 */
@@ -68,6 +73,16 @@ public class DeviceController {
     @GetMapping("/{deviceId}/sensors")
     public R<List<DeviceDetailResponse.SensorSummary>> sensors(@PathVariable("deviceId") String deviceId) {
         return R.ok(deviceService.sensors(deviceId));
+    }
+
+    /**
+     * 下发控制命令（蜂鸣/解锁/重启/校准），转 MQTT QoS1，异步受理返回 {@code PENDING}。
+     * 终态由 {@code up/ack} 翻转，前端经事件流水的 COMMAND 事件观察（feat/device-command）。
+     */
+    @PostMapping("/{deviceId}/commands")
+    public R<CommandSendResponse> sendCommand(@PathVariable("deviceId") String deviceId,
+                                              @Valid @RequestBody CommandSendRequest request) {
+        return R.ok(commandService.send(deviceId, request));
     }
 
     /**

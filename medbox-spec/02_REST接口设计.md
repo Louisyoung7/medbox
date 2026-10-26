@@ -549,7 +549,7 @@ DELETE /users/guardians/{relationId}
 
 #### 4.0 后端落地（`feat/device-core`）
 
-本节的**注册 + 五个 GET**（列表 / 详情 / 状态 / 事件流水 / 子设备列表）已落地；`POST /devices/{id}/commands` 归 `feat/device-command`。
+本节的**注册 + 五个 GET**（列表 / 详情 / 状态 / 事件流水 / 子设备列表）由 `feat/device-core` / `feat/device-sensor` 落地；`POST /devices/{id}/commands` 由 `feat/device-command` 落地（见 4.0.1）。
 
 **谁可以注册**：`POST /devices/register` 是**监护人代老人**登记设备 —— 走 `require(elderId, WRITE_DEVICE)`，**只 FAMILY 监护人具备该权限**。老人本人（`SELF`）、医生、护理一律 40301（见 1.3 权限矩阵）。设备端**不做无 Token 自注册**，仍走 JWT。
 
@@ -603,13 +603,34 @@ POST /devices/register
 
 ```
 POST /devices/BOXA-DEBUG-01/commands
-{ "cmd":"BUZZ", "params":{"durationSec":5}, "operator":"doctor" }
+{ "cmd":"BUZZ", "params":{"durationSec":5} }
 
 // 响应（异步下发，返回受理）
 { "code":0, "data":{ "commandId":"c-7f21", "state":"PENDING" } }
 ```
 
-> **小程序侧落地（`feat/mp-device-extra`；后端 `device-command` / `device-fault` 在 07 仍为 `[ ]` 未落地，按契约 + mock 先行）**：
+#### 4.0.1 命令下发落地（`feat/device-command`，已交付）
+
+**请求体**：`cmd`（必填，`BUZZ` / `UNLOCK` / `REBOOT` / `CALIBRATE`）+ `params`（可选 Map，如蜂鸣的 `durationSec`）。
+**请求体不收 `operator`** —— 操作人由服务端取鉴权用户落 `device_command.operator_id` 留痕，客户端多传的 `operator` 字段被忽略（不信客户端自报身份）。
+
+**判定表（顺序即优先级）**：
+
+| 场景 | 结果 |
+|------|------|
+| 未登录 | 40101 |
+| 设备不存在 / 越权 / 传**子设备编号** / 老人本人 | **40301**（`WRITE_DEVICE` 仅 FAMILY 监护人；不区分不存在与无权限，防编号枚举） |
+| 监护关系 PENDING | 40302 |
+| `cmd` 不在白名单 | 40001 |
+| **设备离线（`online_state != ONLINE`）** | **40901** —— 小程序按此码提示"设备离线，无法下发" |
+| MQTT 未启用 | 50000（**不落库**：命令是用户主动的同步操作，悬挂 PENDING 没意义） |
+| 受理成功 | 200，`{commandId, state:"PENDING"}`，异步等回执 |
+
+**终态流转**：受理落 `device_command`（PENDING）→ 转 MQTT `down/command`（QoS1、信封带 `msgId` + `needAck:true`，回填 `msg_id` 列）→ 设备回执 `up/ack` 或 5s 超时重发 3 次仍无回执 → 行翻 `SUCCESS` / `FAILED` 终态（更新条件带 `state='PENDING'`，迟到/重复回执幂等）。**发布当场抛异常**（如 broker 断连）→ 行置 FAILED 留痕 + 50000。
+
+**COMMAND 事件契约**：每次下发写一条 PENDING 事件、翻终态再写一条，`detail` 为 JSON `{"commandId","cmd","state"[,"reason"]}`（见 06 的 2.16 / 2.17）。**不生成告警、无命令查询接口、无 WS 帧** —— 前端刷 `GET /devices/{id}/events` 观察终态（小程序侧已按此对接，见下方落地注）。
+
+> **小程序侧落地（`feat/mp-device-extra`；后端 `device-command` 已落地（4.0.1），`device-fault` 在 07 仍为 `[ ]` 未落地、按契约 + mock 先行）**：
 >
 > 1. **命令接口**：`api/device.js` 的 `sendDeviceCommand(deviceId, cmd, params, operator)` 打 `POST /devices/{id}/commands`；`cmd` ∈ `BUZZ` / `UNLOCK` / `CALIBRATE` / `REBOOT`，蜂鸣带 `params.durationSec`，`operator` 传当前用户 ID 作留痕；写操作自动注入 `X-Request-Id`。
 > 2. **命令终态观察口径（重要）**：后端**没有**命令状态查询接口，也**没有**命令相关的 WebSocket 推送帧（WS 事件只有 ALARM / DEVICE_STATUS / REMINDER / AI_STREAM / PONG / RESYNC），故前端下发后展示 `PENDING`，并刷新 `GET /devices/{id}/events` 读取由回执产生的 **COMMAND 事件**（其 `detail = { commandId, cmd, state }`，`state` ∈ `PENDING`/`SUCCESS`/`FAILED`）来反映 `PENDING→成功/失败`。**不自行发明轮询或命令 WS 帧**，后端 device-command 落地后若新增查询/推送，再在 `utils/device.js` 一处收紧。
