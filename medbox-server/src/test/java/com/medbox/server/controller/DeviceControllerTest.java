@@ -197,7 +197,8 @@ class DeviceControllerTest {
                 OffsetDateTime.parse("2026-10-13T01:00:00Z"),
                 OffsetDateTime.parse("2026-10-12T00:00:00Z"),
                 List.of(new DeviceDetailResponse.SensorSummary(
-                        "BOXA1001-S-TH01", "TEMP_HUMI", "OFFLINE", null))));
+                        "BOXA1001-S-TH01", "TEMP_HUMI", "OFFLINE", null)),
+                null));
 
         mockMvc.perform(get("/api/v1/devices/{deviceId}", DEVICE_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))

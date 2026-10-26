@@ -15,6 +15,7 @@ import com.medbox.server.dto.device.DeviceRegisterRequest;
 import com.medbox.server.dto.device.DeviceRegisterResponse;
 import com.medbox.server.dto.device.DeviceStatusResponse;
 import com.medbox.server.dto.device.DeviceSummaryResponse;
+import com.medbox.server.dto.env.EnvRealtimeResponse;
 import com.medbox.server.mapper.DeviceMapper;
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -57,6 +58,7 @@ public class DeviceService {
     private final DeviceEventService deviceEventService;
     private final AccessService accessService;
     private final DeviceProperties props;
+    private final EnvSampleService envSampleService;
     private final Clock clock;
 
     /**
@@ -69,19 +71,22 @@ public class DeviceService {
     public DeviceService(DeviceMapper deviceMapper,
                          DeviceEventService deviceEventService,
                          AccessService accessService,
-                         DeviceProperties props) {
-        this(deviceMapper, deviceEventService, accessService, props, Clock.systemUTC());
+                         DeviceProperties props,
+                         EnvSampleService envSampleService) {
+        this(deviceMapper, deviceEventService, accessService, props, envSampleService, Clock.systemUTC());
     }
 
     public DeviceService(DeviceMapper deviceMapper,
                          DeviceEventService deviceEventService,
                          AccessService accessService,
                          DeviceProperties props,
+                         EnvSampleService envSampleService,
                          Clock clock) {
         this.deviceMapper = deviceMapper;
         this.deviceEventService = deviceEventService;
         this.accessService = accessService;
         this.props = props;
+        this.envSampleService = envSampleService;
         this.clock = clock;
     }
 
@@ -180,7 +185,7 @@ public class DeviceService {
                 .toList();
     }
 
-    /** 设备详情：档案 + 下属传感器子设备及其在线状态。 */
+    /** 设备详情：档案 + 下属传感器子设备及其在线状态 + 最新环境遥测。 */
     public DeviceDetailResponse detail(String deviceId) {
         Device main = requireMain(deviceId);
         List<DeviceDetailResponse.SensorSummary> sensors = deviceMapper
@@ -191,6 +196,9 @@ public class DeviceService {
                 .map(DeviceDetailResponse.SensorSummary::from)
                 .toList();
 
+        // 最新温湿光读数（feat/env-core）：无上报记录时返回 null
+        EnvRealtimeResponse latestTelemetry = envSampleService.realtime(deviceId, null);
+
         return new DeviceDetailResponse(
                 main.getDeviceId(),
                 DeviceType.MAIN.name(),
@@ -200,7 +208,8 @@ public class DeviceService {
                 main.getOnlineState() == null ? OnlineState.OFFLINE.name() : main.getOnlineState().name(),
                 main.getLastHeartbeat(),
                 main.getCreatedAt(),
-                sensors);
+                sensors,
+                latestTelemetry);
     }
 
     /** 实时状态：在线与否 + 最后心跳（仓门状态等设备侧上报后再补）。 */

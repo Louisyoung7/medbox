@@ -25,6 +25,14 @@
 - **实体/映射**：`AlarmSetting` 补齐 `env_threshold` JSONB 字段（新增 `EnvThresholdJsonbTypeHandler`，结构 `{tempMin,tempMax,humiMin,humiMax,luxMax}`，列随 V1 已存在，无新 Flyway 迁移）
 - 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（联调参考）· 嵌入式 否
 
+## [2026-10-26] feat(env-core) 环境遥测入库与实时/历史查询
+
+- **新增 REST（02 第 9 章）**：`GET /env/realtime`（`deviceId` + 可选 `sensorId`，合并温湿度与光照最新读数）、`GET /env/history`（`from`/`to` 必填、`interval` 可选做分钟分桶 `avg` 聚合；缺 `from/to`、`from>to`、`interval` 越界 1~1440、跨度 > 30 天均 → `40001`）
+- **新增上行消费**：`up/telemetry` → `TelemetryUpMessageHandler` → `EnvSampleService.ingest`，按 `sensorId` 定位子设备后逐条落 `env_sample`（温湿度一行、光照一行，记 `gateway_device_id` 与冗余 `elder_id`）；`TelemetryPayload` 由 `backend-mqtt` 预建
+- **设备详情增强（02 第 4 章）**：`GET /devices/{deviceId}` 的 `DeviceDetailResponse` 新增 `latestTelemetry` 字段（无上报为 `null`），由 `DeviceService.detail` 经 `EnvSampleService.realtime` 一并取回
+- **无新增 Flyway 迁移**：`env_sample` 表与索引已在 `V1`；本分支不告警、不推 WS（超标告警归 `feat/env-alarm`）
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（待 `mp-env` 联调）· 嵌入式 否
+
 ## [2026-10-25] feat(device-command) 下发控制命令：REST 受理 + QoS1 下行 + 回执翻终态
 
 - **新增后端**：`POST /devices/{id}/commands`（`DeviceCommandService` + `DeviceController`）；Flyway **`V15__device_command.sql`** 新建 `device_command` 表 + `device_command_biz_id_seq`（前缀 `c-`）；复用 `PendingAckRegistry`（5s 超时重发 3 次）回调按持久化 `msg_id` 列翻 `SUCCESS`/`FAILED`（条件带 `state='PENDING'` 幂等）

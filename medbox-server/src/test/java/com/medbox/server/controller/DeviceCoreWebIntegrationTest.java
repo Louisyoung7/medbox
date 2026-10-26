@@ -27,6 +27,7 @@ import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceEventMapper;
 import com.medbox.server.mapper.DeviceMapper;
+import com.medbox.server.mapper.EnvSampleMapper;
 import com.medbox.server.mapper.GuardianRelationMapper;
 import com.medbox.server.mapper.UserMapper;
 import com.medbox.server.support.TableInfoWarmup;
@@ -114,6 +115,10 @@ class DeviceCoreWebIntegrationTest {
     @MockitoBean
     private GuardianRelationMapper guardianRelationMapper;
 
+    /** env-core 落地后 detail() 会顺带查最新遥测；本测试用 H2 且未跑 Flyway，故打桩返回 null。 */
+    @MockitoBean
+    private EnvSampleMapper envSampleMapper;
+
     @BeforeEach
     void setUp() {
         // Mapper 被打桩后 MyBatis 不会为实体建表信息，而 in(...) 要立即解析列名 —— 先预热，否则 500
@@ -122,6 +127,8 @@ class DeviceCoreWebIntegrationTest {
         when(userMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<User>>any()))
                 .thenReturn(elder(ELDER_ID));
         when(deviceMapper.selectCount(ArgumentMatchers.<LambdaQueryWrapper<Device>>any())).thenReturn(0L);
+        when(envSampleMapper.selectLatestTempHumi(ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(null);
+        when(envSampleMapper.selectLatestLux(ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(null);
     }
 
     @AfterEach
