@@ -44,6 +44,28 @@
 			}
 		},
 		{
+			"path": "pages/alarm/list",
+			"style": {
+				"navigationBarTitleText": "告警",
+				"navigationBarBackgroundColor": "#FFFFFF",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/alarm/detail",
+			"style": {
+				"navigationBarTitleText": "告警详情",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
+			"path": "pages/alarm/settings",
+			"style": {
+				"navigationBarTitleText": "告警设置",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/medicine/medicine",
 			"style": {
 				"navigationBarTitleText": "药品",

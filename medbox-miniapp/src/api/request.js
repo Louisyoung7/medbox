@@ -395,5 +395,14 @@ export const put = (url, data, options) =>
  * @param {RequestOptions} [options]
  * @returns {Promise<any>}
  */
+export const patch = (url, data, options) =>
+  request({ ...options, url, data, method: 'PATCH' })
+
+/**
+ * @param {string} url
+ * @param {Object} [data]
+ * @param {RequestOptions} [options]
+ * @returns {Promise<any>}
+ */
 export const del = (url, data, options) =>
   request({ ...options, url, data, method: 'DELETE' })

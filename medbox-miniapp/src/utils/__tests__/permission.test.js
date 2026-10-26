@@ -62,4 +62,10 @@ describe('ENTRY_ROLES 已登记项（feat/mp-profile）', () => {
     expect(canAccess(ROLE.ELDER, 'deviceCommand')).toBe(false)
     expect(canAccess('', 'deviceCommand')).toBe(false)
   })
+
+  it('alarmHandle「处理/确认告警」仅监护人（HANDLE_ALARM = FAMILY+NURSE，小程序仅 GUARDIAN）', () => {
+    expect(canAccess(ROLE.GUARDIAN, 'alarmHandle')).toBe(true)
+    expect(canAccess(ROLE.ELDER, 'alarmHandle')).toBe(false)
+    expect(canAccess('', 'alarmHandle')).toBe(false)
+  })
 })

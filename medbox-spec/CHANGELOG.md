@@ -18,6 +18,15 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-26] 小程序落地告警列表/实时/设置（feat/mp-alarm）
+
+`feat/mp-alarm`（08 清单 P1，= `mp-alarm-list` + `mp-alarm-realtime` + `mp-alarm-settings`）落地：告警列表与筛选（类型/已读、未读高亮、分页、监护人由 `GET /devices` 推导可见老人选老人——`feat/guardian-relation` 未落地，不发明老人列表接口）、标记已读与处理闭环（处理按钮 `RoleGate alarmHandle`，仅监护人；`HANDLE_ALARM`=FAMILY+NURSE 真后端强校验）；未读角标（`GET /alarms/unread-count` 驱动 `WsStatusBar` 红点 + 首页"告警"入口卡）+ WS `ALARM` 全局弹窗 + `REMINDER` 多药弹窗（`App.vue` 挂 `AlarmRealtime`，订阅 `src/store/ws.js` 唯一长连接）；告警阈值设置（提前期/环境上下限/漏服容忍，老人级，`RoleGate alarmSettings` 仅监护人 `PUT /alarm-settings`）。
+
+- **改了哪个文件**：`api/alarm.js` / `utils/alarm.js`（标签·着色·`parseAlarmsPage`·`toAlarmView`·`toAlarmSettingsView`）/ `store/alarm.js`（未读计数 + 监护人推导 elderIds）/ `components/AlarmRealtime.vue` + `WsStatusBar.vue` / `pages/alarm/{list,detail,settings}.vue` + `pages.json` / `pages/index/index.vue`（告警入口 + 监护台设置按钮）；`tools/mock`（告警接口 + 样例 MISS/WRONG_DRUG/ENV，smoke 共 151 项）
+- **跨分支约定**：后端 `alarm-device-offline` / `stock-expiring` 在 07 仍为 `[ ]` 未落地，`DEVICE_OFFLINE` / `EXPIRED` 两类告警无真实数据源（列表对缺类自动少该类，不报错），后端定稿后于 `utils/alarm.js` / mock 一处收敛
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
+
 ## [2026-10-26] fix(backend-admin-seed) 管理后台 admin 种子账号可靠入库（修复 admin 访问 /admin/users 401）
 
 - **新增 `V16__admin_seed.sql`（SQL 种子迁移）**：幂等插入种子管理员 `admin`/`public`（`role=ADMIN`、`status=ACTIVE`）；改用 SQL 迁移确保 Flyway 必定执行——原 `V11__admin_seed.java` 在 Spring Boot 4 下未被 Flyway 可靠发现/执行，致 admin 账号从未入库，admin 后台登录后访问 `GET /admin/users` 因无有效 ADMIN token 而 401。保留 `V11__admin_seed.java` 不动（不改动已发布迁移，见 AGENTS.md 3.2）

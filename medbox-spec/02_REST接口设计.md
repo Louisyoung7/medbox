@@ -895,6 +895,15 @@ POST /plans
 
 > **告警阈值配置权限（feat/alarm-core 落地，2026-10-26）**：`GET /alarm-settings`、`GET /alarms`、`GET /alarms/unread-count`、`PATCH /alarms/{alarmId}/read` 用 `READ_ALARM`（四角色可读）；`PATCH /alarms/{alarmId}/handle` 用 `HANDLE_ALARM`（仅 FAMILY + NURSE）；`PUT /alarm-settings` 用新增的 `WRITE_ALARM_SETTINGS`（**仅 FAMILY** 监护人代老人配置，镜像 `CONFIG_LLM_KEY` 口径，DOCTOR / NURSE / ELDER 写返回 40301）。`alarm_setting` 每老人一行（`elder_id` UNIQUE），无则插入、有则更新；请求字段可选、仅提供项覆盖原值。
 
+> **小程序侧落地（`feat/mp-alarm`；后端 `alarm-core` 已落地，按契约 + mock 先行）**：
+>
+> 1. **接口层**：`api/alarm.js` 的 `getAlarms({elderId,type,readState,page,size})`、`getUnreadCount({elderId})`、`markAlarmRead(alarmId)`、`handleAlarm(alarmId)`、`getAlarmSettings({elderId})`、`saveAlarmSettings({elderId}, body)`（写操作 `PATCH`/`PUT` 自动注入 `X-Request-Id`）。`type`/`readState` 传 `'ALL'` 视为不过滤（请求层丢弃，与 device 事件同口径）。
+> 2. **监护人选老人（elderId）口径**：小程序 `feat/guardian-relation`（老人列表接口）在 08 仍为未落地，故监护人侧可见老人由 `GET /devices` 推导（每台 MAIN 主控的 `elderId` 即一位老人，`utils/alarm.js` 无老人名查询依赖）；ELDER 角色直接用自身 `userId`；WS 订阅主题同样由该推导结果传入 `connect({elderIds})`（老人端省略，见 `src/store/ws.js` 的 `normalizeTopics` 默认自己）。**不发明老人列表接口**。
+> 3. **权限门控**：列表 / 未读 / 已读 / 设置查询属 `READ_ALARM`（四角色，前端不拦）；`handleAlarm` 的 `HANDLE_ALARM`（FAMILY+NURSE）由详情页 `RoleGate entry="alarmHandle"` 控制"处理/确认"按钮（小程序注册角色仅 `GUARDIAN`，登记 `ENTRY_ROLES.alarmHandle:[GUARDIAN]`，真后端仍按 `HANDLE_ALARM` 强校验）；`saveAlarmSettings` 的 `WRITE_ALARM_SETTINGS`（仅 FAMILY）由设置页 `RoleGate entry="alarmSettings"` 包裹（ELDER/NURSE/DOCTOR 写后端返回 40301）。
+> 4. **未读角标与实时告警**：`GET /alarms/unread-count` 驱动 `WsStatusBar` 红点角标与首页"告警"入口卡；WS 收到 `ALARM` 帧（`src/store/ws.js` 唯一长连接，前端只订阅不自建 socket）→ `components/AlarmRealtime.vue` 全局弹窗（可点"查看"跳列表）+ `store/alarm.js` 的 `bumpUnread()` +1；`RESYNC` 触发列表页 `onShow` 走 REST 全量拉取；`REMINDER` 帧 → 同一弹窗的多药提醒（一次提醒可含多种药，非告警、不进列表）。
+> 5. **归一化与容错**：`utils/alarm.js` 的 `parseAlarmsPage` 兼容 `{list,total}`/`{records}`/`{items}`/裸数组，`toAlarmView` 归一化（type/level 标签与着色、`isUnread`/`handled`、`medicineCount`）；`toAlarmSettingsView` 合并默认值（提前期 10 / 漏服容忍 15 / 温湿光上下限），缺字段兜底。
+> 6. **mock 先行**：`tools/mock` 补 `GET /alarms`（倒序分页、`type`/`readState` 筛选、越权 40301/40302/40401、未登录 40101）、`GET /alarms/unread-count`、`PATCH /alarms/{id}/read`、`PATCH /alarms/{id}/handle`（非监护人 40301、不存在 40401）、`GET|PUT /alarm-settings`（非监护人 40301、字段可选合并），并播种 `MISS`/`WRONG_DRUG`/`ENV` 样例告警；**后端 `alarm-device-offline`/`stock-expiring` 未落地，`DEVICE_OFFLINE`/`EXPIRED` 两类不播种**，列表对缺类自动少该类、不报错。真实告警摄入走后端对应 feat，mock 不接 EMQX，只给样例使列表可读。
+
 ## 9. 环境监测
 
 | 方法 | 路径 | 说明 |

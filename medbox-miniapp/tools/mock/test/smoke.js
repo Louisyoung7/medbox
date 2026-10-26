@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 134 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 151 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -113,6 +113,42 @@ async function waitReady() {
     check('page=0 → 40001', (await call('GET', '/devices/BOXA1001/events?page=0', { token: gw.token })).code === 40001)
     check('老人可读事件（READ_DEVICE 双方）', (await call('GET', '/devices/BOXA1001/events', { token: elder.token })).code === 0)
     check('子设备编号事件 40301', (await call('GET', '/devices/BOXA1001-S-CAM01/events', { token: gw.token })).code === 40301)
+
+    console.log('== 告警（02 第 8 章；feat/mp-alarm；alarm-core 已落地，Mock 先行） ==')
+    // 列表分页（u-1001 种子 4 条：3 未读 + 1 已读）
+    const alarmList = await call('GET', '/alarms?elderId=u-1001', { token: gw.token })
+    check('监护人查 u-1001 告警列表 200 且 4 条', alarmList.code === 0 && alarmList.data.total === 4 && alarmList.data.list.length === 4)
+    const unread0 = await call('GET', '/alarms/unread-count?elderId=u-1001', { token: gw.token })
+    check('未读计数 = 3', unread0.code === 0 && unread0.data.count === 3)
+    // 类型 / 已读筛选
+    const missOnly = await call('GET', '/alarms?elderId=u-1001&type=MISS', { token: gw.token })
+    check('类型筛选 MISS = 2 条', missOnly.code === 0 && missOnly.data.total === 2)
+    const unreadOnly = await call('GET', '/alarms?elderId=u-1001&readState=UNREAD', { token: gw.token })
+    check('已读筛选 UNREAD = 3 条', unreadOnly.code === 0 && unreadOnly.data.total === 3)
+    // 分页 size=1
+    const p1 = await call('GET', '/alarms?elderId=u-1001&page=1&size=1', { token: gw.token })
+    check('分页 size=1 返回 1 条', p1.code === 0 && p1.data.list.length === 1)
+    // 老人可读自己（u-1001 即 elder 本人）
+    check('老人可读自己告警', (await call('GET', '/alarms?elderId=u-1001', { token: elder.token })).code === 0)
+    // 越权：监护人查不存在老人 → 40301
+    check('查他人老人告警 40301', (await call('GET', '/alarms?elderId=u-9999', { token: gw.token })).code === 40301)
+    // 标记已读后未读 -1
+    check('标记已读 200', (await call('PATCH', '/alarms/a-1001-miss-1/read', { token: gw.token })).code === 0)
+    const unread1 = await call('GET', '/alarms/unread-count?elderId=u-1001', { token: gw.token })
+    check('标记已读后未读 = 2', unread1.code === 0 && unread1.data.count === 2)
+    // 处理：监护人可；老人不可（HANDLE_ALARM = FAMILY+NURSE，小程序仅 GUARDIAN）
+    check('监护人处理告警 200', (await call('PATCH', '/alarms/a-1001-wrong-1/handle', { token: gw.token })).code === 0)
+    check('老人处理告警 40301', (await call('PATCH', '/alarms/a-1001-wrong-1/handle', { token: elder.token })).code === 40301)
+    // 阈值设置：查询 / 监护人可改 / 老人不可改
+    const set0 = await call('GET', '/alarm-settings?elderId=u-1001', { token: gw.token })
+    check('查询告警设置 200 且默认 advanceMin=10', set0.code === 0 && set0.data.advanceMin === 10 && set0.data.envThreshold.temp.max === 30)
+    check('监护人保存设置 200', (await call('PUT', '/alarm-settings?elderId=u-1001', { token: gw.token, body: { advanceMin: 20, envThreshold: { temp: { min: 15, max: 35 } } } })).code === 0)
+    const set1 = await call('GET', '/alarm-settings?elderId=u-1001', { token: gw.token })
+    check('保存后 advanceMin=20 且 temp.max=35 合并成功', set1.code === 0 && set1.data.advanceMin === 20 && set1.data.envThreshold.temp.max === 35 && set1.data.envThreshold.temp.min === 15)
+    check('老人保存设置 40301', (await call('PUT', '/alarm-settings?elderId=u-1001', { token: elder.token, body: { advanceMin: 5 } })).code === 40301)
+    // 未登录 / 非法分页
+    check('未登录查告警 40101', (await call('GET', '/alarms?elderId=u-1001')).code === 40101)
+    check('page=0 → 40001', (await call('GET', '/alarms?elderId=u-1001&page=0', { token: gw.token })).code === 40001)
 
     console.log('== 药品 ==')
     const search = await call('GET', '/medicines?keyword=' + encodeURIComponent('阿莫'), { token: gw.token })

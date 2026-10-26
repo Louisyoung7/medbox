@@ -24,17 +24,22 @@ import { ROLE } from '@/store/user.js'
  *   仅监护人；
  * - `elderBindGuide`「告诉监护人」绑定引导卡：仅老人（监护人不需要被引导去绑定自己）；
  * - `deviceCommand`「远程控制」（设备命令下发，归 `feat/mp-device-extra`）：仅监护人
- *   （02 的 1.3 矩阵 `WRITE_DEVICE` 仅 FAMILY）。
+ *   （02 的 1.3 矩阵 `WRITE_DEVICE` 仅 FAMILY）；
+ * - `alarmHandle`「处理/确认告警」（归 `feat/mp-alarm`）：仅监护人（02 第 8 章 `HANDLE_ALARM`
+ *   = FAMILY + NURSE；但小程序注册角色目前只有 `ELDER` / `GUARDIAN`，NURSE 非登录角色，
+ *   故此处登记 `[GUARDIAN]`，真后端仍按 `HANDLE_ALARM` 强校验）。
  *
  * @example
  * alarmSettings: [ROLE.GUARDIAN],
  * elderBindGuide: [ROLE.ELDER],
  * deviceCommand: [ROLE.GUARDIAN],
+ * alarmHandle: [ROLE.GUARDIAN],
  */
 export const ENTRY_ROLES = {
   alarmSettings: [ROLE.GUARDIAN],
   elderBindGuide: [ROLE.ELDER],
   deviceCommand: [ROLE.GUARDIAN],
+  alarmHandle: [ROLE.GUARDIAN],
 }
 
 /**
