@@ -17,6 +17,15 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+## [2026-10-25] feat(device-command) 下发控制命令：REST 受理 + QoS1 下行 + 回执翻终态
+
+- **新增后端**：`POST /devices/{id}/commands`（`DeviceCommandService` + `DeviceController`）；Flyway **`V15__device_command.sql`** 新建 `device_command` 表 + `device_command_biz_id_seq`（前缀 `c-`）；复用 `PendingAckRegistry`（5s 超时重发 3 次）回调按持久化 `msg_id` 列翻 `SUCCESS`/`FAILED`（条件带 `state='PENDING'` 幂等）
+- **口径（用户确认）**：命令状态存新建 `device_command` 表；MQTT 未启用时 POST 返回 **50000 不落库**；下发彻底失败**只写 device_event 流水不生成告警**；设备离线 **40901**（小程序已按"设备离线，无法下发"对接）；`operator_id` 服务端取鉴权用户，**请求体不收 `operator`**（02 §4.0 旧示例里的 `"operator":"doctor"` 已修正，客户端多传被忽略）；COMMAND 事件 detail 契约 JSON `{"commandId","cmd","state"[,"reason"]}`
+- **文档**：勾选 07；02 新增 §4.0.1（判定表 + 终态流转 + 事件契约）；03 第 3 章补 `down/command` payload 示例；06 新增 §2.17 + 迁移清单补 `V14`（capture 漏登）/ `V15` + 2.16 表 COMMAND 行改已落地
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（mp-device-extra 已按契约先行，无需改动）· 嵌入式 是（`down/command` 四个 cmd + `up/ack` 回执，见 03 第 3 章）
+
+
+
 ## [2026-10-25] feat(capture-core) 文档补：02 §4.1 抓拍接口字段级契约
 
 - **文档补充**：02 §4.1 在既有设计稿基础上补充已实现的接口契约——设备 HMAC 上传鉴权（`X-Device-Id`/`X-Device-Sign`/`X-Timestamp` + ±5min 窗口）、5 端点请求/响应字段（`CaptureResponse`/`CaptureUploadResponse`）、错误码与边界表、fileToken 结构与去重/过期公式；口径与实现一致
