@@ -143,6 +143,11 @@ medbox:
     env:
       enabled: ${MEDBOX_ALARM_ENV_ENABLED:true}          # 逃生开关：false 时整体不判定（CI / 排障用）
       dedup-window-minutes: 30                            # 同传感器同指标去重窗口（分钟）：窗口内仅告警一次，回落即停、窗口过后越界可再告警
+    
+        # —— 设备侧异常 DEVICE_FAULT 告警（feat/device-fault，见文档 06 的 2.9 / 03 第 3 章）——
+    device-fault:
+      enabled: ${MEDBOX_ALARM_DEVICE_FAULT_ENABLED:true}   # 逃生开关：false 时只记事件流水，不告警不推 WS
+      dedup-window-minutes: 30                              # 同设备同故障码去重窗口（分钟）：窗口内仅告警一次
 
   # —— 服药提醒推送（feat/plan-reminder，见文档 06 的 2.6 / 02 第 8 章）——
   plan-reminder:
