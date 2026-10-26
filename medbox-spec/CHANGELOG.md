@@ -18,6 +18,13 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-26] feat(env-alarm) 环境超标实时告警（事件驱动）
+
+- **新增告警类型 ENV**：`TelemetryUpMessageHandler` 在 `EnvSampleService.ingest` 入库后发 `EnvSampleRecordedEvent`，`EnvAlarmService`（`@EventListener`）按老人级 `alarm_setting.env_threshold` 逐指标（温/湿/光）判定，越界生成 ENV 告警落 `alarm` 表并经 `WsPushService` 推 `ALARM` 帧；`device_id` 记传感器自身，`medicineIds` 留空
+- **零新 Flyway 迁移**：复用 V12 的 `dedup_key`，去重键 `ENV:{elderId}:{sensorId}:{metric}:{bucket}`（bucket 按 `medbox.alarm.env.dedup-window-minutes` 默认 30min 截断），窗口内同指标仅告警一次、回落即停
+- **新增配置（02 无新 REST）**：`medbox.alarm.env.enabled`（逃生开关）、`medbox.alarm.env.dedup-window-minutes`；`EnvAlarmProperties` 已在 `SchedulingConfig` 注册；规则表沉淀见 06 §2.9
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（联调参考）· 嵌入式 否
+
 ## [2026-10-26] feat(alarm-core) 告警查询/处理闭环 + 老人级阈值配置
 
 - **新增 REST（02 第 8 章）**：`GET /alarms`、`GET /alarms/unread-count`、`PATCH /alarms/{alarmId}/read`、`PATCH /alarms/{alarmId}/handle`、`GET/PUT /alarm-settings`；告警生成与 WS 推送仍由 `miss-alarm`/`wrong-drug-alarm` 负责，本分支只做查询侧闭环
