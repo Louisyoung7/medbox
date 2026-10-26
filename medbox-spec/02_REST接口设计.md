@@ -106,6 +106,7 @@
 | `HANDLE_ALARM`（告警处理闭环） | | ✅ | ✅ | |
 | `EXPORT_RECORD`（导出服药报告） | | ✅ | ✅ | |
 | `CONFIG_LLM_KEY`（配置大模型 Key） | | ✅ | | |
+| `WRITE_ALARM_SETTINGS`（配置老人级告警阈值：提前期 / 环境上下限 / 漏服容忍） | | ✅ | | |
 | `READ_CAPTURE`（查看抓拍图片） | ✅ | ✅ | | |
 | `WRITE_CAPTURE`（删除抓拍图片） | | ✅ | | |
 | `WRITE_DEVICE`（下发控制命令） | | ✅ | | |
@@ -891,6 +892,8 @@ POST /plans
 | DEVICE_FAULT | 设备上报 | 设备侧异常（`up/event/error`）：门超时 / 识别失败 / 硬件故障 |
 
 > **MISS 告警归属**：`feat/miss-alarm`（07 P0 第 10 步）负责**生成** MISS 告警（落 `alarm` 表 + 经 WebSocket 推 `ALARM` 帧，见 04 第 3 章）；**查询/已读/处理与阈值配置（`PUT /alarm-settings` 等的 `missTolerateMin` 即三级容忍的老人级）归 `feat/alarm-core`**（P1，依赖本分支）。本分支不新增任何 REST。
+
+> **告警阈值配置权限（feat/alarm-core 落地，2026-10-26）**：`GET /alarm-settings`、`GET /alarms`、`GET /alarms/unread-count`、`PATCH /alarms/{alarmId}/read` 用 `READ_ALARM`（四角色可读）；`PATCH /alarms/{alarmId}/handle` 用 `HANDLE_ALARM`（仅 FAMILY + NURSE）；`PUT /alarm-settings` 用新增的 `WRITE_ALARM_SETTINGS`（**仅 FAMILY** 监护人代老人配置，镜像 `CONFIG_LLM_KEY` 口径，DOCTOR / NURSE / ELDER 写返回 40301）。`alarm_setting` 每老人一行（`elder_id` UNIQUE），无则插入、有则更新；请求字段可选、仅提供项覆盖原值。
 
 ## 9. 环境监测
 
