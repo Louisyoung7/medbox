@@ -924,7 +924,7 @@ POST /plans
 ## 10. 管理员接口（测试数据清理，dev/QA 工具）
 
 > 本期 `medbox-admin/` 只做「测试数据清理」这一个 dev/QA 工具（其余管理功能待定，设计见 `09`）。所有接口为 **`ADMIN` 角色门禁**，独立于现有 elder 中心的 `AccessService`（见 01 第 3 章）。
-> 角色建模与种子账号见 06 的 2.1（`UserRole` 增加 `ADMIN` + `V11__admin_seed.sql` 种子账号）；前端页面方案见 `09` 第五/六章。
+> 角色建模与种子账号见 06 的 2.1（`UserRole` 增加 `ADMIN` + `V16__admin_seed.sql` 种子账号，原 `V11__admin_seed.java` 在 Spring Boot 4 下不可靠）；前端页面方案见 `09` 第五/六章。
 
 基础前缀同现有：`/medbox/api/v1`；所有接口需 `Authorization: Bearer <token>` **且 `role == ADMIN`**，否则 `40301`。
 
