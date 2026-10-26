@@ -17,14 +17,20 @@
 >
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
+
+## [2026-10-26] feat(alarm-core) 告警查询/处理闭环 + 老人级阈值配置
+
+- **新增 REST（02 第 8 章）**：`GET /alarms`、`GET /alarms/unread-count`、`PATCH /alarms/{alarmId}/read`、`PATCH /alarms/{alarmId}/handle`、`GET/PUT /alarm-settings`；告警生成与 WS 推送仍由 `miss-alarm`/`wrong-drug-alarm` 负责，本分支只做查询侧闭环
+- **新增权限 `WRITE_ALARM_SETTINGS`**（仅 FAMILY，监护人代老人配置，镜像 `CONFIG_LLM_KEY`）：`PUT /alarm-settings` 受其保护，DOCTOR/NURSE/ELDER 写返回 40301；已补 02 的 1.3 矩阵；`HANDLE_ALARM`（FAMILY+NURSE）用于 `handle`
+- **实体/映射**：`AlarmSetting` 补齐 `env_threshold` JSONB 字段（新增 `EnvThresholdJsonbTypeHandler`，结构 `{tempMin,tempMax,humiMin,humiMax,luxMax}`，列随 V1 已存在，无新 Flyway 迁移）
+- 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（联调参考）· 嵌入式 否
+
 ## [2026-10-25] feat(device-command) 下发控制命令：REST 受理 + QoS1 下行 + 回执翻终态
 
 - **新增后端**：`POST /devices/{id}/commands`（`DeviceCommandService` + `DeviceController`）；Flyway **`V15__device_command.sql`** 新建 `device_command` 表 + `device_command_biz_id_seq`（前缀 `c-`）；复用 `PendingAckRegistry`（5s 超时重发 3 次）回调按持久化 `msg_id` 列翻 `SUCCESS`/`FAILED`（条件带 `state='PENDING'` 幂等）
 - **口径（用户确认）**：命令状态存新建 `device_command` 表；MQTT 未启用时 POST 返回 **50000 不落库**；下发彻底失败**只写 device_event 流水不生成告警**；设备离线 **40901**（小程序已按"设备离线，无法下发"对接）；`operator_id` 服务端取鉴权用户，**请求体不收 `operator`**（02 §4.0 旧示例里的 `"operator":"doctor"` 已修正，客户端多传被忽略）；COMMAND 事件 detail 契约 JSON `{"commandId","cmd","state"[,"reason"]}`
 - **文档**：勾选 07；02 新增 §4.0.1（判定表 + 终态流转 + 事件契约）；03 第 3 章补 `down/command` payload 示例；06 新增 §2.17 + 迁移清单补 `V14`（capture 漏登）/ `V15` + 2.16 表 COMMAND 行改已落地
 - 影响端：`medbox-server/` 是 · `medbox-miniapp/` 否（mp-device-extra 已按契约先行，无需改动）· 嵌入式 是（`down/command` 四个 cmd + `up/ack` 回执，见 03 第 3 章）
-
-
 
 ## [2026-10-25] feat(capture-core) 文档补：02 §4.1 抓拍接口字段级契约
 
