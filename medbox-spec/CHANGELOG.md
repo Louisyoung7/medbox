@@ -18,6 +18,12 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-26] fix(backend-admin-seed) 管理后台 admin 种子账号可靠入库（修复 admin 访问 /admin/users 401）
+
+- **新增 `V16__admin_seed.sql`（SQL 种子迁移）**：幂等插入种子管理员 `admin`/`public`（`role=ADMIN`、`status=ACTIVE`）；改用 SQL 迁移确保 Flyway 必定执行——原 `V11__admin_seed.java` 在 Spring Boot 4 下未被 Flyway 可靠发现/执行，致 admin 账号从未入库，admin 后台登录后访问 `GET /admin/users` 因无有效 ADMIN token 而 401。保留 `V11__admin_seed.java` 不动（不改动已发布迁移，见 AGENTS.md 3.2）
+- **`06` 第 2.1 种子说明更新**：V11 改述为「JavaMigration 不可靠」+ V16「SQL、必定执行、幂等」，密码 `public` 的 BCrypt 哈希由 `V16` 写入，与业务 `PasswordHasher` 强度一致
+- 影响端：`medbox-server/` 是（迁移）· `medbox-miniapp/` 否 · `medbox-admin/` 否（仅依赖既有登录接口）
+
 ## [2026-10-26] feat(env-alarm) 环境超标实时告警（事件驱动）
 
 - **新增告警类型 ENV**：`TelemetryUpMessageHandler` 在 `EnvSampleService.ingest` 入库后发 `EnvSampleRecordedEvent`，`EnvAlarmService`（`@EventListener`）按老人级 `alarm_setting.env_threshold` 逐指标（温/湿/光）判定，越界生成 ENV 告警落 `alarm` 表并经 `WsPushService` 推 `ALARM` 帧；`device_id` 记传感器自身，`medicineIds` 留空
