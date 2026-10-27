@@ -855,6 +855,14 @@ POST /plans
 >
 > **待后端定稿后收紧**：① `GET /plans` 分页响应字段名（前端 `parsePlansPage` 容错 `{list,records,items}+total` 与裸数组）；② PATCH 请求体（见 D）；③ `repeatRule` 枚举（06 注释"DAILY / WEEKLY ..."未列全，前端先提供 DAILY / WEEKLY 两档，不传即后端默认）。
 
+> **小程序侧落地（`feat/mp-plan-timeline`；后端 `plan-core` 已落地，按契约 + mock 先行）**：
+>
+> 1. **接口层**：`api/plan.js` 的 `getNextDoses(planId, {days})`（GET，默认 `days=7`、上限 60，越界由后端 40001；**无** `X-Request-Id`，与 `listPlans` 同 GET 口径）。前端**不自行换算时区、不做按次展开**——这些全在后端按 `device.timezone` 完成，前端只消费 `scheduledTimeLocal`。
+> 2. **纯函数**：`utils/plan.js` 的 `parseNextDoses`（容错 `{doses:[...]}` 与裸数组，后端响应外壳未定稿，一处收敛）、`toDoseView`（取 `scheduledTimeLocal`、拆出本地日期 `YYYY-MM-DD` 与 `HH:mm` 供分组/排序、items 映射为药品+剂量文案、缺字段兜底）、`groupDosesByDay`（按本地日期升序分组、组内时间序）。"前端规则表"= 直接展示 `scheduledTimeLocal`、按本地日期分组、空态全在前端判定。
+> 3. **页面**：`pages/plan/timeline.vue`（新）按本地日期分组渲染时间线（日期头 + 每次 `HH:mm` + 药品剂量列表），顶部 days 分段选择（7/15/30）切换即重拉；**空态**：计划停用 → "计划已停用，暂无未来服药"；所选天数内无安排 → "未来 N 天暂无服药安排"；加载失败按 code 细分提示。
+> 4. **入口与权限**：计划列表卡片加"未来服药时间线 ›"链接跳 timeline（与卡片点按进编辑区分）；时间线只读，`READ_PLAN` = 全角色可读，无需 `RoleGate`、不新增 `ENTRY_ROLES`、老人端同样可见；不改 `permission.js`。
+> 5. **mock 先行**：`tools/mock` 补 `GET /plans/{planId}/next-doses`（停用返 `{doses:[]}`、`days` 越界 40001、未知 40401、权限 40301/40302、按本地墙钟 `times × days` 展开并拼 `items` 药品名/剂量）；仅演示用途，真后端本期仅 `DAILY`。
+
 ## 7. 服药记录与依从性
 
 | 方法 | 路径 | 说明 |

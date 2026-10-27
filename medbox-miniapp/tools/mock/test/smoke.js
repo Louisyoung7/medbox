@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 151 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 163 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -247,6 +247,27 @@ async function waitReady() {
     check('PATCH 非法状态 40001', (await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'ON' } })).code === 40001)
     check('DELETE 删除计划', (await call('DELETE', `/plans/${newPlanId}`, { token: gw.token })).code === 0)
     check('删除后详情 40401（级联生效）', (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).code === 40401)
+
+    console.log('== 未来待服药时间线（02 第 6 章；feat/mp-plan-timeline；next-doses） ==')
+    const nd7 = await call('GET', '/plans/p-3301/next-doses?days=7', { token: gw.token })
+    check('GET next-doses 200 且 7天×1次=7 条', nd7.code === 0 && Array.isArray(nd7.data.doses) && nd7.data.doses.length === 7)
+    check('next-doses 含 scheduledTimeLocal 与 items(2 种药)', nd7.data.doses.every((d) => d.scheduledTimeLocal && Array.isArray(d.items) && d.items.length === 2))
+    check('next-doses item 含药品名/剂量/单位', nd7.data.doses[0].items.every((it) => it.medicineId && it.medicineName && it.dose && it.unit))
+    const nd15 = await call('GET', '/plans/p-3301/next-doses?days=15', { token: gw.token })
+    check('days=15 → 15 条', nd15.code === 0 && nd15.data.doses.length === 15)
+    // 停用计划 p-3302 → 空（空态之一）
+    const ndDisabled = await call('GET', '/plans/p-3302/next-doses?days=7', { token: gw.token })
+    check('停用计划 next-doses 空', ndDisabled.code === 0 && Array.isArray(ndDisabled.data.doses) && ndDisabled.data.doses.length === 0)
+    // 老人读自己（READ_PLAN 全角色）
+    check('老人读 next-doses 200', (await call('GET', '/plans/p-3301/next-doses?days=7', { token: elder.token })).code === 0)
+    // 权限分支：REVOKED → 40301、PENDING → 40302
+    check('REVOKED 监护人查 next-doses 40301', (await call('GET', '/plans/p-3301/next-doses?days=7', { token: revoked.token })).code === 40301)
+    check('PENDING 监护人查 next-doses 40302', (await call('GET', '/plans/p-3301/next-doses?days=7', { token: pending.token })).code === 40302)
+    // 未知计划 40401；days 越界 40001；未登录 40101
+    check('未知计划 next-doses 40401', (await call('GET', '/plans/p-9999/next-doses?days=7', { token: gw.token })).code === 40401)
+    check('days=0 → 40001', (await call('GET', '/plans/p-3301/next-doses?days=0', { token: gw.token })).code === 40001)
+    check('days=61 → 40001', (await call('GET', '/plans/p-3301/next-doses?days=61', { token: gw.token })).code === 40001)
+    check('未登录 next-doses 40101', (await call('GET', '/plans/p-3301/next-doses?days=7')).code === 40101)
 
     console.log('== 记录（02 第 7 章） ==')
     const records = await call('GET', '/records?elderId=u-1001', { token: gw.token })

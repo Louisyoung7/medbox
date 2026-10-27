@@ -18,6 +18,15 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-27] 小程序落地未来待服药时间线（feat/mp-plan-timeline）
+
+`feat/mp-plan-timeline`（08 清单 P1）落地：复用已 `[x]` 的 `mp-plan` 与已落地的后端 `plan-core`，新增只读的"未来待服药时间线"页——`GET /plans/{planId}/next-doses` 按设备本地墙钟算好的 `scheduledTimeLocal` 做按次展开，前端只展示、不做时区换算；顶部 days 分段选择 7/15/30，按本地日期分组渲染每次所需药品与剂量；空态区分"计划已停用"与"所选天数内无安排"；计划列表卡片加"未来服药时间线 ›"入口，全角色 `READ_PLAN` 可见。
+
+- **改了哪个文件**：`api/plan.js`（新增 `getNextDoses`，GET 默认 `days=7` 上限 60）/ `utils/plan.js`（新增 `parseNextDoses` 容错外壳 + `toDoseView` 拆本地日期/时间 + `groupDosesByDay` 分组）/ `pages/plan/timeline.vue`（新）+ `pages/plan/plan.vue`（入口）/ `pages.json`；`tools/mock`（`GET /plans/{id}/next-doses` + 12 项检查，smoke 共 163 项）
+- **跨分支约定**：前端不碰时区/按次展开（后端 `device.timezone` 已算好 `scheduledTimeLocal`）；`next-doses` 响应外壳 02 未给完整示例，解析器一处容错，真机联调后仅改 `utils/plan.js` 一处；不改 `permission.js`
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
+
 ## [2026-10-26] 小程序落地告警列表/实时/设置（feat/mp-alarm）
 
 `feat/mp-alarm`（08 清单 P1，= `mp-alarm-list` + `mp-alarm-realtime` + `mp-alarm-settings`）落地：告警列表与筛选（类型/已读、未读高亮、分页、监护人由 `GET /devices` 推导可见老人选老人——`feat/guardian-relation` 未落地，不发明老人列表接口）、标记已读与处理闭环（处理按钮 `RoleGate alarmHandle`，仅监护人；`HANDLE_ALARM`=FAMILY+NURSE 真后端强校验）；未读角标（`GET /alarms/unread-count` 驱动 `WsStatusBar` 红点 + 首页"告警"入口卡）+ WS `ALARM` 全局弹窗 + `REMINDER` 多药弹窗（`App.vue` 挂 `AlarmRealtime`，订阅 `src/store/ws.js` 唯一长连接）；告警阈值设置（提前期/环境上下限/漏服容忍，老人级，`RoleGate alarmSettings` 仅监护人 `PUT /alarm-settings`）。

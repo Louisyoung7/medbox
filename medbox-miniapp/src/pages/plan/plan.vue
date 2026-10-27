@@ -52,6 +52,10 @@
             @change="onToggle(plan, $event)"
           />
         </view>
+        <view class="timeline-row" @click="goTimeline(plan)">
+          <text class="timeline-row__label">未来服药时间线</text>
+          <text class="timeline-row__arrow">›</text>
+        </view>
       </MbCard>
     </template>
 
@@ -214,6 +218,12 @@ export default {
     goCreate() {
       uni.navigateTo({ url: `/pages/plan/edit?elderId=${encodeURIComponent(this.elderId)}` })
     },
+    goTimeline(plan) {
+      uni.navigateTo({
+        url: `/pages/plan/timeline?planId=${encodeURIComponent(plan.planId)}` +
+          `&elderId=${encodeURIComponent(this.elderId)}`,
+      })
+    },
   },
 }
 </script>
@@ -311,6 +321,25 @@ export default {
   &__label {
     font-size: 28rpx;
     color: $mb-text-2;
+  }
+}
+
+.timeline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16rpx;
+  padding-top: 20rpx;
+  border-top: 2rpx solid $mb-border;
+
+  &__label {
+    font-size: 28rpx;
+    color: $mb-text-2;
+  }
+
+  &__arrow {
+    font-size: 32rpx;
+    color: $mb-text-3;
   }
 }
 

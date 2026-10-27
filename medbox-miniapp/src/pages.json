@@ -115,6 +115,13 @@
 			}
 		},
 		{
+			"path": "pages/plan/timeline",
+			"style": {
+				"navigationBarTitleText": "未来服药时间线",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/record/record",
 			"style": {
 				"navigationBarTitleText": "记录",

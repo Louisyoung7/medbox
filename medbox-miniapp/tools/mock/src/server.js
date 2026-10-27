@@ -672,6 +672,51 @@ async function handleGetPlan(req, res, planId) {
   ok(res, toPlanDetail(plan))
 }
 
+async function handleGetNextDoses(req, res, planId, query) {
+  const user = requireUser(req)
+  const plan = state.plans.find((p) => p.planId === planId)
+  if (!plan) throw new BizError(40401, '资源不存在')
+  const access = planAccess(user, plan)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  // 停用计划：02/07 约定返回空（feat/mp-plan-timeline 空态之一）
+  if (plan.status === 'DISABLED') {
+    return ok(res, { doses: [] })
+  }
+  // days：默认 7、上限 60（与后端一致）；越界 40001
+  let days = 7
+  if (query.days !== undefined && String(query.days).trim() !== '') {
+    days = Number(query.days)
+    if (!Number.isInteger(days) || days < 1 || days > 60) {
+      throw new BizError(40001, 'days 超出范围(1~60)')
+    }
+  }
+  const items = planItemsOf(plan.planId).map((item) => {
+    const medicine = state.medicines.find((m) => m.medicineId === item.medicineId)
+    return {
+      medicineId: item.medicineId,
+      medicineName: medicine ? medicine.name : item.medicineId,
+      dose: item.dose,
+      unit: item.unit,
+    }
+  })
+  // 按设备本地墙钟展开展望窗口（Mock 用本地日期；WEEKLY 仅演示照展，真后端本期仅 DAILY）
+  const base = new Date()
+  base.setHours(0, 0, 0, 0)
+  const doses = []
+  for (let offset = 0; offset < days; offset += 1) {
+    const d = new Date(base)
+    d.setDate(base.getDate() + offset)
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    plan.times.forEach((time) => {
+      const local = `${dateStr}T${time}:00`
+      const utc = new Date(local).toISOString()
+      doses.push({ scheduledTimeLocal: local, scheduledTimeUtc: utc, items: items.map((it) => ({ ...it })) })
+    })
+  }
+  ok(res, { doses })
+}
+
 async function handleCreatePlan(req, res, body) {
   const user = requireUser(req)
   const normalized = validatePlanBody(body)
@@ -1214,6 +1259,10 @@ const server = http.createServer(async (req, res) => {
     // 鉴权：计划（02 第 6 章）
     if (req.method === 'GET' && sub === '/plans') return await handleListPlans(req, res, query)
     if (req.method === 'POST' && sub === '/plans') return await handleCreatePlan(req, res, await readBody(req))
+    matched = /^\/plans\/([^/]+)\/next-doses$/.exec(sub)
+    if (req.method === 'GET' && matched) {
+      return await handleGetNextDoses(req, res, decodeURIComponent(matched[1]), query)
+    }
     matched = /^\/plans\/([^/]+)\/status$/.exec(sub)
     if (req.method === 'PATCH' && matched) {
       return await handleUpdatePlanStatus(req, res, decodeURIComponent(matched[1]), await readBody(req))
