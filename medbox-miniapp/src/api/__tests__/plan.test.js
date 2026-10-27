@@ -161,3 +161,30 @@ describe('plan —— 请求层', () => {
     expect(error.code).toBe(CODE.BAD_REQUEST)
   })
 })
+
+describe('plan —— getNextDoses 请求层（feat/mp-plan-timeline）', () => {
+  it('GET /plans/{id}/next-doses 带 days(默认 7) 与 Bearer，无 X-Request-Id', async () => {
+    const { plan } = await loadPlanApi()
+    scripts = [{ body: { code: 0, data: { doses: [{ scheduledTimeLocal: '2026-10-27T08:00:00' }] } } }]
+
+    const data = await plan.getNextDoses('p-3301', { days: 7 })
+
+    expect(data.doses[0].scheduledTimeLocal).toBe('2026-10-27T08:00:00')
+    expect(sent[0].method).toBe('GET')
+    expect(sent[0].url).toContain('/medbox/api/v1/plans/p-3301/next-doses')
+    expect(sent[0].url).toContain('days=7')
+    expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
+    expect(sent[0].header['X-Request-Id']).toBeUndefined()
+  })
+
+  it('days 缺省按 7 下发；越权 40301 / 未知 40401 兑现', async () => {
+    const { plan, CODE } = await loadPlanApi()
+    scripts = [{ body: { code: 40301, message: '无权限访问该资源' } }]
+    const err = await plan.getNextDoses('p-3301').catch((e) => e)
+    expect(err.code).toBe(CODE.FORBIDDEN)
+
+    scripts = [{ body: { code: 40401, message: '资源不存在' } }]
+    const err2 = await plan.getNextDoses('p-9999', { days: 15 }).catch((e) => e)
+    expect(err2.code).toBe(CODE.NOT_FOUND)
+  })
+})

@@ -211,3 +211,79 @@ export function syncStateLabel(syncState) {
   const value = String(syncState || '').trim()
   return labels[value] || value
 }
+
+/**
+ * 未来待服药时间线响应容错解析（feat/mp-plan-timeline；02 第 6 章 `next-doses`）。
+ *
+ * <p>⚠️ 后端 `next-doses` 响应外壳未定稿示例：兼容 `{doses:[...]}` 与裸数组两种，后端定稿后只改这一处。
+ *
+ * @param {Object|Array|null} data 请求层兑现的 `data`
+ * @returns {Array<Object>} 服药点数组（每项原样保留 `scheduledTimeUtc` / `scheduledTimeLocal` / `items` 等字段）
+ */
+export function parseNextDoses(data) {
+  if (Array.isArray(data)) return data
+  const src = data || {}
+  if (Array.isArray(src.doses)) return src.doses
+  return []
+}
+
+/**
+ * 服药点 → 展示视图（feat/mp-plan-timeline）。
+ *
+ * <p>规则：直接展示后端 `scheduledTimeLocal`（设备本地墙钟，**前端不换算**），拆出本地日期
+ * `YYYY-MM-DD` 与 `HH:mm` 供分组/排序；`items` 映射为药品+剂量明细（缺字段兜底）。
+ *
+ * @param {Object} dose 后端服药点（含 `scheduledTimeLocal` / `items`）
+ * @returns {Object} `{day, time, scheduledTimeLocal, items}`，缺 `scheduledTimeLocal` 时 day/time 为空串
+ */
+export function toDoseView(dose) {
+  const src = dose || {}
+  const local = String(src.scheduledTimeLocal || '').trim()
+  // "2026-10-27T08:00:00" → day="2026-10-27"、time="08:00"
+  const day = local.length >= 10 ? local.slice(0, 10) : ''
+  const time = local.length >= 16 ? local.slice(11, 16) : ''
+  const items = Array.isArray(src.items) ? src.items.map(toDoseItemView) : []
+  return { day, time, scheduledTimeLocal: local, items }
+}
+
+/** 服药点明细 → 展示视图（药品+剂量文案，缺字段兜底）。 */
+function toDoseItemView(item) {
+  const src = item || {}
+  const medicineId = String(src.medicineId || '').trim()
+  const name = String(src.medicineName || src.name || '').trim() || (medicineId || '未知药品')
+  const dose = String(src.dose || '').trim()
+  const unit = String(src.unit || '').trim()
+  const text = [dose, unit].filter(Boolean).join('')
+  return {
+    medicineId,
+    name,
+    dose,
+    unit,
+    text: text ? `${name} ${text}` : name,
+  }
+}
+
+/**
+ * 服药点按本地日期分组（feat/mp-plan-timeline）。
+ *
+ * <p>返回按 `day` 升序的分组数组，组内服药点按 `time` 升序，便于时间线渲染；空输入返回空数组。
+ *
+ * @param {Array<Object>} doses `parseNextDoses` + `toDoseView` 后的视图数组（每项含 `day` / `time`）
+ * @returns {Array<{day: string, doses: Array<Object>}>}
+ */
+export function groupDosesByDay(doses) {
+  const list = Array.isArray(doses) ? doses : []
+  const map = new Map()
+  list.forEach((dose) => {
+    const day = (dose && dose.day) || ''
+    if (!map.has(day)) map.set(day, [])
+    map.get(day).push(dose)
+  })
+  const groups = []
+  map.forEach((items, day) => {
+    items.sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')))
+    groups.push({ day, doses: items })
+  })
+  groups.sort((a, b) => String(a.day).localeCompare(String(b.day)))
+  return groups
+}

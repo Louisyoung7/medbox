@@ -1,12 +1,12 @@
 /**
  * 服药计划接口（medbox-spec/02 第 6 章）—— 全部需鉴权（默认 `auth: true`）。
  *
- * <p>`feat/mp-plan` 落地计划 CRUD 与启停；**`GET /plans/{planId}/next-doses`（未来待服时间线）
- * 归 P1 `feat/mp-plan-timeline`，不在此导出**。
+ * <p>`feat/mp-plan` 落地计划 CRUD 与启停；`GET /plans/{planId}/next-doses`（未来待服时间线）
+ * 由 P1 `feat/mp-plan-timeline` 在此导出（见 {@link getNextDoses}）。
  *
- * <p>⚠️ **后端 `plan-core` / `plan-sync` 尚未落地**（07 清单未勾选）：本文件按 02 第 6 章先行
- * 实现，真机联调待后端合并；分页响应字段名与 PATCH 请求体为前端先行契约，见
- * `src/utils/plan.js` 的 {@link parsePlansPage} 与 02 第 6 章"小程序侧口径"。
+ * <p>后端 `plan-core`（含 `next-doses`）已随 07 清单落地（`plan-sync` 亦已落地）：分页响应字段名与
+ * PATCH 请求体已定稿，前端保留 {@link parsePlansPage} 容错与 02 第 6 章"小程序侧口径"；`next-doses`
+ * 响应形状以后端为准，前端解析器（{@link parseNextDoses}）做容错。
  *
  * <p>**时区口径（02/06/01 三处一致）**：`times` 为**设备本地墙钟时间**（如 `"08:00"`），
  * 不是 UTC；前端只做字符串校验与排序，**不做任何时区换算**。
@@ -103,4 +103,22 @@ export function updatePlanStatus(planId, status, options) {
  */
 export function deletePlan(planId, options) {
   return del(`/plans/${planId}`, undefined, options)
+}
+
+/**
+ * 未来待服药时间线（按次展开，每次列出所需药品；02 第 6 章、feat/mp-plan-timeline）。
+ *
+ * <p>后端已落地（`plan-core`）：`days` 默认 7、上限 60，本期仅 `DAILY`，停用计划返回空；
+ * `scheduledTimeLocal` 由后端按老人 MAIN 设备 `device.timezone` 换算好，**前端只展示、不换算**。
+ *
+ * @param {string} planId 计划编号
+ * @param {Object} [query]
+ * @param {number} [query.days=7] 展望天数（1~60，越界由后端 40001 拦截；缺省 7）
+ * @param {Object} [options] 透传请求选项（页面自绘错误传 `silent: true`）
+ * @returns {Promise<Object|Array>} 请求层兑现的 `data`（外壳见后端，调用方用 {@link parseNextDoses} 归一化）
+ * @throws {ApiError} 40101 / 40301（非本人/非监护人）/ 40401（计划不存在）/ -1
+ */
+export function getNextDoses(planId, query, options) {
+  const days = Number((query && query.days) || 7)
+  return get(`/plans/${planId}/next-doses`, { days }, options)
 }

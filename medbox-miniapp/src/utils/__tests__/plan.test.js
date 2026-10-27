@@ -17,12 +17,15 @@ import {
   canWritePlan,
   normalizeTimes,
   parsePlansPage,
+  parseNextDoses,
   pickableMedicines,
   planItemsText,
   planStatusLabel,
   planTimesText,
   repeatRuleLabel,
   syncStateLabel,
+  toDoseView,
+  groupDosesByDay,
 } from '@/utils/plan.js'
 
 /** 相对今天偏移 N 天的 YYYY-MM-DD（临期断言的确定性输入）。 */
@@ -176,5 +179,51 @@ describe('文案与权限', () => {
     expect(expiryTag(dateOffset(10)).state).toBe('expiring')
     expect(expiryTag(dateOffset(-1)).state).toBe('expired')
     expect(expiryTag('').state).toBe('unknown')
+  })
+})
+
+describe('next-doses 解析（feat/mp-plan-timeline）', () => {
+  it('parseNextDoses：兼容 {doses} / 裸数组 / 空', () => {
+    expect(parseNextDoses({ doses: [{ a: 1 }] })).toEqual([{ a: 1 }])
+    expect(parseNextDoses([{ a: 1 }, { a: 2 }])).toEqual([{ a: 1 }, { a: 2 }])
+    expect(parseNextDoses(null)).toEqual([])
+    expect(parseNextDoses({})).toEqual([])
+    expect(parseNextDoses({ list: [] })).toEqual([])
+  })
+
+  it('toDoseView：拆本地日期与 HH:mm，items 缺字段兜底', () => {
+    const view = toDoseView({
+      scheduledTimeLocal: '2026-10-27T08:00:00',
+      items: [
+        { medicineId: 'm-201', medicineName: '阿莫西林', dose: '1', unit: '粒' },
+        { medicineId: 'm-205' },
+      ],
+    })
+    expect(view.day).toBe('2026-10-27')
+    expect(view.time).toBe('08:00')
+    expect(view.items[0].text).toBe('阿莫西林 1粒')
+    expect(view.items[1].text).toBe('m-205')
+  })
+
+  it('toDoseView：缺 scheduledTimeLocal 时 day/time 为空串', () => {
+    const view = toDoseView({ items: [] })
+    expect(view.day).toBe('')
+    expect(view.time).toBe('')
+    expect(view.items).toEqual([])
+  })
+
+  it('groupDosesByDay：按本地日期升序分组，组内按时间升序', () => {
+    const groups = groupDosesByDay([
+      toDoseView({ scheduledTimeLocal: '2026-10-27T20:00:00' }),
+      toDoseView({ scheduledTimeLocal: '2026-10-27T08:00:00' }),
+      toDoseView({ scheduledTimeLocal: '2026-10-26T09:00:00' }),
+    ])
+    expect(groups.map((g) => g.day)).toEqual(['2026-10-26', '2026-10-27'])
+    expect(groups[1].doses.map((d) => d.time)).toEqual(['08:00', '20:00'])
+  })
+
+  it('groupDosesByDay：空输入返回空数组', () => {
+    expect(groupDosesByDay([])).toEqual([])
+    expect(groupDosesByDay(null)).toEqual([])
   })
 })
