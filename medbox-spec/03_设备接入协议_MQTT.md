@@ -6,26 +6,26 @@
 
 | 项 | 约定 |
 |----|------|
-| Broker | **EMQX**，局域网内网部署：`tcp://{内网BrokerIP}:1883`（明文），详见文档 01 第 4 章。**设备**连这个地址；**后端**与 EMQX 同机时连 `localhost:1883`（各人本地一套环境，见文档 01 的 4.5） |
+| Broker | **EMQX**，局域网内网部署：`tcp://{内网BrokerIP}:1883`（明文），详见文档 01 第 4 章。**设备**连这个地址；**后端**与 EMQX 同机时连 `localhost:1883` |
 | clientId | = deviceId。**必填**（即使匿名连接也必须有）：EMQX 靠它区分身份、维护会话与遗嘱；相同 clientId 再次连接会踢掉前一个 |
 | KeepAlive | 60s，心跳维持在线判定 |
 | 遗嘱消息 LWT | topic=`.../status`，payload `{"online":false}`，异常掉线即时感知 |
 | QoS | 遥测 QoS0/1；命令/事件 QoS1；关键下行命令 QoS1 且带 ack |
 | Retained | status（在线状态）retained=true，订阅即得最新态 |
-| 后端接入方式 | Java 后端以订阅方身份连到 EMQX（Spring Integration MQTT / Eclipse Paho），订阅 `.../up/#` 消费上报、向 `.../down/#` 发布下行 |
-| EMQX 认证 | **本期不做认证**：EMQX 保持默认匿名（`allow_anonymous=true`），设备与后端能连到 1883 即可收发。将来需要时**分两级加固**：① 关闭匿名 + 共用用户名密码 + `clientId=deviceId` 白名单 + topic ACL；② 更强的**一机一密**（每台设备独立凭据 + EMQX HTTP 认证 / HMAC 动态签名 / 按 `${clientid}` 限制 topic）。详见文档 01 附录第 2 条 |
+| 后端接入方式 | 后端以订阅方身份连到 EMQX，订阅 `.../up/#` 消费上报、向 `.../down/#` 发布下行 |
+| EMQX 认证 | **本期不做认证**：EMQX 保持默认匿名（`allow_anonymous=true`），设备与后端能连到 1883 即可收发。将来需要时**分两级加固**：① 关闭匿名 + 共用用户名密码 + `clientId=deviceId` 白名单 + topic ACL；② 更强的**一机一密**（每台设备独立凭据 + EMQX HTTP 认证 / HMAC 动态签名 / 按 `${clientid}` 限制 topic）。详见文档 01 附录 |
 | 连接主体 | **一个药箱只有主设备（`MAIN`）建立 MQTT 连接**，clientId = 药箱 deviceId。温湿度 / 光照 / 摄像头等传感器是其**子设备**，不各自建连接，由主控在消息里带 `sensorId` 标明来源（见第 4 章） |
 | 消息幂等 | **所有上行消息必须带 `msgId`**，格式固定为 **`{deviceId}-{10位递增序号}`**（如 `BOXA-DEBUG-01-0000000124`，序号持久化、重启不归零）。断线重连重发时服务端按 `msgId` 去重，避免重复写入服药记录 / 告警 |
-| 下行确认 | 下行消息带 `msgId` 与 `needAck`；设备处理后向 `.../up/ack` 回执。**重发策略已确定：超时 5s 未回执则重发，最多 3 次**；3 次仍无回执则标记该下发失败并生成告警（见第 2 章） |
+| 下行确认 | 下行消息带 `msgId` 与 `needAck`；设备处理后向 `.../up/ack` 回执。**重发策略：超时 5s 未回执则重发，最多 3 次**；3 次仍无回执则标记该下发失败并生成告警（见第 2 章） |
 
 EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、Topic 监控与调试发布 / 订阅。
 
 > **开发阶段不做认证的理由与底线**：每人一套本地 EMQX，端口只在局域网内；匿名模式下设备与后端都零配置，重建容器 / 换机器无需同步凭据。**但必须守住两条**：
 >
 > 1. **不要把 1883 / 18083 做端口映射或内网穿透到公网** —— 匿名 broker 一旦对外，任何人都能连上来发假数据、订阅所有 topic；
-> 2. **EMQX Dashboard 的默认 `admin/public` 必须改** —— Dashboard 能查看所有消息、踢设备、改配置，默认密码等于裸奔（改一次仅需 1 分钟）。
+> 2. **EMQX Dashboard 的默认 `admin/public` 必须改** —— Dashboard 能查看所有消息、踢设备、改配置，默认密码等于裸奔。
 >
-> **唯一需要临时启用认证的场景**：在教室 / 公司等**公共 WiFi** 下演示 —— 同网段的人可直连你的 1883。此时要么临时启用认证，要么改用手机热点自己组网（更简单）。
+> **唯一需要临时启用认证的场景**：在教室 / 公司等**公共 WiFi** 下演示 —— 同网段的人可直连你的 1883。此时要么临时启用认证，要么改用手机热点自己组网。
 >
 > **关于认证的一个常识**：MQTT 协议本身不要求认证，`username` / `password` 是 CONNECT 报文里的**可选字段**；是否校验完全由 broker 策略决定。另外**只要匿名开着，clientId 白名单就不会生效**（匿名连接直接跳过认证器），想让白名单起作用必须先关闭匿名。
 
@@ -101,7 +101,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
               { "sensorId":"BOXA-DEBUG-01-S-LX01","online":true },
               { "sensorId":"BOXA-DEBUG-01-S-CAM01","online":false } ] }
 ```
-因为**只有主控有 MQTT 连接**，子设备没有自己的遗嘱消息，故由主控每 **60s** 汇总上报一次；后端据此更新各子设备的 `last_heartbeat` 与 `online_state`。**离线判定（已确定）：连续 3 个周期（180s）未上报即判该传感器离线**，**不生成 DEVICE_OFFLINE 告警**，仅在设备详情与 `DEVICE_STATUS` 推送中标注。
+因为**只有主控有 MQTT 连接**，子设备没有自己的遗嘱消息，故由主控每 **60s** 汇总上报一次；后端据此更新各子设备的 `last_heartbeat` 与 `online_state`。**离线判定：连续 3 个周期（180s）未上报即判该传感器离线**，**不生成 DEVICE_OFFLINE 告警**，仅在设备详情与 `DEVICE_STATUS` 推送中标注。
 
 上行·下行回执 `.../up/ack`（对应下行消息中的 `msgId`）：
 ```json
@@ -122,9 +122,9 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 > 设备按 `items` 逐种取药并**逐条上报**；本次提醒下所有 item 都上报才算完成，缺任一种药由后端判 MISS（见文档 06 的 2.6.1）。
 
-> `op` 取值：`UPSERT`（新增 / 修改 / 启用，覆盖写该计划，载荷含完整 `times` / `repeat` / `alarm` / `items`）与 `DELETE`（删除 / 停用，设备按 `planId` 停该计划提醒，其余字段可空）。服务端由 `feat/plan-sync` 在计划写事务提交后下发，设备回执 `up/ack` 成功 → 后端把 `med_plan.sync_state` 翻成 `SYNCED_TO_DEVICE`；回执 `FAILED` 或 5s 超时（重发 3 次仍无回执） → `SYNC_FAILED`。
+> `op` 取值：`UPSERT`（新增 / 修改 / 启用，覆盖写该计划，载荷含完整 `times` / `repeat` / `alarm` / `items`）与 `DELETE`（删除 / 停用，设备按 `planId` 停该计划提醒，其余字段可空）。服务端在计划写事务提交后下发，设备回执 `up/ack` 成功 → 后端把 `med_plan.sync_state` 翻成 `SYNCED_TO_DEVICE`；回执 `FAILED` 或 5s 超时（重发 3 次仍无回执） → `SYNC_FAILED`。
 
-下行·控制命令 `.../down/command`（`feat/device-command`，REST 受理后转发，QoS1 + `needAck:true`）：
+下行·控制命令 `.../down/command`（REST 受理后转发，QoS1 + `needAck:true`）：
 ```json
 { "msgId":"d-102", "cmd":"BUZZ", "params":{ "durationSec":5 }, "needAck":true }
 ```
@@ -139,7 +139,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 摄像头(抓拍图片) ---------------------------------------- HTTP multipart -------> 后端(存储&过期清理)
 ```
 
-> **摄像头侧的逻辑（含识别算法与抓拍策略）不由后端 / 小程序团队负责**，后端只负责"接收它给出的结果和图片"。**当前摄像头默认全量抓拍并上传：正常服药也拍、每次服药都拍**，后端按全量接收处理（存储与过期见文档 01 的 4.6、接口见文档 02 的 4.1）。
+> **摄像头侧的逻辑（含识别算法与抓拍策略）不由后端 / 小程序团队负责**，后端只负责"接收它给出的结果和图片"。**当前摄像头默认全量抓拍并上传：正常服药也拍、每次服药都拍**，后端按全量接收处理（存储与过期见文档 01 的 5.2、接口见文档 02 的 4.1）。
 
 **为什么不让摄像头自己开一路 MQTT 直连后端**：
 
@@ -151,75 +151,10 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 - 摄像头：只输出结构化结果（识别到的 `medicineId` / `confidence` / 时刻），**不输出图片给单片机**；
 - 单片机：唯一 MQTT 客户端与时钟基准，知道"提醒何时触发"，把识别结果合成一条完整事件上报（不做判定，只做聚合与时间戳）；
-- 后端：`onTime` 由后端按计划时间 + 容忍时长计算（与 MISS 判定口径一致），**改阈值无需重烧固件**；单片机本地算的 `onTime` 仅用于即时声光反馈，不作为入库依据。**后端算法（`feat/dispense-consume`，2026-10-23 落地）**：`med_plan.times` 按设备时区取与上报 `ts` 最近（含前后各一天）的"就近槽"作为 `plan_time`，容忍时长取三级最小值（计划级 `miss_alarm_after_min` > 老人级 `miss_tolerate_min` > 15 分钟，见 06 §2.6.1）；`actual_time ≤ plan_time + 容忍` 即 `onTime=true`（**单侧窗口，提前吃恒为 true，只判迟到**）。完整判定规则表见 06 §2.7。
+- 后端：`onTime` 由后端按计划时间 + 容忍时长计算（与 MISS 判定口径一致），**改阈值无需重烧固件**；单片机本地算的 `onTime` 仅用于即时声光反馈，不作为入库依据。**后端算法**：`med_plan.times` 按设备时区取与上报 `ts` 最近（含前后各一天）的"就近槽"作为 `plan_time`，容忍时长取三级最小值（计划级 `miss_alarm_after_min` > 老人级 `miss_tolerate_min` > 15 分钟，见 06 §2.6.1）；`actual_time ≤ plan_time + 容忍` 即 `onTime=true`（**单侧窗口，提前吃恒为 true，只判迟到**）。完整判定规则表见 06 §2.7。
 
 **图片不走 MQTT**：MQTT 面向小负载，几百 KB 的 JPEG 会阻塞同连接上的其他消息且重传代价高。抓拍图片由摄像头用 **HTTP multipart 直传后端**（`POST /devices/{deviceId}/captures`，见文档 02 的 4.1），**不过单片机**（单片机既无带宽也无存储转发几百 KB 的图片）。
 
-**对摄像头侧的要求（已确定）**：每个服药事件**只保留 1 张**代表性图片（禁止连拍多张上传）；抓拍时必须带 `capturedAt` 与 `confidence`，便于后端关联与复核。后端侧另有 `planId + 60s 时间窗`的兜底去重（见文档 02 的 4.1）。
+**对摄像头侧的要求**：每个服药事件**只保留 1 张**代表性图片（禁止连拍多张上传）；抓拍时必须带 `capturedAt` 与 `confidence`，便于后端关联与复核。后端侧另有 `planId + 60s 时间窗`的兜底去重（见文档 02 的 4.1）。
 
 **后续演进（本期不实现）**：若全量上传的带宽 / 存储压力不可接受，可在设备侧引入**边缘节点**（本地小主机或算力模组），由它先做数据清洗 —— 去重、丢弃模糊帧、只保留关键帧、必要时裁剪脱敏 —— 再把**结构化结果 + 精选图片**上传后端。届时后端接口与协议**无需改动**（仍是同一套 `up/event/dispense` 与 `POST /captures`），只是上游由摄像头换成边缘节点。
-
-## 5. 联调与调试（没有真设备也能跑通链路）
-
-设备固件未就绪时，用下面三种工具即可完成端到端验证。
-
-### 5.1 EMQX Dashboard —— 主力工具（推荐）
-
-访问 `http://{EMQX主机IP}:18083`（**首次登录后务必改掉默认 `admin/public`**）。
-
-- **WebSocket 客户端**（Dashboard 内置工具）：可以**连接 + 订阅 + 发布**任意 topic，是联调 MQTT 最方便的方式，通常不需要再装 mosquitto；
-- **连接 / 客户端管理**：确认设备是否在线、`clientId` 是否正确；
-- **主题监控**：实时看消息有没有发出来、内容对不对。
-
-典型用法：用 Dashboard 订阅 `medbox/{pk}/BOXA-DEBUG-01/up/#`（`BOXA-DEBUG-01` 是 devtools 种子设备，真实设备请换成自己的序列号），再手动发布一条 `up/event/dispense`，观察后端是否落 `med_record`、是否经 WebSocket 推送告警。
-
-### 5.2 mosquitto_pub / mosquitto_sub —— 脚本造数据
-
-`mosquitto_pub` **只能发布，不能订阅**；要看回包需另开终端用 `mosquitto_sub`。
-
-```bash
-# 模拟设备上报一次服药事件（BOXA-DEBUG-01 = devtools 种子设备；真机请换成自己的序列号）
-mosquitto_pub -h 192.168.1.10 -p 1883 -i BOXA-DEBUG-01 -q 1 \
-  -t 'medbox/pk/BOXA-DEBUG-01/up/event/dispense' \
-  -m '{"msgId":"BOXA-DEBUG-01-0000000124","ts":1759474500000,"planId":"p-3301",
-       "planItemId":"pi-9001","medicineId":"m-205","actualDose":"1","unit":"片",
-       "wrongDrug":false,"onTime":true,"confidence":0.93,
-       "source":"CAMERA","imageId":null}'
-
-# 同时另开一个终端看上行是否到达
-mosquitto_sub -h 192.168.1.10 -p 1883 -i debugger-01 \
-  -t 'medbox/pk/BOXA-DEBUG-01/up/#' -v
-```
-
-注意 `-i` 的 clientId 必须等于 `deviceId`，否则后端按 clientId 找不到设备。
-
-### 5.3 curl —— 后端 REST 与图片上传
-
-见文档 02 的 1.4（含登录取 token、业务接口、multipart 上传抓拍图片的完整示例）。
-
-### 5.4 WebSocket 推送
-
-见文档 04（可用 `wscat` 或小程序端直连验证）。
-
-### 5.5 服务端模拟上报（feat/backend-devtools）
-
-没有真设备、或不想装 `mosquitto` 时，可用后端调试端点 `POST /api/v1/_debug/mqtt/publish` 在**服务端**直接把报文发到上行 topic，效果等价于上面的 `mosquitto_pub`，且会流经真实入站网关 → 各 `UpMessageHandler` → 落库 → WS 推送整条链路（需先按文档 02 的 1.5 置 `medbox.devtools.enabled: true` 并播种数据）：
-
-```bash
-# 先播种拿 token（见 02 的 1.5）—— seed 与 mqtt/publish 均免登录，不需要 Authorization 头；
-# 这里拿 token 只是为了后面验证"播种出来的账号能正常登录/调用业务接口"
-TOKEN=$(curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/seed | jq -r .data.guardianToken)
-
-# 等价于 mosquitto_pub -t medbox/medbox-box/BOXA-DEBUG-01/up/event/dispense -m '{...}'
-curl -s -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/mqtt/publish \
-  -H "Content-Type: application/json" -d '{
-    "deviceId":"BOXA-DEBUG-01",
-    "subTopic":"event/dispense",
-    "payload":"{\"msgId\":\"BOXA-DEBUG-01-0000000124\",\"ts\":1759474500000,\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\",\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\",\"imageId\":null}"
-  }'
-```
-
-- `productKey` 缺省取 `medbox.device.default-product-key`（默认 `medbox-box`），故完整 topic 为 `medbox/medbox-box/BOXA-DEBUG-01/up/event/dispense`；也可在 body 里显式传 `productKey` 覆盖。
-- `seed` 与 `mqtt/publish` 均**免登录**（由 `medbox.devtools.enabled` 门禁控制装配，关闭时访问返回 `40401`）；同前缀的 `/_debug/ws/publish` 仍必须登录，两者策略刻意不同，详见 02 的 1.5。
-- MQTT 未连 broker 时返回 `50000`，提示先启动 EMQX。
-- 上行子路径 `subTopic` 与 03 第 2 章一致：`telemetry` / `sensor/heartbeat` / `event/dispense` / `event/error` / `inventory` / `cap/heartbeat` 等。

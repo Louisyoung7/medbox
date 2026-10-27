@@ -160,11 +160,7 @@ spring:
 - **为什么 embedding 不做"每老人一份"**：向量空间必须全局一致，才能跨药品 / 跨老人检索与比较，因此 embedding 与老人无关 —— 本地部署后自然也不存在 Key 的问题。
 - **资源占用**：`bge-m3` 约 1.2GB，CPU 可跑（数十~数百 ms / 段）；入库是异步任务，不阻塞问答；有 GPU 时 Ollama 会自动利用。
 
-**为什么不直接用 llama.cpp**：Ollama 的底层就是 llama.cpp，等于"llama.cpp + 模型仓库 + 常驻服务 + OpenAI 兼容 API + 自动 GPU/CPU 调度"的省心版，能力上并没有损失。直接上 llama.cpp 需要自己找 GGUF 量化版、手动指定 `--embedding` 与 `--pooling`（配错则向量质量直接崩）、自己起 `llama-server` 并管进程与开机自启，且 Spring AI 没有专用 starter（只能把 OpenAI 兼容 starter 指向本地并伪造 api-key）。除非将来要把 **Chat 也本地化**并精细控制量化 / 并发 / 显存（那种场景更适合 llama.cpp 或 vLLM），当前只做 embedding 时 Ollama 更省事。
-
-**选型已确定：Ollama + `bge-m3`（1024 维）**，不采用下面的轻量化备选。
-
-> 备选说明（不采用）：若嫌 1.2GB 太大，可让 Python 侧车服务同时承担 OCR 与 Embedding，用 ONNX 加载 `bge-small-zh-v1.5`（约 100MB、512 维）。但需自行暴露 `/v1/embeddings`，且文档 06 的维度要改为 512 并重建向量 —— 为避免多一套自研接口，本期不选。
+**选型已确定：Ollama + `bge-m3`（1024 维）**。
 
 入库与问答链路：
 
