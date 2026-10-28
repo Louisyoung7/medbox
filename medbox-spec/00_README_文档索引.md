@@ -51,45 +51,18 @@
 - **认领分支的顺序看 `07` / `08` 的《零、实施路线图》**（P0 主干闭环 / P1 完善 / P2 锦上添花，以及合并后的分支名），而不是按章节顺序平铺做。
 - **实现时遵守 `AGENTS.md` 3.1 的三条约定**：功能分支带集成测试并出报告、判定型分支先出规则表、同类待办合并成一个分支。
 
-## 文档就在本仓库（不再用 git subtree）
+## 文档与代码同仓
 
-本项目的代码与文档在**同一个仓库 `medbox`** 里：文档位于 `medbox-spec/`，与 `medbox-server/`、`medbox-miniapp/` 并列。
+代码与文档在**同一个仓库 `medbox`**：文档位于 `medbox-spec/`，与 `medbox-server/`、`medbox-miniapp/` 并列，只此一份权威副本。
 
-> **历史说明（V1.8 起）**：此前文档单独一个仓库、通过 `git subtree` 双向同步到各代码仓库。**单仓方案下 subtree 已全部移除** —— 没有 `spec-repo` 远端，不要再执行 `git subtree add/pull/push`。若在网上或旧会话里看到这类命令，一律忽略。
+### 改动约定
 
-### 为什么取消 subtree
+- **改了接口 / 字段 / 表结构 → 同一 PR 内改 `medbox-spec/`**：勾选 07/08 待办、补 `CHANGELOG.md`、修正不一致处，不允许"代码改了文档没改"；
+- **开工前看 `CHANGELOG.md`**：其中写明"影响哪个端 / 目录"，据此判断本地代码要不要跟着改；
+- 改动直接落在 `medbox-spec/` 下，与代码一起提交（如 `git add medbox-server/ medbox-spec/ && git commit -m "feat: ...; docs(spec): 勾选 07、补 CHANGELOG"`）。
 
-- 文档**本来就在项目树里**，subtree 解决的是"跨仓库带文档"，单仓下这个前提不存在了；
-- 少一个远端、少一步同步，**文档不会与代码分叉**（改接口字段时，代码与文档可以在同一个 commit 里提交）；
-- 项目不长期维护、规模不大，单仓多目录的复杂度最低。
+### AGENTS.md（与 `medbox-spec/` 同级，唯一一份）
 
-### 怎么改文档
+仓库根目录的 `AGENTS.md` 规定了给 AI 助手的完整工作流（特性分支、开工 pull、完工同步文档、远程更新 rebase、提醒义务），AI 工具自动加载。
 
-```bash
-# 1) 开工前拉最新（代码 + 文档一起拉下来，只有这一个远端）
-git switch main && git pull
-git switch -c feat/backend-xxx          # 或 feat/mp-xxx
-
-# 2) 看文档有没有变
-git log --oneline -5 -- medbox-spec/
-```
-
-改动直接落在 `medbox-spec/` 下，**与代码一起提交**：
-
-```bash
-git add medbox-server/ medbox-spec/
-git commit -m "feat(plan): 计划下发设备；docs(spec): 勾选 07 的 feat/plan-sync、补 CHANGELOG"
-```
-
-### 约定
-
-1. **改了接口 / 字段 / 表结构 → 同一个 PR 里改 `medbox-spec/`**：勾选 07/08 待办、补 `CHANGELOG.md`、修正不一致处；不允许"代码改了文档没改"；
-2. **每次开工前看 `CHANGELOG.md`**：其中写明"影响哪个端 / 目录"，据此判断本地代码要不要跟着改；
-3. **文档只有一份权威副本**：就是 `medbox-spec/`；不要在其它目录另存接口说明，避免漂移；
-4. 仓库根 `README.md` 已写明目录结构与文档入口，新增端目录时同步更新。
-
-### AGENTS.md
-
-**仓库根目录的 `AGENTS.md`**（与 `medbox-spec/` 同级）规定了给 AI 助手的完整工作流：目录约定、特性分支、开工 pull、完工同步文档、远程更新时 rebase，以及 AI 的提醒义务。放在根目录是为了让 AI 工具自动加载。
-
-> **不要用软链**（`ln -s medbox-spec/AGENTS.md AGENTS.md`）：Windows 下 git 默认 `core.symlinks=false`，软链会被检出成内容为路径的普通文本文件；要真软链还得开"开发者模式"或用管理员权限。因此 **`AGENTS.md` 是根目录的真实文件、唯一一份**，`medbox-spec/` 下不再放同名文件。
+> **不要用软链**：Windows 下 git 默认 `core.symlinks=false`，软链会被检出成普通文本文件，因此 `AGENTS.md` 是根目录的真实文件、`medbox-spec/` 下不再放同名文件。
