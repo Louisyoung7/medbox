@@ -18,6 +18,12 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-28] 07/08 微调：已实现的 devtools 分支移入 P2 末尾
+
+- **改了哪些文件**：`07_特性分支清单_后端.md`（已实现 `[x]` 的 `backend-devtools` 从 P3 移回 P2 末尾）；`08_特性分支清单_小程序.md`（已实现 `[x]` 的 `mp-devtools` 从 P3 移回 P2 末尾）
+- **原因**：这两个分支已完成，放在 P3（原 P2 下移）不直观，移入 P2 末尾作为"已实现"项；P3 现仅含未做分支
+- 影响端：文档结构变更，`medbox-server/` 否 · `medbox-miniapp/` 否 · 嵌入式 否
+
 ## [2026-10-28] 07/08 阶段重排：P2=改造+原P1剩余、P3=原P2，删跨端依赖表
 
 - **改了哪些文件**：`07_特性分支清单_后端.md`（新增 P2 改造层 `backend-capture-event` / `backend-expired-remove`，平移 `device-fault` / `alarm-device-offline`；原 P2 下移为 P3；取消 `inventory-consume` / `stock-expiring`；删除第五章跨端依赖表）；`08_特性分支清单_小程序.md`（新增 P2：`mp-capture-event`、平移 `mp-capture` / `mp-env`；取消 `mp-expiring`；原 P2 下移为 P3）；`00_README` 索引同步
