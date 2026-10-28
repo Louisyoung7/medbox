@@ -18,6 +18,12 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-28] 10 号方案再调整：删除药物过期/临期预警功能
+
+- **改了哪个文件**：`10_产品形态调整方案.md` 撤回原"保留 EXPIRED"口径——§1.1/§2.2/§3.1（medicine_stock、med_plan alarm_rule、alarm、alarm_setting）/§3.2/§3.7（02/04/06 清单）全部改为**删除**药物过期功能：`EXPIRED` 告警、`expiring_ahead_days`、`GET /devices/{deviceId}/expiring`、alarm_rule.expired、medicine_stock 定时过期扫描；`production_date`/`expiry_date` 仅作记录保留
+- 影响端：`medbox-server/` 是（涉及 EXPIRED 告警与过期扫描的分支需回退）· `medbox-miniapp/` 是（同）· 嵌入式 否
+- **整体一致性修正**（同日后续检查）：同步清理残留旧口径——§0 变更性质补"删除临期/过期预警"；§1.1 下层描述改"据摄像头已服事件扣减"；§3.1 `med_record` 由"不自动扣减"改为"扣减仍在、后端据已服事件按录入量扣"；§3.5 / §4 的"过期随库存保留/恢复"改为"删除药物过期功能"
+
 ## [2026-10-27] 小程序落地未来待服药时间线（feat/mp-plan-timeline）
 
 `feat/mp-plan-timeline`（08 清单 P1）落地：复用已 `[x]` 的 `mp-plan` 与已落地的后端 `plan-core`，新增只读的"未来待服药时间线"页——`GET /plans/{planId}/next-doses` 按设备本地墙钟算好的 `scheduledTimeLocal` 做按次展开，前端只展示、不做时区换算；顶部 days 分段选择 7/15/30，按本地日期分组渲染每次所需药品与剂量；空态区分"计划已停用"与"所选天数内无安排"；计划列表卡片加"未来服药时间线 ›"入口，全角色 `READ_PLAN` 可见。
@@ -26,6 +32,11 @@
 - **跨分支约定**：前端不碰时区/按次展开（后端 `device.timezone` 已算好 `scheduledTimeLocal`）；`next-doses` 响应外壳 02 未给完整示例，解析器一处容错，真机联调后仅改 `utils/plan.js` 一处；不改 `permission.js`
 - 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
 
+## [2026-10-27] 产品形态调整方案评审通过（10 号转"已确认"），固化契约减法清单 §3.7
+
+- **改了哪个文件**：`10_产品形态调整方案.md` 由"讨论稿"转"已确认"，新增 §3.7 文件级落地清单（覆盖 00/01/02/03/04/06 的错服删除、角色统一 `GUARDIAN`、库存改手动录入、BUZZ/UNLOCK 不下发、capture 降级、带锁分层措辞等）
+- **澄清修正**：库存扣减**保留且由后端执行**——监护人录入初始库存与每次服药**应消耗量**，**是否扣减由摄像头上报的已服事件判定**（漏服不扣）；§3.1 `medicine_stock`、§3.7.6 §2.5 与 §2.7 第 288 行从"删自动/删扣减"明确为"调整：扣减仍在、后端按监护人录入量在已服事件时扣除"，移除的只是 `up/inventory` 设备上报校准
+- 影响端：`medbox-server/` 是（后续照 §3.7 执行减法的分支）· `medbox-miniapp/` 是（同）· 嵌入式 是（端侧人脸识别方案待定）
 
 ## [2026-10-26] 小程序落地告警列表/实时/设置（feat/mp-alarm）
 
