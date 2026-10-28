@@ -1,9 +1,9 @@
 # 家用智能药品箱 · 后端 / 小程序接口设计文档（文档集）
 
-> 范围：Java 后端（Spring Boot）+ uni-app 小程序　|　协议：HTTP REST、MQTT（EMQX）、WebSocket　|　版本见 `CHANGELOG.md`
+> 范围：Java 后端（Spring Boot）+ uni-app 小程序　|　协议：HTTP REST、MQTT（EMQX）、WebSocket
 > 仓库：**单仓多目录** —— 后端 `medbox-server/`、小程序 `medbox-miniapp/`、Web 前端 `medbox-admin/`（本期先做「测试数据清理」dev/QA 工具，设计见 `09`）；文档即本目录 `medbox-spec/`，**不再用 git subtree 同步**（见文末《文档就在本仓库》）。
 > 通信方式：当前全部为局域网（内网）通信，无公网域名。
-> 变更记录见 `CHANGELOG.md`。
+> 历史变更见 `CHANGELOG.md`（已不再强制维护，仅作归档；最新口径以各分册正文为准，变更历程以 `git log -- medbox-spec/` 为准）。
 
 本文档集按主题拆分为多个文件，便于分工评审与联调。各文件内容互不重复，统一约定见 01，数据库设计统一见 06。
 
