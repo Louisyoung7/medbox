@@ -9,7 +9,7 @@
 | 端点 | `ws://{后端主机内网IP}:8080/medbox/ws?token={JWT}&topics=elder:e-1001`（局域网明文） |
 | 鉴权 | 握手校验 JWT；按订阅主题鉴权，**越权主题直接拒绝整个握手** |
 | 主题语法 | 仅支持 **`elder:{elderId}`**，多个用逗号分隔（`topics=elder:e-1001,elder:e-1002`）；**`device:{deviceId}` 本期不支持**，传了返回 40001 |
-| 归属判定 | 复用 REST 同一口径（02 的 1.3）：订阅主题必须落在"我可见的老人"内（老人 = 自己；监护人 = 所有 ACTIVE 监护关系）。PENDING / REVOKED / 无关系一律按越权处理 |
+| 归属判定 | 复用 REST 同一口径（02_REST接口设计.md §1.3）：订阅主题必须落在"我可见的老人"内（老人 = 自己；监护人 = 所有 ACTIVE 监护关系）。PENDING / REVOKED / 无关系一律按越权处理 |
 | 握手失败 | 直接返回 HTTP 状态码 + **统一响应体**（`code/message/traceId/timestamp`）：`40001`→400、`40101`→401、`40301`→403。握手不走 MVC，客户端按 HTTP 状态与 `code` 判断即可 |
 | 心跳 | 客户端每 **30s** 发 `{"type":"ping"}`，服务端回 `PONG`；服务端 **90s**（3 个周期）无任何客户端帧即关闭连接 |
 | 重连 | 断线指数退避重连（初始 1s，上限 30s）；**重连时把 `lastEventId` 放在握手 query 上**（`&lastEventId=evt-9a1c`），服务端建连即补推增量 |

@@ -19,7 +19,7 @@
 
 - [x] 🔧 **`feat/admin-testdata-cleanup`** 测试数据清理工具
   - 依赖：本端 无；**后端 `feat/backend-admin-cleanup`（见 `07` 第三章）** —— ADMIN 角色门禁 + `GET /admin/users`（列出+筛选）+ `DELETE /admin/users/{userId}`（硬删+级联清理，`ACTIVE` 拒绝 `40902`）+ 种子管理员账号
-  - 参考：02 第 10 章、06 的 2.1（V11）、原设计稿《已确认事项》
+  - 参考：02_管理员接口.md 第 10 章、06 的 2.1（V11）、原设计稿《已确认事项》
   - 内容：
     - **技术栈（已确认：默认 Vue 3 + Vite + Element Plus）**：与 `medbox-miniapp/` 同为 Vue3 系，降低上下文切换；Element Plus 含表格 / 表单 / 弹窗 / 二次确认组件，最贴合后台。备选 React + Ant Design 仍可行（用户无偏好），但本期按默认落地，不另起 React 工程
     - **登录与角色**：复用 `POST /auth/login`（账号可为手机号或用户名），admin 种子账号（`username=admin`、`password=public`、`status=ACTIVE`、`role=ADMIN`）登录后拿到普通 JWT，管理接口额外要求 `role == ADMIN`（后端门禁见 `02` 第 10 章）；路由守卫拦截未登录或非 ADMIN
