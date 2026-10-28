@@ -89,23 +89,23 @@
 
 **权限矩阵**（行 = 访问身份，列 = 权限；✅ 放行，空白 = 40301）：
 
-| Permission | 老人本人 | FAMILY | NURSE | DOCTOR |
-|------------|:--------:|:------:|:-----:|:------:|
-| `READ_PLAN` `READ_MEDICINE` `READ_RECORD` `READ_ALARM`<br/>`READ_DEVICE` `READ_ENV` `READ_ADHERENCE` `READ_GUARDIAN` | ✅ | ✅ | ✅ | ✅ |
-| `WRITE_PLAN`（创建 / 修改 / 停用 / 删除计划） | | ✅ | | ✅ |
-| `WRITE_MEDICINE`（药品档案与库存、补药入库） | | ✅ | | |
-| `WRITE_RECORD`（监护人手工补录 / 确认） | | ✅ | | |
-| `HANDLE_ALARM`（告警处理闭环） | | ✅ | ✅ | |
-| `EXPORT_RECORD`（导出服药报告） | | ✅ | ✅ | |
-| `CONFIG_LLM_KEY`（配置大模型 Key） | | ✅ | | |
-| `WRITE_ALARM_SETTINGS`（配置老人级告警阈值：提前期 / 环境上下限 / 漏服容忍） | | ✅ | | |
-| `READ_CAPTURE`（查看抓拍图片） | ✅ | ✅ | | |
-| `WRITE_CAPTURE`（删除抓拍图片） | | ✅ | | |
-| `WRITE_DEVICE`（下发控制命令） | | ✅ | | |
-| `WRITE_DRUG_MANUAL`（维护禁忌知识库） | | | | ✅ |
-| `AI_CHAT`（AI 药品问答） | ✅ | ✅ | | |
+| Permission | 老人本人 | GUARDIAN |
+|------------|:--------:|:------:|
+| `READ_PLAN` `READ_MEDICINE` `READ_RECORD` `READ_ALARM`<br/>`READ_DEVICE` `READ_ENV` `READ_ADHERENCE` `READ_GUARDIAN` | ✅ | ✅ |
+| `WRITE_PLAN`（创建 / 修改 / 停用 / 删除计划） | | ✅ |
+| `WRITE_MEDICINE`（药品档案与库存、补药入库） | | ✅ |
+| `WRITE_RECORD`（监护人手工补录 / 确认） | | ✅ |
+| `HANDLE_ALARM`（告警处理闭环） | | ✅ |
+| `EXPORT_RECORD`（导出服药报告） | | ✅ |
+| `CONFIG_LLM_KEY`（配置大模型 Key） | | ✅ |
+| `WRITE_ALARM_SETTINGS`（配置老人级告警阈值：提前期 / 环境上下限 / 漏服容忍） | | ✅ |
+| `READ_CAPTURE`（查看抓拍图片） | ✅ | ✅ |
+| `WRITE_CAPTURE`（删除抓拍图片） | | ✅ |
+| `WRITE_DEVICE`（下发控制命令） | | ✅ |
+| `WRITE_DRUG_MANUAL`（维护禁忌知识库） | | ✅ |
+| `AI_CHAT`（AI 药品问答） | ✅ | ✅ |
 
-> `READ_CAPTURE` / `WRITE_CAPTURE` 对护理 / 医生**显式拒绝** —— 用药图像属敏感健康数据，可见范围比本节默认规则更严格（见文档 01 的 5.2）。
+> `READ_CAPTURE` / `WRITE_CAPTURE` 仅老人本人与 GUARDIAN 可见 —— 用药图像属敏感健康数据（护理 / 医生角色已取消、合并入 GUARDIAN，见文档 10 §1.2 与文档 01 的 5.2）。
 
 **边界口径**：
 
@@ -176,7 +176,7 @@ POST /auth/register
                      "userId":"u-1002", "role":"GUARDIAN", "expiresIn":7200 } }
 ```
 
-- `role` **只取 `ELDER` / `GUARDIAN`**（`user.role`，见 06 的 2.1）；**护理 / 医生不在注册范围** —— 他们是监护关系上的 `FAMILY` / `DOCTOR` / `NURSE`，由老人在确认监护关系时指定；
+- `role` **只取 `ELDER` / `GUARDIAN`**（`user.role`，见 06 的 2.1）；监护关系不再细分护理 / 医生等角色（统一 `GUARDIAN`，见文档 10 §1.2）
 - `username` / `name` 选填；监护人可用本接口**为老人代建账号**（`role=ELDER`）；
 - 手机号重复等参数问题按 1.2 的 `40001`。
 
@@ -319,22 +319,21 @@ GET /users/guardians/pending
 
 ```
 PATCH /users/guardians/{relationId}/accept
-{ "role":"FAMILY" }        // 必填，FAMILY / DOCTOR / NURSE 三选一
+{}        // 无需 role，确认即置 ACTIVE（角色统一 GUARDIAN，见文档 10 §1.2）
 
 // 成功
 { "code":0, "data":{ "relationId":"r-1001", "elderId":"u-1001", "guardianId":"u-2001",
-                     "role":"FAMILY", "status":"ACTIVE", "createdAt":"..." } }
+                     "role":"GUARDIAN", "status":"ACTIVE", "createdAt":"..." } }
 ```
 
 | 顺序 | 判定条件 | 输出 |
 |------|----------|------|
 | ① | 未登录 | **40101** |
 | ② | 当前角色 ≠ `ELDER` | **40301** |
-| ③ | `role` 缺失 / 空白 / 超长或非法值 | **40001** |
-| ④ | `relationId` 查不到 | **40301** |
-| ⑤ | `relation.elderId` ≠ 当前老人 | **40301** |
-| ⑥ | 关系已非 `PENDING` | **40901** |
-| ⑦ | 通过 | `code=0` 置 `ACTIVE` 并落角色 |
+| ③ | `relationId` 查不到 | **40301** |
+| ④ | `relation.elderId` ≠ 当前老人 | **40301** |
+| ⑤ | 关系已非 `PENDING` | **40901** |
+| ⑥ | 通过 | `code=0` 置 `ACTIVE` |
 
 **④ 拒绝 / 解除**
 
@@ -377,7 +376,7 @@ DELETE /users/guardians/{relationId}
 
 #### 4.0 设备注册与查询
 
-**谁可以注册**：`POST /devices/register` 是**监护人代老人**登记设备 —— 走 `require(elderId, WRITE_DEVICE)`，**只 FAMILY 监护人具备该权限**。老人本人（`SELF`）、医生、护理一律 40301。设备端**不做无 Token 自注册**，仍走 JWT。
+**谁可以注册**：`POST /devices/register` 是**监护人代老人**登记设备 —— 走 `require(elderId, WRITE_DEVICE)`，**只 GUARDIAN 监护人具备该权限**。老人本人（`SELF`）一律 40301。设备端**不做无 Token 自注册**，仍走 JWT。
 
 **示例：注册**
 
@@ -409,7 +408,7 @@ POST /devices/register
 | 场景 | 结果 |
 |------|------|
 | 未登录 / Token 失效 | 40101 |
-| 老人本人、医生、护理注册 | 40301（`WRITE_DEVICE` 仅 FAMILY） |
+| 老人本人注册 | 40301（`WRITE_DEVICE` 仅 GUARDIAN） |
 | 监护关系 PENDING | 40302 |
 | **设备编号已登记（含子设备）** | **40901** —— `device_id` 唯一，不静默覆盖、不改绑 |
 | 编号格式非法 / 编号重复 / 子设备类型为 MAIN / 时区非法 / `page` 或 `size` < 1 | 40001 |
@@ -427,7 +426,7 @@ POST /devices/register
 
 #### 4.0.1 命令下发
 
-**请求体**：`cmd`（必填，`BUZZ` / `UNLOCK` / `REBOOT` / `CALIBRATE`）+ `params`（可选 Map，如蜂鸣的 `durationSec`）。
+**请求体**：`cmd`（必填，`REBOOT` / `CALIBRATE`）+ `params`（可选 Map，如 `REBOOT` 的 `durationSec`；声光 `BUZZ` / 开格 `UNLOCK` 由设备本地或小程序本地触发，后端不下发）。
 **请求体不收 `operator`** —— 操作人由服务端取鉴权用户落 `device_command.operator_id` 留痕（不信客户端自报身份）。
 
 **判定表（顺序即优先级）**：
@@ -435,7 +434,7 @@ POST /devices/register
 | 场景 | 结果 |
 |------|------|
 | 未登录 | 40101 |
-| 设备不存在 / 越权 / 传**子设备编号** / 老人本人 | **40301**（`WRITE_DEVICE` 仅 FAMILY；不区分不存在与无权限，防编号枚举） |
+| 设备不存在 / 越权 / 传**子设备编号** / 老人本人 | **40301**（`WRITE_DEVICE` 仅 GUARDIAN；不区分不存在与无权限，防编号枚举） |
 | 监护关系 PENDING | 40302 |
 | `cmd` 不在白名单 | 40001 |
 | **设备离线（`online_state != ONLINE`）** | **40901** —— 提示"设备离线，无法下发" |
@@ -450,7 +449,7 @@ POST /devices/register
 
 ```
 POST /devices/BOXA-DEBUG-01/commands
-{ "cmd":"BUZZ", "params":{"durationSec":5} }
+{ "cmd":"REBOOT", "params":{} }
 
 // 响应（异步下发，返回受理）
 { "code":0, "data":{ "commandId":"c-7f21", "state":"PENDING" } }
@@ -458,9 +457,9 @@ POST /devices/BOXA-DEBUG-01/commands
 
 #### 4.1 设备抓拍图片（摄像头留证，已读 7 天 / 未读 30 天过期）
 
-摄像头识别结果的**结构化数据走 MQTT**（见文档 03 第 4 章）；**图片单独走 HTTP multipart 直传后端**。
+摄像头识别结果的**结构化结论走 MQTT**（见文档 03 第 4 章，后端只接收结论、不接收原图）；**原图不再上传后端用于识别判定**，仅作摄像头**本地留证 / 可选回看**（见文档 06 的 2.12、文档 10 §2.1）。若启用"可选回看"，图片仍经本接口 HTTP multipart 上传后端存储与展示，否则仅在本地留证。
 
-> **当前摄像头默认全量抓拍：正常服药也拍、每次服药都拍**，后端按全量接收。
+> **原图不再作为识别依据**：摄像头端侧完成人脸识别后直接给出三态结论（`TAKEN` 已服 / `ABSENT` 未服 / `UNCERTAIN` 待确认），后端据结论事件统计，不再按全量抓拍原图做识别。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -472,7 +471,7 @@ POST /devices/BOXA-DEBUG-01/commands
 
 **约定**：
 
-- **`reason` 取值**：`NORMAL` 正常服药抓拍、`WRONG_DRUG` 错服、`LOW_CONFIDENCE` 置信度低于阈值、`MANUAL` 监护人主动请求。列表接口可按 `reason=WRONG_DRUG` 过滤只看异常。
+- **`reason` 取值**：`NORMAL` 正常服药抓拍、`LOW_CONFIDENCE` 模糊 / 不确定（端侧人脸识别待确认）、`MANUAL` 监护人主动请求。列表接口可按 `reason` 过滤只看异常。
 - **去重规则**：同一服药事件**只保留 1 张**。后端按 `planId + capturedAt` **60 秒时间窗**去重，窗口内的重复抓拍只保留第一张。
 - **上传侧鉴权走设备身份，不走用户 JWT**：设备侧用**一把共用密钥**做 HMAC 签名，Header 携带 `X-Device-Id` / `X-Device-Sign` / `X-Timestamp`，其中 `sign = HMAC_SHA256(sharedSecret, deviceId + timestamp)`；后端校验签名并校验**时间窗 ±5 分钟**（防重放）。上传接口只允许写入该设备所属药箱绑定的老人。**不做"只校验 `X-Device-Id`"的退化方案**。MQTT 通道本期是匿名的，与此处的 HTTP 上传鉴权相互独立。
 - **下载侧鉴权**：必须是**老人本人**或其 **ACTIVE 监护人**，其余角色（护理 / 医生）一律 40301 —— 比 1.3 的默认规则更严格。
@@ -499,7 +498,7 @@ POST /devices/BOXA-DEBUG-01/commands
 | 字段 | 必填 | 说明 |
 |------|------|------|
 | `file` | 是 | 图片二进制 |
-| `reason` | 否 | `NORMAL` / `WRONG_DRUG` / `LOW_CONFIDENCE` / `MANUAL`，缺省 `NORMAL`，非法值 40001 |
+| `reason` | 否 | `NORMAL` / `LOW_CONFIDENCE` / `MANUAL`，缺省 `NORMAL`，非法值 40001 |
 | `medicineId` | 否 | 关联药品 |
 | `planId` | 否 | 关联服药计划；**非空时才触发去重** |
 | `confidence` | 否 | 置信度（BigDecimal，如 `0.62`） |
@@ -514,8 +513,8 @@ POST /devices/BOXA-DEBUG-01/commands
 
 | Query | 必填 | 说明 |
 |-------|------|------|
-| `elderId` | 是 | 目标老人；走 `READ_CAPTURE`（老人本人 + FAMILY） |
-| `reason` | 否 | 按 `reason` 过滤（如只看 `WRONG_DRUG`） |
+| `elderId` | 是 | 目标老人；走 `READ_CAPTURE`（老人本人 + GUARDIAN） |
+| `reason` | 否 | 按 `reason` 过滤 |
 | `from` / `to` | 否 | `capturedAt` 时间区间（ISO-8601 UTC） |
 | `page` / `size` | 否 | 默认 1 / 20，**上限 200**（图片元数据体积小，比通用约定 100 放宽） |
 
@@ -526,7 +525,7 @@ POST /devices/BOXA-DEBUG-01/commands
 **④ 抓拍元数据字段（`CaptureResponse`，②/③ 共用）**
 ```json
 { "captureId":"cap-1001", "deviceId":"BOXA-DEBUG-01-S-CAM01", "elderId":"u-1001",
-  "medicineId":"m-205", "planId":"p-3301", "reason":"WRONG_DRUG",
+  "medicineId":"m-205", "planId":"p-3301", "reason":"NORMAL",
   "mime":"image/jpeg", "sizeBytes":48213, "confidence":0.62,
   "capturedAt":"2026-10-04T00:04:00Z", "viewedAt":null, "expireAt":"2026-11-03T00:04:00Z",
   "fileToken":"<5分钟短期令牌>" }
@@ -535,7 +534,7 @@ POST /devices/BOXA-DEBUG-01/commands
 
 **⑤ 读取图片流** `GET /captures/{captureId}/file?token=` → **直接返回二进制**（`Content-Type` 为图片、`Cache-Control: no-store`），**不走统一响应体包裹**。首次读取自动写 `viewed_at` 并据"查看后过期公式"重算 `expire_at`。
 
-**⑥ 删除（仅 FAMILY）** `DELETE /captures/{captureId}` → `R<Void>`；走 `WRITE_CAPTURE`（仅 FAMILY，老人本人 / 护理 / 医生 40301）。删库行 + 尽力删磁盘文件（文件已被清理任务清掉也不算失败）。
+**⑥ 删除（仅 GUARDIAN）** `DELETE /captures/{captureId}` → `R<Void>`；走 `WRITE_CAPTURE`（仅 GUARDIAN，老人本人 / 护理 / 医生 40301）。删库行 + 尽力删磁盘文件（文件已被清理任务清掉也不算失败）。
 
 ##### 4.1.3 错误码与边界（不新增码值，沿用 1.2 / 1.3）
 
@@ -546,7 +545,7 @@ POST /devices/BOXA-DEBUG-01/commands
 | ① 上传 | 设备未注册或父设备缺失（解析不出老人） | 40301 | 403 |
 | ① 上传 | 文件落盘 IO 失败 | 50000 | 500 |
 | ②/③ 列表/详情 | 未登录 / token 失效 | 40101 | 401 |
-| ②/③ 列表/详情 | 无关系 / NURSE/DOCTOR / 老人看他人 | 40301 | 403 |
+| ②/③ 列表/详情 | 无关系 / 老人看他人 | 40301 | 403 |
 | ②/③ 列表/详情 | 监护关系 PENDING | 40302 | 403 |
 | ③ 详情 | `captureId` 不存在 | 40401 | 404 |
 | ⑤ 文件流 | `token` 缺失 / 格式非法 / `token.captureId ≠ 路径` | 40001 | 400 |
@@ -554,8 +553,8 @@ POST /devices/BOXA-DEBUG-01/commands
 | ⑤ 文件流 | `captureId` 不存在 / 磁盘文件已被清理 | 40401 | 404 |
 | ⑤ 文件流 | 监护关系不符（二次复核，令牌泄漏也兜底） | 40301 / 40302 | 403 |
 | ⑥ 删除 | `captureId` 不存在 / 已被清理 | 40401 | 404 |
-| ⑥ 删除 | 老人本人 / NURSE / DOCTOR 调用 | 40301 | 403 |
-| ⑥ 删除 | FAMILY 但监护关系 PENDING | 40302 | 403 |
+| ⑥ 删除 | 老人本人调用 | 40301 | 403 |
+| ⑥ 删除 | GUARDIAN 但监护关系 PENDING | 40302 | 403 |
 
 > **去重规则（实现确定）**：`planId` 非空时，按 `|capturedAt − 已有 capturedAt| ≤ 60s` 判定重复，命中只保留第一张；`planId` 为空不去重。
 
@@ -571,16 +570,16 @@ POST /devices/BOXA-DEBUG-01/commands
 | PUT | /devices/{deviceId}/stocks/{medicineId} | 【鉴权】录入 / 更新某药品库存：数量、**生产日期与有效期（手动录入）** |
 | POST | /devices/{deviceId}/stocks/{medicineId}/in | 【鉴权】补药入库（增加库存，可同时更新生产日期 / 有效期） |
 | DELETE | /devices/{deviceId}/stocks/{medicineId} | 【鉴权】移除该药品库存 |
-| GET | /devices/{deviceId}/expiring | 【鉴权】临期/过期清单（提前 N 天预警） |
 
-> **药箱不划分仓位 / 格子**：库存按"药箱 + 药品"管理（表 `medicine_stock`，见文档 06 的 2.5）；传感器则按**子设备**细分（`device.device_type` + `parent_device_id`），见文档 06 的 2.3。
+
+> **后端不建模格子（带锁分层药箱）**：药箱为分层结构（上层带锁分格每日用药区、下层仓储区），格子是药箱本地物理概念、`cell_id` 不入库；库存按"药箱 + 药品"管理（表 `medicine_stock`，见文档 06 的 2.5）；传感器则按**子设备**细分（`device.device_type` + `parent_device_id`），见文档 06 的 2.3。
 
 **接口口径**：
 
 - **新建与更新同走 `POST /medicines`**：更新时请求体带 `medicineId`，创建不带（由后端生成）；`ownerElderId` **不传即公共字典**，传某老人 `userId` 即其私有药品。可见范围（公共 + 我监护老人的私有）由后端按 `visibleElderIds()` **行级过滤**。
 - **分页响应形状**：`GET /medicines` 按通用约定收 `page` / `size`、返回 `total`；列表数组字段名以最终实现为准。
 - **删除 40901**：药品被任一药箱库存引用（`medicine_stock.medicine_id` 存在记录）时拒绝删除。
-- **写权限**：`POST` / `DELETE` 仅 `WRITE_MEDICINE`（1.3 矩阵，仅 FAMILY）；服务端强校验。
+- **写权限**：`POST` / `DELETE` 仅 `WRITE_MEDICINE`（1.3 矩阵，仅 GUARDIAN）；服务端强校验。
 
 **库存四条 · 接口口径**：
 
@@ -588,8 +587,8 @@ POST /devices/BOXA-DEBUG-01/commands
 2. **请求体字段（camelCase，与 06 列名对应）**：PUT 录入/更新与 POST `/in` 补药入库均为 `{ quantity, productionDate?, expiryDate? }`；**PUT 的 `quantity` 为绝对值（覆盖写）**，**POST `/in` 的 `quantity` 为增量**；两个日期均为 `YYYY-MM-DD`（DATE 列，选填，不传即不更新该列）。
 3. **设备维度错误码**：沿用第 4 章口径 —— 查询 / 操作他人设备与设备不存在**一律 40301**（不返回 40401）；数量非法等参数错误 40001。
 4. **日期无时区换算**：`productionDate` / `expiryDate` 是 DATE（无时刻），直接收发 `YYYY-MM-DD`，**不走 1. 通用约定的 UTC 口径**（该口径的例外只有计划 `times`）。
-5. **`GET /devices/{deviceId}/expiring`（临期/过期清单）**：库存清单页的临期 / 过期标签可由客户端本地展示；服务端提供该清单接口供精确预警。
-6. **写权限**：四条均属 `WRITE_MEDICINE`（1.3 矩阵，仅 FAMILY）；服务端强校验。
+
+5. **写权限**：四条均属 `WRITE_MEDICINE`（1.3 矩阵，仅 GUARDIAN）；服务端强校验。
 
 ## 6. 服药计划与提醒
 
@@ -616,7 +615,7 @@ POST /plans
 {
   "elderId":"e-1001","name":"早餐后",
   "times":["08:00","20:00"],"repeatRule":"DAILY","missAlarmAfterMin":15,
-  "alarmRule":{"miss":true,"wrongDrug":true,"expired":true,"env":true},
+  "alarmRule":{"miss":true,"env":true},
   "items":[
     { "medicineId":"m-205","dose":"1","unit":"片" },
     { "medicineId":"m-388","dose":"2","unit":"粒","note":"餐后" }
@@ -632,10 +631,10 @@ POST /plans
 
 - **时间（times）—— 设备本地墙钟，非 UTC**：输入格式 `HH:mm`（计划内去重、至少 1 个）；**提交与回显均为原样字符串，不做任何时区换算**；提交时按 `HH:mm` 升序。
 - **items 组装（一次提醒多种药）**：`medicineId` 必填；`dose` / `unit` 选填（空则省略）；`note` 选填；同一计划内 `medicineId` 不重复；`items` 数组序即展示顺序；PUT 为**整体覆盖**（times / repeatRule / items 全量提交）。
-- **过期 / 无库存药品禁止加入**：后端创建时返回 `40901` 兜底（库存数据拉取失败时仍允许提交，由后端拦截）。
+- **无库存药品禁止加入**：后端创建时返回 `40901` 兜底（库存数据拉取失败时仍允许提交，由后端拦截）。
 - **启停与 syncState**：`PATCH /plans/{planId}/status` 请求体为 `{status: 'ENABLED'|'DISABLED'}`；`syncState` 仅回显——创建后初始值恒为 **`PENDING`**，真正的 `SYNCED_TO_DEVICE` / `SYNC_FAILED` 由设备同步写入；前端须兼容 `PENDING` 展示为"待同步"，未知值原样展示、无字段不渲染。
 - **设备同步映射**：创建 / 修改 / 启用（`ENABLED`）→ 下行 `down/schedule` 的 `op=UPSERT`（含完整 `items` 数组）；删除 / 停用（`DISABLED`）→ `op=DELETE`；设备回执 `up/ack` 后翻 `SYNCED_TO_DEVICE`，回执 `FAILED` 或超时重发 3 次仍无回执则翻 `SYNC_FAILED`。无老人 MAIN 设备 / MQTT 禁用时安全降级，`syncState` 保持 `PENDING`。
-- **权限与老人上下文**：写操作（创建 / 修改 / 启停 / 删除）仅 `WRITE_PLAN`（1.3 矩阵，FAMILY + DOCTOR）；服务端强校验。`elderId`：老人端取自身；监护人端从可见设备归纳。
+- **权限与老人上下文**：写操作（创建 / 修改 / 启停 / 删除）仅 `WRITE_PLAN`（1.3 矩阵，GUARDIAN）；服务端强校验。`elderId`：老人端取自身；监护人端从可见设备归纳。
 - **本期不做（后端）**：`GET /plans/{planId}/next-doses` 的**时间线页面**前端归后续分支；但**后端接口已落地**——`days` 默认 7、上限 60，本期仅 `DAILY`，停用计划返回空、按 `device.timezone` 换算 `scheduledTimeUtc` / `scheduledTimeLocal`。计划级 `missAlarmAfterMin` / `alarmRule` 编辑（走后端默认与老人级 `alarm_setting`）。
 
 > **小程序侧落地（`feat/mp-plan-timeline`；后端 `plan-core` 已落地，按契约 + mock 先行）**：
@@ -650,26 +649,26 @@ POST /plans
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | /records?elderId=&from=&to= | 【鉴权】服药记录分页（含是否按时/是否错服） |
+| GET | /records?elderId=&from=&to= | 【鉴权】服药记录分页（含是否按时） |
 | GET | /records/{recordId} | 【鉴权】记录详情（关联计划与抓拍留证） |
-| GET | /adherence?elderId=&period=day\|week\|month | 【鉴权】依从性统计（按时率/漏服/错服） |
+| GET | /adherence?elderId=&period=day\|week\|month | 【鉴权】依从性统计（按时率/漏服） |
 | POST | /records/{recordId}/confirm | 【鉴权】监护人补录/确认（设备异常时手工校准） |
 | GET | /records/export?elderId=&from=&to= | 【鉴权】导出服药报告（护理/医生用） |
 
 **接口口径**：
 
 - 列表分页响应按通用约定（`page`/`size`/`total`）；详情由后端 join 计划名 / 药品名返回；列表/详情不暴露文件流，只回传 `captureId`（取文件归抓拍接口）；列表项带 `hasCapture` 供缩略图占位。
-- `POST /records/{recordId}/confirm` 单接口双语义：先按 `{recordId}` 查库：① **命中已有记录 → 校准**：仅覆盖请求体里**非空**的 `actualTime`/`actualDose`/`onTime`/`wrongDrug`，`source` 恒置 `MANUAL`；② **记录不存在 → 新建（补录）**：此时路径 `{recordId}` 被**忽略**，由服务端生成新 `mr-` 号并在响应返回，请求体须带 `elderId`/`planId`/`planItemId`/`medicineId`（缺任一带 40001，计划/药品查不到带 40401），`source=MANUAL`，`planTime` 经就近槽重算（无 `planId`/算不出则 NULL）。
-- `POST /records/{recordId}/confirm` 仅 `WRITE_RECORD`（FAMILY）可调用，老人写 40301、监护 PENDING 40302。
+- `POST /records/{recordId}/confirm` 单接口双语义：先按 `{recordId}` 查库：① **命中已有记录 → 校准**：仅覆盖请求体里**非空**的 `actualTime`/`actualDose`/`onTime`，`source` 恒置 `MANUAL`；② **记录不存在 → 新建（补录）**：此时路径 `{recordId}` 被**忽略**，由服务端生成新 `mr-` 号并在响应返回，请求体须带 `elderId`/`planId`/`planItemId`/`medicineId`（缺任一带 40001，计划/药品查不到带 40401），`source=MANUAL`，`planTime` 经就近槽重算（无 `planId`/算不出则 NULL）。
+- `POST /records/{recordId}/confirm` 仅 `WRITE_RECORD`（GUARDIAN）可调用，老人写 40301、监护 PENDING 40302。
 
 ## 8. 告警（列表/处理，实时推送走 WebSocket）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | /alarms?elderId=&type=&readState= | 【鉴权】告警分页（漏服/错服/过期/环境超标） |
+| GET | /alarms?elderId=&type=&readState= | 【鉴权】告警分页（漏服/环境超标） |
 | GET | /alarms/unread-count | 【鉴权】未读告警数（小程序角标） |
 | PATCH | /alarms/{alarmId}/read | 【鉴权】标记已读 |
-| PATCH | /alarms/{alarmId}/handle | 【鉴权】处理/确认告警（护理人员闭环） |
+| PATCH | /alarms/{alarmId}/handle | 【鉴权】处理/确认告警（GUARDIAN 闭环） |
 | PUT | /alarm-settings?elderId= | 【鉴权】配置告警规则与阈值（提前期/环境上下限/漏服容忍） |
 | GET | /alarm-settings?elderId= | 【鉴权】查询当前告警配置 |
 
@@ -678,21 +677,20 @@ POST /plans
 | type | 触发来源 | 说明 |
 |------|----------|------|
 | MISS | 后端判定 | 计划时间+容忍时长内未收到该计划服药事件（**后端定时判定生成并经 WS 推送**；**本分支只落库 + 推 WS，不提供下列 REST**） |
-| WRONG_DRUG | 设备上报 | 摄像头识别的实际药品 ≠ 计划药品 |
-| EXPIRED | 后端判定 | 按手动录入的 `expiryDate` 扫描：临期预警 + 到期告警 |
+
 | ENV | 设备上报 | 温度/湿度/光照超出**该老人统一配置的 `envThreshold`**（不按药品细分，见文档 01 的 5.4） |
 | DEVICE_OFFLINE | 后端判定 | 心跳超时，设备离线超阈值（**仅主控**，传感器子设备离线不生成告警） |
 | DEVICE_FAULT | 设备上报 | 设备侧异常（`up/event/error`）：门超时 / 识别失败 / 硬件故障 |
 
 > **MISS 告警归属**：由后端**生成** MISS 告警（落 `alarm` 表 + 经 WebSocket 推 `ALARM` 帧）；**查询/已读/处理与阈值配置归告警核心分支**（依赖本分支）。本分支不新增任何 REST。
 
-> **告警阈值配置权限**：`GET /alarm-settings`、`GET /alarms`、`GET /alarms/unread-count`、`PATCH /alarms/{alarmId}/read` 用 `READ_ALARM`（四角色可读）；`PATCH /alarms/{alarmId}/handle` 用 `HANDLE_ALARM`（仅 FAMILY + NURSE）；`PUT /alarm-settings` 用新增的 `WRITE_ALARM_SETTINGS`（**仅 FAMILY** 监护人代老人配置，DOCTOR / NURSE / ELDER 写返回 40301）。`alarm_setting` 每老人一行（`elder_id` UNIQUE），无则插入、有则更新；请求字段可选、仅提供项覆盖原值。
+> **告警阈值配置权限**：`GET /alarm-settings`、`GET /alarms`、`GET /alarms/unread-count`、`PATCH /alarms/{alarmId}/read` 用 `READ_ALARM`（老人本人 + GUARDIAN 可读）；`PATCH /alarms/{alarmId}/handle` 用 `HANDLE_ALARM`（仅 GUARDIAN）；`PUT /alarm-settings` 用 `WRITE_ALARM_SETTINGS`（**仅 GUARDIAN** 监护人代老人配置，非 GUARDIAN 写返回 40301）。`alarm_setting` 每老人一行（`elder_id` UNIQUE），无则插入、有则更新；请求字段可选、仅提供项覆盖原值。
 
 **权限与接口口径**：
 
 - 接口层：`getAlarms({elderId,type,readState,page,size})`、`getUnreadCount({elderId})`、`markAlarmRead(alarmId)`、`handleAlarm(alarmId)`、`getAlarmSettings({elderId})`、`saveAlarmSettings({elderId}, body)`（写操作自动注入 `X-Request-Id`）。`type`/`readState` 传 `'ALL'` 视为不过滤。
 - 监护人选老人（elderId）：监护人侧可见老人由 `GET /devices` 推导（每台 MAIN 主控的 `elderId` 即一位老人）；ELDER 角色直接用自身 `userId`；WS 订阅主题同样由该推导结果传入（老人端省略）。
-- 权限门控：列表 / 未读 / 已读 / 设置查询属 `READ_ALARM`（四角色）；`handleAlarm` 的 `HANDLE_ALARM`（FAMILY+NURSE）；`saveAlarmSettings` 的 `WRITE_ALARM_SETTINGS`（仅 FAMILY）。服务端均强校验。
+- 权限门控：列表 / 未读 / 已读 / 设置查询属 `READ_ALARM`（老人本人 + GUARDIAN）；`handleAlarm` 的 `HANDLE_ALARM`（仅 GUARDIAN）；`saveAlarmSettings` 的 `WRITE_ALARM_SETTINGS`（仅 GUARDIAN）。服务端均强校验。
 - 未读角标与实时告警：`GET /alarms/unread-count` 驱动角标；WS 收到 `ALARM` 帧 → 全局弹窗 + 未读 +1；`RESYNC` 触发列表页 REST 全量拉取；`REMINDER` 帧 → 多药提醒（一次提醒可含多种药，非告警、不进列表）。
 - 归一化与容错：列表响应兼容 `{list,total}` / `{records}` / `{items}` / 裸数组；缺字段兜底默认值（提前期 10 / 漏服容忍 15 / 温湿光上下限）。
 

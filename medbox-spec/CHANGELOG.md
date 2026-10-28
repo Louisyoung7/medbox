@@ -18,6 +18,11 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-28] 执行 10 号 §3.7 减法：对齐 00~06 文档（feat/spec-contract）
+
+- **改了哪些文件**：`00_README` / `01` / `02` / `03_MQTT` / `04_WebSocket` / `06_数据库` 按 10 号 §3.7 落地清单做减法——删除错服监测（WRONG_DRUG / wrongDrug）与药物过期/临期预警（EXPIRED / expiring，expiry_date 仅留记录）；角色统一 `GUARDIAN`（删 FAMILY/NURSE/DOCTOR 细分与 `guardian_relation.role` 列）；库存改监护人手动录入 + 后端据摄像头已服事件扣减（删 `up/inventory` 设备上报校准）；BUZZ / UNLOCK 改为设备/小程序本地触发（后端仅 REBOOT / CALIBRATE）；capture 降级本地留证 / 可选回看（原图不上传后端、删 WRONG_DRUG reason）；措辞统一"带锁分层药箱、后端不建模格子"
+- 影响端：`medbox-server/` 是（涉及错服/过期/库存/命令的分支需按新契约回退或重写）· `medbox-miniapp/` 是（同）· 嵌入式 是（端侧人脸识别方案待定）
+
 ## [2026-10-28] 10 号方案再调整：删除药物过期/临期预警功能
 
 - **改了哪个文件**：`10_产品形态调整方案.md` 撤回原"保留 EXPIRED"口径——§1.1/§2.2/§3.1（medicine_stock、med_plan alarm_rule、alarm、alarm_setting）/§3.2/§3.7（02/04/06 清单）全部改为**删除**药物过期功能：`EXPIRED` 告警、`expiring_ahead_days`、`GET /devices/{deviceId}/expiring`、alarm_rule.expired、medicine_stock 定时过期扫描；`production_date`/`expiry_date` 仅作记录保留
