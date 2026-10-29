@@ -401,7 +401,7 @@ public class PlanService {
         }
         for (String medicineId : medicineIds) {
             BizAssert.conflictIf(!satisfied.contains(medicineId),
-                    "药品无合格库存或已过期: " + medicineId);
+                    "药品无合格库存: " + medicineId);
         }
     }
 

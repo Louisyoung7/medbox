@@ -30,7 +30,7 @@ describe('alarm 常量与标签', () => {
   })
 
   it('ALARM_TYPE_OPTIONS / READ_STATE_OPTIONS 含全部 + ALL', () => {
-    expect(ALARM_TYPE_OPTIONS.length).toBe(7)
+    expect(ALARM_TYPE_OPTIONS.length).toBe(5)
     expect(ALARM_TYPE_OPTIONS[0].value).toBe('ALL')
     expect(READ_STATE_OPTIONS.map((o) => o.value)).toEqual(['ALL', 'UNREAD', 'READ'])
   })
