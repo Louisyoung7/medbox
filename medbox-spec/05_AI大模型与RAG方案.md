@@ -57,4 +57,90 @@ LLM 洞察层只消费本项目已有的结构化数据（`med_record` / `med_pl
 | FP-9 | 后置过滤 + disclaimer | 涉医疗结论统一后置过滤，所有洞察附"仅供参考，由监护人 / 医生判断"声明；未配置 / Key 无效返回友好提示（错误码 50310） |
 | FP-10 | 只读不写 | 洞察结果不落库、不触发任何写操作或设备指令；上游超时 / 失败时降级为模板化安全提示 |
 
+## 2. 接口设计
+
+> 本章接口均【鉴权】；**错误码复用 `02` §1.2，不新增**：`50310`（AI 服务暂不可用 / Key 无效）、`40001`（参数错误）、`40301`（权限不足）。统一响应 `R<T>` 见 `02` §1.1。
+
+### 2.1 LLM 配置接口（FP-8，监护人代配 Chat Key）
+
+洞察层调用大模型所需的 Key 由监护人为老人代配，沿用 `06` 的 `llm_config` 表；老人端不接触 Key。配置接口归并如下（原"AI 问答"的 Key 配置沿用，仅用途变为供给洞察层）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| PUT | /ai/config?elderId= | 【鉴权·仅监护人】保存配置（provider、apiKey、model、baseUrl） |
+| GET | /ai/config?elderId= | 【鉴权】查询配置（apiKey 脱敏回显 `sk****abcd`） |
+| POST | /ai/config/test?elderId= | 【鉴权·仅监护人】用当前 Key 发一次探测请求，验证连通 / 额度 |
+| DELETE | /ai/config?elderId= | 【鉴权·仅监护人】清除配置 |
+
+示例（PUT /ai/config?elderId=e-1001）：
+
+```json
+{ "provider":"openai-compatible", "apiKey":"sk-xxxxxxxx", "model":"gpt-4o-mini", "baseUrl":"https://api.openai.com/v1", "enabled":true }
+// 响应（不回显明文 Key）
+{ "code":0, "data":{ "elderId":"e-1001","provider":"openai-compatible","model":"gpt-4o-mini","apiKeyMask":"sk****xxxx","enabled":true } }
+```
+
+### 2.2 按需洞察接口（FP-6 + FP-1~5）
+
+监护人主动发起对某老人某时段的结构化数据分析，后端按 `elderId` 取出配置好的 Key，拼装对应维度的结构化数据（见 FP-1~5）为上下文，调用大模型生成自然语言洞察。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /ai/insight | 【鉴权】同步生成洞察（`type` 指定分析维度，默认 `COMPREHENSIVE`） |
+| POST | /ai/insight/stream | 【鉴权】SSE 流式生成，长洞察逐字输出 |
+
+请求：
+
+```json
+POST /ai/insight
+{ "elderId":"e-1001",
+  "type":"COMPREHENSIVE",
+  "range":{ "from":"2026-10-15T00:00:00Z", "to":"2026-10-29T00:00:00Z" },
+  "deviceId":"d-001" }
+```
+
+`type` 取值（`COMPREHENSIVE` 为默认，综合下列维度）：
+
+| type | 对应 FP | 消费的结构化数据 |
+|------|---------|------------------|
+| `ADHERENCE` | FP-1 | `med_record` + `plan_reminder` + `alarm(MISS)` |
+| `STOCK` | FP-2 | `medicine_stock` + 近 N 日消耗 |
+| `PLAN_TIMING` | FP-3 | `med_plan` / `med_plan_item` |
+| `ENV_CORRELATION` | FP-4 | `env_sample` + 对应时段 `med_record` |
+| `TREND` | FP-5 | 历史 `med_record` / `alarm` |
+| `COMPREHENSIVE` | FP-1~5 | 以上全部 |
+
+响应（**不落库**，FP-10）：
+
+```json
+{ "code":0, "data":{
+    "elderId":"e-1001","type":"COMPREHENSIVE",
+    "range":{ "from":"2026-10-15T00:00:00Z","to":"2026-10-29T00:00:00Z" },
+    "content":"近14天晚饭后漏服率较上旬上升18个百分点，且与周末强相关……（仅作假设，建议核查作息）；二甲双胍按当前消耗约6天后耗尽，建议本周补配。",
+    "citations":["med_record#rec-123","alarm#MISS:...","medicine_stock#m-205","env_sample#..."],
+    "disclaimer":"本分析仅供参考，用药与设备调整请由监护人 / 医生决策。" } }
+```
+
+- `citations`：洞察所引用的结构化数据锚点（`表#id`），便于溯源与复核，**不是结论**。
+- 流式（`/ai/insight/stream`）：增量帧 `{"type":"delta","content":"…"}`，结束帧 `{"type":"done","citations":[...],"disclaimer":"…"}`。
+
+### 2.3 周期洞察接口（FP-7）
+
+系统定时（默认每日）为在册老人批量生成 `COMPREHENSIVE` 洞察，经 WebSocket 推送监护人，不在 REST 轮询。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /ai/insight/schedule?elderId= | 【鉴权】查询该老人的周期洞察开关与节奏 |
+| PUT | /ai/insight/schedule?elderId= | 【鉴权·仅监护人】开关 / 调整节奏（`DAILY` / `WEEKLY`） |
+
+- 推送：经 WebSocket 下发，帧类型 `AI_INSIGHT`（在文档 `04` 补充；原 `AI_STREAM` 仅用于 2.2 的按需流式，周期洞察不另走 SSE）。
+- 推送载荷复用 2.2 的 `data` 形状（含 `content` / `citations` / `disclaimer`）。
+
+### 2.4 安全、降级与边界（FP-9 / FP-10）
+
+- **脱敏与权限**：`/ai/config` 的 apiKey 全程脱敏；未配置 / Key 无效时调用洞察 → 返回 `50310`（"AI 助手暂未开通，请联系监护人配置"）。
+- **后置过滤 + disclaimer**：涉医疗结论统一后置过滤，所有洞察响应必带 `disclaimer`（FP-9）。
+- **不落库、不自动执行**（FP-10）：洞察结果不写入任何业务表、不改动计划 / 库存 / 设备；上游超时（如 15s）或失败时降级为模板化安全提示（仍可返回 `code:0` 的兜底文案），不抛出未捕获异常。
+- **出网范围**：仅大模型 Chat 调用出网（放行监护人所选模型域名），结构化数据不出内网。
+
 
