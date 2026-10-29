@@ -45,6 +45,13 @@
       </view>
     </view>
 
+    <view v-if="canWrite" class="pending-toggle" hover-class="pending-toggle--hover" @click="togglePending">
+      <view class="pending-toggle__box" :class="{ 'pending-toggle__box--on': onlyPending }">
+        <text v-if="onlyPending" class="pending-toggle__check">✓</text>
+      </view>
+      <text class="pending-toggle__text">仅看待确认</text>
+    </view>
+
     <view v-if="summaryVisible" class="summary">共 {{ total }} 条记录</view>
 
     <MbEmpty v-if="error" :text="error" />
@@ -135,6 +142,7 @@ export default {
       loadingMore: false,
       error: '',
       loaded: false,
+      onlyPending: false,
     }
   },
   computed: {
@@ -208,6 +216,7 @@ export default {
           elderId: this.elderId,
           from: this.fromDate || undefined,
           to: this.toDate || undefined,
+          pendingConfirm: this.onlyPending ? true : undefined,
           page,
           size: PAGE_SIZE,
         },
@@ -250,6 +259,10 @@ export default {
     resetRange() {
       this.fromDate = ''
       this.toDate = ''
+      this.reload()
+    },
+    togglePending() {
+      this.onlyPending = !this.onlyPending
       this.reload()
     },
     goDetail(record) {
@@ -382,6 +395,44 @@ export default {
   }
 }
 
+.pending-toggle {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+
+  &__box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36rpx;
+    height: 36rpx;
+    margin-right: 12rpx;
+    border-radius: 8rpx;
+    border: 2rpx solid $mb-border;
+    background: $mb-card-bg;
+
+    &--on {
+      background: $mb-primary;
+      border-color: $mb-primary;
+    }
+  }
+
+  &__check {
+    font-size: 24rpx;
+    color: #fff;
+    line-height: 1;
+  }
+
+  &__text {
+    font-size: 26rpx;
+    color: $mb-text-2;
+  }
+
+  &--hover {
+    opacity: 0.7;
+  }
+}
+
 .summary {
   margin-bottom: 16rpx;
   font-size: 26rpx;
@@ -419,6 +470,11 @@ export default {
   &--info {
     color: $mb-text-2;
     background: $mb-bg;
+  }
+
+  &--pending {
+    color: #9a3412;
+    background: #fed7aa;
   }
 }
 

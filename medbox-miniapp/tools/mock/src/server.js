@@ -955,6 +955,11 @@ function buildRecordView(record) {
     onTime: !!record.onTime,
     confirmedBy: record.confirmedBy || undefined,
     confirmedAt: record.confirmedAt || undefined,
+    // 待确认态（feat/mp-capture-event）：后端为派生态，Mock 直接存派生标志；
+    // confidence / faceResult 一并回传供前端兜底展示。
+    pendingConfirm: !!record.pendingConfirm,
+    faceResult: record.faceResult || undefined,
+    confidence: typeof record.confidence === 'number' ? record.confidence : undefined,
     planName: (plan && plan.name) || '未命名计划',
     medicineName: (medicine && medicine.name) || record.medicineId || '未知药品',
     medicineDose: (item && item.dose) || (medicine && medicine.dosePerTime) || '',
@@ -975,6 +980,10 @@ async function handleListRecords(req, res, query) {
   let list = state.records.filter((r) => r.elderId === elderId)
   if (from && isValidDate(from)) list = list.filter((r) => dateOf(r.planTime) >= from)
   if (to && isValidDate(to)) list = list.filter((r) => dateOf(r.planTime) <= to)
+  // 待确认筛选（feat/mp-capture-event）：监护人"仅看待确认"
+  if (query.pendingConfirm === 'true' || query.pendingConfirm === true) {
+    list = list.filter((r) => r.pendingConfirm)
+  }
   const page = Math.max(1, Number(query.page) || 1)
   const size = Math.min(100, Math.max(1, Number(query.size) || 20))
   const total = list.length
@@ -1001,7 +1010,65 @@ async function handleConfirmRecord(req, res, recordId, body) {
   record.confirmedBy = user.userId
   record.confirmedAt = isoNow()
   if (body && body.note) record.note = String(body.note)
+  // 待确认人工确认（feat/mp-capture-event，02 §7.1）：监护人看图后改写 faceResult，
+  // confidence 置空、pendingConfirm 解除；确认 TAKEN 触发库存扣减（Mock 不落库存）。
+  if (body && (body.faceResult === 'TAKEN' || body.faceResult === 'ABSENT')) {
+    record.faceResult = body.faceResult
+    record.confidence = null
+    record.pendingConfirm = false
+  }
   ok(res, buildRecordView(record))
+}
+
+// ---------------------------------------------------------------- 抓拍（02 设备管理.md §4.1；feat/mp-capture-event）
+
+/** 1x1 透明 PNG（占位原图；Mock 不存真图）。 */
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+  'base64',
+)
+
+async function handleGetCapture(req, res, captureId) {
+  const user = requireUser(req)
+  const capture = state.captures.find((c) => c.captureId === captureId)
+  if (!capture) throw new BizError(40401, '抓拍不存在')
+  const access = elderAccess(user, capture.elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  // fileToken：5 分钟有效（Mock 仅作格式校验，前缀含 captureId）
+  const fileToken = `tok-${captureId}-${Date.now() + 5 * 60 * 1000}-${rand()}`
+  ok(res, {
+    captureId: capture.captureId,
+    deviceId: capture.deviceId,
+    elderId: capture.elderId,
+    medicineId: capture.medicineId || undefined,
+    planId: capture.planId || undefined,
+    reason: capture.reason || 'NORMAL',
+    mime: capture.mime || 'image/png',
+    sizeBytes: capture.sizeBytes || 0,
+    confidence: typeof capture.confidence === 'number' ? capture.confidence : undefined,
+    faceResult: capture.faceResult || undefined,
+    capturedAt: capture.capturedAt,
+    viewedAt: capture.viewedAt || undefined,
+    expireAt: capture.expireAt || undefined,
+    fileToken,
+  })
+}
+
+async function handleGetCaptureFile(req, res, captureId, query) {
+  const token = String(query.token || '').trim()
+  // 令牌校验（02 §4.1）：格式非法 / 不匹配 captureId → 40101；二次复核监护关系。
+  if (!token || !token.startsWith(`tok-${captureId}-`)) throw new BizError(40101, '令牌无效或已过期')
+  const capture = state.captures.find((c) => c.captureId === captureId)
+  if (!capture) throw new BizError(40401, '抓拍不存在或已清理')
+  // 文件流不走统一响应体（02 §4.1）：直接返回二进制，Cache-Control: no-store
+  res.writeHead(200, {
+    'Content-Type': capture.mime || 'image/png',
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Authorization',
+  })
+  res.end(PNG_1X1)
 }
 
 // ---------------------------------------------------------------- 监护关系四条（02 的 3.2）
@@ -1267,6 +1334,14 @@ const server = http.createServer(async (req, res) => {
     }
     matched = /^\/records\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetRecord(req, res, decodeURIComponent(matched[1]))
+
+    // 鉴权：抓拍（02 设备管理.md §4.1；capture-core 已落地，feat/mp-capture-event 联调）
+    matched = /^\/captures\/([^/]+)\/file$/.exec(sub)
+    if (req.method === 'GET' && matched) {
+      return await handleGetCaptureFile(req, res, decodeURIComponent(matched[1]), query)
+    }
+    matched = /^\/captures\/([^/]+)$/.exec(sub)
+    if (req.method === 'GET' && matched) return await handleGetCapture(req, res, decodeURIComponent(matched[1]))
 
     // 鉴权：告警（02 第 8 章；feat/alarm-core 已落地，Mock 先行）
     if (req.method === 'GET' && sub === '/alarms') return await handleListAlarms(req, res, query)

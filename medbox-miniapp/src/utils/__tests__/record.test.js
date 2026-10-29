@@ -59,6 +59,28 @@ describe('recordStatusTags', () => {
     expect(recordStatusTags({})).toEqual([{ text: '未按时', level: 'warn' }])
     expect(recordStatusTags(null)).toEqual([{ text: '未按时', level: 'warn' }])
   })
+
+  it('待确认（UNCERTAIN）置顶高亮 pending 标签', () => {
+    expect(recordStatusTags({ faceResult: 'UNCERTAIN', onTime: true })).toEqual([
+      { text: '待确认', level: 'pending' },
+      { text: '按时', level: 'ok' },
+    ])
+  })
+
+  it('pendingConfirm=true 同样判待确认', () => {
+    expect(recordStatusTags({ pendingConfirm: true, onTime: false })).toEqual([
+      { text: '待确认', level: 'pending' },
+      { text: '未按时', level: 'warn' },
+    ])
+  })
+
+  it('已确认 + 待确认：两个标签并存', () => {
+    expect(recordStatusTags({ pendingConfirm: true, onTime: true, confirmedBy: 'u-2001' })).toEqual([
+      { text: '待确认', level: 'pending' },
+      { text: '按时', level: 'ok' },
+      { text: '已确认', level: 'info' },
+    ])
+  })
 })
 
 describe('canWriteRecord', () => {

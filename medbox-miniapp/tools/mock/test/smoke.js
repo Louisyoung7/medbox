@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前 163 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 174 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -289,6 +289,25 @@ async function waitReady() {
     const confirmDetail = await call('GET', '/records/rec-9002', { token: gw.token })
     check('确认后详情带 confirmedAt', confirmDetail.code === 0 && confirmDetail.data.confirmedAt)
     check('记录不存在 40401', (await call('GET', '/records/rec-9999', { token: gw.token })).code === 40401)
+
+    console.log('== 抓拍 / 待确认（02 §4.1 / §7.1；feat/mp-capture-event） ==')
+    const recPending = await call('GET', '/records/rec-9004', { token: gw.token })
+    check('待确认记录 pendingConfirm=true + faceResult=UNCERTAIN', recPending.code === 0 && recPending.data.pendingConfirm === true && recPending.data.faceResult === 'UNCERTAIN')
+    const recListPending = await call('GET', '/records?elderId=u-1001&pendingConfirm=true', { token: gw.token })
+    check('仅看待确认筛选返回待确认记录', recListPending.code === 0 && recListPending.data.total === 1 && recListPending.data.list[0].recordId === 'rec-9004')
+    const cap = await call('GET', '/captures/cap-5001', { token: gw.token })
+    check('抓拍详情 200 + fileToken', cap.code === 0 && cap.data.captureId === 'cap-5001' && typeof cap.data.fileToken === 'string' && cap.data.fileToken.length > 0)
+    check('老人读他人抓拍 40301', (await call('GET', '/captures/cap-5001', { token: elder.token })).code === 40301)
+    check('抓拍不存在 40401', (await call('GET', '/captures/cap-9999', { token: gw.token })).code === 40401)
+    const fileRes = await fetch(BASE + `/captures/cap-5001/file?token=${encodeURIComponent(cap.data.fileToken)}`)
+    check('原图流 200 + Content-Type image/png', fileRes.status === 200 && fileRes.headers.get('content-type') === 'image/png')
+    check('原图流无统一响应体（非 JSON）', (await fileRes.json().catch(() => null)) === null)
+    check('错误令牌 401', (await fetch(BASE + '/captures/cap-5001/file?token=bad')).status === 401)
+    const conf = await call('POST', '/records/rec-9005/confirm', { token: gw.token, body: { faceResult: 'TAKEN', note: '已核对原图' } })
+    check('确认后 pendingConfirm=false + faceResult=TAKEN + confidence 置空', conf.code === 0 && conf.data.pendingConfirm === false && conf.data.faceResult === 'TAKEN' && conf.data.confidence == null)
+    const recAfter = await call('GET', '/records/rec-9005', { token: gw.token })
+    check('详情刷新后待确认解除', recAfter.code === 0 && recAfter.data.pendingConfirm === false)
+    check('老人确认他人记录 40301', (await call('POST', '/records/rec-9005/confirm', { token: elder.token, body: { faceResult: 'TAKEN' } })).code === 40301)
 
     console.log('== 用户资料（02 第 3 章） ==')
     const elderProfile = await call('GET', '/users/u-1001/profile', { token: elder.token })
