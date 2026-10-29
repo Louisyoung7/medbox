@@ -19,7 +19,7 @@
 
 ### 0.3 部署因此简化
 
-LLM 只消费已结构化的数据，原方案的 OCR 侧车、Embedding（Ollama + bge-m3）、pgvector 与说明书知识库（`drug_manual` / `drug_manual_chunk`）**本期不再需要**。LLM 调用收敛为"监护人代配的 Chat 配置（沿用 `llm_config`）+ 结构化数据拼入 Prompt + 返回自然语言洞察"，出网范围不变（仅 Chat 问答出网）。
+LLM 只消费已结构化的数据，原方案的 OCR 侧车、Embedding（Ollama + bge-m3）、pgvector 与说明书知识库（`drug_manual` / `drug_manual_chunk`）**本期不再需要**。LLM 调用收敛为"监护人代配的 Chat 配置（沿用 `llm_config`）+ 结构化数据拼入 Prompt + 返回自然语言洞察"，出网范围不变（仅 Chat 调用出网）。
 
 ### 0.4 接入模式：用户自带 Key（BYOK），后端不托管大模型
 
@@ -138,7 +138,7 @@ POST /ai/insight
 | GET | /ai/insight/schedule?elderId= | 【鉴权】查询该老人的周期洞察开关与节奏 |
 | PUT | /ai/insight/schedule?elderId= | 【鉴权·仅监护人】开关 / 调整节奏（`DAILY` / `WEEKLY`） |
 
-- 推送：经 WebSocket 下发，帧类型 `AI_INSIGHT`（在文档 `04` 补充；原 `AI_STREAM` 仅用于 2.2 的按需流式，周期洞察不另走 SSE）。
+- 推送：经 WebSocket 下发，帧类型 `AI_INSIGHT`（在文档 `04` 补充；按需洞察的流式在 2.2 走 HTTP SSE，周期洞察不另走 SSE）。
 - 推送载荷复用 2.2 的 `data` 形状（含 `content` / `citations` / `disclaimer`）。
 
 ### 2.4 安全、降级与边界（FP-9 / FP-10）
@@ -150,13 +150,16 @@ POST /ai/insight
 
 ## 3. 跨文档一致性（待清理）
 
-AI 重定位后，以下文档 / 代码仍残留指向旧"RAG / OCR / Embedding / 说明书知识库"的引用，需在 07 后端清单的 `refactor/ai-insight-layer` 分支一并清理，避免"文档说删、引用还在"的不一致：
+AI 重定位后，旧"RAG / OCR / Embedding / 说明书知识库"的引用分两类：`drug_manual` / `drug_manual_chunk` 的文档文字已由 `93950b4` 加"已移除"注记（02 §业务数据表、06 §3 顶部）；但**表述层与代码层仍有残留**，需在 07 后端清单的 `refactor/ai-insight-layer` 分支一并清理，避免"文档说删、引用还在"的不一致：
 
-- **01_系统架构与部署.md**：4.1.2「本地数据库：PostgreSQL 17」已写"无需 pgvector 扩展"，但 4.1 / 4.1.3 仍提 pgvector、`/ai/chat` 拼知识库；需改为"PostgreSQL 17，无向量扩展，AI 仅走 BYOK Chat"。
-- **02_REST接口设计.md**：仍含 `WRITE_DRUG_MANUAL` 权限位、`DrugManual` 实体与说明书上传接口（原 AI 问答 + 知识库）；需删除或迁移到本 05 定义的 `/ai/config` / `/ai/insight`。
-- **04_实时推送协议.md**：`AI_STREAM` 帧"见文档 05"指向已删除的旧章节；周期洞察改用 `AI_INSIGHT`，按需流式仍走 SSE（不走 WS 帧），需修订。
-- **06_数据库设计.md**：`drug_manual` / `drug_manual_chunk` 相关定义需随迁移清理（见 07 `refactor/ai-insight-layer`），本期不再需要。
-- **10_产品形态调整方案.md**：提及"本地大模型（OCR + Embedding）支撑 RAG"；需改为"洞察层仅 BYOK Chat，无本地大模型 / 向量库"。
-- **medbox-server 代码与 docker-compose**：见 07 `refactor/ai-insight-layer`（向量 / OCR / Embedding 依赖与 `pgvector/pgvector:pg17` 镜像下线）。
+- **01_系统架构与部署.md**：功能 / 角色表（§1 数据流表、角色表）仍写"AI 问答"（如"历史与统计查询、AI 问答""只读本人数据……AI 问答"）；4.1.2 已写"无需 pgvector 扩展"，但措辞应统一为"PostgreSQL 17，无向量扩展，AI 仅走 BYOK Chat"。
+- **02_REST接口设计.md**：角色 / 权限表（§1 角色表）仍写"AI 问答"，应改为"AI 洞察"（`DrugManual` / 说明书上传相关文字已由 `93950b4` 移除，无需再处理）。
+- **04_实时推送协议.md**：`AI_STREAM` 帧已注"本期不使用，流式走 HTTP SSE"（基本到位），仅 `AI_INSIGHT` 帧定义待按本 05 §2.3 补完。
+- **06_数据库设计.md**：`drug_manual` / `drug_manual_chunk` 已标"已移除"；Flyway `V1` 的 `CREATE EXTENSION vector` 与建表、`V2__vector_hnsw.sql` 的实际下线在代码侧（见下）。
+- **diagrams/（network-topology.html、backend-architecture.html）**：架构图仍标"PostgreSQL + pgvector"，应改为"PostgreSQL 17"，与 06 口径一致。
+- **07_特性分支清单_后端.md**：`feat/backend-ai-infra` 落地注记（含 RapidOCR 侧车 / PgVectorStore / Ollama bge-m3）仍描述旧设计，应在 `refactor/ai-insight-layer` 同步改写为"仅 BYOK ChatClient"。
+- **medbox-server 代码与 docker-compose**：见 07 `refactor/ai-insight-layer`（向量 / OCR / Embedding 依赖与 `pgvector/pgvector:pg17` 镜像下线、`V1` / `V2` 迁移清理）。
+
+> 注：`10_产品形态调整方案.md` 的"本地大模型（OCR + Embedding）支撑 RAG"表述也建议改为"洞察层仅 BYOK Chat，无本地大模型 / 向量库"（与上面同批处理）。
 
 
