@@ -21,6 +21,13 @@
 
 LLM 只消费已结构化的数据，原方案的 OCR 侧车、Embedding（Ollama + bge-m3）、pgvector 与说明书知识库（`drug_manual` / `drug_manual_chunk`）**本期不再需要**。LLM 调用收敛为"监护人代配的 Chat 配置（沿用 `llm_config`）+ 结构化数据拼入 Prompt + 返回自然语言洞察"，出网范围不变（仅 Chat 问答出网）。
 
+### 0.4 接入模式：用户自带 Key（BYOK），后端不托管大模型
+
+- **后端不部署、不托管**任何大模型推理服务，也不为多用户承担 LLM 调用的高并发与费用；推理完全发生在监护人所选的外部 / 自建模型端点。
+- 采用 **BYOK（Bring Your Own Key）**：每老人一份 `llm_config`（provider / apiKey / model / baseUrl），由监护人代配（见 2.1）。
+- `baseUrl` 不限定公有云：监护人也可填**本机 / 局域网内自建端点**（如本地 Ollama `http://localhost:11434`）。"本地大模型"未来如需支持，仍走同一 `llm_config`，**不另起架构、不新增后端部署**。
+- 出网范围：仅 Chat 调用出网（放行 `baseUrl` 域名 / IP）；若 `baseUrl` 指向局域网内端点，则连出网都不需要。
+
 ## 1. 功能点
 
 LLM 洞察层只消费本项目已有的结构化数据（`med_record` / `med_plan` / `plan_reminder` / `medicine_stock` / `env_sample` / `alarm`），输出自然语言的分析、预测与建议；所有输出**不落库、不自动执行**，仅供监护人 / 医生决策参考。功能点（FP）如下，第 2 章接口将按编号对应实现。
