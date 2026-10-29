@@ -76,7 +76,7 @@
 | ③ | 关系是否生效 | `status == ACTIVE`（老人本人直接通过）。`REVOKED` 与状态为空（脏数据）走第 ② 步的 40301 | `PENDING` → **40302** |
 | ④ | 角色操作权限 | 命中下方权限矩阵 | **40301** |
 
-**输出**：放行返回访问身份（`kind` = SELF / GUARDIAN、`relationRole`）；拒绝抛 `BizException`，HTTP 403 + `code` 为 40301 / 40302。
+**输出**：放行返回访问身份（`kind` = SELF / GUARDIAN、`relationStatus`：监护关系状态 `PENDING` / `ACTIVE` / `REVOKED`，放行时 GUARDIAN 恒为 `ACTIVE`，`SELF` 无此字段）；拒绝抛 `BizException`，HTTP 403 + `code` 为 40301 / 40302。
 
 > 权限矩阵共 **20** 个权限项（含 `AI_CHAT`）。
 
