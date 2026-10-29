@@ -36,11 +36,10 @@ LLM 洞察层只消费本项目已有的结构化数据（`med_record` / `med_pl
 
 | 编号 | 功能点 | 消费的结构化数据 | LLM 输出（洞察 / 建议，非结构化文本） |
 |------|--------|------------------|--------------------------------------|
-| FP-1 | 服药依从性归因分析 | `med_record` + `plan_reminder` + `alarm(MISS)` | 漏服率变化、时段 / 星期相关性、疑似成因假设与干预建议 |
+| FP-1 | 漏服情况分析 | `med_record` + `plan_reminder` + `alarm(MISS)` | 按日 / 按时段统计漏服，指出漏服集中的时段与星期，附提醒加强建议 |
 | FP-2 | 库存耗尽预测 | `medicine_stock`（数量 / 有效期）+ 近 N 日消耗 | 预计耗尽时间、异常消耗提示、补配建议 |
-| FP-3 | 服药计划时序建议 | `med_plan` / `med_plan_item` 的服药时段与同服组合 | 间隔过短 / 同服日依从性偏低的错峰建议 |
-| FP-4 | 环境-用药关联分析 | `env_sample`（温湿度超标）+ 对应时段 `med_record` | 环境异常与取药依从 / 药效风险的关联假设与处置建议 |
-| FP-5 | 周期趋势预测与预警 | 历史 `med_record` / `alarm` 趋势 | 漏服 / 异常的趋势外推与提前介入建议 |
+| FP-3 | 环境-用药关联分析 | `env_sample`（温湿度超标）+ 对应时段 `med_record` | 环境异常与取药依从 / 药效风险的关联与处置建议 |
+| FP-4 | 周期趋势预测与预警 | 历史 `med_record` / `alarm` 趋势 | 漏服 / 异常的趋势外推与提前介入建议 |
 
 > 每个功能点输出的都是**假设或建议**，不是结论；"是否与某因素相关""建议如何调整"由监护人 / 医生判断，系统绝不自动改计划、不自动补配、不自动发药。
 
@@ -87,9 +86,9 @@ LLM 洞察层只消费本项目已有的结构化数据（`med_record` / `med_pl
 { "code":0, "data":{ "elderId":"e-1001","provider":"openai-compatible","model":"gpt-4o-mini","apiKeyMask":"sk****xxxx","enabled":true } }
 ```
 
-### 2.2 按需洞察接口（FP-6 + FP-1~5）
+### 2.2 按需洞察接口（FP-6 + FP-1~4）
 
-监护人主动发起对某老人某时段的结构化数据分析，后端按 `elderId` 取出配置好的 Key，拼装对应维度的结构化数据（见 FP-1~5）为上下文，调用大模型生成自然语言洞察。
+监护人主动发起对某老人某时段的结构化数据分析，后端按 `elderId` 取出配置好的 Key，拼装对应维度的结构化数据（见 FP-1~4）为上下文，调用大模型生成自然语言洞察。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -112,10 +111,9 @@ POST /ai/insight
 |------|---------|------------------|
 | `ADHERENCE` | FP-1 | `med_record` + `plan_reminder` + `alarm(MISS)` |
 | `STOCK` | FP-2 | `medicine_stock` + 近 N 日消耗 |
-| `PLAN_TIMING` | FP-3 | `med_plan` / `med_plan_item` |
-| `ENV_CORRELATION` | FP-4 | `env_sample` + 对应时段 `med_record` |
-| `TREND` | FP-5 | 历史 `med_record` / `alarm` |
-| `COMPREHENSIVE` | FP-1~5 | 以上全部 |
+| `ENV_CORRELATION` | FP-3 | `env_sample` + 对应时段 `med_record` |
+| `TREND` | FP-4 | 历史 `med_record` / `alarm` |
+| `COMPREHENSIVE` | FP-1~4 | 以上全部 |
 
 响应（**不落库**，FP-10）：
 
