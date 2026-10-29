@@ -150,4 +150,15 @@ POST /ai/insight
 - **不落库、不自动执行**（FP-10）：洞察结果不写入任何业务表、不改动计划 / 库存 / 设备；上游超时（如 15s）或失败时降级为模板化安全提示（仍可返回 `code:0` 的兜底文案），不抛出未捕获异常。
 - **出网范围**：仅大模型 Chat 调用出网（放行监护人所选模型域名），结构化数据不出内网。
 
+## 3. 跨文档一致性（待清理）
+
+AI 重定位后，以下文档 / 代码仍残留指向旧"RAG / OCR / Embedding / 说明书知识库"的引用，需在 07 后端清单的 `refactor/ai-insight-layer` 分支一并清理，避免"文档说删、引用还在"的不一致：
+
+- **01_系统架构与部署.md**：4.1.2「本地数据库：PostgreSQL 17」已写"无需 pgvector 扩展"，但 4.1 / 4.1.3 仍提 pgvector、`/ai/chat` 拼知识库；需改为"PostgreSQL 17，无向量扩展，AI 仅走 BYOK Chat"。
+- **02_REST接口设计.md**：仍含 `WRITE_DRUG_MANUAL` 权限位、`DrugManual` 实体与说明书上传接口（原 AI 问答 + 知识库）；需删除或迁移到本 05 定义的 `/ai/config` / `/ai/insight`。
+- **04_实时推送协议.md**：`AI_STREAM` 帧"见文档 05"指向已删除的旧章节；周期洞察改用 `AI_INSIGHT`，按需流式仍走 SSE（不走 WS 帧），需修订。
+- **06_数据库设计.md**：`drug_manual` / `drug_manual_chunk` 相关定义需随迁移清理（见 07 `refactor/ai-insight-layer`），本期不再需要。
+- **10_产品形态调整方案.md**：提及"本地大模型（OCR + Embedding）支撑 RAG"；需改为"洞察层仅 BYOK Chat，无本地大模型 / 向量库"。
+- **medbox-server 代码与 docker-compose**：见 07 `refactor/ai-insight-layer`（向量 / OCR / Embedding 依赖与 `pgvector/pgvector:pg17` 镜像下线）。
+
 
