@@ -13,7 +13,7 @@ import org.apache.ibatis.type.JdbcType;
  *
  * <p><b>本类由 {@code feat/dispense-consume} 引入</b>，彼时只映射 {@code missTolerateMin}
  * （漏服容忍时长，老人级，是"计划级 > 老人级 > 15 分钟"三级优先级的中间一级，06 §2.6.1）。
- * {@code expiring_ahead_days} / {@code env_threshold} JSONB 由 {@code feat/alarm-core} 补齐。
+ * {@code env_threshold} JSONB 由 {@code feat/alarm-core} 补齐。
  *
  * <p><b>{@code envThreshold}</b> 为 JSONB（结构见 {@link EnvThreshold}），用
  * {@link com.medbox.server.config.EnvThresholdJsonbTypeHandler} 读写；类级 {@code autoResultMap = true}
@@ -30,9 +30,6 @@ public class AlarmSetting {
 
     /** 归属老人（{@code user.user_id}，ELDER），UNIQUE。 */
     private String elderId;
-
-    /** 临期提前预警天数（feat/alarm-core 用）。 */
-    private Integer expiringAheadDays;
 
     /** 漏服容忍时长（分钟），老人级；为空表示沿用系统默认 15 分钟。 */
     private Integer missTolerateMin;

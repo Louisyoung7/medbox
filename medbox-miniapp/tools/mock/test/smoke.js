@@ -115,16 +115,16 @@ async function waitReady() {
     check('子设备编号事件 40301', (await call('GET', '/devices/BOXA1001-S-CAM01/events', { token: gw.token })).code === 40301)
 
     console.log('== 告警（02 第 8 章；feat/mp-alarm；alarm-core 已落地，Mock 先行） ==')
-    // 列表分页（u-1001 种子 4 条：3 未读 + 1 已读）
+    // 列表分页（u-1001 种子 3 条：2 未读 + 1 已读；WRONG_DRUG 类告警已随后端删除，本期不播）
     const alarmList = await call('GET', '/alarms?elderId=u-1001', { token: gw.token })
-    check('监护人查 u-1001 告警列表 200 且 4 条', alarmList.code === 0 && alarmList.data.total === 4 && alarmList.data.list.length === 4)
+    check('监护人查 u-1001 告警列表 200 且 3 条', alarmList.code === 0 && alarmList.data.total === 3 && alarmList.data.list.length === 3)
     const unread0 = await call('GET', '/alarms/unread-count?elderId=u-1001', { token: gw.token })
-    check('未读计数 = 3', unread0.code === 0 && unread0.data.count === 3)
+    check('未读计数 = 2', unread0.code === 0 && unread0.data.count === 2)
     // 类型 / 已读筛选
     const missOnly = await call('GET', '/alarms?elderId=u-1001&type=MISS', { token: gw.token })
     check('类型筛选 MISS = 2 条', missOnly.code === 0 && missOnly.data.total === 2)
     const unreadOnly = await call('GET', '/alarms?elderId=u-1001&readState=UNREAD', { token: gw.token })
-    check('已读筛选 UNREAD = 3 条', unreadOnly.code === 0 && unreadOnly.data.total === 3)
+    check('已读筛选 UNREAD = 2 条', unreadOnly.code === 0 && unreadOnly.data.total === 2)
     // 分页 size=1
     const p1 = await call('GET', '/alarms?elderId=u-1001&page=1&size=1', { token: gw.token })
     check('分页 size=1 返回 1 条', p1.code === 0 && p1.data.list.length === 1)
@@ -135,10 +135,10 @@ async function waitReady() {
     // 标记已读后未读 -1
     check('标记已读 200', (await call('PATCH', '/alarms/a-1001-miss-1/read', { token: gw.token })).code === 0)
     const unread1 = await call('GET', '/alarms/unread-count?elderId=u-1001', { token: gw.token })
-    check('标记已读后未读 = 2', unread1.code === 0 && unread1.data.count === 2)
+    check('标记已读后未读 = 1', unread1.code === 0 && unread1.data.count === 1)
     // 处理：监护人可；老人不可（HANDLE_ALARM = FAMILY+NURSE，小程序仅 GUARDIAN）
-    check('监护人处理告警 200', (await call('PATCH', '/alarms/a-1001-wrong-1/handle', { token: gw.token })).code === 0)
-    check('老人处理告警 40301', (await call('PATCH', '/alarms/a-1001-wrong-1/handle', { token: elder.token })).code === 40301)
+    check('监护人处理告警 200', (await call('PATCH', '/alarms/a-1001-env-1/handle', { token: gw.token })).code === 0)
+    check('老人处理告警 40301', (await call('PATCH', '/alarms/a-1001-env-1/handle', { token: elder.token })).code === 40301)
     // 阈值设置：查询 / 监护人可改 / 老人不可改
     const set0 = await call('GET', '/alarm-settings?elderId=u-1001', { token: gw.token })
     check('查询告警设置 200 且默认 advanceMin=10', set0.code === 0 && set0.data.advanceMin === 10 && set0.data.envThreshold.temp.max === 30)
@@ -228,7 +228,7 @@ async function waitReady() {
     const newPlanId = created.data.planId
 
     // 06 的 2.6.1 约束与参数校验
-    check('过期药品加入 40901', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-203' }] } })).code === 40901)
+    check('过期药品仍有库存不再拦截 → 200', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-203' }] } })).code === 0)
     check('无库存药品加入 40901', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-206' }] } })).code === 40901)
     check('同计划药品重复 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-201' }, { medicineId: 'm-201' }] } })).code === 40001)
     check('times 格式错 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['25:00'], items: [{ medicineId: 'm-201' }] } })).code === 40001)
@@ -273,7 +273,7 @@ async function waitReady() {
     const records = await call('GET', '/records?elderId=u-1001', { token: gw.token })
     check('u-1001 记录列表 4 条', records.code === 0 && records.data.total === 4 && records.data.list.length === 4)
     check('列表 join 计划名/药品名', records.data.list.every((r) => r.planName && r.medicineName))
-    check('列表含按时/错服布尔', records.data.list.every((r) => typeof r.onTime === 'boolean' && typeof r.wrongDrug === 'boolean'))
+    check('列表含按时布尔', records.data.list.every((r) => typeof r.onTime === 'boolean'))
     const recDetail = await call('GET', '/records/rec-9001', { token: gw.token })
     check('记录详情（关联计划）', recDetail.code === 0 && recDetail.data.recordId === 'rec-9001' && recDetail.data.planName === '早餐后')
     check('老人读他人记录 40301', (await call('GET', '/records/rec-9005', { token: elder.token })).code === 40301)

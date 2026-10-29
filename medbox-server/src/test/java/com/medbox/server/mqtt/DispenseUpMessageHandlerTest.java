@@ -30,7 +30,7 @@ class DispenseUpMessageHandlerTest {
     private static final String VALID_JSON = """
         { "msgId":"BOXA1001-0000000200", "ts":1759474500000,
           "planId":"p-1001", "planItemId":"pi-1001", "medicineId":"m-205",
-          "actualDose":"1", "unit":"片", "wrongDrug":false, "onTime":true,
+          "actualDose":"1", "unit":"片", "onTime":true,
           "confidence":0.93, "source":"CAMERA", "imageId":"cap-8801" }
         """;
 
@@ -51,7 +51,6 @@ class DispenseUpMessageHandlerTest {
         org.assertj.core.api.Assertions.assertThat(p.getPlanId()).isEqualTo("p-1001");
         org.assertj.core.api.Assertions.assertThat(p.getPlanItemId()).isEqualTo("pi-1001");
         org.assertj.core.api.Assertions.assertThat(p.getMedicineId()).isEqualTo("m-205");
-        org.assertj.core.api.Assertions.assertThat(p.getWrongDrug()).isFalse();
     }
 
     @Test

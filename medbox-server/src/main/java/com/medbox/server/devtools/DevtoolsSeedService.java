@@ -270,7 +270,7 @@ public class DevtoolsSeedService {
         plan.setTimes(List.of(nearNow));
         plan.setRepeatRule("DAILY");
         plan.setMissAlarmAfterMin(null);
-        plan.setAlarmRule(Map.of("miss", true, "wrongDrug", true));
+        plan.setAlarmRule(Map.of("miss", true));
         plan.setStatus("ENABLED");
         plan.setSyncState("PENDING");
         plan.setCreatedAt(OffsetDateTime.now());

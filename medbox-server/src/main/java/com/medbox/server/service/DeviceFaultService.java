@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service;
  * {@code ts} 按 {@code dedup-window-minutes} 截断；命中 {@code uk_alarm_dedup_key} → 静默跳过告警与推送
  * （事件流水已记）。msgId 级幂等由 {@code MqttInboundGateway} 兜住，本类不重复做。
  *
- * <p><b>错服不走这里</b>（{@code dispense.wrongDrug} 通道，{@code WrongDrugAlarmService}）。
+ * <p><b>错服监测已移除</b>：本服务只处理设备自身故障告警。
  * 全程兜异常：旁路消费，单条失败只记日志，不外溢到 Paho 回调线程。
  */
 @Service

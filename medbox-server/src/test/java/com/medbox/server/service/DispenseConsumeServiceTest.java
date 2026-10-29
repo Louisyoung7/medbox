@@ -77,7 +77,7 @@ class DispenseConsumeServiceTest {
         when(medicineStockMapper.deduct(anyString(), anyString(), anyInt())).thenReturn(1);
     }
 
-    private DispenseEventPayload payload(String ts, String medicineId, String source, Boolean wrong) {
+    private DispenseEventPayload payload(String ts, String medicineId, String source) {
         DispenseEventPayload p = new DispenseEventPayload();
         p.setMsgId("BOXA1001-0000000200");
         p.setTs(ts == null ? null : Instant.parse(ts).toEpochMilli());
@@ -86,7 +86,6 @@ class DispenseConsumeServiceTest {
         p.setMedicineId(medicineId);
         p.setActualDose("1");
         p.setUnit("片");
-        p.setWrongDrug(wrong);
         p.setSource(source);
         p.setImageId("cap-1");
         p.setConfidence(0.93);
@@ -119,7 +118,7 @@ class DispenseConsumeServiceTest {
     void normalOnTime() {
         stubOkChain();
         // 本地 08:05 Asia/Shanghai = 00:05Z
-        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false));
+        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA"));
 
         assertThat(result).isPresent();
         MedRecord rec = result.get();
@@ -127,7 +126,6 @@ class DispenseConsumeServiceTest {
         assertThat(rec.getPlanTime().toInstant()).isEqualTo(Instant.parse("2026-10-23T00:00:00Z")); // 本地 08:00 = 00:00Z
         assertThat(rec.getMedicineId()).isEqualTo(MED_ID);
         assertThat(rec.getSource()).isEqualTo("CAMERA");
-        assertThat(rec.getWrongDrug()).isFalse();
 
         verify(medRecordMapper).insert(any(MedRecord.class));
         verify(medicineStockMapper).deduct(DEVICE_ID, MED_ID, 1);
@@ -139,7 +137,7 @@ class DispenseConsumeServiceTest {
     void lateBeyondTolerance() {
         stubOkChain();
         // 本地 09:00 Asia/Shanghai = 01:00Z，超过 08:00+15min(=00:15Z)
-        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-23T01:00:00Z", MED_ID, "CAMERA", false));
+        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-23T01:00:00Z", MED_ID, "CAMERA"));
 
         assertThat(result).isPresent();
         assertThat(result.get().getOnTime()).isFalse();
@@ -152,7 +150,7 @@ class DispenseConsumeServiceTest {
     void nearestSlotCrossDay() {
         stubOkChain();
         // 本地 2026-10-21T14:00 Asia/Shanghai = 2026-10-21T06:00Z
-        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-21T06:00:00Z", MED_ID, "CAMERA", false));
+        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-21T06:00:00Z", MED_ID, "CAMERA"));
         assertThat(result).isPresent();
         // 选中的 plan_time 应为 2026-10-21 本地 08:00 = 2026-10-21T00:00Z
         assertThat(result.get().getPlanTime().toInstant()).isEqualTo(Instant.parse("2026-10-21T00:00:00Z"));
@@ -168,21 +166,20 @@ class DispenseConsumeServiceTest {
         plan.setTimes(List.of());
         when(medPlanMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(plan);
 
-        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false));
+        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA"));
         assertThat(result).isPresent();
         assertThat(result.get().getPlanTime()).isNull();
         assertThat(result.get().getOnTime()).isNull();
     }
 
     @Test
-    @DisplayName("错服（wrongDrug=true）：照样落库并扣'识别到的药'，medicineId 取摄像头结果")
-    void wrongDrugStillDeducts() {
+    @DisplayName("识别到非计划药：照样落库并扣'识别到的药'，medicineId 取摄像头结果")
+    void cameraMedicineStillDeducts() {
         stubOkChain();
         // 识别到的药是 m-999（不是计划药品 m-205）
-        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", OTHER_MED_ID, "CAMERA", true));
+        Optional<MedRecord> result = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", OTHER_MED_ID, "CAMERA"));
 
         assertThat(result).isPresent();
-        assertThat(result.get().getWrongDrug()).isTrue();
         assertThat(result.get().getMedicineId()).isEqualTo(OTHER_MED_ID);
         verify(medicineStockMapper).deduct(DEVICE_ID, OTHER_MED_ID, 1);
     }
@@ -191,12 +188,12 @@ class DispenseConsumeServiceTest {
     @DisplayName("actualDose 解析：'2' 扣 2；null/空 扣 1")
     void doseParsing() {
         stubOkChain();
-        DispenseEventPayload p = payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false);
+        DispenseEventPayload p = payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA");
         p.setActualDose("2");
         service.consume(DEVICE_ID, p);
         verify(medicineStockMapper).deduct(DEVICE_ID, MED_ID, 2);
 
-        DispenseEventPayload p2 = payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false);
+        DispenseEventPayload p2 = payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA");
         p2.setActualDose(null);
         service.consume(DEVICE_ID, p2);
         verify(medicineStockMapper).deduct(DEVICE_ID, MED_ID, 1);
@@ -206,10 +203,10 @@ class DispenseConsumeServiceTest {
     @DisplayName("source 缺省回退 CAMERA；MANUAL 透传")
     void sourceDefaultAndManual() {
         stubOkChain();
-        Optional<MedRecord> def = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, null, false));
+        Optional<MedRecord> def = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, null));
         assertThat(def.get().getSource()).isEqualTo("CAMERA");
 
-        Optional<MedRecord> manual = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "MANUAL", false));
+        Optional<MedRecord> manual = service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "MANUAL"));
         assertThat(manual.get().getSource()).isEqualTo("MANUAL");
     }
 
@@ -218,7 +215,7 @@ class DispenseConsumeServiceTest {
     @Test
     @DisplayName("丢弃：planItemId 为空")
     void dropMissingPlanItemId() {
-        DispenseEventPayload p = payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false);
+        DispenseEventPayload p = payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA");
         p.setPlanItemId(null);
         assertThat(service.consume(DEVICE_ID, p)).isEmpty();
         verify(medRecordMapper, never()).insert(any(MedRecord.class));
@@ -229,7 +226,7 @@ class DispenseConsumeServiceTest {
     @DisplayName("丢弃：设备不存在")
     void dropDeviceNotFound() {
         when(deviceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        assertThat(service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false))).isEmpty();
+        assertThat(service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA"))).isEmpty();
         verify(medRecordMapper, never()).insert(any(MedRecord.class));
     }
 
@@ -241,7 +238,7 @@ class DispenseConsumeServiceTest {
         device.setElderId(ELDER_ID);
         when(deviceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(device);
         when(medPlanMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        assertThat(service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false))).isEmpty();
+        assertThat(service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA"))).isEmpty();
         verify(medRecordMapper, never()).insert(any(MedRecord.class));
     }
 
@@ -257,7 +254,7 @@ class DispenseConsumeServiceTest {
         plan.setElderId(ELDER_ID);
         plan.setTimes(List.of("08:00"));
         when(medPlanMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(plan);
-        assertThat(service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false))).isEmpty();
+        assertThat(service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA"))).isEmpty();
         verify(medRecordMapper, never()).insert(any(MedRecord.class));
     }
 
@@ -266,7 +263,7 @@ class DispenseConsumeServiceTest {
     void dropItemNotFound() {
         stubOkChain();
         when(medPlanItemMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        assertThat(service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA", false))).isEmpty();
+        assertThat(service.consume(DEVICE_ID, payload("2026-10-23T00:05:00Z", MED_ID, "CAMERA"))).isEmpty();
         verify(medRecordMapper, never()).insert(any(MedRecord.class));
     }
 }

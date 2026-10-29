@@ -208,7 +208,7 @@ class DevtoolsControllerTest {
         when(deviceProperties.getDefaultProductKey()).thenReturn("medbox-box");
         String payload = "{\"msgId\":\"BOXA-DEBUG-01-000123\",\"ts\":1759474500000,\"planId\":\"p-3301\","
                 + "\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\",\"actualDose\":\"1\",\"unit\":\"片\","
-                + "\"wrongDrug\":false,\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\"}";
+                + "\"onTime\":true,\"confidence\":0.93,\"source\":\"CAMERA\"}";
 
         mockMvc.perform(post("/api/v1/_debug/mqtt/publish")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN, "GUARDIAN"))

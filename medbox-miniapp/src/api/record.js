@@ -28,7 +28,7 @@ import { get, post } from '@/api/request.js'
  * @param {Object} [options] 透传给 `@/api/request` 的 `silent` 等
  * @returns {Promise<Object|Array>} 分页结构（容错见 `utils/record.parseRecordsPage`）；
  *   单条记录含 `recordId` / `elderId` / `planId` / `planItemId` / `medicineId` / `captureId` /
- *   `actualDose` / `planTime`(UTC) / `actualTime`(UTC) / `onTime`(bool) / `wrongDrug`(bool) /
+ *   `actualDose` / `planTime`(UTC) / `actualTime`(UTC) / `onTime`(bool) /
  *   `deviceId` / `planName` / `medicineName` / `medicineDose` / `medicineUnit` / `confirmedBy` /
  *   `confirmedAt`
  * @throws {ApiError} 40101 / 40301 / 40302 / -1

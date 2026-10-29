@@ -235,7 +235,6 @@ class RecordCoreWebIntegrationTest {
                 OffsetDateTime.parse("2026-10-23T08:05:00+08:00"));
         existing.setActualDose("1");
         existing.setOnTime(true);
-        existing.setWrongDrug(false);
         existing.setSource("CAMERA");
         when(medRecordMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing);
         when(medRecordMapper.updateById(any(MedRecord.class))).thenReturn(1);
@@ -248,14 +247,13 @@ class RecordCoreWebIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"actualDose":"2","onTime":false,"wrongDrug":true}
+                                {"actualDose":"2","onTime":false}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.recordId").value(RECORD_ID))
                 .andExpect(jsonPath("$.data.source").value("MANUAL"))
                 .andExpect(jsonPath("$.data.actualDose").value("2"))
-                .andExpect(jsonPath("$.data.onTime").value(false))
-                .andExpect(jsonPath("$.data.wrongDrug").value(true));
+                .andExpect(jsonPath("$.data.onTime").value(false));
     }
 
     @Test
@@ -304,7 +302,7 @@ class RecordCoreWebIntegrationTest {
                                 {"elderId":"u-1001","planId":"p-1001","planItemId":"pi-1001",
                                  "medicineId":"m-1001",
                                  "actualTime":"2026-10-23T08:05:00+08:00",
-                                 "actualDose":"1","onTime":true,"wrongDrug":false}
+                                 "actualDose":"1","onTime":true}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.recordId").value("mr-2001"))
@@ -403,7 +401,6 @@ class RecordCoreWebIntegrationTest {
         r.setActualTime(actualTime);
         r.setActualDose("1");
         r.setOnTime(true);
-        r.setWrongDrug(false);
         r.setSource("CAMERA");
         r.setCreatedAt(OffsetDateTime.parse("2026-10-23T00:00:00Z"));
         return r;

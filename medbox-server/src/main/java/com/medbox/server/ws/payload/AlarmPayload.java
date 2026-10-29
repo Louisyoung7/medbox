@@ -6,7 +6,7 @@ import java.util.List;
  * {@code ALARM} 帧载荷（见文档 04 第 3 章）。
  *
  * @param alarmId     告警业务号
- * @param type        告警类型：MISS / WRONG_DRUG / EXPIRED / ENV / DEVICE_OFFLINE / DEVICE_FAULT
+ * @param type        告警类型：MISS / ENV / DEVICE_OFFLINE / DEVICE_FAULT
  * @param level       严重程度：INFO / WARN / CRITICAL
  * @param message     可直接展示的文案，如"08:00 计划服药未按时服用：缺 阿莫西林、维生素D"
  * @param elderId     归属老人（与 topic 里的 elderId 一致，便于客户端免解析）

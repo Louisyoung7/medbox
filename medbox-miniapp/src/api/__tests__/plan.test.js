@@ -5,7 +5,7 @@
  * URL / 方法 / Bearer / 请求体 / 错误码分流走 `src/api/request.js` 真实实现。
  *
  * <p>⚠️ 后端 `plan-core` 未落地：这里断言的是**前端契约**（02 第 6 章的路径与方法、
- * PATCH status 的请求体 `{status}`、40901 药品无库存/过期兑现），真机联调后如有偏差改契约处即可。
+ * PATCH status 的请求体 `{status}`、40901 药品无库存兑现），真机联调后如有偏差改契约处即可。
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -132,9 +132,9 @@ describe('plan —— 请求层', () => {
     expect(sent[0].url).toContain('/medbox/api/v1/plans/p-3301')
   })
 
-  it('createPlan：40901（药品无库存 / 已过期，06 的 2.6.1）兑现 ApiError', async () => {
+  it('createPlan：40901（药品无库存，06 的 2.6.1）兑现 ApiError', async () => {
     const { plan, CODE } = await loadPlanApi()
-    scripts = [{ body: { code: 40901, message: '药品无库存或已过期，不能加入计划' } }]
+    scripts = [{ body: { code: 40901, message: '药品无库存，不能加入计划' } }]
 
     const error = await plan.createPlan(PLAN_PAYLOAD).catch((err) => err)
 

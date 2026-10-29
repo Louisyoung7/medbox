@@ -5,13 +5,12 @@
  * 规则表索引（确认后同步沉淀进 02 第 6 章）：
  * - A 时间：`normalizeTimes`（格式校验 + 去重 + 升序；**设备本地墙钟，不换 UTC**）
  * - B items：`buildPlanPayload`（medicineId 必填、dose/unit/note 空串省略、按序组装）
- * - C 过期拦截：`pickableMedicines`（无库存 / 已过期置灰，跨设备聚合）
+ * - C 库存校验：`pickableMedicines`（无库存置灰，跨设备聚合）
  * - D 启停 / E 权限 / 文案：`canWritePlan` / `planTimesText` / `planItemsText`
  */
 
 import { describe, expect, it } from 'vitest'
 import { ROLE } from '@/store/user.js'
-import { expiryTag } from '@/utils/stock.js'
 import {
   buildPlanPayload,
   canWritePlan,
@@ -27,14 +26,6 @@ import {
   toDoseView,
   groupDosesByDay,
 } from '@/utils/plan.js'
-
-/** 相对今天偏移 N 天的 YYYY-MM-DD（临期断言的确定性输入）。 */
-function dateOffset(days) {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
 
 describe('normalizeTimes（规则 A：设备本地墙钟，校验 + 去重 + 升序）', () => {
   it('合法时间：去重后按 HH:mm 升序', () => {
@@ -106,25 +97,23 @@ describe('parsePlansPage（后端未定稿，字段名容错）', () => {
   })
 })
 
-describe('pickableMedicines（规则 C：无库存 / 已过期拦截，跨设备聚合）', () => {
+describe('pickableMedicines（规则 C：无库存拦截，跨设备聚合）', () => {
   const medicines = [
     { medicineId: 'm-ok', name: '正常药' },
-    { medicineId: 'm-expired', name: '过期药' },
+    { medicineId: 'm-nostock', name: '无库存药' },
     { medicineId: 'm-none', name: '无库存药' },
-    { medicineId: 'm-mixed', name: '一过期一正常' },
+    { medicineId: 'm-mixed', name: '一有库存一无库存' },
   ]
   const stocks = [
-    { medicineId: 'm-ok', expiryDate: dateOffset(60) },
-    { medicineId: 'm-expired', expiryDate: dateOffset(-5) },
-    { medicineId: 'm-mixed', expiryDate: dateOffset(-5) },
-    { medicineId: 'm-mixed', expiryDate: dateOffset(10) },
+    { medicineId: 'm-ok', quantity: 5 },
+    { medicineId: 'm-mixed', quantity: 3 },
   ]
 
-  it('有未过期库存 → 可选；全过期 → 拦截(expired)；无记录 → 拦截(no-stock)', () => {
+  it('有库存 → 可选；无库存 → 拦截(no-stock)', () => {
     const { selectable, blocked } = pickableMedicines(medicines, stocks)
     expect(selectable.map((s) => s.medicine.medicineId)).toEqual(['m-ok', 'm-mixed'])
     expect(blocked).toEqual([
-      { medicine: medicines[1], reason: 'expired' },
+      { medicine: medicines[1], reason: 'no-stock' },
       { medicine: medicines[2], reason: 'no-stock' },
     ])
   })
@@ -174,12 +163,6 @@ describe('文案与权限', () => {
     expect(syncStateLabel('')).toBe('')
   })
 
-  it('expiryTag 复用校验（规则 C 的底层判定）', () => {
-    expect(expiryTag(dateOffset(60)).state).toBe('ok')
-    expect(expiryTag(dateOffset(10)).state).toBe('expiring')
-    expect(expiryTag(dateOffset(-1)).state).toBe('expired')
-    expect(expiryTag('').state).toBe('unknown')
-  })
 })
 
 describe('next-doses 解析（feat/mp-plan-timeline）', () => {

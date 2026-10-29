@@ -61,8 +61,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 一律回退 {@code Asia/Shanghai}（用户确认不改表、复用 device.timezone）。
  *
  * <p><b>创建 / 修改的库存校验（06 约束②）</b>：每个 item 的药品必须存在（40401），
- * 且在该老人<b>任一</b>设备上有 {@code quantity > 0} 且未过期（{@code expiry_date >= 今日(本地)}）
- * 的库存，否则 40901；老人无任何设备 → 无库存 → 40901。
+ * 且在该老人<b>任一</b>设备上有 {@code quantity > 0} 的库存，否则 40901；老人无任何设备 → 无库存 → 40901。
  *
  * <p><b>本期只实现 DAILY</b>：{@code repeat_rule} 单 VARCHAR 列且 06 未列全，WEEKLY 等后续分支补。
  */
@@ -377,8 +376,8 @@ public class PlanService {
     // ———————————————— 内部：库存 / 过期校验 ————————————————
 
     /**
-     * 06 约束②：每个药品必须存在，且在该老人任一设备上有未过期库存（quantity>0 且
-     * expiry_date >= 今日本地）。无合格库存 → 40901；药品不存在 → 40401。
+     * 06 约束②：每个药品必须存在，且在该老人任一设备上有库存（quantity>0）。
+     * 无合格库存 → 40901；药品不存在 → 40401。
      */
     private void requireStockAvailable(String elderId, Set<String> medicineIds, ZoneId zone) {
         for (String medicineId : medicineIds) {
@@ -396,14 +395,13 @@ public class PlanService {
 
         Set<String> satisfied = new HashSet<>();
         for (MedicineStock stock : stocks) {
-            // expiry_date 为 null 视为"无法证明已过期"，放行（库存录入允许不填有效期）
-            if (stock.getExpiryDate() == null || !stock.getExpiryDate().isBefore(today)) {
+            if (stock.getQuantity() != null && stock.getQuantity() > 0) {
                 satisfied.add(stock.getMedicineId());
             }
         }
         for (String medicineId : medicineIds) {
             BizAssert.conflictIf(!satisfied.contains(medicineId),
-                    "药品无合格库存或已过期: " + medicineId);
+                    "药品无合格库存: " + medicineId);
         }
     }
 

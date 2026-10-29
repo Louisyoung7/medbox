@@ -1,18 +1,11 @@
 /**
  * 库存域纯函数（`feat/mp-stock`，对应 medbox-spec/02 第 5 章、06 的 2.5）。
  *
- * <p>只放与页面解耦的可单测逻辑：库存清单容错解析、药品 join、数量 / 临期文案、
+ * <p>只放与页面解耦的可单测逻辑：库存清单容错解析、药品 join、数量文案、
  * 录入与补药的请求体组装。
- *
- * <p>**临期判定复用 `utils/datetime.js` 的 `expiryState`**，不重复实现：阈值默认 30 天
- * （与 01 的抓拍保留等口径一致）；老人级 `alarm-settings` 提前期归 P1 `feat/mp-alarm`，
- * 上线后这里改成传老人配置即可，页面无感。
  */
 
-import { daysUntil, expiryState } from '@/utils/datetime.js'
 
-/** 临期标签阈值（天）：与 `datetime.expiryState` 默认值一致。 */
-const EXPIRING_THRESHOLD_DAYS = 30
 
 const text = (value) => (value == null ? '' : String(value).trim())
 
@@ -91,25 +84,6 @@ export function stockQuantityText(stock, medicineMap) {
   const row = joinStockMedicine(stock, medicineMap)
   const quantity = row.quantity == null || row.quantity === '' ? '-' : row.quantity
   return row.unit ? `库存 ${quantity} ${row.unit}` : `库存 ${quantity}`
-}
-
-/**
- * 临期 / 过期标签（复用 `datetime.expiryState`，默认 30 天阈值）。
- *
- * @param {string} [expiryDate] 有效期至（`YYYY-MM-DD`，DATE 列；为空 = 未填）
- * @returns {{state: 'expired'|'expiring'|'ok'|'unknown', text: string}}
- *   expired 已过期 / expiring N 天内临期 / ok 正常 / unknown 未填
- */
-export function expiryTag(expiryDate) {
-  const state = expiryState(expiryDate, EXPIRING_THRESHOLD_DAYS)
-  if (state === 'expired') return { state, text: '已过期' }
-  if (state === 'expiring') {
-    const days = daysUntil(expiryDate)
-    if (days != null && days <= 0) return { state, text: '今天到期' }
-    return { state, text: `${days} 天后过期` }
-  }
-  if (state === 'ok') return { state, text: '正常' }
-  return { state: 'unknown', text: '未填有效期' }
 }
 
 /**

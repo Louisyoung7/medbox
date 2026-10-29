@@ -95,9 +95,9 @@ class DeviceFaultServiceTest {
     }
 
     @Test
-    @DisplayName("type 非法（WRONG_DRUG 不属于设备故障码）：丢弃，零交互")
-    void wrongDrugTypeDropped() {
-        service.ingest(DEVICE, payload("WRONG_DRUG", "x", 1L));
+    @DisplayName("type 非法（MISS 不属于设备故障码）：丢弃，零交互")
+    void missTypeDropped() {
+        service.ingest(DEVICE, payload("MISS", "x", 1L));
 
         verifyNoInteractions(deviceMapper, deviceEventService, alarmMapper, wsPushService);
     }

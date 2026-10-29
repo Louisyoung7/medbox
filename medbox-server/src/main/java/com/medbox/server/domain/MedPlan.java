@@ -52,7 +52,7 @@ public class MedPlan {
     /** 漏服容忍（分钟），可空=沿用上一级。 */
     private Integer missAlarmAfterMin;
 
-    /** 告警规则，如 {"miss":true,"wrongDrug":false}。 */
+    /** 告警规则，如 {"miss":true,"env":true}。 */
     @TableField(typeHandler = AlarmRuleJsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
     private Map<String, Boolean> alarmRule;
 

@@ -138,7 +138,7 @@ import { getRole } from '@/store/user.js'
 
 /** 保存 / 删除失败文案按 code 细分（请求已 silent，统一自绘）。 */
 function actionErrorText(err, fallback) {
-  if (err && err.code === CODE.CONFLICT) return '药品无库存或已过期，不能加入计划'
+  if (err && err.code === CODE.CONFLICT) return '药品无库存，不能加入计划'
   if (err && err.code === CODE.FORBIDDEN) return '无权操作该计划'
   if (err && err.code === CODE.GUARDIAN_PENDING) return '监护关系未生效，请等待老人确认'
   return (err && err.message) || fallback
@@ -173,7 +173,7 @@ export default {
     }
   },
   computed: {
-    /** 药品 -> 拦截原因（'expired' | 'no-stock'）；库存没拉到时不拦截（规则 C 兜底）。 */
+    /** 药品 -> 拦截原因（'no-stock'）；库存没拉到时不拦截（规则 C 兜底）。 */
     blockedMap() {
       if (!this.stocksLoaded) return {}
       const { blocked } = pickableMedicines(this.medicines, this.stockRows)
@@ -277,7 +277,7 @@ export default {
       return this.form.items.some((item) => item.medicineId === medicineId)
     },
     blockedReasonText(medicineId) {
-      return this.blockedMap[medicineId] === 'expired' ? '已过期' : '无库存'
+      return '无库存'
     },
     onTimePicked(e) {
       const value = (e && e.detail && e.detail.value) || ''
@@ -299,10 +299,7 @@ export default {
     pickMedicine(medicine) {
       if (this.isBlocked(medicine.medicineId)) {
         uni.showToast({
-          title:
-            this.blockedMap[medicine.medicineId] === 'expired'
-              ? '该药品已过期，不能加入计划'
-              : '药箱暂无该药品库存',
+          title: '药箱暂无该药品库存',
           icon: 'none',
         })
         return

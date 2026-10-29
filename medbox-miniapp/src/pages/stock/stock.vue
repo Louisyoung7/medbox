@@ -26,13 +26,7 @@
         clickable
         arrow
         @click="goEdit(row)"
-      >
-        <template #extra>
-          <view class="tag" :class="`tag--${expiryTag(row.expiryDate).state}`">
-            <text class="tag__text">{{ expiryTag(row.expiryDate).text }}</text>
-          </view>
-        </template>
-      </MbCell>
+      />
     </MbCard>
 
     <view v-if="canWrite" class="entry">
@@ -53,7 +47,6 @@ import { listStocks } from '@/api/stock.js'
 import { CODE } from '@/api/request.js'
 import { parseMedicinePage } from '@/utils/medicine.js'
 import {
-  expiryTag,
   joinStockMedicine,
   parseStocks,
   stockQuantityText,
@@ -102,7 +95,6 @@ export default {
     if (this.loaded) this.load()
   },
   methods: {
-    expiryTag,
     async load() {
       if (!this.deviceId) {
         this.error = '缺少设备编号'
@@ -230,22 +222,6 @@ export default {
 
     .tag__text {
       color: $mb-primary;
-    }
-  }
-
-  &--expiring {
-    background: #fdf3e0;
-
-    .tag__text {
-      color: $mb-warning;
-    }
-  }
-
-  &--expired {
-    background: #fdecec;
-
-    .tag__text {
-      color: $mb-danger;
     }
   }
 

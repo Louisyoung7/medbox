@@ -71,7 +71,7 @@ CREATE TABLE medicine_stock (
     medicine_id     VARCHAR(64) NOT NULL,   -- -> medicine.medicine_id
     quantity        INT         DEFAULT 0,
     production_date DATE,
-    expiry_date     DATE,                   -- 过期判定唯一依据
+    expiry_date     DATE,                   -- 有效期（记录项；系统不再据其判定/预警过期）
     updated_at      TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (device_id, medicine_id)
 );
@@ -86,7 +86,7 @@ CREATE TABLE med_plan (
     times                JSONB NOT NULL,            -- ["08:00","20:00"] 设备本地墙钟时间
     repeat_rule          VARCHAR(16),               -- DAILY / WEEKLY ...
     miss_alarm_after_min INT,                       -- 漏服容忍（分钟），可空=沿用上一级
-    alarm_rule           JSONB,                     -- {miss,wrongDrug,expired,env}
+    alarm_rule           JSONB,                     -- {miss,env}
     status               VARCHAR(16) DEFAULT 'ENABLED',
     created_at           TIMESTAMPTZ DEFAULT NOW()
 );
@@ -120,7 +120,6 @@ CREATE TABLE med_record (
     plan_time    TIMESTAMPTZ,
     actual_time  TIMESTAMPTZ,
     on_time      BOOLEAN,               -- 是否按时
-    wrong_drug   BOOLEAN,               -- 是否错服
     device_id    VARCHAR(64),           -- -> device.device_id
     created_at   TIMESTAMPTZ DEFAULT NOW()
 );
@@ -147,8 +146,8 @@ CREATE TABLE alarm (
     elder_id     VARCHAR(64),           -- -> user.user_id (ELDER)
     device_id    VARCHAR(64),           -- -> device.device_id
     plan_id      VARCHAR(64),           -- 关联计划（ENV / DEVICE_OFFLINE 等可空）
-    medicine_id  VARCHAR(64),           -- 关联药品（MISS / WRONG_DRUG / EXPIRED 必带）
-    type         VARCHAR(24) NOT NULL,  -- MISS / WRONG_DRUG / EXPIRED / ENV / DEVICE_OFFLINE / DEVICE_FAULT
+    medicine_id  VARCHAR(64),           -- 关联药品（MISS 必带）
+    type         VARCHAR(24) NOT NULL,  -- MISS / ENV / DEVICE_OFFLINE / DEVICE_FAULT
     level        VARCHAR(16),           -- INFO / WARN / CRITICAL
     message      TEXT,
     read_state   BOOLEAN DEFAULT FALSE,
@@ -162,7 +161,6 @@ COMMENT ON TABLE alarm IS '告警；DEVICE_OFFLINE 仅主控产生，传感器�
 CREATE TABLE alarm_setting (
     id                  BIGSERIAL PRIMARY KEY,
     elder_id            VARCHAR(64) NOT NULL UNIQUE,  -- -> user.user_id (ELDER)
-    expiring_ahead_days INT,               -- 临期提前预警天数
     miss_tolerate_min   INT,               -- 漏服容忍时长
     env_threshold       JSONB,             -- {tempMin,tempMax,humiMin,humiMax,luxMax}
     updated_at          TIMESTAMPTZ DEFAULT NOW()
@@ -220,7 +218,7 @@ CREATE TABLE capture (
     elder_id     VARCHAR(64) NOT NULL,   -- -> user.user_id (ELDER)
     medicine_id  VARCHAR(64),            -- 抓拍涉及的药品（可空）
     plan_id      VARCHAR(64),            -- 关联计划（可空）
-    reason       VARCHAR(24) NOT NULL,   -- NORMAL / WRONG_DRUG / LOW_CONFIDENCE / MANUAL
+    reason       VARCHAR(24) NOT NULL,   -- NORMAL / LOW_CONFIDENCE / MANUAL
     file_path    VARCHAR(512) NOT NULL,  -- 服务端本地存储路径，不对外暴露
     mime         VARCHAR(32) DEFAULT 'image/jpeg',
     size_bytes   INT,

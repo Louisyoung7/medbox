@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * 环境超标判定与 ENV 告警配置（{@code medbox.alarm.env.*}，见文档 06 的 2.9 / 01 的 5.4）。
  *
- * <p>与 {@code medbox.alarm.miss.*} / {@code medbox.alarm.wrong-drug.*} 同一风格：可改的都进配置。
+ * <p>与 {@code medbox.alarm.miss.*} 同一风格：可改的都进配置。
  * 逃生开关 {@code medbox.alarm.env.enabled} 默认 true；CI / 排障可置 false 关掉整个环境判定。
  * 去重窗口 {@code dedup-window-minutes} 控制"同一传感器同一指标多久内只告警一次"。
  */

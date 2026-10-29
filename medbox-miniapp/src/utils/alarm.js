@@ -2,11 +2,11 @@
  * 告警 的纯函数 / 常量（medbox-spec/02 第 8 章、04 第 3 章；`feat/mp-alarm`）。
  *
  * <p>后端 `alarm-core`（列表 / 未读 / 已读 / 处理 / 阈值设置）已落地（07 P1，2026-10-26）；
- * 告警数据源 `miss-alarm` / `wrong-drug-alarm` / `env-alarm` 已落地，`alarm-device-offline` /
- * `stock-expiring` 在 07 仍为 `[ ]` 未落地——列表对缺类自动少该类，不报错。本文件按 02 / 04 契约为准。
+ * 告警数据源 `miss-alarm` / `env-alarm` 已落地，`alarm-device-offline` 在 07 仍为 `[ ]` 未落地
+ * ——列表对缺类自动少该类，不报错。本文件按 02 / 04 契约为准。
  *
  * <p>契约要点：
- * - 告警 `type` ∈ `MISS`(漏服) / `WRONG_DRUG`(错服) / `EXPIRED`(过期) / `ENV`(环境超标) /
+ * - 告警 `type` ∈ `MISS`(漏服) / `ENV`(环境超标) /
  *   `DEVICE_OFFLINE`(设备离线) / `DEVICE_FAULT`(设备故障)（02 第 8 章枚举）；
  * - 告警 `level` ∈ `INFO` / `WARN` / `CRITICAL`（04 第 3 章 ALARM 帧 `level`）；
  * - 列表 / 未读 / 已读 / 设置查询属 `READ_ALARM`（四角色可读）；`PATCH /alarms/{id}/handle`
@@ -22,18 +22,14 @@
 /** 告警类型枚举（02 第 8 章）。 */
 export const ALARM_TYPE = {
   MISS: 'MISS',
-  WRONG_DRUG: 'WRONG_DRUG',
-  EXPIRED: 'EXPIRED',
   ENV: 'ENV',
   DEVICE_OFFLINE: 'DEVICE_OFFLINE',
   DEVICE_FAULT: 'DEVICE_FAULT',
 }
 
-/** 告警类型中文标签（漏服 / 错服 / 过期 / 环境超标 / 设备离线 / 设备故障）。 */
+/** 告警类型中文标签（漏服 / 环境超标 / 设备离线 / 设备故障）。 */
 export const ALARM_TYPE_LABEL = {
   [ALARM_TYPE.MISS]: '漏服',
-  [ALARM_TYPE.WRONG_DRUG]: '错服',
-  [ALARM_TYPE.EXPIRED]: '临期过期',
   [ALARM_TYPE.ENV]: '环境超标',
   [ALARM_TYPE.DEVICE_OFFLINE]: '设备离线',
   [ALARM_TYPE.DEVICE_FAULT]: '设备故障',
@@ -57,8 +53,6 @@ export const ALARM_LEVEL_LABEL = {
 export const ALARM_TYPE_OPTIONS = [
   { value: 'ALL', label: '全部类型' },
   { value: ALARM_TYPE.MISS, label: ALARM_TYPE_LABEL[ALARM_TYPE.MISS] },
-  { value: ALARM_TYPE.WRONG_DRUG, label: ALARM_TYPE_LABEL[ALARM_TYPE.WRONG_DRUG] },
-  { value: ALARM_TYPE.EXPIRED, label: ALARM_TYPE_LABEL[ALARM_TYPE.EXPIRED] },
   { value: ALARM_TYPE.ENV, label: ALARM_TYPE_LABEL[ALARM_TYPE.ENV] },
   { value: ALARM_TYPE.DEVICE_OFFLINE, label: ALARM_TYPE_LABEL[ALARM_TYPE.DEVICE_OFFLINE] },
   { value: ALARM_TYPE.DEVICE_FAULT, label: ALARM_TYPE_LABEL[ALARM_TYPE.DEVICE_FAULT] },
@@ -94,9 +88,8 @@ export function alarmLevelLabel(level) {
 
 /** 告警类型着色类（CRITICAL 红 / WARN 橙 / 其余蓝）。 */
 export function alarmTypeClass(type) {
-  if (type === ALARM_TYPE.MISS || type === ALARM_TYPE.WRONG_DRUG) return 'alarm-type--critical'
+  if (type === ALARM_TYPE.MISS) return 'alarm-type--critical'
   if (type === ALARM_TYPE.DEVICE_OFFLINE || type === ALARM_TYPE.DEVICE_FAULT) return 'alarm-type--warn'
-  if (type === ALARM_TYPE.ENV || type === ALARM_TYPE.EXPIRED) return 'alarm-type--info'
   return 'alarm-type--info'
 }
 

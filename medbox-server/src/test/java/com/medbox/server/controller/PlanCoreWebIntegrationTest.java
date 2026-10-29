@@ -199,13 +199,13 @@ class PlanCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("创建：药品无合格库存 / 已过期 → 40901")
-    void 创建库存或过期() throws Exception {
+    @DisplayName("创建：药品无合格库存（quantity=0）→ 40901")
+    void 创建无库存() throws Exception {
         givenGuardianGuards(ELDER_ID);
         givenMainDevice(ELDER_ID, "Asia/Shanghai");
         givenMedicine("m-1001");
-        // 过期库存（expiry 在今日之前）：2026-10-21 上海本地今日 = 2026-10-21，expiry 2026-10-01 已过期
-        givenStock(ELDER_ID, "m-1001", 5, LocalDate.parse("2026-10-01"));
+        // 库存存在但 quantity=0（无合格库存）：仍 40901
+        givenStock(ELDER_ID, "m-1001", 0, LocalDate.parse("2026-10-01"));
 
         mockMvc.perform(post("/api/v1/plans")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
@@ -342,14 +342,14 @@ class PlanCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("修改：药品无合格库存 / 已过期 → 40901")
-    void 修改库存或过期() throws Exception {
+    @DisplayName("修改：药品无合格库存（quantity=0）→ 40901")
+    void 修改无合格库存() throws Exception {
         when(medPlanMapper.selectOne(any()))
                 .thenReturn(plan("p-1001", ELDER_ID));
         givenGuardianGuards(ELDER_ID);
         givenMainDevice(ELDER_ID, "Asia/Shanghai");
         givenMedicine("m-1001");
-        givenStock(ELDER_ID, "m-1001", 5, LocalDate.parse("2026-10-01")); // 过期
+        givenStock(ELDER_ID, "m-1001", 0, null); // 无合格库存
 
         mockMvc.perform(put("/api/v1/plans/{planId}", "p-1001")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
@@ -361,6 +361,27 @@ class PlanCoreWebIntegrationTest {
                 .andExpect(jsonPath("$.code").value(40901));
 
         verify(medPlanMapper, never()).updateById(any(MedPlan.class));
+    }
+
+    @Test
+    @DisplayName("修改：药品已过期（仍有合格库存）不再拦截 → 200")
+    void 修改已过期仍有库存放行() throws Exception {
+        when(medPlanMapper.selectOne(any()))
+                .thenReturn(plan("p-1001", ELDER_ID));
+        givenGuardianGuards(ELDER_ID);
+        givenMainDevice(ELDER_ID, "Asia/Shanghai");
+        givenMedicine("m-1001");
+        givenStock(ELDER_ID, "m-1001", 5, LocalDate.parse("2026-10-01")); // 过期但 quantity>0
+
+        mockMvc.perform(put("/api/v1/plans/{planId}", "p-1001")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"times":["08:00"],"items":[{"medicineId":"m-1001"}]}
+                                """))
+                .andExpect(status().isOk());
+
+        verify(medPlanMapper).updateById(any(MedPlan.class));
     }
 
     @Test

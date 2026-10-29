@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>只做参数绑定与 {@code R<T>} 包装：权限（读 {@code READ_ALARM} / 写
  * {@code WRITE_ALARM_SETTINGS}）+ 按老人 upsert 全在 {@link AlarmSettingService}。
  *
- * <p>两个端点：查询当前配置、upsert 配置（临期提前期 / 漏服容忍 / 环境上下限）。
+ * <p>两个端点：查询当前配置、upsert 配置（漏服容忍 / 环境上下限）。
  */
 @RestController
 @RequestMapping("/api/v1/alarm-settings")

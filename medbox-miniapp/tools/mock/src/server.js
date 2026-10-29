@@ -549,16 +549,7 @@ async function handleDeleteStock(req, res, deviceId, medicineId) {
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 
-/** 过期判定（06：`expiry_date` 为唯一依据；未填从宽不判过期）。 */
-function isExpiredDate(expiryDate) {
-  if (!expiryDate) return false
-  const expiry = new Date(`${expiryDate}T00:00:00Z`).getTime()
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
-  return expiry < today.getTime()
-}
-
-/** 药品在该老人药箱的库存状态：ok（有未过期库存）/ expired（有库存但全过期）/ no-stock。 */
+/** 药品在该老人药箱的库存状态：ok（有库存）/ no-stock（无任何库存行）。 */
 function medicineStockState(elderId, medicineId) {
   const deviceIds = state.devices
     .filter((d) => d.deviceType === 'MAIN' && d.elderId === elderId)
@@ -567,7 +558,7 @@ function medicineStockState(elderId, medicineId) {
     (s) => deviceIds.indexOf(s.deviceId) !== -1 && s.medicineId === medicineId,
   )
   if (!rows.length) return 'no-stock'
-  return rows.some((s) => !isExpiredDate(s.expiryDate)) ? 'ok' : 'expired'
+  return rows.some((s) => s.quantity != null && s.quantity > 0) ? 'ok' : 'no-stock'
 }
 
 function planAccess(user, plan) {
@@ -619,10 +610,7 @@ function requirePlanWrite(user, normalized) {
     if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
     const stockState = medicineStockState(normalized.elderId, item.medicineId)
     if (stockState !== 'ok') {
-      throw new BizError(
-        40901,
-        stockState === 'expired' ? `药品已过期: ${item.medicineId}` : `药箱暂无库存: ${item.medicineId}`,
-      )
+      throw new BizError(40901, `药箱暂无库存: ${item.medicineId}`)
     }
   })
 }
@@ -965,7 +953,6 @@ function buildRecordView(record) {
     planTime: record.planTime,
     actualTime: record.actualTime,
     onTime: !!record.onTime,
-    wrongDrug: !!record.wrongDrug,
     confirmedBy: record.confirmedBy || undefined,
     confirmedAt: record.confirmedAt || undefined,
     planName: (plan && plan.name) || '未命名计划',

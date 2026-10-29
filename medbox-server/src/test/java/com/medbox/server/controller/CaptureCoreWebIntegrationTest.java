@@ -215,7 +215,7 @@ class CaptureCoreWebIntegrationTest {
         MockMultipartFile file = new MockMultipartFile("file", "shot.jpg", "image/jpeg", "bytes".getBytes());
         return multipart("/api/v1/devices/" + deviceId + "/captures")
                 .file(file)
-                .param("reason", "WRONG_DRUG")
+                .param("reason", "LOW_CONFIDENCE")
                 .param("planId", "p-1")
                 .param("capturedAt", "2026-10-04T00:00:00Z")
                 .header("X-Device-Id", deviceId)
