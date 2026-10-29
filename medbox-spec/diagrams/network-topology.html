@@ -154,12 +154,6 @@
         <!-- backend <-> pg (JDBC) -->
         <path class="edge e-jdbc" data-from="backend" data-to="pg"
               d="M720,165 C800,165 820,212 900,212" marker-end="url(#arrow)" />
-        <!-- backend -> ocr (HTTP) -->
-        <path class="edge e-http" data-from="backend" data-to="ocr"
-              d="M720,195 C820,210 840,300 900,308" marker-end="url(#arrow)" />
-        <!-- backend -> ollama (HTTP) -->
-        <path class="edge e-http" data-from="backend" data-to="ollama"
-              d="M720,205 C840,250 860,370 900,398" marker-end="url(#arrow)" />
         <!-- backend -> cloudai (HTTPS 出网) -->
         <path class="edge e-net" data-from="backend" data-to="cloudai"
               d="M720,150 C840,120 880,92 900,92" marker-end="url(#arrow)" />
@@ -185,8 +179,6 @@
         <text class="elabel" x="510" y="700">WiFi 识别结果聚合</text>
         <text class="elabel" x="850" y="430">HTTP multipart 抓拍图片直传</text>
         <text class="elabel" x="810" y="190">JDBC :5432</text>
-        <text class="elabel" x="845" y="320">HTTP :8000 OCR</text>
-        <text class="elabel" x="855" y="430">HTTP :11434 Embedding</text>
         <text class="elabel" x="845" y="110">HTTPS 出网（大模型 Chat）</text>
         <text class="elabel" x="860" y="500">本地目录 /var/medbox/captures</text>
         <text class="elabel" x="300" y="335" style="font-size:9.5px;fill:#2563eb">HTTP REST（本期仅测试数据清理）</text>
@@ -228,22 +220,12 @@
         <g class="node n-external" id="cloudai" data-key="cloudai">
           <rect x="900" y="60" width="260" height="64" rx="10" />
           <text x="1030" y="88" text-anchor="middle">公网大模型 API</text>
-          <text class="sub" x="1030" y="108" text-anchor="middle">出网 · Chat 问答</text>
+          <text class="sub" x="1030" y="108" text-anchor="middle">出网 · Chat 调用</text>
         </g>
         <g class="node n-infra" id="pg" data-key="pg">
           <rect x="900" y="180" width="260" height="64" rx="10" />
-          <text x="1030" y="208" text-anchor="middle">PostgreSQL + pgvector</text>
-          <text class="sub" x="1030" y="228" text-anchor="middle">:5432 · 结构化 + 向量同库</text>
-        </g>
-        <g class="node n-infra" id="ocr" data-key="ocr">
-          <rect x="900" y="280" width="260" height="56" rx="10" />
-          <text x="1030" y="308" text-anchor="middle">本地 OCR 侧车</text>
-          <text class="sub" x="1030" y="326" text-anchor="middle">RapidOCR :8000 · 不出网</text>
-        </g>
-        <g class="node n-infra" id="ollama" data-key="ollama">
-          <rect x="900" y="370" width="260" height="56" rx="10" />
-          <text x="1030" y="398" text-anchor="middle">本地 Embedding</text>
-          <text class="sub" x="1030" y="416" text-anchor="middle">Ollama bge-m3 :11434</text>
+          <text x="1030" y="208" text-anchor="middle">PostgreSQL 17</text>
+          <text class="sub" x="1030" y="228" text-anchor="middle">:5432 · 结构化关系数据</text>
         </g>
         <g class="node n-infra" id="capture" data-key="capture">
           <rect x="900" y="460" width="260" height="56" rx="10" />
@@ -281,7 +263,7 @@
     <div class="row"><span class="dot" style="background:var(--client)"></span> 客户端（小程序 / Web 后台）</div>
     <div class="row"><span class="dot" style="background:var(--backend)"></span> Java 后端</div>
     <div class="row"><span class="dot" style="background:var(--broker)"></span> EMQX 消息中间件</div>
-    <div class="row"><span class="dot" style="background:var(--infra)"></span> 后端依赖（DB / AI / 存储）</div>
+    <div class="row"><span class="dot" style="background:var(--infra)"></span> 后端依赖（DB / 存储）</div>
     <div class="row"><span class="dot" style="background:var(--device)"></span> 设备 / 子设备</div>
     <div class="row"><span class="dot" style="background:var(--external)"></span> 公网（出网）</div>
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0" />
@@ -311,7 +293,7 @@
     elder: {
       title: "老人端小程序", tag: "client", tagText: "小程序端",
       rows: [["技术栈","uni-app（Vue3 + Vite）"],["角色","老人本人 · 近场使用者"],["地址","BASE_URL / WS_URL（仅两个，不配 MQTT_URL）"]],
-      points: ["查看本人服药计划、AI 问答、本地查看","只读本人数据，不直连 MQTT"]
+      points: ["查看本人服药计划、AI 洞察、本地查看","只读本人数据，不直连 MQTT"]
     },
     guardian: {
       title: "监护端小程序", tag: "client", tagText: "小程序端",
@@ -335,23 +317,13 @@
     },
     cloudai: {
       title: "公网大模型 API", tag: "external", tagText: "出网",
-      rows: [["用途","AI 药品问答（Chat 流式走 SSE）"],["方向","仅后端出网 HTTPS"],["依赖","监护人配置的大模型 API Key（AES 加密）"]],
-      points: ["OCR 与 Embedding 已本地化，不出网","属唯一必须写死的外网地址"]
+      rows: [["用途","AI 洞察（Chat）"],["方向","仅后端出网 HTTPS"],["依赖","监护人配置的大模型 API Key（AES 加密）"]],
+      points: ["洞察不落库、不自动执行（见 05）","属唯一必须写死的外网地址"]
     },
     pg: {
-      title: "PostgreSQL + pgvector", tag: "infra", tagText: "存储",
-      rows: [["端口",":5432"],["内容","15 张业务表 + 说明书向量同库"],["迁移","Flyway 自动建表（V1/V2）"]],
-      points: ["结构化数据与向量一并存放","CI 无 DB：测试期 SPRING_FLYWAY_ENABLED=false"]
-    },
-    ocr: {
-      title: "本地 OCR 侧车", tag: "infra", tagText: "本地 AI",
-      rows: [["地址","http://localhost:8000/ocr"],["实现","RapidOCR 本地服务"],["出网","否，无需 Key"]],
-      points: ["药品说明书识别在本地完成"]
-    },
-    ollama: {
-      title: "本地 Embedding", tag: "infra", tagText: "本地 AI",
-      rows: [["地址","http://localhost:11434"],["模型","bge-m3（维度 1024）"],["出网","否，无需 Key"]],
-      points: ["说明书向量化用于 RAG 检索"]
+      title: "PostgreSQL 17", tag: "infra", tagText: "存储",
+      rows: [["端口",":5432"],["内容","15 张关系数据表"],["迁移","Flyway 自动建表（V1/V2）"]],
+      points: ["结构化关系数据统一存放","CI 无 DB：测试期 SPRING_FLYWAY_ENABLED=false"]
     },
     capture: {
       title: "抓拍图片存储", tag: "infra", tagText: "存储",

@@ -129,7 +129,6 @@
         <!-- outbound 通信 -> 外部 -->
         <path class="edge e-mqtt" data-from="pkg-mqttout" data-to="ext-emqx" d="M480,680 C320,560 220,360 170,270" marker-end="url(#arrow)"/>
         <path class="edge e-ws" data-from="pkg-wspush" data-to="ext-miniapp" d="M820,680 C720,480 600,260 500,92" marker-end="url(#arrow)"/>
-        <path class="edge e-ai" data-from="pkg-ai" data-to="ext-localai" d="M1340,600 C1388,540 1388,60 1362,48" marker-end="url(#arrow)"/>
         <path class="edge e-net" data-from="pkg-ai" data-to="ext-cloudai" d="M1340,650 C1394,600 1394,130 1362,114" marker-end="url(#arrow)"/>
 
         <!-- 持久 -> 数据库 -->
@@ -155,10 +154,9 @@
         <text class="elabel" x="1095" y="640" style="font-size:9px">读写</text>
         <text class="elabel" x="455" y="530" style="font-size:9px">下发</text>
         <text class="elabel" x="845" y="530" style="font-size:9px">推送</text>
-        <text class="elabel" x="1195" y="530" style="font-size:9px">OCR</text>
+        <text class="elabel" x="1195" y="530" style="font-size:9px">洞察</text>
         <text class="elabel" x="305" y="470" style="font-size:9px;fill:#c2410c">down/# 发布</text>
         <text class="elabel" x="640" y="380" style="font-size:9px;fill:#7c3aed">WS 推送</text>
-        <text class="elabel" x="1372" y="420" transform="rotate(-90 1372 420)" style="font-size:9px;fill:#0d9488">OCR / Embedding</text>
         <text class="elabel" x="1372" y="280" transform="rotate(-90 1372 280)" style="font-size:9px;fill:#dc2626">Chat 出网</text>
         <text class="elabel" x="600" y="892" style="font-size:9px;fill:#16a34a">JDBC :5432</text>
       </g>
@@ -188,20 +186,15 @@
           <text class="sub" x="160" y="223" text-anchor="middle">设备⇄后端通道</text>
           <text class="sub" x="160" y="241" text-anchor="middle">Dashboard :18083</text>
         </g>
-        <g class="node n-ext" id="ext-localai" data-key="ext-localai">
-          <rect x="1080" y="16" width="280" height="58" rx="10"/>
-          <text x="1220" y="40" text-anchor="middle">本地 AI 侧车</text>
-          <text class="sub" x="1220" y="58" text-anchor="middle">OCR :8000 / Embedding :11434</text>
-        </g>
         <g class="node n-ext" id="ext-cloudai" data-key="ext-cloudai">
           <rect x="1080" y="82" width="280" height="58" rx="10"/>
           <text x="1220" y="106" text-anchor="middle">公网大模型 API</text>
-          <text class="sub" x="1220" y="124" text-anchor="middle">HTTPS 出网 · Chat 问答</text>
+          <text class="sub" x="1220" y="124" text-anchor="middle">HTTPS 出网 · Chat 调用</text>
         </g>
         <g class="node n-ext" id="ext-pg" data-key="ext-pg">
           <rect x="500" y="900" width="320" height="72" rx="10"/>
-          <text x="660" y="928" text-anchor="middle">PostgreSQL + pgvector</text>
-          <text class="sub" x="660" y="948" text-anchor="middle">:5432 · 结构化 + 向量同库</text>
+          <text x="660" y="928" text-anchor="middle">PostgreSQL 17</text>
+          <text class="sub" x="660" y="948" text-anchor="middle">:5432 · 结构化关系数据</text>
         </g>
 
         <!-- 接入层 -->
@@ -275,11 +268,11 @@
         <g class="node n-comm" id="pkg-ai" data-key="pkg-ai">
           <rect x="1000" y="540" width="340" height="140" rx="10"/>
           <text x="1170" y="568" text-anchor="middle">AI 集成</text>
-          <text class="sub" x="1170" y="588" text-anchor="middle">ai/</text>
-          <text class="sub" x="1170" y="606" text-anchor="middle">OcrClient(接口)</text>
-          <text class="sub" x="1170" y="624" text-anchor="middle">LocalOcrClient(实装)</text>
-          <text class="sub" x="1170" y="642" text-anchor="middle">CloudOcrClient(骨架)</text>
-          <text class="sub" x="1170" y="660" text-anchor="middle">按 provider 切换</text>
+          <text class="sub" x="1170" y="588" text-anchor="middle">ai/ · ChatClient(BYOK)</text>
+          <text class="sub" x="1170" y="606" text-anchor="middle">LlmConfig 注入（监护人代配）</text>
+          <text class="sub" x="1170" y="624" text-anchor="middle">结构化数据拼入 Prompt</text>
+          <text class="sub" x="1170" y="642" text-anchor="middle">返回自然语言洞察</text>
+          <text class="sub" x="1170" y="660" text-anchor="middle">仅出网 Chat，不落库</text>
         </g>
 
         <!-- 持久层 -->
@@ -290,7 +283,7 @@
           <text class="sub" x="560" y="792" text-anchor="middle">Device/Medicine/MedicineStock/</text>
           <text class="sub" x="560" y="810" text-anchor="middle">DeviceEvent/User/GuardianRelation/</text>
           <text class="sub" x="560" y="828" text-anchor="middle">RefreshToken/Idempotency/MqttMessage</text>
-          <text class="sub" x="560" y="846" text-anchor="middle" style="font-size:9px">db/ Flyway 迁移（V1 建表 / V2 向量索引）</text>
+          <text class="sub" x="560" y="846" text-anchor="middle" style="font-size:9px">db/ Flyway 迁移（V1 建表）</text>
         </g>
         <g class="node n-persist" id="pkg-domain" data-key="pkg-domain">
           <rect x="820" y="720" width="520" height="130" rx="10"/>
@@ -335,7 +328,7 @@
     <div class="row"><span class="swatch" style="background:#7c3aed"></span> WebSocket（入站/推送）</div>
     <div class="row"><span class="swatch" style="background:#ea580c"></span> MQTT（设备⇄后端）</div>
     <div class="row"><span class="swatch" style="background:#16a34a"></span> JDBC（MyBatis-Plus）</div>
-    <div class="row"><span class="swatch" style="background:#0d9488"></span> AI 本地调用</div>
+    <div class="row"><span class="swatch" style="background:#0d9488"></span> AI 集成（BYOK Chat）</div>
     <div class="row"><span class="swatch" style="background:#dc2626"></span> 出网 HTTPS（虚线）</div>
     <div class="row"><span class="swatch" style="background:#94a3b8"></span> 横切（虚线）</div>
   </div>
@@ -356,9 +349,9 @@
     "ext-admin": { title:"Web 管理后台（medbox-admin）", tag:"ext", tagText:"外部", rows:[["协议","HTTP REST → 后端"],["本期","feat/admin-testdata-cleanup（测试数据清理）"]], points:["独立 ADMIN 账号体系，不在小程序角色内","设备准入审核等运营职责后续在此承载","需后端放行 CORS 或 dev proxy"] },
     "ext-device": { title:"药箱设备（主控 MAIN）", tag:"ext", tagText:"外部", rows:[["协议","MQTT :1883（匿名）"],["clientId","= deviceId"]], points:["唯一 MQTT 客户端","摄像头识别经 WiFi 聚合后上报","传感器由主控转发"] },
     "ext-emqx": { title:"EMQX Broker", tag:"ext", tagText:"外部", rows:[["端口",":1883 / Dashboard :18083"],["Topic","medbox/{pk}/{deviceId}/up|down/#"]], points:["设备⇄后端消息总线","QoS1 + msgId 幂等；LWT 遗嘱","下行重发 5s×3（后端侧账本）"] },
-    "ext-localai": { title:"本地 AI 侧车", tag:"ext", tagText:"外部", rows:[["OCR",":8000 RapidOCR"],["Embedding",":11434 Ollama bge-m3"]], points:["本地化、不出网、无需 Key","说明书 OCR 与向量化"] },
-    "ext-cloudai": { title:"公网大模型 API", tag:"ext", tagText:"外部", rows:[["方向","仅后端出网 HTTPS"]], points:["AI 药品问答（Chat 流式 SSE）","Key 由监护人配置并 AES 加密"] },
-    "ext-pg": { title:"PostgreSQL + pgvector", tag:"ext", tagText:"外部", rows:[["端口",":5432"],["内容","15 表 + 说明书向量同库"]], points:["Flyway 自动迁移（V1/V2）","CI 测试期关闭 Flyway"] },
+
+    "ext-cloudai": { title:"公网大模型 API", tag:"ext", tagText:"外部", rows:[["方向","仅后端出网 HTTPS"]], points:["AI 洞察（Chat）","Key 由监护人配置并 AES 加密"] },
+    "ext-pg": { title:"PostgreSQL 17", tag:"ext", tagText:"外部", rows:[["端口",":5432"],["内容","15 张关系数据表"]], points:["Flyway 自动迁移（V1/V2）","CI 测试期关闭 Flyway"] },
 
     "pkg-controller": { title:"REST Controllers", tag:"in", tagText:"接入层", rows:[["包","controller/"],["前缀","/medbox/api/v1"]], points:["Auth/User/AdminUserController","Device/Medicine/MedicineStockController","Plan/Record/Alarm/AlarmSettingController","GuardianRelation/Capture/DevtoolsController","校验后委托 service，不写业务"] },
     "pkg-web": { title:"横切 Web（common/web）", tag:"in", tagText:"接入层", rows:[["包","common/web"]], points:["AuthInterceptor：JWT 校验","GlobalExceptionHandler：统一响应+错误码","TraceIdFilter：链路追踪"] },
@@ -371,9 +364,9 @@
 
     "pkg-mqttout": { title:"设备下行 / 状态（mqtt/ 出站）", tag:"comm", tagText:"通信集成", rows:[["包","mqtt/ 出站"],["出口","DownlinkPublisher（唯一）"]], points:["下行统一注入 msgId/needAck 信封","PendingAckRegistry：5s 超时重发×3","MqttTransport / MqttConnectionManager","DeviceStatusService / DeviceStatusChangeListener","DownlinkFailureListener（失败告警）"] },
     "pkg-wspush": { title:"实时推送（ws/ 推送）", tag:"comm", tagText:"通信集成", rows:[["包","ws/ 推送"],["出口","WsPushService（唯一）"]], points:["WsSessionManager：topic→session 倒排","WsEventBuffer：按主题 200条/10min","WsEventId / WsFrame / WsFrameType","WsSubscription / WsTopic","WsIdleSessionReaper：90s 空闲回收"] },
-    "pkg-ai": { title:"AI 集成（ai/）", tag:"comm", tagText:"通信集成", rows:[["包","ai/"],["切换","medbox.ocr.provider"]], points:["OcrClient 抽象接口","LocalOcrClient（实装：RapidOCR 侧车）","CloudOcrClient（骨架：云端 API）","OcrProperties / OcrException / AiConfig"] },
+    "pkg-ai": { title:"AI 集成（ai/）", tag:"comm", tagText:"通信集成", rows:[["包","ai/"],["客户端","ChatClient（BYOK）"],["配置","LlmConfig（监护人代配 Key）"]], points:["结构化数据拼入 Prompt","仅出网 Chat 调用，不落库","返回自然语言洞察（分析/预测/建议）","AiConfig / LlmConfig"] },
 
-    "pkg-mapper": { title:"Mapper 层（mapper/ + db/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"],["迁移","db/migration Flyway（V1 建表 / V2 向量索引）"]], points:["DeviceMapper / MedicineMapper","MedicineStockMapper / DeviceEventMapper","UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
+    "pkg-mapper": { title:"Mapper 层（mapper/ + db/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"],["迁移","db/migration Flyway（V1 建表）"]], points:["DeviceMapper / MedicineMapper","MedicineStockMapper / DeviceEventMapper","UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
     "pkg-domain": { title:"领域模型（domain/ + dto/）", tag:"persist", tagText:"持久层", rows:[["包","domain/ + enums/ + dto/"]], points:["Device / Medicine / MedicineStock","DeviceEvent / User / GuardianRelation","RefreshToken / IdempotencyRecord / MqttMessage","dto/：请求响应对象（入参 / 出参）","enums/：设备类型/告警类型/状态等枚举"] },
 
     "pkg-config": { title:"横切配置 / 异常", tag:"config", tagText:"横切", rows:[["包","config/ + common/exception"],["原则","通道细节收口、调用方零改动"]], points:["WebMvcConfig / MybatisPlusConfig","DeviceConfig / DeviceProperties","common/exception：BizException / BizAssert / ErrorCode","TraceContext（链路上下文）"] }
