@@ -139,11 +139,12 @@
 
         <!-- 页面层 -->
         <g class="node n-page" id="pages" data-key="pages">
-          <rect x="120" y="150" width="1160" height="120" rx="10"/>
-          <text x="700" y="180" text-anchor="middle">页面层（pages/ · 8 功能区 / 14 个 .vue）</text>
+          <rect x="120" y="150" width="1160" height="130" rx="10"/>
+          <text x="700" y="180" text-anchor="middle">页面层（pages/ · 11 功能区 / 22 个 .vue）</text>
           <text class="sub" x="700" y="202" text-anchor="middle">auth: login, register　|　index: index（首页）</text>
           <text class="sub" x="700" y="222" text-anchor="middle">device: device, detail　|　medicine: medicine, detail, edit</text>
-          <text class="sub" x="700" y="242" text-anchor="middle">plan: plan, edit　|　stock: stock, edit　|　profile: profile　|　record: record</text>
+          <text class="sub" x="700" y="242" text-anchor="middle">plan: plan, edit　|　stock: stock, edit　|　profile: profile</text>
+          <text class="sub" x="700" y="262" text-anchor="middle">record: record　|　alarm: alarm　|　guardian: guardian　|　devtools: devtools</text>
         </g>
 
         <!-- 组件层 -->
@@ -151,7 +152,7 @@
           <rect x="120" y="300" width="1160" height="100" rx="10"/>
           <text x="700" y="328" text-anchor="middle">通用 UI 组件层（components/）</text>
           <text class="sub" x="700" y="350" text-anchor="middle">纯展示：MbButton · MbCard · MbCell · MbField · MbEmpty · MbLoading · MbModal · MbNavbar · MbTabBar · PlanItemRow</text>
-          <text class="sub" x="700" y="372" text-anchor="middle">智能组件：WsStatusBar（订阅 store/ws）· RoleGate（角色门控，联动 utils/permission）</text>
+          <text class="sub" x="700" y="372" text-anchor="middle">智能组件：WsStatusBar（订阅 store/ws）· RoleGate（角色门控，联动 utils/permission）· AlarmRealtime（实时告警条）</text>
         </g>
 
         <!-- 状态/连接层 -->
@@ -165,10 +166,11 @@
 
         <!-- 接口层 -->
         <g class="node n-api" id="api" data-key="api">
-          <rect x="120" y="592" width="1160" height="120" rx="10"/>
+          <rect x="120" y="592" width="1160" height="140" rx="10"/>
           <text x="700" y="622" text-anchor="middle">接口层（api/）</text>
           <text class="sub" x="700" y="644" text-anchor="middle">request.js（统一出口：拼 BASE_URL · 注入 Bearer/X-Request-Id · 40101 续期重试 · loading）</text>
           <text class="sub" x="700" y="666" text-anchor="middle">业务 API：auth · user · device · medicine · plan · stock</text>
+          <text class="sub" x="700" y="688" text-anchor="middle">新增：alarm · guardian · devtools（共 10 个领域 API）</text>
         </g>
 
         <!-- 工具层 -->
@@ -239,10 +241,10 @@
 <script>
   const INFO = {
     "fw": { title:"uni-app 框架层（运行期）", tag:"fw", tagText:"框架", rows:[["构建","Vite + uni-app + Vue3"],["路由","pages.json 注册，无框架级守卫"]], points:["App.vue.onLaunch：setupAuth() 装机 + WsStatusBar 起连","main.js：入口与全局样式","pages.json：页面路由表 / TabBar","manifest.json：各端应用配置","uni.scss：主题变量（$mb-*）","index.html / vite.config.js：H5 与构建配置"] },
-    "pages": { title:"页面层（pages/）", tag:"page", tagText:"页面", rows:[["结构","8 功能区 / 14 个 .vue"],["注册","pages.json"]], points:["auth: login.vue, register.vue","index: index.vue（首页 / 设备概览）","device: device.vue, detail.vue","medicine: medicine.vue, detail.vue, edit.vue","plan: plan.vue, edit.vue","stock: stock.vue, edit.vue","profile: profile.vue","record: record.vue"] },
-    "comp": { title:"通用 UI 组件层（components/）", tag:"comp", tagText:"组件", rows:[["库","Mb* 通用组件"],["智能组件","2 个依赖 store/utils"]], points:["纯展示：MbButton / MbCard / MbCell / MbField","MbEmpty / MbLoading / MbModal / MbNavbar","MbTabBar / PlanItemRow","智能：WsStatusBar（订阅 store/ws 状态条）","智能：RoleGate（联动 utils/permission 角色门控）","页面一律复用，禁止各页重复造 UI"] },
-    "store": { title:"状态与连接层（store/）", tag:"store", tagText:"状态", rows:[["形态","自研 JS 模块式（无 Pinia）"],["约束","token 唯一读写，避免半登录态"]], points:["token.js：access/refresh token 本地唯一读写","auth.js：login/register/logout/refreshAuth/setupAuth 编排","user.js：用户资料缓存 + ROLE(ELDER/GUARDIAN)","guard.js：uni.addInterceptor 路由白名单拦截","ws.js：WebSocket 单例（连接/30s 心跳/指数退避重连/按 type 分发）","auth↔ws 为调用时引用，ESM 活绑定，安全"] },
-    "api": { title:"接口层（api/）", tag:"api", tagText:"接口", rows:[["出口","request.js 唯一"],["业务","6 个领域 API"]], points:["request.js：拼 BASE_URL、注入 Bearer/X-Request-Id","40101 → auth.handleUnauthorized 续期并重发原请求","统一拆 code/message/data、分流错误码、loading 并发计数","业务 API：auth / user / device / medicine / plan / stock","页面/模块一律走这里，不直接 uni.request"] },
+    "pages": { title:"页面层（pages/）", tag:"page", tagText:"页面", rows:[["结构","11 功能区 / 22 个 .vue"],["注册","pages.json"]], points:["auth: login.vue, register.vue","index: index.vue（首页 / 设备概览）","device: device.vue, detail.vue","medicine: medicine.vue, detail.vue, edit.vue","plan: plan.vue, edit.vue","stock: stock.vue, edit.vue","profile: profile.vue","record: record.vue","alarm: alarm.vue（实时告警）","guardian: guardian.vue（监护关系）","devtools: devtools.vue（开发联调）"] },
+    "comp": { title:"通用 UI 组件层（components/）", tag:"comp", tagText:"组件", rows:[["库","Mb* 通用组件"],["智能组件","3 个依赖 store/utils"]], points:["纯展示：MbButton / MbCard / MbCell / MbField","MbEmpty / MbLoading / MbModal / MbNavbar","MbTabBar / PlanItemRow","智能：WsStatusBar（订阅 store/ws 状态条）","智能：RoleGate（联动 utils/permission 角色门控）","智能：AlarmRealtime（实时告警条）","页面一律复用，禁止各页重复造 UI"] },
+    "store": { title:"状态与连接层（store/）", tag:"store", tagText:"状态", rows:[["形态","自研 JS 模块式（无 Pinia）"],["约束","token 唯一读写，避免半登录态"]], points:["token.js：access/refresh token 本地唯一读写","auth.js：login/register/logout/refreshAuth/setupAuth 编排","user.js：用户资料缓存 + ROLE(ELDER/GUARDIAN 统一单一角色)","guard.js：uni.addInterceptor 路由白名单拦截","ws.js：WebSocket 单例（连接/30s 心跳/指数退避重连/按 type 分发）","auth↔ws 为调用时引用，ESM 活绑定，安全"] },
+    "api": { title:"接口层（api/）", tag:"api", tagText:"接口", rows:[["出口","request.js 唯一"],["业务","10 个领域 API"]], points:["request.js：拼 BASE_URL、注入 Bearer/X-Request-Id","40101 → auth.handleUnauthorized 续期并重发原请求","统一拆 code/message/data、分流错误码、loading 并发计数","业务 API：auth / user / device / medicine / plan / stock","新增：alarm / guardian / devtools","页面/模块一律走这里，不直接 uni.request"] },
     "utils": { title:"工具层（utils/）", tag:"util", tagText:"工具", rows:[["性质","纯函数"],["复用","被各层引用"]], points:["ws-frame.js：帧解析 / 分类（PONG/业务/RESYNC）","error.js：ApiError 与 CODE 错误码表","uuid.js：X-Request-Id 生成","permission.js：ENTRY_ROLES 入口角色表","datetime / device-status / plan / medicine / stock"] },
     "config": { title:"配置层（config/）", tag:"config", tagText:"配置", rows:[["原则","禁在页面写死 IP"],["扩展","运行时改服务器地址"]], points:["index.js：BASE_URL / WS_URL 统一出口","setServerHost / clearServerHost（真机调试改 IP）","tabbar.js：底部栏配置","无 MQTT_URL：小程序不直连设备，消息经后端中转"] },
     "ext-rest": { title:"后端 REST 接口", tag:"ext", tagText:"外部", rows:[["地址",":8080 /medbox/api/v1"],["协议","HTTP JSON（code/message/data）"]], points:["业务请求唯一出站点（api/request.js）","40101 触发本地续期重试","无 CORS：H5 联调靠 Vite 反代"] },

@@ -166,6 +166,9 @@
         <!-- backend -> capture (local dir) -->
         <path class="edge e-storage" data-from="backend" data-to="capture"
               d="M720,215 C840,280 860,460 900,488" marker-end="url(#arrow)" />
+        <!-- admin <-> backend (HTTP REST) -->
+        <path class="edge e-http" data-from="admin" data-to="backend"
+              d="M165,356 C260,360 360,300 470,200" marker-end="url(#arrow)" />
         <!-- sub-device dashed (no MQTT) -->
         <path class="edge edash" data-from="th" data-to="main"
               d="M420,628 C360,640 330,650 320,668" />
@@ -186,6 +189,7 @@
         <text class="elabel" x="855" y="430">HTTP :11434 Embedding</text>
         <text class="elabel" x="845" y="110">HTTPS 出网（大模型 Chat）</text>
         <text class="elabel" x="860" y="500">本地目录 /var/medbox/captures</text>
+        <text class="elabel" x="300" y="335" style="font-size:9.5px;fill:#2563eb">HTTP REST（本期仅测试数据清理）</text>
         <text class="elabel" x="375" y="650" style="font-size:9.5px;fill:#94a3b8">子设备（无 MQTT 连接，主控转发）</text>
       </g>
 
@@ -199,7 +203,12 @@
         <g class="node n-client" id="guardian" data-key="guardian">
           <rect x="60" y="190" width="210" height="66" rx="10" />
           <text x="165" y="218" text-anchor="middle">监护端小程序</text>
-          <text class="sub" x="165" y="238" text-anchor="middle">子女 / 护理 / 家庭医生</text>
+          <text class="sub" x="165" y="238" text-anchor="middle">GUARDIAN（统一单一角色）</text>
+        </g>
+        <g class="node n-client" id="admin" data-key="admin">
+          <rect x="60" y="290" width="210" height="66" rx="10" />
+          <text x="165" y="318" text-anchor="middle">Web 管理后台</text>
+          <text class="sub" x="165" y="338" text-anchor="middle">medbox-admin · 测试数据清理</text>
         </g>
 
         <g class="node n-backend" id="backend" data-key="backend">
@@ -246,7 +255,7 @@
           <rect x="120" y="620" width="250" height="86" rx="10" />
           <text x="245" y="652" text-anchor="middle">药箱主控（单片机）</text>
           <text class="sub" x="245" y="672" text-anchor="middle">MAIN · 唯一 MQTT 连接</text>
-          <text class="sub" x="245" y="690" text-anchor="middle">聚合 / 打时间戳 / 蜂鸣</text>
+          <text class="sub" x="245" y="690" text-anchor="middle">聚合 / 到点解锁对应格 / 蜂鸣</text>
         </g>
         <g class="node n-device" id="th" data-key="th">
           <rect x="420" y="600" width="190" height="56" rx="10" />
@@ -269,7 +278,7 @@
 
   <div class="legend">
     <h3>图例</h3>
-    <div class="row"><span class="dot" style="background:var(--client)"></span> 小程序端（客户端）</div>
+    <div class="row"><span class="dot" style="background:var(--client)"></span> 客户端（小程序 / Web 后台）</div>
     <div class="row"><span class="dot" style="background:var(--backend)"></span> Java 后端</div>
     <div class="row"><span class="dot" style="background:var(--broker)"></span> EMQX 消息中间件</div>
     <div class="row"><span class="dot" style="background:var(--infra)"></span> 后端依赖（DB / AI / 存储）</div>
@@ -294,7 +303,7 @@
 </div>
 
 <footer>
-  数据来源：medbox-spec/01（系统架构与部署）、03（MQTT 协议）、04（WebSocket 协议）。本页为只读可视化，权威口径以文档为准。
+  数据来源：medbox-spec/01（系统架构与部署）、03（MQTT 协议）、04（WebSocket 协议）、10（产品形态调整方案）。本页为只读可视化，权威口径以文档为准。
 </footer>
 
 <script>
@@ -306,13 +315,18 @@
     },
     guardian: {
       title: "监护端小程序", tag: "client", tagText: "小程序端",
-      rows: [["角色","监护人 / 子女 / 社区护理 / 家庭医生"],["协议","HTTP REST + WebSocket(:8080/medbox/ws)"],["鉴权","JWT 握手 + elder:{elderId} 主题归属校验"]],
-      points: ["接收告警、查看全部数据、配置计划与阈值","为老人配置大模型 API Key"]
+      rows: [["角色","GUARDIAN（统一单一角色，含子女/护理/医生）"],["协议","HTTP REST + WebSocket(:8080/medbox/ws)"],["鉴权","JWT 握手 + elder:{elderId} 主题归属校验"]],
+      points: ["接收告警、查看全部数据、配置计划与阈值","为老人配置大模型 API Key","不再区分家属/医生/护理形态（见文档 10）"]
+    },
+    admin: {
+      title: "Web 管理后台（medbox-admin）", tag: "client", tagText: "管理后台",
+      rows: [["技术栈","Vite + Web（本期 feat/admin-testdata-cleanup）"],["协议","HTTP REST → 后端 :8080"],["账号","独立 ADMIN 账号体系，不在小程序角色内"]],
+      points: ["本期仅「测试数据清理」dev/QA 工具","设备准入审核等运营职责后续在此承载","需后端放行 CORS 或用 dev proxy"]
     },
     backend: {
       title: "Java 后端", tag: "backend", tagText: "服务端",
       rows: [["技术栈","Spring Boot 4 + Java 21 + Gradle"],["端口",":8080（REST /medbox/api/v1 + WS /medbox/ws）"],["职责","落库、漏服/环境阈值判定、下行中转"]],
-      points: ["订阅 EMQX up/# 消费上报","经 WebSocket 推送告警与状态","转 REST 计划/命令为 MQTT 下行"]
+      points: ["订阅 EMQX up/# 消费上报","经 WebSocket 推送告警与状态","下发计划配置（首次全量 + 变更增量），不实时驱动提醒","据摄像头已服事件统计服药/漏服，按监护人录入量扣减库存"]
     },
     emqx: {
       title: "EMQX MQTT Broker", tag: "broker", tagText: "消息中间件",
@@ -361,8 +375,8 @@
     },
     cam: {
       title: "摄像头", tag: "device", tagText: "设备",
-      rows: [["职责","识别推理 + 全量抓拍"],["链路","识别结果→WiFi→单片机；图片→HTTP 直传"],["不直连","既不连 EMQX，也不参与判定"]],
-      points: ["图片走 HTTP multipart，不过单片机","每事件仅保留 1 张代表图"]
+      rows: [["职责","端侧人脸识别 + 全量抓拍原图"],["链路","识别结果→WiFi→单片机；原图+置信度+结论→HTTP 直传"],["不直连","既不连 EMQX，也不参与判定"]],
+      points: ["图片走 HTTP multipart，不过单片机","自报置信度低于阈值标记待确认","后端不运行图像识别（见文档 10）"]
     }
   };
 

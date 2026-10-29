@@ -100,6 +100,7 @@
       <g id="edges">
         <!-- inbound -->
         <path class="edge e-http" data-from="ext-miniapp" data-to="pkg-controller" d="M470,92 C540,110 600,140 720,150" marker-end="url(#arrow)"/>
+        <path class="edge e-http" data-from="ext-admin" data-to="pkg-controller" d="M720,92 C760,108 760,128 760,150" marker-end="url(#arrow)"/>
         <path class="edge e-ws" data-from="ext-miniapp" data-to="pkg-wsapi" d="M520,92 C760,110 980,140 1180,150" marker-end="url(#arrow)"/>
         <path class="edge e-mqtt" data-from="ext-device" data-to="ext-emqx" d="M160,100 L160,150" marker-end="url(#arrow)"/>
         <path class="edge e-mqtt" data-from="ext-emqx" data-to="pkg-mqttin" d="M160,270 L470,270" marker-end="url(#arrow)"/>
@@ -142,6 +143,7 @@
       <!-- ============ EDGE LABELS ============ -->
       <g id="elabels">
         <text class="elabel" x="600" y="118">HTTP REST</text>
+        <text class="elabel" x="735" y="118" style="font-size:9px">Web 后台 REST</text>
         <text class="elabel" x="860" y="120">WebSocket</text>
         <text class="elabel" x="160" y="128">MQTT :1883</text>
         <text class="elabel" x="315" y="262">up/# 订阅</text>
@@ -168,6 +170,11 @@
           <rect x="350" y="20" width="240" height="72" rx="10"/>
           <text x="470" y="48" text-anchor="middle">小程序端</text>
           <text class="sub" x="470" y="68" text-anchor="middle">REST / WebSocket 客户端</text>
+        </g>
+        <g class="node n-ext" id="ext-admin" data-key="ext-admin">
+          <rect x="600" y="20" width="240" height="72" rx="10"/>
+          <text x="720" y="48" text-anchor="middle">Web 管理后台</text>
+          <text class="sub" x="720" y="68" text-anchor="middle">medbox-admin · REST 客户端</text>
         </g>
         <g class="node n-ext" id="ext-device" data-key="ext-device">
           <rect x="40" y="20" width="240" height="80" rx="10"/>
@@ -206,11 +213,13 @@
           <text class="sub" x="470" y="236" text-anchor="middle">Up/Ack Handler</text>
         </g>
         <g class="node n-in" id="pkg-controller" data-key="pkg-controller">
-          <rect x="640" y="150" width="240" height="120" rx="10"/>
+          <rect x="640" y="150" width="240" height="130" rx="10"/>
           <text x="760" y="180" text-anchor="middle">REST Controllers</text>
-          <text class="sub" x="760" y="200" text-anchor="middle">controller/</text>
-          <text class="sub" x="760" y="218" text-anchor="middle">Auth/User/Device/</text>
-          <text class="sub" x="760" y="236" text-anchor="middle">Medicine/Stock</text>
+          <text class="sub" x="760" y="200" text-anchor="middle" style="font-size:9px">controller/</text>
+          <text class="sub" x="760" y="218" text-anchor="middle" style="font-size:9px">Auth/User/AdminUser</text>
+          <text class="sub" x="760" y="236" text-anchor="middle" style="font-size:9px">Device/Medicine/MedicineStock/Plan</text>
+          <text class="sub" x="760" y="254" text-anchor="middle" style="font-size:9px">Record/Alarm/AlarmSetting/GuardianRel</text>
+          <text class="sub" x="760" y="272" text-anchor="middle" style="font-size:9px">Capture/Devtools</text>
         </g>
         <g class="node n-in" id="pkg-web" data-key="pkg-web">
           <rect x="900" y="150" width="160" height="120" rx="10"/>
@@ -231,16 +240,17 @@
         <g class="node n-sec" id="pkg-sec" data-key="pkg-sec">
           <rect x="320" y="300" width="1020" height="80" rx="10"/>
           <text x="830" y="330" text-anchor="middle">安全与鉴权</text>
-          <text class="sub" x="830" y="352" text-anchor="middle">common/security + AccessService · JWT · AuthContext · RBAC+数据归属双重校验</text>
+          <text class="sub" x="830" y="352" text-anchor="middle">common/security + AccessService · JWT · AuthContext · RBAC+数据归属双重校验（GUARDIAN 统一单一角色）</text>
         </g>
 
         <!-- 业务层 -->
         <g class="node n-svc" id="pkg-svc" data-key="pkg-svc">
-          <rect x="320" y="400" width="1020" height="110" rx="10"/>
+          <rect x="320" y="400" width="1020" height="130" rx="10"/>
           <text x="830" y="432" text-anchor="middle">业务服务层</text>
           <text class="sub" x="830" y="454" text-anchor="middle">service/ · Auth/User/RefreshToken · Device/DeviceEvent</text>
-          <text class="sub" x="830" y="472" text-anchor="middle">Medicine/MedicineStock · Idempotency</text>
-          <text class="sub" x="830" y="490" text-anchor="middle">OwnerResolverImpl · DeviceStatusEventBridge</text>
+          <text class="sub" x="830" y="472" text-anchor="middle">Medicine/MedicineStock · Plan/Record/Alarm/AlarmSetting</text>
+          <text class="sub" x="830" y="490" text-anchor="middle">GuardianRelation/Capture · Idempotency</text>
+          <text class="sub" x="830" y="508" text-anchor="middle">OwnerResolverImpl · DeviceStatusEventBridge · Devtools*</text>
         </g>
 
         <!-- 通信 / 集成层 -->
@@ -280,6 +290,7 @@
           <text class="sub" x="560" y="792" text-anchor="middle">Device/Medicine/MedicineStock/</text>
           <text class="sub" x="560" y="810" text-anchor="middle">DeviceEvent/User/GuardianRelation/</text>
           <text class="sub" x="560" y="828" text-anchor="middle">RefreshToken/Idempotency/MqttMessage</text>
+          <text class="sub" x="560" y="846" text-anchor="middle" style="font-size:9px">db/ Flyway 迁移（V1 建表 / V2 向量索引）</text>
         </g>
         <g class="node n-persist" id="pkg-domain" data-key="pkg-domain">
           <rect x="820" y="720" width="520" height="130" rx="10"/>
@@ -288,6 +299,7 @@
           <text class="sub" x="1080" y="792" text-anchor="middle">Device · Medicine · MedicineStock</text>
           <text class="sub" x="1080" y="810" text-anchor="middle">DeviceEvent · User · GuardianRelation</text>
           <text class="sub" x="1080" y="828" text-anchor="middle">RefreshToken · Idempotency · MqttMessage</text>
+          <text class="sub" x="1080" y="846" text-anchor="middle" style="font-size:9px">dto/ 请求响应对象（入参 / 出参）</text>
         </g>
 
         <!-- 横切配置 -->
@@ -335,33 +347,34 @@
 </div>
 
 <footer>
-  数据来源：medbox-server 源码包结构（controller / service / mqtt / ws / ai / mapper / domain / common / config）。本页为只读可视化，权威口径以代码与 medbox-spec 文档为准。
+  数据来源：medbox-server 源码包结构（controller / service / mqtt / ws / ai / mapper / domain / dto / db / devtools / common / config）。本页为只读可视化，权威口径以代码与 medbox-spec 文档为准。标注 * 的 Devtools 为开发联调工具包（DevtoolsController + MqttSim + Seed）。
 </footer>
 
 <script>
   const INFO = {
     "ext-miniapp": { title:"小程序端", tag:"ext", tagText:"外部", rows:[["协议","HTTP REST + WebSocket"]], points:["BASE_URL=/medbox/api/v1","WS_URL=/medbox/ws","不直接连 MQTT"] },
+    "ext-admin": { title:"Web 管理后台（medbox-admin）", tag:"ext", tagText:"外部", rows:[["协议","HTTP REST → 后端"],["本期","feat/admin-testdata-cleanup（测试数据清理）"]], points:["独立 ADMIN 账号体系，不在小程序角色内","设备准入审核等运营职责后续在此承载","需后端放行 CORS 或 dev proxy"] },
     "ext-device": { title:"药箱设备（主控 MAIN）", tag:"ext", tagText:"外部", rows:[["协议","MQTT :1883（匿名）"],["clientId","= deviceId"]], points:["唯一 MQTT 客户端","摄像头识别经 WiFi 聚合后上报","传感器由主控转发"] },
     "ext-emqx": { title:"EMQX Broker", tag:"ext", tagText:"外部", rows:[["端口",":1883 / Dashboard :18083"],["Topic","medbox/{pk}/{deviceId}/up|down/#"]], points:["设备⇄后端消息总线","QoS1 + msgId 幂等；LWT 遗嘱","下行重发 5s×3（后端侧账本）"] },
     "ext-localai": { title:"本地 AI 侧车", tag:"ext", tagText:"外部", rows:[["OCR",":8000 RapidOCR"],["Embedding",":11434 Ollama bge-m3"]], points:["本地化、不出网、无需 Key","说明书 OCR 与向量化"] },
     "ext-cloudai": { title:"公网大模型 API", tag:"ext", tagText:"外部", rows:[["方向","仅后端出网 HTTPS"]], points:["AI 药品问答（Chat 流式 SSE）","Key 由监护人配置并 AES 加密"] },
     "ext-pg": { title:"PostgreSQL + pgvector", tag:"ext", tagText:"外部", rows:[["端口",":5432"],["内容","15 表 + 说明书向量同库"]], points:["Flyway 自动迁移（V1/V2）","CI 测试期关闭 Flyway"] },
 
-    "pkg-controller": { title:"REST Controllers", tag:"in", tagText:"接入层", rows:[["包","controller/"],["前缀","/medbox/api/v1"]], points:["AuthController / UserController","DeviceController / MedicineController","MedicineStockController","校验后委托 service，不写业务"] },
+    "pkg-controller": { title:"REST Controllers", tag:"in", tagText:"接入层", rows:[["包","controller/"],["前缀","/medbox/api/v1"]], points:["Auth/User/AdminUserController","Device/Medicine/MedicineStockController","Plan/Record/Alarm/AlarmSettingController","GuardianRelation/Capture/DevtoolsController","校验后委托 service，不写业务"] },
     "pkg-web": { title:"横切 Web（common/web）", tag:"in", tagText:"接入层", rows:[["包","common/web"]], points:["AuthInterceptor：JWT 校验","GlobalExceptionHandler：统一响应+错误码","TraceIdFilter：链路追踪"] },
     "pkg-wsapi": { title:"WebSocket 接入（ws/）", tag:"in", tagText:"接入层", rows:[["包","ws/ 接入部分"],["端点","/medbox/ws?token=&topics="]], points:["MedboxWebSocketHandler：连接/心跳/补推","WsHandshakeInterceptor：握手鉴权","WsConfig / WsDebugController（默认不装配）"] },
     "pkg-mqttin": { title:"MQTT 入站网关（mqtt/）", tag:"in", tagText:"接入层", rows:[["包","mqtt/ 入站"],["订阅","up/#"]], points:["MqttInboundGateway 消费上报","MqttMessageDeduplicator 按 msgId 去重","UpMessageHandler / AckUpMessageHandler","LoggingUpMessageHandler"] },
 
     "pkg-sec": { title:"安全与鉴权", tag:"sec", tagText:"安全层", rows:[["包","common/security + service/AccessService"]], points:["JwtProvider / JwtPayload / TokenType","AuthContext / AccessIdentity","Permission / PasswordHasher","DeviceOwnerResolver：设备归属解析","AccessService：RBAC + 数据归属双重校验（可见老人集合）"] },
 
-    "pkg-svc": { title:"业务服务层（service/）", tag:"svc", tagText:"业务层", rows:[["包","service/"]], points:["AuthService / UserService / RefreshTokenService","DeviceService / DeviceEventService","MedicineService / MedicineStockService","IdempotencyService（幂等）","DeviceOwnerResolverImpl / DeviceStatusEventBridge（状态→WS 桥接）"] },
+    "pkg-svc": { title:"业务服务层（service/）", tag:"svc", tagText:"业务层", rows:[["包","service/"]], points:["AuthService / UserService / RefreshTokenService","DeviceService / DeviceEventService","MedicineService / MedicineStockService","PlanService / RecordService / AlarmService / AlarmSettingService","GuardianRelationService / CaptureService","IdempotencyService / DevtoolsMqttSimService / DevtoolsSeedService","DeviceOwnerResolverImpl / DeviceStatusEventBridge（状态→WS 桥接）"] },
 
     "pkg-mqttout": { title:"设备下行 / 状态（mqtt/ 出站）", tag:"comm", tagText:"通信集成", rows:[["包","mqtt/ 出站"],["出口","DownlinkPublisher（唯一）"]], points:["下行统一注入 msgId/needAck 信封","PendingAckRegistry：5s 超时重发×3","MqttTransport / MqttConnectionManager","DeviceStatusService / DeviceStatusChangeListener","DownlinkFailureListener（失败告警）"] },
     "pkg-wspush": { title:"实时推送（ws/ 推送）", tag:"comm", tagText:"通信集成", rows:[["包","ws/ 推送"],["出口","WsPushService（唯一）"]], points:["WsSessionManager：topic→session 倒排","WsEventBuffer：按主题 200条/10min","WsEventId / WsFrame / WsFrameType","WsSubscription / WsTopic","WsIdleSessionReaper：90s 空闲回收"] },
     "pkg-ai": { title:"AI 集成（ai/）", tag:"comm", tagText:"通信集成", rows:[["包","ai/"],["切换","medbox.ocr.provider"]], points:["OcrClient 抽象接口","LocalOcrClient（实装：RapidOCR 侧车）","CloudOcrClient（骨架：云端 API）","OcrProperties / OcrException / AiConfig"] },
 
-    "pkg-mapper": { title:"Mapper 层（mapper/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"]], points:["DeviceMapper / MedicineMapper","MedicineStockMapper / DeviceEventMapper","UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
-    "pkg-domain": { title:"领域模型（domain/）", tag:"persist", tagText:"持久层", rows:[["包","domain/ + enums/"]], points:["Device / Medicine / MedicineStock","DeviceEvent / User / GuardianRelation","RefreshToken / IdempotencyRecord / MqttMessage","enums/：设备类型/告警类型/状态等枚举"] },
+    "pkg-mapper": { title:"Mapper 层（mapper/ + db/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"],["迁移","db/migration Flyway（V1 建表 / V2 向量索引）"]], points:["DeviceMapper / MedicineMapper","MedicineStockMapper / DeviceEventMapper","UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
+    "pkg-domain": { title:"领域模型（domain/ + dto/）", tag:"persist", tagText:"持久层", rows:[["包","domain/ + enums/ + dto/"]], points:["Device / Medicine / MedicineStock","DeviceEvent / User / GuardianRelation","RefreshToken / IdempotencyRecord / MqttMessage","dto/：请求响应对象（入参 / 出参）","enums/：设备类型/告警类型/状态等枚举"] },
 
     "pkg-config": { title:"横切配置 / 异常", tag:"config", tagText:"横切", rows:[["包","config/ + common/exception"],["原则","通道细节收口、调用方零改动"]], points:["WebMvcConfig / MybatisPlusConfig","DeviceConfig / DeviceProperties","common/exception：BizException / BizAssert / ErrorCode","TraceContext（链路上下文）"] }
   };
