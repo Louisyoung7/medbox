@@ -29,40 +29,73 @@
         </MbCell>
       </MbCard>
 
-      <!-- 抓拍留证：capture-core 属 P1，本期未落地，缩略图区域留空占位（feat/mp-capture 接入） -->
+      <!-- 抓拍留证：capture-core 已落地，captureId 存在时经 fileToken 加载原图（feat/mp-capture-event）。
+           查看原图严格走 5 分钟短期令牌，不暴露长期 JWT（02 §4.1）。 -->
       <MbCard title="抓拍留证">
-        <view class="capture">
+        <view v-if="record.captureId" class="capture">
+          <view v-if="captureFileUrl" class="capture__imgwrap">
+            <image
+              class="capture__img"
+              :src="captureFileUrl"
+              mode="widthFix"
+              @error="onCaptureError"
+            />
+          </view>
+          <view v-else class="capture__box">
+            <text class="capture__icon">📷</text>
+          </view>
+          <text class="capture__text">{{ captureError || '原图加载中…' }}</text>
+          <view v-if="recordUncertain" class="capture__badge">待确认（低置信度）</view>
+        </view>
+        <view v-else class="capture">
           <view class="capture__box">
             <text class="capture__icon">📷</text>
           </view>
-          <text class="capture__text">
-            {{ record.captureId ? '抓拍留证（待 P1 mp-capture 接入）' : '暂无抓拍留证' }}
-          </text>
+          <text class="capture__text">暂无抓拍留证</text>
         </view>
       </MbCard>
 
       <view v-if="canWrite" class="actions">
-        <MbButton type="primary" block :loading="confirming" @click="showConfirm = true">
-          补录 / 确认
+        <MbButton type="primary" block :loading="confirming" @click="openConfirm">
+          {{ recordUncertain ? '确认服药情况' : '补录 / 确认' }}
         </MbButton>
       </view>
     </template>
 
     <MbModal
       v-model="showConfirm"
-      title="补录 / 确认"
+      :title="recordUncertain ? '确认服药情况' : '补录 / 确认'"
       confirm-text="确认提交"
       :confirm-loading="confirming"
       :close-on-confirm="false"
       @confirm="onConfirm"
     >
       <view class="confirm-body">
-        <text class="confirm-body__text">确认本记录为实际服药情况（设备异常时可手工校准）。</text>
+        <template v-if="recordUncertain">
+          <text class="confirm-body__text">该记录为低置信度待确认，请查看上方抓拍原图后裁定：</text>
+          <view class="confirm-body__seg">
+            <view
+              class="confirm-body__opt"
+              :class="{ 'confirm-body__opt--on': faceResult === 'TAKEN' }"
+              @click="faceResult = 'TAKEN'"
+            >
+              <text class="confirm-body__opt-text">确认已服</text>
+            </view>
+            <view
+              class="confirm-body__opt"
+              :class="{ 'confirm-body__opt--on': faceResult === 'ABSENT' }"
+              @click="faceResult = 'ABSENT'"
+            >
+              <text class="confirm-body__opt-text">确认未服</text>
+            </view>
+          </view>
+        </template>
+        <text v-else class="confirm-body__text">确认本记录为实际服药情况（设备异常时可手工校准）。</text>
         <MbField
           v-model="note"
           label="备注（选填）"
           type="textarea"
-          placeholder="如：老人实际于 21:10 服药，剂量无误"
+          :placeholder="recordUncertain ? '如：已核对原图，老人确实取药服用' : '如：老人实际于 21:10 服药，剂量无误'"
         />
         <text v-if="confirmError" class="confirm-body__err">{{ confirmError }}</text>
       </view>
@@ -82,15 +115,19 @@ import MbLoading from '@/components/MbLoading.vue'
 import MbModal from '@/components/MbModal.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import { confirmRecord, getRecord } from '@/api/record.js'
+import { getCapture } from '@/api/capture.js'
+import { BASE_URL } from '@/config/index.js'
 import { CODE } from '@/api/request.js'
 import {
   canWriteRecord,
+  isUncertain,
   recordStatusTags,
   recordTitle,
   recordMedicineText,
   formatPlanTime,
   formatActualTime,
 } from '@/utils/record.js'
+import { buildCaptureFileUrl, buildConfirmPayload, parseCapture } from '@/utils/capture.js'
 import { getRole } from '@/store/user.js'
 
 /** 详情加载失败文案按 code 细分（请求已 silent）。 */
@@ -122,9 +159,17 @@ export default {
       canWrite: false,
       showConfirm: false,
       note: '',
+      faceResult: 'TAKEN',
       confirming: false,
       confirmError: '',
+      captureFileUrl: '',
+      captureError: '',
     }
+  },
+  computed: {
+    recordUncertain() {
+      return isUncertain(this.record)
+    },
   },
   onLoad(options) {
     this.recordId = (options && options.recordId) || ''
@@ -156,18 +201,50 @@ export default {
       try {
         const data = await getRecord(this.recordId, { silent: true })
         this.record = { ...data, tags: recordStatusTags(data) }
+        this.loadCapture()
       } catch (err) {
         this.error = errorText(err)
       } finally {
         this.loading = false
       }
     },
+    /** captureId 存在时拉取 fileToken 并拼接原图 URL（02 §4.1：5 分钟有效，单次查看足够）。 */
+    async loadCapture() {
+      this.captureFileUrl = ''
+      this.captureError = ''
+      const captureId = this.record && this.record.captureId
+      if (!captureId) return
+      try {
+        const data = await getCapture(captureId, { silent: true })
+        const parsed = parseCapture(data)
+        if (parsed.fileToken) {
+          this.captureFileUrl = buildCaptureFileUrl(captureId, parsed.fileToken, BASE_URL)
+        } else {
+          this.captureError = '原图令牌获取失败'
+        }
+      } catch (err) {
+        // 非致命：不影响记录主体展示，仅图片区报错（如令牌过期 / 无权限 / 已清理）
+        this.captureError = '原图加载失败，请重试'
+      }
+    },
+    onCaptureError() {
+      this.captureFileUrl = ''
+      this.captureError = '原图加载失败，请重试'
+    },
+    openConfirm() {
+      this.note = ''
+      this.faceResult = 'TAKEN'
+      this.confirmError = ''
+      this.showConfirm = true
+    },
     onConfirm() {
       if (this.confirming) return
       this.confirming = true
       this.confirmError = ''
-      const payload = {}
-      if (this.note && this.note.trim()) payload.note = this.note.trim()
+      const payload = buildConfirmPayload({
+        faceResult: this.recordUncertain ? this.faceResult : undefined,
+        note: this.note,
+      })
       confirmRecord(this.recordId, payload, { silent: true })
         .then(() => {
           this.showConfirm = false
@@ -226,12 +303,29 @@ export default {
     color: $mb-text-2;
     background: $mb-bg;
   }
+
+  &--pending {
+    color: #9a3412;
+    background: #fed7aa;
+  }
 }
 
 .capture {
   display: flex;
   flex-direction: column;
   align-items: center;
+
+  &__imgwrap {
+    width: 100%;
+    border-radius: $mb-radius;
+    overflow: hidden;
+    background: $mb-bg;
+  }
+
+  &__img {
+    width: 100%;
+    display: block;
+  }
 
   &__box {
     display: flex;
@@ -254,6 +348,15 @@ export default {
     font-size: 26rpx;
     color: $mb-text-3;
   }
+
+  &__badge {
+    margin-top: 16rpx;
+    padding: 6rpx 20rpx;
+    border-radius: $mb-radius-pill;
+    font-size: 24rpx;
+    color: #9a3412;
+    background: #fed7aa;
+  }
 }
 
 .actions {
@@ -274,6 +377,38 @@ export default {
     color: $mb-text-2;
     line-height: 1.6;
     margin-bottom: 8rpx;
+  }
+
+  &__seg {
+    display: flex;
+    gap: 16rpx;
+    margin: 12rpx 0 4rpx;
+  }
+
+  &__opt {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 80rpx;
+    border-radius: $mb-radius;
+    background: $mb-bg;
+    border: 2rpx solid $mb-border;
+
+    &--on {
+      background: $mb-primary-bg;
+      border-color: $mb-primary;
+    }
+
+    &-text {
+      font-size: 28rpx;
+      color: $mb-text;
+
+      .confirm-body__opt--on & {
+        color: $mb-primary;
+        font-weight: 500;
+      }
+    }
   }
 
   &__err {
