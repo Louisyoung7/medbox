@@ -18,6 +18,48 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-28] 07/08 微调：已实现的 devtools 分支移入 P2 末尾
+
+- **改了哪些文件**：`07_特性分支清单_后端.md`（已实现 `[x]` 的 `backend-devtools` 从 P3 移回 P2 末尾）；`08_特性分支清单_小程序.md`（已实现 `[x]` 的 `mp-devtools` 从 P3 移回 P2 末尾）
+- **原因**：这两个分支已完成，放在 P3（原 P2 下移）不直观，移入 P2 末尾作为"已实现"项；P3 现仅含未做分支
+- 影响端：文档结构变更，`medbox-server/` 否 · `medbox-miniapp/` 否 · 嵌入式 否
+
+## [2026-10-28] 07/08 阶段重排：P2=改造+原P1剩余、P3=原P2，删跨端依赖表
+
+- **改了哪些文件**：`07_特性分支清单_后端.md`（新增 P2 改造层 `backend-capture-event` / `backend-expired-remove`，平移 `device-fault` / `alarm-device-offline`；原 P2 下移为 P3；取消 `inventory-consume` / `stock-expiring`；删除第五章跨端依赖表）；`08_特性分支清单_小程序.md`（新增 P2：`mp-capture-event`、平移 `mp-capture` / `mp-env`；取消 `mp-expiring`；原 P2 下移为 P3）；`00_README` 索引同步
+- **原因**：文档 `02→8 分册` / `06→11` / 摄像头 HTTP 上报 / §3.7 减法后，需把契约级改动（摄像头上报方式、过期功能删除）落到开发主清单；跨端依赖表是冗余反向索引，改以 `08` 依赖列为准
+- 影响端：文档结构变更，`medbox-server/` 否 · `medbox-miniapp/` 否 · 嵌入式 否
+
+## [2026-10-28] 02 重构：REST 接口按模块拆为 8 个分册
+
+- **改了哪些文件**：`02_REST接口设计.md` 改为根文档（§1 通用约定 + §2 核心数据模型 + §3 模块索引）；新增 8 个分册 `02_认证与用户` / `02_设备管理`（含抓拍 §4.1）/ `02_药品与库存` / `02_服药计划与提醒` / `02_服药记录与依从性` / `02_告警` / `02_环境监测` / `02_管理员接口`；`00_README` 索引更新；`01`/`03`/`04`/`05`/`06`/`07`/`08`/`09`/`10`/`11` 约 90 处"02 第/的/§ N" 引用改指对应分册（CHANGELOG 历史条目原样保留、不回改）
+- **目的**：02 单体 768 行过长，按业务模块拆分便于分模块评审与联调；根文档保留全局通用约定（响应/错误码/权限），各模块接口细节以分册为准，内容与旧 02 一致、无语义改动
+- 影响端：文档结构变更，`medbox-server/` 否 · `medbox-miniapp/` 否 · 嵌入式 否
+
+## [2026-10-28] 06 重构：抽取业务规则到 11_业务规则.md
+
+- **改了哪些文件**：新增 `11_业务规则.md`；`06_数据库` 改为纯表结构（移除 med_record 判定、MISS/ENV 判定、REMINDER 生成、漏服/时区/容忍公共口径，改为指针）；`00_README` 增 11 行；`02`/`03`/`10` 对 06 §2.7/§2.9/§2.6.1 的引用改指 11
+- **目的**：06 只留 DDL + 列注释，判定/生成算法集中到 11，减少重复、便于后端按规则表实现（判定型分支先出规则表，见 AGENTS 3.1）
+- 影响端：文档结构变更，`medbox-server/` 实现规则以 `11` 为准（内容与旧 06 一致，无语义改动）· `medbox-miniapp/` 否 · 嵌入式 否
+
+## [2026-10-28] 摄像头改经 HTTP 上报服药事件（原图 + 置信度 + 结论字段）
+
+- **改了哪些文件**：`10_产品形态调整方案`（新形态/每日流程/§1.4/§2.1/§2.12/§3.2/§3.3/§3.7.4 局部修订）、`01` 系统架构（协议分工表/流程/5.2）、`02_REST` §4.1、`03_MQTT` 第 4 章 + Topic/Payload、`06_数据库` capture/med_record
+- **核心变更**：摄像头**不再经单片机聚合走 MQTT**，改为**直接经 HTTP 把抓拍原图 + 自报置信度 + 是否服药结论字段（`faceResult`）上报后端**（复用 `02` 的 `POST /devices/{deviceId}/captures` 端点）；**原图恢复上传后端**作判定依据之一；后端**不运行图像识别**，仅据 `confidence` 是否低于阈值（默认 0.6）标记"待确认"；MCU-摄像头内部如何协同标注为设备实现细节、前后端不约束；`03` 删除 `up/event/dispense`，服药事件改走 HTTP
+- **补：待确认闭环与口径收敛（同日）**：`02` §7 新增「待确认与人工确认闭环」（records 列表派生 `pendingConfirm` 过滤、`confirm` 补 `face_result` 改写）；`02` §4.1 显式说明 captures 端点 `planId` 非空时同时落 `med_record`，并明确 `faceResult`/`confidence` 服药事件必带、`MANUAL` 留证可空；`06` 判定规则 `ts`→`capturedAt`、库存扣减与 `med_record.device_id` 归药箱主控（`parent_device_id` 解析）；`10` §2.1 待确认引用 §2.4→§7、MISS 口径"超时无事件"→"超时无图片"
+- 影响端：`medbox-server/` 是（captures 端点承载服药事件、med_record/capture 增 `face_result`/`confidence`、MISS 改判"超时无图片"）· `medbox-miniapp/` 否（读取口径不变）· 嵌入式 是（摄像头固件需支持 HTTP 上报原图 + 结论 + 置信度）
+
+## [2026-10-28] 执行 10 号 §3.7 减法：对齐 00~06 文档（feat/spec-contract）
+
+- **改了哪些文件**：`00_README` / `01` / `02` / `03_MQTT` / `04_WebSocket` / `06_数据库` 按 10 号 §3.7 落地清单做减法——删除错服监测（WRONG_DRUG / wrongDrug）与药物过期/临期预警（EXPIRED / expiring，expiry_date 仅留记录）；角色统一 `GUARDIAN`（删 FAMILY/NURSE/DOCTOR 细分与 `guardian_relation.role` 列）；库存改监护人手动录入 + 后端据摄像头已服事件扣减（删 `up/inventory` 设备上报校准）；BUZZ / UNLOCK 改为设备/小程序本地触发（后端仅 REBOOT / CALIBRATE）；capture 降级本地留证 / 可选回看（原图不上传后端、删 WRONG_DRUG reason）；措辞统一"带锁分层药箱、后端不建模格子"
+- 影响端：`medbox-server/` 是（涉及错服/过期/库存/命令的分支需按新契约回退或重写）· `medbox-miniapp/` 是（同）· 嵌入式 是（端侧人脸识别方案待定）
+
+## [2026-10-28] 10 号方案再调整：删除药物过期/临期预警功能
+
+- **改了哪个文件**：`10_产品形态调整方案.md` 撤回原"保留 EXPIRED"口径——§1.1/§2.2/§3.1（medicine_stock、med_plan alarm_rule、alarm、alarm_setting）/§3.2/§3.7（02/04/06 清单）全部改为**删除**药物过期功能：`EXPIRED` 告警、`expiring_ahead_days`、`GET /devices/{deviceId}/expiring`、alarm_rule.expired、medicine_stock 定时过期扫描；`production_date`/`expiry_date` 仅作记录保留
+- 影响端：`medbox-server/` 是（涉及 EXPIRED 告警与过期扫描的分支需回退）· `medbox-miniapp/` 是（同）· 嵌入式 否
+- **整体一致性修正**（同日后续检查）：同步清理残留旧口径——§0 变更性质补"删除临期/过期预警"；§1.1 下层描述改"据摄像头已服事件扣减"；§3.1 `med_record` 由"不自动扣减"改为"扣减仍在、后端据已服事件按录入量扣"；§3.5 / §4 的"过期随库存保留/恢复"改为"删除药物过期功能"
+
 ## [2026-10-27] 小程序落地未来待服药时间线（feat/mp-plan-timeline）
 
 `feat/mp-plan-timeline`（08 清单 P1）落地：复用已 `[x]` 的 `mp-plan` 与已落地的后端 `plan-core`，新增只读的"未来待服药时间线"页——`GET /plans/{planId}/next-doses` 按设备本地墙钟算好的 `scheduledTimeLocal` 做按次展开，前端只展示、不做时区换算；顶部 days 分段选择 7/15/30，按本地日期分组渲染每次所需药品与剂量；空态区分"计划已停用"与"所选天数内无安排"；计划列表卡片加"未来服药时间线 ›"入口，全角色 `READ_PLAN` 可见。
@@ -26,6 +68,11 @@
 - **跨分支约定**：前端不碰时区/按次展开（后端 `device.timezone` 已算好 `scheduledTimeLocal`）；`next-doses` 响应外壳 02 未给完整示例，解析器一处容错，真机联调后仅改 `utils/plan.js` 一处；不改 `permission.js`
 - 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
 
+## [2026-10-27] 产品形态调整方案评审通过（10 号转"已确认"），固化契约减法清单 §3.7
+
+- **改了哪个文件**：`10_产品形态调整方案.md` 由"讨论稿"转"已确认"，新增 §3.7 文件级落地清单（覆盖 00/01/02/03/04/06 的错服删除、角色统一 `GUARDIAN`、库存改手动录入、BUZZ/UNLOCK 不下发、capture 降级、带锁分层措辞等）
+- **澄清修正**：库存扣减**保留且由后端执行**——监护人录入初始库存与每次服药**应消耗量**，**是否扣减由摄像头上报的已服事件判定**（漏服不扣）；§3.1 `medicine_stock`、§3.7.6 §2.5 与 §2.7 第 288 行从"删自动/删扣减"明确为"调整：扣减仍在、后端按监护人录入量在已服事件时扣除"，移除的只是 `up/inventory` 设备上报校准
+- 影响端：`medbox-server/` 是（后续照 §3.7 执行减法的分支）· `medbox-miniapp/` 是（同）· 嵌入式 是（端侧人脸识别方案待定）
 
 ## [2026-10-26] 小程序落地告警列表/实时/设置（feat/mp-alarm）
 

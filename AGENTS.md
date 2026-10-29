@@ -32,9 +32,11 @@
 ## 1. 铁律（AI 发现违反时，必须先提醒用户再继续）
 
 1. **绝不在主分支开发**：一切改动都在 `feat/xxx` 特性分支上做。分支名取自 `medbox-spec/07`（`feat/backend-xxx`）、`medbox-spec/08`（`feat/mp-xxx`）或 `medbox-spec/09`（`feat/admin-xxx`）。
-2. **每次开工前先拉最新**：`git switch main && git pull`，代码与文档一起更新；再看 `medbox-spec/CHANGELOG.md` 判断有没有影响自己这一端。
-3. **完成特性分支、合并前必须更新文档，且与代码同 PR 提交**：勾选 07/08 待办、补 `CHANGELOG.md`、修正与实现不一致的接口/字段。
-4. **远程有更新时用 rebase，不要 merge**：切回主分支 fetch/pull，再回特性分支 `git rebase main`（冲突大概率只在 `CHANGELOG.md` 头部，处理办法见第 4 节）。
+2. **每次开工前先拉最新**：`git switch main && git pull`，代码与文档一起更新；再看 `git log --oneline -5 -- medbox-spec/` 判断文档有没有变、有没有影响自己这一端（变更历史以 git 为准，不再维护 CHANGELOG）。
+3. **完成特性分支、合并前必须更新文档**：勾选 07/08 待办、修正与实现不一致的接口/字段；**文档只写当前最新口径，不留旧痕迹**（变更历史看 `git log`，不写进文档正文，也不再维护 `CHANGELOG.md`；现有 `CHANGELOG.md` 保留作历史归档、不再追加）。
+   - **文档可与代码分分支**：文档改动可单独提交到 `docs/<对应特性名>` 分支（基于 `main`），与代码分支 `feat/xxx` 分别评审、分别合并；但**代码分支合入 `main` 前，对应文档分支必须已合入**（否则 `main` 上会出现「文档已说删除、代码尚未删除」的短暂不一致）。
+   - 传统「文档与代码同 PR」做法仍允许（历史提交多为此方式，保留兼容）。
+4. **远程有更新时用 rebase，不要 merge**：切回主分支 fetch/pull，再回特性分支 `git rebase main`（冲突处理见第 4 节）。
 5. **修 Bug / 重构不单独开分支记账**，但仍要走特性分支，随所在模块一起提交。
 6. **一个分支只动一个端**（见 0.1）。
 
@@ -49,7 +51,7 @@ git branch --show-current
 # ② 拉最新（代码 + 文档同仓，一次 pull 全都有）
 git switch main && git pull && git switch -
 
-# ③ 看文档这次有没有变
+# ③ 看文档这次有没有变（git 即变更源，不再维护 CHANGELOG）
 git log --oneline -5 -- medbox-spec/
 ```
 
@@ -83,7 +85,7 @@ git log --oneline -5 -- medbox-spec/
      - ⚠️ **Spring Boot 4 已移除 `@AutoConfigureTestDatabase`**（4.x 的 `spring-boot-test-autoconfigure` 的 jdbc 包只剩 `AutoConfigureDataSourceInitialization`），别再用它，改用 `@Primary` H2 方案。
      - ⚠️ 怀疑"本地绿、CI 红"时，用 `./gradlew test --no-build-cache --rerun-tasks` 强跑，排除构建缓存假绿（本次 `feat/device-core` 的 CI 全红就是 `register` 的 `@Transactional` 在无 Postgres 时开连接失败，本地因装了 Postgres 一直绿）。
 2. **判定型分支先出规则表，再写代码**
-   - "判定型" = 含业务规则与优先级的分支（漏服 / 错服 / 提醒触发 / 计划时间线展开 / 库存扣减 / 权限校验顺序等）；
+   - "判定型" = 含业务规则与优先级的分支（漏服 / 提醒触发 / 计划时间线展开 / 库存扣减 / 权限校验顺序等）；
    - 动手前先输出一张规则表给用户确认：**输入 → 判定条件与优先级 → 输出 → 边界用例**（如"容忍时长：计划级 > 老人级 > 系统 15 分钟"）；
    - 用户确认后才写代码，规则表一并沉淀进 `medbox-spec/02` 或 `06`；
    - 目的：这类逻辑写错了不会报错、只会悄悄算错，返工成本远高于先对齐口径。
@@ -107,26 +109,26 @@ git log --oneline -5 -- medbox-spec/
 # ① 先拉最新（避免改在旧版本上、也避免与他人更新冲突）
 git switch main && git pull && git switch -
 
-# ② 更新 medbox-spec/ 下的文档（与代码放在同一次提交）
+# ② 更新 medbox-spec/ 下的文档（与代码同 PR，或单独在 docs/<特性名> 分支提交，见铁律 3）
 #    - 后端：medbox-spec/07 对应项改为 - [x]
 #    - 小程序：medbox-spec/08 对应项改为 - [x]
-#    - 在 medbox-spec/CHANGELOG.md 顶部追加一条（用日期标识，不再编号，条目力求简洁）
+#    - 文档只写当前最新口径、不留旧痕迹（变更历史看 git log，不写 CHANGELOG）
 
-# ③ 一起提交
+# ③ 一起提交（同 PR 时）；分分支时文档单独提交到 docs/<特性名>
 git add medbox-server/ medbox-spec/      # 或 medbox-miniapp/ medbox-spec/
-git commit -m "feat(<模块>): <说明>；docs(spec): 勾选 07/08 的 feat/xxx、补 CHANGELOG"
+git commit -m "feat(<模块>): <说明>；docs(spec): 勾选 07/08 的 feat/xxx"
 ```
 
-**rebase / pull 冲突处理（`CHANGELOG.md` 头部冲突是常态，不要慌，更不要删文件）**：全员都在 `medbox-spec/CHANGELOG.md` **顶部追加**条目，所以远程更新后 rebase 时**大概率只在它头部冲突**——这正是它作为"全员变更台账"的固有成本，解法是机械的：
+**rebase / pull 冲突处理**：解法是机械的：
 
-1. **保留双方条目**：按日期排序，同一天按"已合入 main 的在前、本分支的在后"摆放；其余文件若冲突，按同样原则逐段核对，别整文件 `--ours` / `--theirs` 覆盖；
+1. 逐段核对冲突、**别整文件 `--ours` / `--theirs` 覆盖**；其余文件若冲突，按同样原则逐段核对；
 2. 解决后 `git add` + `git rebase --continue`；
 3. ⚠️ **continue 前必须 grep 一遍 `<<<<<<<` / `=======` / `>>>>>>>`**：编辑器替换容易漏掉**文件末尾**的标记行（2026-10-20 `feat/mp-plan` rebase 就漏过一个 `>>>>>>>`，靠 continue 后的复查才抓住，已 amend 修正）；
-4. 冲突只涉及文档条目 → 直接 continue；冲突波及**代码或接口契约**（`02` / `06` / `03`）→ `npm test` / `./gradlew test` **重跑一遍再 continue**。
+4. 冲突只涉及文档（非接口契约）→ 直接 continue；冲突波及**代码或接口契约**（`02` / `06` / `03`）→ `npm test` / `./gradlew test` **重跑一遍再 continue**。
 
-**提醒义务**：如果用户说"这个分支做完了 / 帮我合并"，而 `medbox-spec/` 还没有文档改动，我必须先提醒：
+**提醒义务**：如果用户说"这个分支做完了 / 帮我合并"，而 `medbox-spec/` 还没有文档改动（勾选 07/08 待办 / 修正接口字段），我必须先提醒：
 
-> ⚠️ 合并前请先更新 `medbox-spec/` 文档（勾选 07/08 待办 + 补 CHANGELOG）并与代码一起提交，否则文档会落后于代码。需要我来做吗？
+> ⚠️ 合并前请先更新 `medbox-spec/` 文档（勾选 07/08 待办、修正与实现不一致的接口/字段）。可随代码同 PR 提交，或单独在 `docs/<特性名>` 分支提交，但**代码合入 `main` 前文档必须已合入**，否则文档会落后于代码。需要我来做吗？
 
 ---
 
@@ -155,8 +157,8 @@ git stash pop                # 恢复未提交改动
 | 新建特性分支（小程序） | `git switch -c feat/mp-xxx main` |
 | 开工同步（代码 + 文档） | `git switch main && git pull && git switch -` |
 | 跑后端测试（出报告） | `cd medbox-server && ./gradlew test` |
-| 看文档改了什么 | `git log --oneline -5 -- medbox-spec/` |
-| 文档改动提交 | 与代码同一个 PR 即可，可单独 commit：`git add medbox-spec/ ...` |
+| 看文档改了什么（git 即变更源） | `git log --oneline -5 -- medbox-spec/` |
+| 文档改动提交 | 可与代码同 PR（单独 commit），或单独分支 `docs/<特性名>`（基于 `main`）提交；`git add medbox-spec/ ...` |
 | 同步主线 | `git switch main && git pull && git switch - && git rebase main` |
 
 > **已废弃**：`git subtree add/pull/push --prefix=spec spec-repo ...` —— 单仓后不再有文档仓库与 `spec-repo` 远端，见到这类命令请忽略（详见 `medbox-spec/00_README_文档索引.md` 的《文档就在本仓库》）。
@@ -170,9 +172,9 @@ git stash pop                # 恢复未提交改动
 - [ ] 本次会话**pull 过最新代码与文档**了吗？
 - [ ] 实现与 `medbox-spec/` 里的字段 / 错误码 / 枚举**一致**吗？
 - [ ] 改了接口或表结构 → **`medbox-spec/02` / `06` / `03` 同步改了**吗？
-- [ ] 改了文档 → **`CHANGELOG.md` 顶部加了简洁条目**吗？（**已不再维护版本号**，用日期定位；历史条目里的 V15 / V16 是旧编号，原样保留、不要回去改）
+- [ ] 改了文档 → **文档正文只写最新口径、不留旧痕迹**吗？（变更历史看 `git log`，不写进文档，也不再维护 `CHANGELOG.md`）
 - [ ] 是功能分支 → **写了集成测试并把测试报告给了用户**吗？是判定型分支 → **先出规则表再写代码**了吗？小程序分支 → **`npm run test:e2e`（Mock 端到端）也跑了吗**？
 - [ ] 能合并的待办合并成一个分支了吗？没有为单接口 CRUD 单开分支？
-- [ ] 功能已完成 → **勾选了 07/08 待办 + 补了 CHANGELOG**，且与代码同 PR？
+- [ ] 功能已完成 → **勾选了 07/08 待办**，且文档已随代码同 PR 或已在 `docs/<特性名>` 分支完成？
 - [ ] 用户要合并 → 提醒过"先更新文档再合并"吗？
 - [ ] 用户要拉远程更新 → 提醒过"回主分支 fetch + 特性分支 rebase"吗？
