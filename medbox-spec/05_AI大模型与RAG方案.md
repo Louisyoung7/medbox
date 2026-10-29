@@ -150,9 +150,9 @@ POST /ai/insight
 
 ## 3. 跨文档一致性（剩余待清理）
 
-AI 重定位的**文档文字**已在 `93950b4`（02 / 06 的 `drug_manual` 移除注记、10 洞察层口径、`07` `feat/backend-ai-infra` 方向重定位注记）与本 `05` 配套提交（01 / 02 / 00_README 的"AI 问答"→"AI 洞察"、01 §1 功能范围改写、架构图标签 `PostgreSQL + pgvector`→`PostgreSQL 17` / `Chat 问答`→`Chat 调用` / `AI 药品问答`→`AI 洞察`）中基本清完；04 的 `AI_STREAM` 已注"本期不使用"、`AI_INSIGHT` 帧已定义。以下**仍残留**，归 07 后端清单的 `refactor/ai-insight-layer` 分支（或单独的架构图刷新）处理：
+AI 重定位的**文档文字**已在 `93950b4`（02 / 06 的 `drug_manual` 移除注记、10 洞察层口径、`07` `feat/backend-ai-infra` 方向重定位注记）与本 `05` 配套提交（01 / 02 / 00_README 的"AI 问答"→"AI 洞察"、01 §1 功能范围改写、架构图标签 `PostgreSQL + pgvector`→`PostgreSQL 17` / `Chat 问答`→`Chat 调用` / `AI 药品问答`→`AI 洞察`、架构图 OCR / Embedding 节点与连线移除）中基本清完；04 的 `AI_STREAM` 已注"本期不使用"、`AI_INSIGHT` 帧已定义。以下**仍残留**（归 07 后端清单的 `refactor/ai-insight-layer` 分支处理）：
 
-- **diagrams/（network-topology.html、backend-architecture.html）**：仍绘有已废弃的「本地 OCR 侧车」「本地 Embedding（Ollama bge-m3）」节点及其连线、`ext-localai` / `ocr:` / `ollama:` tooltip，连同 `pkg-ai` 的 `OcrClient` 描述；标签虽已改，但节点本身应随代码下线一并移除（避免"图里还有 OCR"）。
+- **diagrams/（network-topology.html、backend-architecture.html）** ✅ 已移除「本地 OCR 侧车」「本地 Embedding（Ollama bge-m3）」节点及其连线、对应 tooltip（`ext-localai` / `ocr:` / `ollama:`）；`pkg-ai` 节点改写为 BYOK `ChatClient`（结构化数据拼 Prompt → 出网 Chat → 自然语言洞察），图例「AI 本地调用」改为「AI 集成（BYOK Chat）」。
 - **06_数据库设计.md / Flyway**：`drug_manual` / `drug_manual_chunk` 的文档注记已加，但 `V1` 的 `CREATE EXTENSION vector` 与建表、`V2__vector_hnsw.sql` 的实际删除在代码侧（见下）。
 - **medbox-server 代码与 docker-compose**：见 07 `refactor/ai-insight-layer`（向量 / OCR / Embedding 依赖与 `pgvector/pgvector:pg17` 镜像下线、`V1` / `V2` 迁移清理）。
 
