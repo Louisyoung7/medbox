@@ -148,18 +148,12 @@ POST /ai/insight
 - **不落库、不自动执行**（FP-10）：洞察结果不写入任何业务表、不改动计划 / 库存 / 设备；上游超时（如 15s）或失败时降级为模板化安全提示（仍可返回 `code:0` 的兜底文案），不抛出未捕获异常。
 - **出网范围**：仅大模型 Chat 调用出网（放行监护人所选模型域名），结构化数据不出内网。
 
-## 3. 跨文档一致性（待清理）
+## 3. 跨文档一致性（剩余待清理）
 
-AI 重定位后，旧"RAG / OCR / Embedding / 说明书知识库"的引用分两类：`drug_manual` / `drug_manual_chunk` 的文档文字已由 `93950b4` 加"已移除"注记（02 §业务数据表、06 §3 顶部）；但**表述层与代码层仍有残留**，需在 07 后端清单的 `refactor/ai-insight-layer` 分支一并清理，避免"文档说删、引用还在"的不一致：
+AI 重定位的**文档文字**已在 `93950b4`（02 / 06 的 `drug_manual` 移除注记、10 洞察层口径、`07` `feat/backend-ai-infra` 方向重定位注记）与本 `05` 配套提交（01 / 02 / 00_README 的"AI 问答"→"AI 洞察"、01 §1 功能范围改写、架构图标签 `PostgreSQL + pgvector`→`PostgreSQL 17` / `Chat 问答`→`Chat 调用` / `AI 药品问答`→`AI 洞察`）中基本清完；04 的 `AI_STREAM` 已注"本期不使用"、`AI_INSIGHT` 帧已定义。以下**仍残留**，归 07 后端清单的 `refactor/ai-insight-layer` 分支（或单独的架构图刷新）处理：
 
-- **01_系统架构与部署.md**：功能 / 角色表（§1 数据流表、角色表）仍写"AI 问答"（如"历史与统计查询、AI 问答""只读本人数据……AI 问答"）；4.1.2 已写"无需 pgvector 扩展"，但措辞应统一为"PostgreSQL 17，无向量扩展，AI 仅走 BYOK Chat"。
-- **02_REST接口设计.md**：角色 / 权限表（§1 角色表）仍写"AI 问答"，应改为"AI 洞察"（`DrugManual` / 说明书上传相关文字已由 `93950b4` 移除，无需再处理）。
-- **04_实时推送协议.md**：`AI_STREAM` 帧已注"本期不使用，流式走 HTTP SSE"（基本到位），仅 `AI_INSIGHT` 帧定义待按本 05 §2.3 补完。
-- **06_数据库设计.md**：`drug_manual` / `drug_manual_chunk` 已标"已移除"；Flyway `V1` 的 `CREATE EXTENSION vector` 与建表、`V2__vector_hnsw.sql` 的实际下线在代码侧（见下）。
-- **diagrams/（network-topology.html、backend-architecture.html）**：架构图仍标"PostgreSQL + pgvector"，应改为"PostgreSQL 17"，与 06 口径一致。
-- **07_特性分支清单_后端.md**：`feat/backend-ai-infra` 落地注记（含 RapidOCR 侧车 / PgVectorStore / Ollama bge-m3）仍描述旧设计，应在 `refactor/ai-insight-layer` 同步改写为"仅 BYOK ChatClient"。
+- **diagrams/（network-topology.html、backend-architecture.html）**：仍绘有已废弃的「本地 OCR 侧车」「本地 Embedding（Ollama bge-m3）」节点及其连线、`ext-localai` / `ocr:` / `ollama:` tooltip，连同 `pkg-ai` 的 `OcrClient` 描述；标签虽已改，但节点本身应随代码下线一并移除（避免"图里还有 OCR"）。
+- **06_数据库设计.md / Flyway**：`drug_manual` / `drug_manual_chunk` 的文档注记已加，但 `V1` 的 `CREATE EXTENSION vector` 与建表、`V2__vector_hnsw.sql` 的实际删除在代码侧（见下）。
 - **medbox-server 代码与 docker-compose**：见 07 `refactor/ai-insight-layer`（向量 / OCR / Embedding 依赖与 `pgvector/pgvector:pg17` 镜像下线、`V1` / `V2` 迁移清理）。
-
-> 注：`10_产品形态调整方案.md` 的"本地大模型（OCR + Embedding）支撑 RAG"表述也建议改为"洞察层仅 BYOK Chat，无本地大模型 / 向量库"（与上面同批处理）。
 
 

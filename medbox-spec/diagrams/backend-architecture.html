@@ -196,12 +196,12 @@
         <g class="node n-ext" id="ext-cloudai" data-key="ext-cloudai">
           <rect x="1080" y="82" width="280" height="58" rx="10"/>
           <text x="1220" y="106" text-anchor="middle">公网大模型 API</text>
-          <text class="sub" x="1220" y="124" text-anchor="middle">HTTPS 出网 · Chat 问答</text>
+          <text class="sub" x="1220" y="124" text-anchor="middle">HTTPS 出网 · Chat 调用</text>
         </g>
         <g class="node n-ext" id="ext-pg" data-key="ext-pg">
           <rect x="500" y="900" width="320" height="72" rx="10"/>
-          <text x="660" y="928" text-anchor="middle">PostgreSQL + pgvector</text>
-          <text class="sub" x="660" y="948" text-anchor="middle">:5432 · 结构化 + 向量同库</text>
+          <text x="660" y="928" text-anchor="middle">PostgreSQL 17</text>
+          <text class="sub" x="660" y="948" text-anchor="middle">:5432 · 结构化关系数据</text>
         </g>
 
         <!-- 接入层 -->
@@ -290,7 +290,7 @@
           <text class="sub" x="560" y="792" text-anchor="middle">Device/Medicine/MedicineStock/</text>
           <text class="sub" x="560" y="810" text-anchor="middle">DeviceEvent/User/GuardianRelation/</text>
           <text class="sub" x="560" y="828" text-anchor="middle">RefreshToken/Idempotency/MqttMessage</text>
-          <text class="sub" x="560" y="846" text-anchor="middle" style="font-size:9px">db/ Flyway 迁移（V1 建表 / V2 向量索引）</text>
+          <text class="sub" x="560" y="846" text-anchor="middle" style="font-size:9px">db/ Flyway 迁移（V1 建表）</text>
         </g>
         <g class="node n-persist" id="pkg-domain" data-key="pkg-domain">
           <rect x="820" y="720" width="520" height="130" rx="10"/>
@@ -357,8 +357,8 @@
     "ext-device": { title:"药箱设备（主控 MAIN）", tag:"ext", tagText:"外部", rows:[["协议","MQTT :1883（匿名）"],["clientId","= deviceId"]], points:["唯一 MQTT 客户端","摄像头识别经 WiFi 聚合后上报","传感器由主控转发"] },
     "ext-emqx": { title:"EMQX Broker", tag:"ext", tagText:"外部", rows:[["端口",":1883 / Dashboard :18083"],["Topic","medbox/{pk}/{deviceId}/up|down/#"]], points:["设备⇄后端消息总线","QoS1 + msgId 幂等；LWT 遗嘱","下行重发 5s×3（后端侧账本）"] },
     "ext-localai": { title:"本地 AI 侧车", tag:"ext", tagText:"外部", rows:[["OCR",":8000 RapidOCR"],["Embedding",":11434 Ollama bge-m3"]], points:["本地化、不出网、无需 Key","说明书 OCR 与向量化"] },
-    "ext-cloudai": { title:"公网大模型 API", tag:"ext", tagText:"外部", rows:[["方向","仅后端出网 HTTPS"]], points:["AI 药品问答（Chat 流式 SSE）","Key 由监护人配置并 AES 加密"] },
-    "ext-pg": { title:"PostgreSQL + pgvector", tag:"ext", tagText:"外部", rows:[["端口",":5432"],["内容","15 表 + 说明书向量同库"]], points:["Flyway 自动迁移（V1/V2）","CI 测试期关闭 Flyway"] },
+    "ext-cloudai": { title:"公网大模型 API", tag:"ext", tagText:"外部", rows:[["方向","仅后端出网 HTTPS"]], points:["AI 洞察（Chat）","Key 由监护人配置并 AES 加密"] },
+    "ext-pg": { title:"PostgreSQL 17", tag:"ext", tagText:"外部", rows:[["端口",":5432"],["内容","15 张关系数据表"]], points:["Flyway 自动迁移（V1/V2）","CI 测试期关闭 Flyway"] },
 
     "pkg-controller": { title:"REST Controllers", tag:"in", tagText:"接入层", rows:[["包","controller/"],["前缀","/medbox/api/v1"]], points:["Auth/User/AdminUserController","Device/Medicine/MedicineStockController","Plan/Record/Alarm/AlarmSettingController","GuardianRelation/Capture/DevtoolsController","校验后委托 service，不写业务"] },
     "pkg-web": { title:"横切 Web（common/web）", tag:"in", tagText:"接入层", rows:[["包","common/web"]], points:["AuthInterceptor：JWT 校验","GlobalExceptionHandler：统一响应+错误码","TraceIdFilter：链路追踪"] },
@@ -373,7 +373,7 @@
     "pkg-wspush": { title:"实时推送（ws/ 推送）", tag:"comm", tagText:"通信集成", rows:[["包","ws/ 推送"],["出口","WsPushService（唯一）"]], points:["WsSessionManager：topic→session 倒排","WsEventBuffer：按主题 200条/10min","WsEventId / WsFrame / WsFrameType","WsSubscription / WsTopic","WsIdleSessionReaper：90s 空闲回收"] },
     "pkg-ai": { title:"AI 集成（ai/）", tag:"comm", tagText:"通信集成", rows:[["包","ai/"],["切换","medbox.ocr.provider"]], points:["OcrClient 抽象接口","LocalOcrClient（实装：RapidOCR 侧车）","CloudOcrClient（骨架：云端 API）","OcrProperties / OcrException / AiConfig"] },
 
-    "pkg-mapper": { title:"Mapper 层（mapper/ + db/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"],["迁移","db/migration Flyway（V1 建表 / V2 向量索引）"]], points:["DeviceMapper / MedicineMapper","MedicineStockMapper / DeviceEventMapper","UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
+    "pkg-mapper": { title:"Mapper 层（mapper/ + db/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"],["迁移","db/migration Flyway（V1 建表）"]], points:["DeviceMapper / MedicineMapper","MedicineStockMapper / DeviceEventMapper","UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
     "pkg-domain": { title:"领域模型（domain/ + dto/）", tag:"persist", tagText:"持久层", rows:[["包","domain/ + enums/ + dto/"]], points:["Device / Medicine / MedicineStock","DeviceEvent / User / GuardianRelation","RefreshToken / IdempotencyRecord / MqttMessage","dto/：请求响应对象（入参 / 出参）","enums/：设备类型/告警类型/状态等枚举"] },
 
     "pkg-config": { title:"横切配置 / 异常", tag:"config", tagText:"横切", rows:[["包","config/ + common/exception"],["原则","通道细节收口、调用方零改动"]], points:["WebMvcConfig / MybatisPlusConfig","DeviceConfig / DeviceProperties","common/exception：BizException / BizAssert / ErrorCode","TraceContext（链路上下文）"] }
