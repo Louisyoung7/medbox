@@ -19,7 +19,7 @@
 ## 2. 消息帧结构
 
 ```json
-{ "type":"ALARM|DEVICE_STATUS|REMINDER|AI_STREAM|PONG|RESYNC",
+{ "type":"ALARM|DEVICE_STATUS|REMINDER|AI_STREAM|AI_INSIGHT|PONG|RESYNC",
   "id":"evt-9a1c",           // evt- + 单调递增序号的十六进制，用于断线补推
   "topic":"elder:e-1001",
   "ts":1759474520000,        // epoch **毫秒**（与 REST 响应体 R.timestamp 的秒不同）
@@ -36,7 +36,8 @@
 | ALARM | 后端生成漏服/环境告警 | alarmId, type, level(`INFO`/`WARN`/`CRITICAL`), message, elderId, medicineIds |
 | DEVICE_STATUS | 设备在线/离线（订阅 retained status） | deviceId, deviceType(`MAIN`/`TEMP_HUMI`/`LIGHT`/`CAMERA`), online, parentDeviceId（子设备时） |
 | REMINDER | 临近服药计划提醒（可选，监护端提醒） | planId, planTime, **`medicines[]`**（一次提醒可含多种药） |
-| AI_STREAM | AI 流式回答分片（**本期不使用**：流式统一走 HTTP SSE，见文档 05） | sessionId, delta |
+| AI_STREAM | AI 流式回答分片（**本期不使用**：按需洞察的流式统一走 HTTP SSE，见文档 05 第 2.2 章） | sessionId, delta |
+| AI_INSIGHT | 周期洞察推送（系统定时生成的 COMPREHENSIVE 洞察，详见文档 05 第 2.3 章） | insightId, elderId, type, content, citations, disclaimer |
 | RESYNC | 补推窗口已过期，客户端应改走 REST 拉全量 | `reason=WINDOW_EXPIRED`、`latestEventId` |
 
 > **DEVICE_STATUS 覆盖子设备**：药箱主控（`MAIN`）离线/上线各推一条；**传感器子设备**没有自己的 MQTT 连接，其在线状态由主控通过 `up/sensor/heartbeat` 汇总上报（见文档 03 第 3 章），后端据此推送子设备的 `DEVICE_STATUS`（带 `deviceType` 与 `parentDeviceId`）。子设备离线**不生成 DEVICE_OFFLINE 告警**，仅在设备详情页标注。

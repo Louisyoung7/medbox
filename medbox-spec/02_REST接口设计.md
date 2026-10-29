@@ -78,7 +78,7 @@
 
 **输出**：放行返回访问身份（`kind` = SELF / GUARDIAN、`relationStatus`：监护关系状态 `PENDING` / `ACTIVE` / `REVOKED`，放行时 GUARDIAN 恒为 `ACTIVE`，`SELF` 无此字段）；拒绝抛 `BizException`，HTTP 403 + `code` 为 40301 / 40302。
 
-> 权限矩阵共 **20** 个权限项（含 `AI_CHAT`）。
+> 权限矩阵共 **19** 个权限项（含 `AI_INSIGHT`）。
 
 **权限矩阵**（行 = 访问身份，列 = 权限；✅ 放行，空白 = 40301）：
 
@@ -95,8 +95,7 @@
 | `READ_CAPTURE`（查看抓拍图片） | ✅ | ✅ |
 | `WRITE_CAPTURE`（删除抓拍图片） | | ✅ |
 | `WRITE_DEVICE`（下发控制命令） | | ✅ |
-| `WRITE_DRUG_MANUAL`（维护禁忌知识库） | | ✅ |
-| `AI_CHAT`（AI 药品问答） | ✅ | ✅ |
+| `AI_INSIGHT`（AI 洞察：分析 / 预测 / 建议） | ✅ | ✅ |
 
 > `READ_CAPTURE` / `WRITE_CAPTURE` 仅老人本人与 GUARDIAN 可见 —— 用药图像属敏感健康数据。
 
@@ -119,7 +118,7 @@
 
 > 全部实体清单与建表 DDL 见文档 06《数据库设计》。本文件只列接口用到的实体名，便于对照路径含义。
 
-涉及实体：User（老人/监护人）、GuardianRelation、Device（药箱主控 + 传感器子设备）、Medicine、MedicineStock（库存）、MedPlan（服药计划）、MedRecord（服药记录）、EnvSample（环境遥测）、Alarm（告警）、AlarmSetting（告警规则）、LlmConfig（大模型配置）、DrugManual（说明书）、DrugManualChunk（说明书向量分块，见文档 05 / 06）。
+涉及实体：User（老人/监护人）、GuardianRelation、Device（药箱主控 + 传感器子设备）、Medicine、MedicineStock（库存）、MedPlan（服药计划）、MedRecord（服药记录）、EnvSample（环境遥测）、Alarm（告警）、AlarmSetting（告警规则）、LlmConfig（大模型配置，见文档 05）。
 
 
 ---
