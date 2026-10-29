@@ -83,7 +83,7 @@ git log --oneline -5 -- medbox-spec/
      - ⚠️ **Spring Boot 4 已移除 `@AutoConfigureTestDatabase`**（4.x 的 `spring-boot-test-autoconfigure` 的 jdbc 包只剩 `AutoConfigureDataSourceInitialization`），别再用它，改用 `@Primary` H2 方案。
      - ⚠️ 怀疑"本地绿、CI 红"时，用 `./gradlew test --no-build-cache --rerun-tasks` 强跑，排除构建缓存假绿（本次 `feat/device-core` 的 CI 全红就是 `register` 的 `@Transactional` 在无 Postgres 时开连接失败，本地因装了 Postgres 一直绿）。
 2. **判定型分支先出规则表，再写代码**
-   - "判定型" = 含业务规则与优先级的分支（漏服 / 错服 / 提醒触发 / 计划时间线展开 / 库存扣减 / 权限校验顺序等）；
+   - "判定型" = 含业务规则与优先级的分支（漏服 / 提醒触发 / 计划时间线展开 / 库存扣减 / 权限校验顺序等）；
    - 动手前先输出一张规则表给用户确认：**输入 → 判定条件与优先级 → 输出 → 边界用例**（如"容忍时长：计划级 > 老人级 > 系统 15 分钟"）；
    - 用户确认后才写代码，规则表一并沉淀进 `medbox-spec/02` 或 `06`；
    - 目的：这类逻辑写错了不会报错、只会悄悄算错，返工成本远高于先对齐口径。

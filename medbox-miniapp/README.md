@@ -79,7 +79,7 @@ await publishDeviceEvent({                             // 服务端版 mosquitto
 })
 ```
 
-- 事件预设 7 种：服药·按时 / 服药·错服 / 服药·迟到 / 温湿度遥测 / 传感器心跳 / 设备异常 / 库存变更，报文与 `medbox-spec/03` 第 5 章示例同形态。
+- 事件预设 6 种：服药·按时 / 服药·迟到 / 温湿度遥测 / 传感器心跳 / 设备异常 / 库存变更，报文与 `medbox-spec/03` 第 5 章示例同形态。
 - **每行预设右侧有「落库 / 仅日志」标签，发送后有结果面板**（topic + msgId + 效果说明 + 「去记录页查看」）。目前只有 `event/dispense` 有专属处理器（`dispense-consume` 已落地，写 `med_record` + 扣库存）；`telemetry` / `sensor/heartbeat` / `event/error` / `inventory` 对应的后端分支（`env-core` / `device-sensor` / `device-fault` / `inventory-consume`）**尚未落地**，消息只被 `LoggingUpMessageHandler` 兜底记一行日志、**不改任何数据** —— 点之前就会标出来，别期待界面变化。
 - **后端未开 `medbox.devtools.enabled` 时接口 404**，页面会用 `devtoolsErrorMessage` 提示"去后端开开关"，不会只说"服务端内部错误"。
 - ⚠️ **服药类预设的两个后端约束**（`utils/devtools-sim.js` 已按此构造，页面也有说明）：

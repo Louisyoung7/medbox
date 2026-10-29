@@ -311,7 +311,7 @@
     },
     backend: {
       title: "Java 后端", tag: "backend", tagText: "服务端",
-      rows: [["技术栈","Spring Boot 4 + Java 21 + Gradle"],["端口",":8080（REST /medbox/api/v1 + WS /medbox/ws）"],["职责","落库、漏服/错服/阈值判定、下行中转"]],
+      rows: [["技术栈","Spring Boot 4 + Java 21 + Gradle"],["端口",":8080（REST /medbox/api/v1 + WS /medbox/ws）"],["职责","落库、漏服/环境阈值判定、下行中转"]],
       points: ["订阅 EMQX up/# 消费上报","经 WebSocket 推送告警与状态","转 REST 计划/命令为 MQTT 下行"]
     },
     emqx: {

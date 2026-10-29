@@ -37,16 +37,16 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `GET /medicines`（分页 + keyword，返回 `{list,total}`）、`GET /medicines/{id}`、`POST /medicines`（新建/更新同一入口）、`DELETE /medicines/{id}`（被库存引用 → **40901**）
 - `GET /devices/{id}/stocks`（裸数组）、`PUT .../stocks/{medicineId}`（数量绝对值）、`POST .../stocks/{medicineId}/in`（数量增量）、`DELETE .../stocks/{medicineId}`
 - `GET /plans?elderId=`（列表含 items 概览）、`GET /plans/{id}`（含 items 明细）、`POST /plans`、`PUT /plans/{id}`（整体覆盖）、`PATCH /plans/{id}/status`（请求体契约 `{status:'ENABLED'|'DISABLED'}`）、`DELETE /plans/{id}`（级联删明细）
-  - 业务校验照 06 的 2.6.1：同计划药品重复 / times 格式错 / items 为空 → **40001**；药品无库存或已过期 → **40901**；老人写操作 → **40301**；PENDING 监护 → **40302**
+  - 业务校验照 06 的 2.6.1：同计划药品重复 / times 格式错 / items 为空 → **40001**；药品无库存 → **40901**；老人写操作 → **40301**；PENDING 监护 → **40302**
   - 种子含 3 个计划（覆盖 ENABLED/DISABLED、单药/两种药、带备注、多时间、两位老人、DAILY/WEEKLY）；`times` 按设备本地墙钟**原样存取**（排序由前端 `normalizeTimes` 负责）
 - `GET /plans/{id}/next-doses`（`feat/mp-plan-timeline`：未来待服药时间线，按次展开；`days` 默认 7 上限 60，越界 → **40001**；`scheduledTimeLocal` 按设备本地墙钟（Mock 用本地日期）；停用计划返回空；每次列出该计划 `items` 的药品与剂量；未知计划 → **40401**；权限同计划：越权 → **40301**、PENDING → **40302**、未登录 → **40101**）
 - `GET /records?elderId=&from=&to=`（分页 + 时间区间过滤，列表 join 计划名/药品名）、`GET /records/{id}`（关联计划与抓拍留证占位）、`POST /records/{id}/confirm`（监护人补录/确认）
   - 权限口径照 02 的 1.3.1 与 1.2：老人读他人 / 越权 → **40301**；监护 PENDING → **40302**；写操作仅 FAMILY → **40301**；不存在 → **40401**
-  - 种子含 6 条记录（覆盖 u-1001/u-1002、按时/未按时/错服、已确认与未确认、部分带 `captureId`）；`capture-core` 属 P1，详情缩略图由前端留空占位
+  - 种子含 6 条记录（覆盖 u-1001/u-1002、按时/未按时、已确认与未确认、部分带 `captureId`）；`capture-core` 属 P1，详情缩略图由前端留空占位
 - `POST /users/{elderId}/guardians`（申请，无请求体）、`GET /users/guardians/pending`（老人端待确认，join 姓名+手机，按 `createdAt` 升序）、`PATCH /users/guardians/{relationId}/accept`（确认，请求体 `{role}` 必填，FAMILY/DOCTOR/NURSE）、`DELETE /users/guardians/{relationId}`（拒绝 / 解除，任一方，幂等）
   - 权限口径照 02 的 3.2 规则表：非监护人申请 / 目标不是老人 / 查不到 / 非关系双方 → **40301**（防枚举，不回 40401）；已有 PENDING/ACTIVE → **40901**；REVOKED → 复活为 PENDING 并清空 role；非老人看列表 / 监护人点确认 → **40301**；role 缺失或非法 → **40001**；重复确认（已非 PENDING）→ **40901**
   - 种子 4 条关系（gr-1/gr-2 ACTIVE、gr-3 PENDING、gr-4 REVOKED），`createdAt` 相对运行时刻计算
-- `GET /alarms?elderId=&type=&readState=`（告警分页：按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`type` ∈ `MISS`/`WRONG_DRUG`/`EXPIRED`/`ENV`/`DEVICE_OFFLINE`/`DEVICE_FAULT`，`readState` ∈ `READ`/`UNREAD`；`feat/mp-alarm`：`alarm-core` 已落地，Mock 播种 `MISS`/`WRONG_DRUG`/`ENV` 样例，`DEVICE_OFFLINE`/`EXPIRED` 对应后端 `alarm-device-offline`/`stock-expiring` 在 07 仍未落地，不播）
+- `GET /alarms?elderId=&type=&readState=`（告警分页：按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`type` ∈ `MISS`/`ENV`/`DEVICE_OFFLINE`/`DEVICE_FAULT`，`readState` ∈ `READ`/`UNREAD`；`feat/mp-alarm`：`alarm-core` 已落地，Mock 播种 `MISS`/`ENV` 样例，`DEVICE_OFFLINE` 对应后端 `alarm-device-offline` 在 07 仍未落地，不播）
 - `GET /alarms/unread-count?elderId=`（未读告警数，驱动角标）
 - `PATCH /alarms/{alarmId}/read`（标记已读，四角色 `READ_ALARM`；不存在 → **40401**；无关系 → **40301**）
 - `PATCH /alarms/{alarmId}/handle`（处理/确认，`HANDLE_ALARM` = FAMILY + NURSE；小程序注册角色仅 GUARDIAN → 非监护人 → **40301**；不存在 → **40401**）
@@ -58,7 +58,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 
 ## 可验证的场景
 
-- 库存清单四种临期状态：BOXA1001 下 阿莫西林(正常) / 阿托伐他汀(临期) / 二甲双胍(已过期) / 硝苯地平(未填有效期)
+- 库存有效期（expiryDate）仅作记录项由监护人录入，系统不再据其标注临期/过期：BOXA1001 各药有效期取值不同（含未填），演示数据随运行日期漂移
 - 删除被库存引用的药品 → 40901 弹窗提示；先移除库存再删 → 成功
 - 录入数量填 0 / 小数 / 非数字 → 40001（前端先拦，Mock 兜底）
 - 补药入库：数量为增量，日期选填（不传不更新）
