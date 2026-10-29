@@ -228,18 +228,34 @@ function createSeed() {
       deviceId: 'BOXA1001', captureId: '', actualDose: '1',
       planTime: isoOffset(-3 * DAY - 8 * HOUR), actualTime: isoOffset(-3 * DAY - 8 * HOUR + 60 * MINUTE),
       onTime: false, confirmedBy: '', confirmedAt: '',
+      // 低置信度待确认（feat/mp-capture-event）：confidence 低于阈值 + faceResult=UNCERTAIN
+      faceResult: 'UNCERTAIN', confidence: 0.45, pendingConfirm: true,
     },
     {
       recordId: 'rec-9005', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
       deviceId: 'BOXA1002', captureId: 'cap-5001', actualDose: '10',
       planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR),
       onTime: true, confirmedBy: '', confirmedAt: '',
+      // 带抓拍的低置信度待确认（feat/mp-capture-event）：详情页原图 + 人工确认
+      faceResult: 'UNCERTAIN', confidence: 0.52, pendingConfirm: true,
     },
     {
       recordId: 'rec-9006', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
       deviceId: 'BOXA1002', captureId: '', actualDose: '10',
       planTime: isoOffset(-2 * DAY - 4 * HOUR), actualTime: isoOffset(-2 * DAY - 4 * HOUR),
       onTime: true, confirmedBy: '', confirmedAt: '',
+    },
+  ]
+
+  // 抓拍（02 设备管理.md §4.1；capture-core 已落地，fileToken 由 /captures/{id} 端点签发）。
+  // 只存元数据；fileToken 不在种子里（每次 GET 实时签发），原图二进制由 /file 端点返回占位图。
+  // 关联 rec-9005（u-1002，UNCERTAIN 待确认）的可视原图。
+  const captures = [
+    {
+      captureId: 'cap-5001', deviceId: 'BOXA1002-S-CAM01', elderId: 'u-1002',
+      medicineId: 'm-205', planId: 'p-3303', reason: 'NORMAL',
+      mime: 'image/png', sizeBytes: 48213, confidence: 0.52, faceResult: 'UNCERTAIN',
+      capturedAt: isoOffset(-1 * DAY - 8 * HOUR), viewedAt: null, expireAt: isoOffset(29 * DAY),
     },
   ]
 
@@ -294,7 +310,7 @@ function createSeed() {
     },
   }
 
-  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, planItems, records, refreshTokens: new Set() }
+  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, planItems, records, captures, refreshTokens: new Set() }
 }
 
 module.exports = { createSeed, DEMO_PASSWORD }
