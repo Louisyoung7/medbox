@@ -16,10 +16,8 @@ import {
 } from '@/utils/alarm.js'
 
 describe('alarm 常量与标签', () => {
-  it('ALARM_TYPE_LABEL 六类齐全', () => {
+  it('ALARM_TYPE_LABEL 四类齐全', () => {
     expect(ALARM_TYPE_LABEL.MISS).toBe('漏服')
-    expect(ALARM_TYPE_LABEL.WRONG_DRUG).toBe('错服')
-    expect(ALARM_TYPE_LABEL.EXPIRED).toBe('临期过期')
     expect(ALARM_TYPE_LABEL.ENV).toBe('环境超标')
     expect(ALARM_TYPE_LABEL.DEVICE_OFFLINE).toBe('设备离线')
     expect(ALARM_TYPE_LABEL.DEVICE_FAULT).toBe('设备故障')
@@ -44,9 +42,8 @@ describe('alarm 常量与标签', () => {
 })
 
 describe('alarm 着色类', () => {
-  it('alarmTypeClass：漏服/错服→critical；设备离线/故障→warn；环境/过期→info', () => {
+  it('alarmTypeClass：漏服→critical；设备离线/故障→warn；环境→info', () => {
     expect(alarmTypeClass('MISS')).toBe('alarm-type--critical')
-    expect(alarmTypeClass('WRONG_DRUG')).toBe('alarm-type--critical')
     expect(alarmTypeClass('DEVICE_OFFLINE')).toBe('alarm-type--warn')
     expect(alarmTypeClass('DEVICE_FAULT')).toBe('alarm-type--warn')
     expect(alarmTypeClass('ENV')).toBe('alarm-type--info')
@@ -88,9 +85,9 @@ describe('alarm toAlarmView 归一化', () => {
   it('未读 + CRITICAL + 关联药品', () => {
     const v = toAlarmView({
       alarmId: 'a-1',
-      type: 'WRONG_DRUG',
+      type: 'MISS',
       level: 'CRITICAL',
-      message: '错服',
+      message: '漏服',
       elderId: 'u-1001',
       medicineIds: ['m-1', 'm-2'],
       createdAt: '2026-01-01T00:00:00Z',
@@ -98,7 +95,7 @@ describe('alarm toAlarmView 归一化', () => {
       handled: false,
     })
     expect(v.alarmId).toBe('a-1')
-    expect(v.typeLabel).toBe('错服')
+    expect(v.typeLabel).toBe('漏服')
     expect(v.levelLabel).toBe('严重')
     expect(v.isCritical).toBe(true)
     expect(v.isUnread).toBe(true)

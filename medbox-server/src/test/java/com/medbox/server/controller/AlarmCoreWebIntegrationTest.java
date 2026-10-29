@@ -247,7 +247,7 @@ class AlarmCoreWebIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"expiringAheadDays":7,"missTolerateMin":20,
+                                {"missTolerateMin":20,
                                  "envThreshold":{"tempMin":10,"tempMax":30,"humiMin":30,
                                                  "humiMax":70,"luxMax":500}}
                                 """))

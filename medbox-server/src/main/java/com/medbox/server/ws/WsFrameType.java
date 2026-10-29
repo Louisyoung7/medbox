@@ -15,7 +15,7 @@ package com.medbox.server.ws;
  */
 public enum WsFrameType {
 
-    /** 告警（漏服 / 错服 / 过期 / 环境）。 */
+    /** 告警（漏服 / 环境 / 设备离线 / 设备故障）。 */
     ALARM,
 
     /** 设备在线状态（含传感器子设备）。 */

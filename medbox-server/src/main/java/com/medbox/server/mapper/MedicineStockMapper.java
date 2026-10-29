@@ -17,7 +17,7 @@ public interface MedicineStockMapper extends BaseMapper<MedicineStock>{
      * 服药后扣减库存（feat/dispense-consume）。
      *
      * <p><b>按识别到的药品扣</b>：{@code device_id} 是上报主控、{@code medicine_id} 是摄像头识别结果
-     * （错服时为"错拿的药"，照样扣 —— 药确实被拿走了）。
+     * （识别到非计划药时为"被拿走的药"，照样扣 —— 药确实被拿走了）。
      *
      * <p><b>不阻断写记录</b>：库存不足只扣到 0（{@code GREATEST(quantity - delta, 0)}）；
      * 没有对应库存行（影响行数 0）由调用方 warn，不抛异常。

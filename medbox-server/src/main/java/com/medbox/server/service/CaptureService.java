@@ -60,7 +60,7 @@ public class CaptureService {
     static final int DEDUP_WINDOW_SECONDS = 60;
 
     private static final Set<String> ALLOWED_REASONS =
-            Set.of("NORMAL", "WRONG_DRUG", "LOW_CONFIDENCE", "MANUAL");
+            Set.of("NORMAL", "LOW_CONFIDENCE", "MANUAL");
 
     private static final Set<String> EXT_WHITELIST = Set.of("jpg", "jpeg", "png", "webp");
 

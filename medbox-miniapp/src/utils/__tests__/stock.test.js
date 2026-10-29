@@ -1,7 +1,7 @@
 /**
  * 库存域纯函数测试（`feat/mp-stock`，`src/utils/stock.js`）。
  *
- * <p>覆盖：清单容错解析、药品 join 与回退、数量文案、临期标签（复用 datetime.expiryState）、
+ * <p>覆盖：清单容错解析、药品 join 与回退、数量文案、
  * 录入 / 补药 payload 组装与数量校验。
  */
 
@@ -9,20 +9,11 @@ import { describe, expect, it } from 'vitest'
 import {
   buildRestockPayload,
   buildStockPayload,
-  expiryTag,
   joinStockMedicine,
   parseStocks,
   stockQuantityText,
   toMedicineMap,
 } from '@/utils/stock.js'
-
-/** 相对今天偏移 N 天的 YYYY-MM-DD（用于临期断言的确定性输入）。 */
-function dateOffset(days) {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
 
 describe('parseStocks', () => {
   it('裸数组原样返回', () => {
@@ -98,37 +89,6 @@ describe('stockQuantityText', () => {
   })
 })
 
-describe('expiryTag', () => {
-  it('正常（>30 天）', () => {
-    const tag = expiryTag(dateOffset(60))
-    expect(tag.state).toBe('ok')
-    expect(tag.text).toBe('正常')
-  })
-
-  it('临期（≤30 天）：N 天后过期', () => {
-    const tag = expiryTag(dateOffset(10))
-    expect(tag.state).toBe('expiring')
-    expect(tag.text).toBe('10 天后过期')
-  })
-
-  it('今天到期', () => {
-    const tag = expiryTag(dateOffset(0))
-    expect(tag.state).toBe('expiring')
-    expect(tag.text).toBe('今天到期')
-  })
-
-  it('已过期', () => {
-    const tag = expiryTag(dateOffset(-1))
-    expect(tag.state).toBe('expired')
-    expect(tag.text).toBe('已过期')
-  })
-
-  it('未填 / 非法值', () => {
-    expect(expiryTag('')).toEqual({ state: 'unknown', text: '未填有效期' })
-    expect(expiryTag(undefined).state).toBe('unknown')
-    expect(expiryTag('not-a-date').state).toBe('unknown')
-  })
-})
 
 describe('buildStockPayload', () => {
   it('合法：数量转整数、日期带上', () => {

@@ -73,7 +73,7 @@ public enum Permission {
     /** 为老人配置大模型 API Key。 */
     CONFIG_LLM_KEY,
 
-    /** 配置老人级告警阈值（临期提前期 / 环境上下限 / 漏服容忍），仅监护人为老人代配。 */
+    /** 配置老人级告警阈值（环境上下限 / 漏服容忍），仅监护人为老人代配。 */
     WRITE_ALARM_SETTINGS,
 
     /** 查看服药抓拍图片（仅老人本人与 ACTIVE 监护人）。 */

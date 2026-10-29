@@ -142,7 +142,6 @@ class DispenseConsumeIntegrationTest {
         p.setPlanItemId(ITEM_ID);
         p.setMedicineId(MED_ID);
         p.setActualDose("1");
-        p.setWrongDrug(false);
         p.setSource("CAMERA");
         return p;
     }

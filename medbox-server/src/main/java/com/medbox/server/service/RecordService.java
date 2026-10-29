@@ -167,9 +167,6 @@ public class RecordService {
         if (request.onTime() != null) {
             existing.setOnTime(request.onTime());
         }
-        if (request.wrongDrug() != null) {
-            existing.setWrongDrug(request.wrongDrug());
-        }
         existing.setSource(SOURCE_MANUAL);
         medRecordMapper.updateById(existing);
         return detail(existing.getRecordId());
@@ -200,7 +197,6 @@ public class RecordService {
         record.setActualTime(request.actualTime());
         record.setActualDose(request.actualDose());
         record.setOnTime(request.onTime());
-        record.setWrongDrug(request.wrongDrug());
         record.setSource(SOURCE_MANUAL);
         record.setPlanTime(recomputePlanTime(request.elderId(), request.planId(), request.actualTime()));
         record.setDeviceId(resolveMainDeviceId(request.elderId()));

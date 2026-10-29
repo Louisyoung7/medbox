@@ -34,7 +34,7 @@ public class MedRecord {
     /** 计划明细（{@code med_plan_item.item_id}）。 */
     private String planItemId;
 
-    /** 识别到的药品（{@code medicine.medicine_id}）；错服时 != 计划药品。 */
+    /** 识别到的药品（{@code medicine.medicine_id}）。 */
     private String medicineId;
 
     /** 抓拍（{@code capture.capture_id}）。 */
@@ -51,9 +51,6 @@ public class MedRecord {
 
     /** 是否按时：单侧窗口（提前恒 true，只判迟到）。 */
     private Boolean onTime;
-
-    /** 是否错服（摄像头识别与计划药品不符）。 */
-    private Boolean wrongDrug;
 
     /** 来源：CAMERA / MANUAL。 */
     private String source;

@@ -45,7 +45,6 @@ class AlarmSettingServiceTest {
         when(settingMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
         AlarmSettingResponse resp = service.get(ELDER_ID);
         verify(accessService).require(ELDER_ID, Permission.READ_ALARM);
-        assertNull(resp.expiringAheadDays());
         assertNull(resp.missTolerateMin());
         assertNull(resp.envThreshold());
     }
@@ -55,7 +54,7 @@ class AlarmSettingServiceTest {
     void 保存_新建() {
         when(settingMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
         EnvThreshold env = new EnvThreshold(10, 30, 30, 70, 500);
-        AlarmSettingRequest req = new AlarmSettingRequest(null, 20, env);
+        AlarmSettingRequest req = new AlarmSettingRequest(20, env);
 
         AlarmSettingResponse resp = service.save(ELDER_ID, req);
 
@@ -77,7 +76,7 @@ class AlarmSettingServiceTest {
 
         // 只改 envThreshold，不动 missTolerateMin
         EnvThreshold env = new EnvThreshold(12, 28, null, null, 600);
-        AlarmSettingRequest req = new AlarmSettingRequest(null, null, env);
+        AlarmSettingRequest req = new AlarmSettingRequest(null, env);
 
         AlarmSettingResponse resp = service.save(ELDER_ID, req);
 

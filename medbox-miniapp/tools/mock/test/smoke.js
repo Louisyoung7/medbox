@@ -273,7 +273,7 @@ async function waitReady() {
     const records = await call('GET', '/records?elderId=u-1001', { token: gw.token })
     check('u-1001 记录列表 4 条', records.code === 0 && records.data.total === 4 && records.data.list.length === 4)
     check('列表 join 计划名/药品名', records.data.list.every((r) => r.planName && r.medicineName))
-    check('列表含按时/错服布尔', records.data.list.every((r) => typeof r.onTime === 'boolean' && typeof r.wrongDrug === 'boolean'))
+    check('列表含按时布尔', records.data.list.every((r) => typeof r.onTime === 'boolean'))
     const recDetail = await call('GET', '/records/rec-9001', { token: gw.token })
     check('记录详情（关联计划）', recDetail.code === 0 && recDetail.data.recordId === 'rec-9001' && recDetail.data.planName === '早餐后')
     check('老人读他人记录 40301', (await call('GET', '/records/rec-9005', { token: elder.token })).code === 40301)

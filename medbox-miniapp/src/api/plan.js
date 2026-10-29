@@ -53,7 +53,7 @@ export function getPlan(planId, options) {
  * @param {Object} [options] 透传请求选项（如 `loading: '保存中'`）
  * @returns {Promise<Object>} `{planId, syncState, items:[{itemId, medicineId}]}`
  * @throws {ApiError} 40001（times 格式 / items 为空 / 同计划药品重复）/ 40101 / 40301 / 40302 /
- *   **40901（药品无库存或已过期，06 的 2.6.1 约束②）** / -1
+ *   **40901（药品无库存，06 的 2.6.1 约束②）** / -1
  */
 export function createPlan(payload, options) {
   return post('/plans', payload, options)

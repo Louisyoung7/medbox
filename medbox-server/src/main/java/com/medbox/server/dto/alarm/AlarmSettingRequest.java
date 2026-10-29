@@ -8,11 +8,9 @@ import com.medbox.server.domain.EnvThreshold;
  * <p>所有字段可选：仅提供的字段会被覆盖（其余保持原值），便于前端只改某一项。
  * 不提供任何字段时等同"仅刷新 updatedAt"（幂等）。
  *
- * @param expiringAheadDays 临期提前预警天数（天）
  * @param missTolerateMin   漏服容忍时长（分钟），老人级；为空表示沿用系统默认 15 分钟
  * @param envThreshold      环境上下限（JSONB，结构见 {@link EnvThreshold}）
  */
-public record AlarmSettingRequest(Integer expiringAheadDays,
-                                  Integer missTolerateMin,
+public record AlarmSettingRequest(Integer missTolerateMin,
                                   EnvThreshold envThreshold) {
 }

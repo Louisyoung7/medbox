@@ -1,7 +1,7 @@
 /**
  * 记录域纯函数测试（`feat/mp-record`，`src/utils/record.js`）。
  *
- * <p>覆盖：列表分页容错解析、按时 / 错服 / 已确认标签映射、写入口角色判定、
+ * <p>覆盖：列表分页容错解析、按时 / 已确认标签映射、写入口角色判定、
  * 列表项标题与药品文案、时间本地化委托（具体时区转换见 datetime.test.js）。
  */
 
@@ -42,14 +42,8 @@ describe('recordStatusTags', () => {
     expect(recordStatusTags({ onTime: true })).toEqual([{ text: '按时', level: 'ok' }])
   })
 
-  it('onTime=false 且 wrongDrug=true → 错服（danger）', () => {
-    expect(recordStatusTags({ onTime: false, wrongDrug: true })).toEqual([
-      { text: '错服', level: 'danger' },
-    ])
-  })
-
-  it('onTime=false 且 wrongDrug=false → 未按时（warn）', () => {
-    expect(recordStatusTags({ onTime: false, wrongDrug: false })).toEqual([
+  it('onTime=false → 未按时（warn）', () => {
+    expect(recordStatusTags({ onTime: false })).toEqual([
       { text: '未按时', level: 'warn' },
     ])
   })

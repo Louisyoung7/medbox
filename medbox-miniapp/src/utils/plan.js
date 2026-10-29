@@ -8,12 +8,11 @@
  *   跨天 / 修改当日生效等边界由服务端处理。
  * - **B items**：一次提醒 = 一个计划可含多种药；`medicineId` 必填，`dose`/`unit`/`note` 选填
  *   （空串省略，后端按 06"计划明细未指定时取药品默认剂量"兜底）；同一计划内药品不重复。
- * - **C 过期拦截**：06 的 2.6.1 约束②——计划中的药品必须在药箱有库存且未过期（否则后端
- *   40901）；前端用 `expiryTag` 预判，过期 / 无库存置灰，**库存数据缺失时不拦截**（后端兜底）。
+ * - **C 库存校验**：06 的 2.6.1 约束②——计划中的药品必须在药箱有库存（否则后端 40901）；
+ *   前端按是否有库存预判置灰，**库存数据缺失时不拦截**（后端兜底）。
  */
 
 import { ROLE } from '@/store/user.js'
-import { expiryTag } from '@/utils/stock.js'
 
 /** `HH:mm` 24 小时制（picker mode="time" 的输出格式）。 */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -107,36 +106,27 @@ export function parsePlansPage(data) {
 /**
  * 计划可选药品拆分（规则 C）：按老人在其可见设备上的**全部库存行**聚合判定。
  *
- * 同一药品可能出现在多台药箱：**任一设备有未过期库存即可加入**；该药品所有库存行都已过期
- * 才判 `expired`；没有任何库存行判 `no-stock`。库存数据拉取失败（空数组）时调用方按规则
- * "数据缺失不拦截"处理——本函数照实返回（全部 no-stock），由页面决定是否降级放行。
+ * 同一药品可能出现在多台药箱：**任一设备有库存（quantity>0）即可加入**；没有任何库存行
+ * 判 `no-stock`。库存数据拉取失败（空数组）时调用方按规则"数据缺失不拦截"处理——本函数
+ * 照实返回（全部 no-stock），由页面决定是否降级放行。
  *
  * @param {Array<Object>} medicines 药品字典（`listMedicines` 的 `list`）
  * @param {Array<Object>} [stockRows] 该老人在可见设备上的库存行（可跨设备，`parseStocks` 结果拼接）
- * @returns {{selectable: Array<{medicine: Object, expiry: Object}>, blocked: Array<{medicine: Object, reason: 'expired'|'no-stock'}>}}
+ * @returns {{selectable: Array<{medicine: Object}>, blocked: Array<{medicine: Object, reason: 'no-stock'}>}}
  */
 export function pickableMedicines(medicines, stockRows) {
-  // 药品 → 'ok'（有未过期库存）/ 'expired'（有库存但全过期）
-  const stockState = {}
+  // 药品 → 是否有库存（quantity>0）
+  const hasStock = {}
   ;(Array.isArray(stockRows) ? stockRows : []).forEach((row) => {
     if (!row || !row.medicineId) return
-    const expired = expiryTag(row.expiryDate).state === 'expired'
-    const prev = stockState[row.medicineId]
-    if (!prev) {
-      stockState[row.medicineId] = expired ? 'expired' : 'ok'
-    } else if (prev === 'expired' && !expired) {
-      stockState[row.medicineId] = 'ok'
-    }
+    if (row.quantity != null && row.quantity > 0) hasStock[row.medicineId] = true
   })
   const selectable = []
   const blocked = []
   ;(Array.isArray(medicines) ? medicines : []).forEach((medicine) => {
     if (!medicine || !medicine.medicineId) return
-    const state = stockState[medicine.medicineId]
-    if (state === 'ok') {
-      selectable.push({ medicine, expiry: { state: 'ok', text: '正常' } })
-    } else if (state === 'expired') {
-      blocked.push({ medicine, reason: 'expired' })
+    if (hasStock[medicine.medicineId]) {
+      selectable.push({ medicine })
     } else {
       blocked.push({ medicine, reason: 'no-stock' })
     }

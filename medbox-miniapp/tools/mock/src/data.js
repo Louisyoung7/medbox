@@ -4,7 +4,7 @@
  * 字段与口径严格对照 medbox-spec：06 的 2.1~2.5（user / guardian_relation / device /
  * medicine / medicine_stock）、02 第 3~5 章（接口形状）、01 第 3 章（角色与权限）。
  *
- * 日期类种子值相对"运行时刻"计算，保证演示状态（正常 / 临期 / 过期 / 未填）不随日期漂移。
+ * 日期类种子值相对"运行时刻"计算，保证演示数据（有效期取值多样：未填 / 过去 / 未来）不随日期漂移。
  */
 
 /** 相对今天偏移 N 天的 YYYY-MM-DD。 */
@@ -160,7 +160,7 @@ function createSeed() {
     },
   ]
 
-  // 库存（06 的 2.5）：按"药箱 + 药品"，日期由监护人手动录入；故意覆盖四种临期状态
+  // 库存（06 的 2.5）：按"药箱 + 药品"，日期由监护人手动录入；有效期取值覆盖多种（含未填 / 过去 / 未来），仅作记录项
   const stocks = [
     { stockId: 'st-1', deviceId: 'BOXA1001', elderId: 'u-1001', medicineId: 'm-201', quantity: 24, productionDate: dateOffset(-45), expiryDate: dateOffset(60), updatedAt: isoOffset(-2 * DAY) },
     { stockId: 'st-2', deviceId: 'BOXA1001', elderId: 'u-1001', medicineId: 'm-202', quantity: 7, productionDate: dateOffset(-35), expiryDate: dateOffset(10), updatedAt: isoOffset(-2 * DAY) },
@@ -202,50 +202,50 @@ function createSeed() {
     { itemId: 'pi-9004', planId: 'p-3303', medicineId: 'm-205', dose: '10', unit: 'ml', note: '摇匀后服', sortOrder: 0 },
   ]
 
-  // 服药记录（06 的 2.7）：planTime / actualTime 一律 UTC；覆盖按时 / 未按时 / 错服 / 已确认 / 两位老人。
+  // 服药记录（06 的 2.7）：planTime / actualTime 一律 UTC；覆盖按时 / 未按时 / 已确认 / 两位老人。
   // captureId 部分有值，但 capture-core 属 P1，Mock 只存 id，缩略图由前端留空占位（feat/mp-capture 接入）。
   const records = [
     {
       recordId: 'rec-9001', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9001', medicineId: 'm-201',
       deviceId: 'BOXA1001', captureId: '', actualDose: '1',
       planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR + 5 * MINUTE),
-      onTime: true, wrongDrug: false, confirmedBy: '', confirmedAt: '',
+      onTime: true, confirmedBy: '', confirmedAt: '',
     },
     {
       recordId: 'rec-9002', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9002', medicineId: 'm-202',
       deviceId: 'BOXA1001', captureId: '', actualDose: '1',
       planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR + 20 * MINUTE),
-      onTime: true, wrongDrug: false, confirmedBy: '', confirmedAt: '',
+      onTime: true, confirmedBy: '', confirmedAt: '',
     },
     {
       recordId: 'rec-9003', elderId: 'u-1001', planId: 'p-3302', planItemId: 'pi-9003', medicineId: 'm-204',
       deviceId: 'BOXA1001', captureId: '', actualDose: '1',
       planTime: isoOffset(-2 * DAY - 3 * HOUR), actualTime: isoOffset(-2 * DAY - 3 * HOUR + 45 * MINUTE),
-      onTime: false, wrongDrug: false, confirmedBy: 'u-2001', confirmedAt: isoOffset(-2 * DAY),
+      onTime: false, confirmedBy: 'u-2001', confirmedAt: isoOffset(-2 * DAY),
     },
     {
       recordId: 'rec-9004', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9001', medicineId: 'm-201',
       deviceId: 'BOXA1001', captureId: '', actualDose: '1',
       planTime: isoOffset(-3 * DAY - 8 * HOUR), actualTime: isoOffset(-3 * DAY - 8 * HOUR + 60 * MINUTE),
-      onTime: false, wrongDrug: true, confirmedBy: '', confirmedAt: '',
+      onTime: false, confirmedBy: '', confirmedAt: '',
     },
     {
       recordId: 'rec-9005', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
       deviceId: 'BOXA1002', captureId: 'cap-5001', actualDose: '10',
       planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR),
-      onTime: true, wrongDrug: false, confirmedBy: '', confirmedAt: '',
+      onTime: true, confirmedBy: '', confirmedAt: '',
     },
     {
       recordId: 'rec-9006', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
       deviceId: 'BOXA1002', captureId: '', actualDose: '10',
       planTime: isoOffset(-2 * DAY - 4 * HOUR), actualTime: isoOffset(-2 * DAY - 4 * HOUR),
-      onTime: true, wrongDrug: false, confirmedBy: '', confirmedAt: '',
+      onTime: true, confirmedBy: '', confirmedAt: '',
     },
   ]
 
   // 告警（02 第 8 章；alarm-core 已落地，但 Mock 不接 EMQX，按契约播种样例让列表可读）：
-  // 覆盖 MISS（漏服）/ WRONG_DRUG（错服）/ ENV（环境超标）；DEVICE_OFFLINE / EXPIRED 两类对应后端
-  // alarm-device-offline / stock-expiring 在 07 仍为 [ ] 未落地，本期不播（列表对缺类自动少该类）。
+  // 覆盖 MISS（漏服）/ ENV（环境超标）；DEVICE_OFFLINE 类对应后端 alarm-device-offline
+  // 在 07 仍为 [ ] 未落地，本期不播（列表对缺类自动少该类）。
   // readState: UNREAD / READ；handled: 是否已处理闭环。
   const alarms = [
     {
@@ -253,12 +253,6 @@ function createSeed() {
       message: '08:00 计划服药未按时服用：缺 阿莫西林胶囊、阿托伐他汀钙片',
       medicineIds: ['m-201', 'm-202'], readState: 'UNREAD', handled: false,
       createdAt: isoOffset(-3 * HOUR),
-    },
-    {
-      alarmId: 'a-1001-wrong-1', elderId: 'u-1001', type: 'WRONG_DRUG', level: 'CRITICAL',
-      message: '摄像头识别实际药品≠计划药品：应为 硝苯地平控释片',
-      medicineIds: ['m-204'], readState: 'UNREAD', handled: false,
-      createdAt: isoOffset(-1 * DAY),
     },
     {
       alarmId: 'a-1001-env-1', elderId: 'u-1001', type: 'ENV', level: 'WARN',

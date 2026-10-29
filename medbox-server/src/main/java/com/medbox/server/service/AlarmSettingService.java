@@ -38,7 +38,7 @@ public class AlarmSettingService {
     }
 
     /**
-     * PUT /alarm-settings?elderId=：按老人 upsert 阈值配置（临期提前期 / 漏服容忍 / 环境上下限）。
+     * PUT /alarm-settings?elderId=：按老人 upsert 阈值配置（漏服容忍 / 环境上下限）。
      * 仅提供的字段覆盖原值。
      */
     public AlarmSettingResponse save(String elderId, AlarmSettingRequest request) {
@@ -49,9 +49,6 @@ public class AlarmSettingService {
         AlarmSetting entity = existing == null ? new AlarmSetting() : existing;
         entity.setElderId(elderId);
 
-        if (request.expiringAheadDays() != null) {
-            entity.setExpiringAheadDays(request.expiringAheadDays());
-        }
         if (request.missTolerateMin() != null) {
             entity.setMissTolerateMin(request.missTolerateMin());
         }

@@ -2,7 +2,7 @@
   <view class="page">
     <view class="head">
       <text class="head__title">服药记录</text>
-      <text class="head__sub">按时 / 错服明细与抓拍留证</text>
+      <text class="head__sub">服药明细与抓拍留证</text>
     </view>
 
     <!-- 老人选择器：监护人可见；候选来自可见设备的 elderId（P1 mp-guardian 前无老人列表接口，同 plan 模式）。

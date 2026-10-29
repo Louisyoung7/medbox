@@ -10,7 +10,7 @@ import com.medbox.server.domain.EnvSample;
  * {@code EnvAlarmService} 用普通 {@code @EventListener}（同步、不依赖事务）消费，做环境超标判定。
  *
  * <p>之所以走事件而非直接在 ingest 内联判定：保持 MQTT 上行"薄适配"分工（与
- * {@code DispenseRecordedEvent} → {@code wrong-drug-alarm} 同一范式），且 ingest 当前无事务，
+ * {@code DispenseRecordedEvent} 同一范式：上行薄适配 + 事件异步判定），且 ingest 当前无事务，
  * 用普通 {@code @EventListener} 即可触发，无需给 env-core 引入事务边界。
  */
 public class EnvSampleRecordedEvent {

@@ -15,8 +15,8 @@ import org.springframework.stereotype.Service;
 /**
  * 告警查询与处理闭环（{@code feat/alarm-core}，见文档 02 第 8 章、07）。
  *
- * <p><b>本类只做查询 / 阅读 / 处理</b>：告警的<b>生成</b>由 {@code miss-alarm} /
- * {@code wrong-drug-alarm} 完成（落 {@code alarm} 表 + 经 WS 推 {@code ALARM} 帧），
+ * <p><b>本类只做查询 / 阅读 / 处理</b>：告警的<b>生成</b>由各判定分支
+ * （如 {@code miss-alarm}）完成（落 {@code alarm} 表 + 经 WS 推 {@code ALARM} 帧），
  * 本分支不触碰生成逻辑，blast radius 仅限于查询侧。
  *
  * <p><b>权限</b>：列表 / 未读 / 标记已读 = {@code READ_ALARM}（四角色，老人仅本人）；

@@ -2,7 +2,7 @@
  * 药箱库存接口（medbox-spec/02 第 5 章）—— 全部需鉴权（默认 `auth: true`，不带 Bearer 会 40101）。
  *
  * <p>`feat/mp-stock` 落地"库存四条"：清单 GET / 录入更新 PUT / 补药入库 POST .../in /
- * 移除 DELETE。**`GET /devices/{id}/expiring`（临期清单）归 P1 `feat/mp-expiring`，不在此导出。**
+ * 移除 DELETE。
  *
  * <p>⚠️ **后端 `medicine-core` 尚未落地**（07 清单未勾选）：本文件按 02 第 5 章 + 06 的 2.5
  * 先行实现，真机联调待后端合并；响应形状与请求体字段名假设见 `src/utils/stock.js` 的

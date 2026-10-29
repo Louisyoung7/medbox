@@ -74,7 +74,7 @@ class CaptureControllerTest {
         MockMultipartFile file = new MockMultipartFile("file", "shot.jpg", "image/jpeg", "bytes".getBytes());
         mockMvc.perform(multipart("/api/v1/devices/CAM01/captures")
                         .file(file)
-                        .param("reason", "WRONG_DRUG")
+                        .param("reason", "LOW_CONFIDENCE")
                         .param("planId", "p-1")
                         .header("X-Device-Id", "CAM01")
                         .header("X-Device-Sign", "sign")

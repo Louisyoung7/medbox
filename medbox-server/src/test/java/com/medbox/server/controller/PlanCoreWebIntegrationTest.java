@@ -199,13 +199,13 @@ class PlanCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("创建：药品无合格库存 / 已过期 → 40901")
-    void 创建库存或过期() throws Exception {
+    @DisplayName("创建：药品无合格库存（quantity=0）→ 40901")
+    void 创建无库存() throws Exception {
         givenGuardianGuards(ELDER_ID);
         givenMainDevice(ELDER_ID, "Asia/Shanghai");
         givenMedicine("m-1001");
-        // 过期库存（expiry 在今日之前）：2026-10-21 上海本地今日 = 2026-10-21，expiry 2026-10-01 已过期
-        givenStock(ELDER_ID, "m-1001", 5, LocalDate.parse("2026-10-01"));
+        // 库存存在但 quantity=0（无合格库存）：仍 40901
+        givenStock(ELDER_ID, "m-1001", 0, LocalDate.parse("2026-10-01"));
 
         mockMvc.perform(post("/api/v1/plans")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))

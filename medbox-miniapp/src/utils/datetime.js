@@ -105,17 +105,4 @@ export function daysUntil(input, from = new Date()) {
   return Math.round((startOfDay(d) - startOfDay(base)) / 86400000)
 }
 
-/**
- * 临期 / 过期状态：expired（已过期）/ expiring（临期，≤ thresholdDays）/ ok。
- *
- * @param {*} input 到期日
- * @param {number} [thresholdDays=30] 临期阈值（天），默认 30（与 01 的 4.6 抓拍保留等口径一致）
- * @returns {'expired'|'expiring'|'ok'|'unknown'}
- */
-export function expiryState(input, thresholdDays = 30) {
-  const n = daysUntil(input)
-  if (n == null) return 'unknown'
-  if (n < 0) return 'expired'
-  if (n <= thresholdDays) return 'expiring'
-  return 'ok'
-}
+

@@ -73,7 +73,6 @@ describe('SIM_EVENT_PRESETS', () => {
     expect(recorded.map((item) => item.key).sort()).toEqual([
       'dispense-late',
       'dispense-on-time',
-      'dispense-wrong-drug',
     ])
     recorded.forEach((item) => expect(item.subTopic).toBe('event/dispense'))
     // 其余一律"仅日志"，且必须说清是哪个分支没落地
@@ -105,7 +104,6 @@ describe('buildSimPayload', () => {
       medicineId: 'm-205',
       actualDose: '1',
       unit: '片',
-      wrongDrug: false,
       source: 'CAMERA',
       imageId: null,
     })
@@ -114,12 +112,6 @@ describe('buildSimPayload', () => {
     expect(body.confidence).toBeGreaterThan(0)
   })
 
-  it('错服：wrongDrug=true 且换成另一种药（触发 WRONG_DRUG 判定）', () => {
-    const body = JSON.parse(buildSimPayload('dispense-wrong-drug', 'BOXA1001'))
-    expect(body.wrongDrug).toBe(true)
-    expect(body.medicineId).toBe('m-206')
-    expect(body.medicineId).not.toBe('m-205')
-  })
 
   it('遥测：带 sensorId 与温湿度，不带 dispense 字段', () => {
     const body = JSON.parse(buildSimPayload('telemetry', 'BOXA1001'))
@@ -212,7 +204,7 @@ function wallClockOf(ts) {
 }
 
 describe('服药类预设的 ts 与槽位', () => {
-  const dispenseKeys = ['dispense-on-time', 'dispense-wrong-drug', 'dispense-late']
+  const dispenseKeys = ['dispense-on-time', 'dispense-late']
 
   it('按时：今日 08:05，落在计划槽后 5 分钟（容忍默认 15 分钟）内 → 后端算出 onTime=true', () => {
     const body = JSON.parse(buildSimPayload('dispense-on-time', 'BOXA1001'))
@@ -233,20 +225,11 @@ describe('服药类预设的 ts 与槽位', () => {
     // 距 08:00 槽 60 分钟，超过默认容忍 15 分钟
     expect(60).toBeGreaterThan(15)
   })
-
-  it('错服：昨日 08:05，与"按时"错开日历天', () => {
-    const body = JSON.parse(buildSimPayload('dispense-wrong-drug', 'BOXA1001', -1))
-    const wall = wallClockOf(body.ts)
-    expect(wall.slice(11)).toBe('08:05')
-    const daysAgo = Math.round((Date.now() - body.ts) / 86400000)
-    expect(daysAgo).toBe(1)
-  })
-
-  it('三个服药预设传入不同 dayOffset 时，本地日期互不相同 → 不会互相触发 uk_med_record_item_plan_time', () => {
+  it('两个服药预设传入不同 dayOffset 时，本地日期互不相同 → 不会互相触发 uk_med_record_item_plan_time', () => {
     const days = dispenseKeys.map((key, index) =>
       wallClockOf(JSON.parse(buildSimPayload(key, 'BOXA1001', -index)).ts).slice(0, 10),
     )
-    expect(new Set(days).size).toBe(3)
+    expect(new Set(days).size).toBe(2)
   })
 
   it('dayOffset 决定目标日历天：-3 就落三天前（槽位可以一直往后要，不会用完）', () => {
@@ -261,7 +244,7 @@ describe('服药类预设的 ts 与槽位', () => {
     expect(new Set(days).size).toBe(5)
   })
 
-  it('三个服药预设共用同一 planItemId（种子只有这一个计划项）', () => {
+  it('两个服药预设共用同一 planItemId（种子只有这一个计划项）', () => {
     const items = dispenseKeys.map((key) => JSON.parse(buildSimPayload(key, 'BOXA1001', 0)).planItemId)
     expect(new Set(items)).toEqual(new Set(['pi-9001']))
   })

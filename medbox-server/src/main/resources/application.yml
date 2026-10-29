@@ -135,10 +135,6 @@ medbox:
       scan-interval-ms: 60000                     # 扫描间隔（毫秒），每 60s 扫一次
       lookback-minutes: 1440                       # 回看窗口（分钟）= 24h，防服务重启后漏判又不至于扫太久
       skip-when-device-offline: true               # 主控离线时跳过该老人，避免"上报不了=漏服"误判
-    # —— 错服判定与 WRONG_DRUG 告警（feat/wrong-drug-alarm，见文档 06 的 2.9）——
-    wrong-drug:
-      enabled: ${MEDBOX_ALARM_WRONG_DRUG_ENABLED:true}   # 逃生开关：false 时整个错服判定不跑（CI / 排障用）
-      confidence-threshold: 0.6                          # 摄像头识别置信度低于此值不判错服，仅标记 capture 为 LOW_CONFIDENCE
     # —— 环境超标判定与 ENV 告警（feat/env-alarm，见文档 06 的 2.9 / 01 的 5.4）——
     env:
       enabled: ${MEDBOX_ALARM_ENV_ENABLED:true}          # 逃生开关：false 时整体不判定（CI / 排障用）

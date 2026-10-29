@@ -11,17 +11,16 @@ import java.time.OffsetDateTime;
  * <p>未配置过阈值的老人返回全部字段为 null（前端按"系统默认"展示）；{@code envThreshold}
  * 任意子字段为 null 表示该上下限未启用。
  */
-public record AlarmSettingResponse(Integer expiringAheadDays,
-                                   Integer missTolerateMin,
+public record AlarmSettingResponse(Integer missTolerateMin,
                                    EnvThreshold envThreshold,
                                    OffsetDateTime updatedAt) {
 
     public static AlarmSettingResponse from(AlarmSetting s) {
         if (s == null) {
-            return new AlarmSettingResponse(null, null, null, null);
+            return new AlarmSettingResponse(null, null, null);
         }
         return new AlarmSettingResponse(
-                s.getExpiringAheadDays(), s.getMissTolerateMin(),
+                s.getMissTolerateMin(),
                 s.getEnvThreshold(), s.getUpdatedAt());
     }
 }

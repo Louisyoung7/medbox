@@ -24,8 +24,8 @@ import tools.jackson.databind.ObjectMapper;
  * 畸形 / 缺字段只记 warn，绝不外溢到 Paho 回调线程。
  *
  * <p>入库后通过 {@link ApplicationEventPublisher} 发布 {@link EnvSampleRecordedEvent}，
- * 由 {@code EnvAlarmService} 做环境超标判定（与 {@code wrong-drug-alarm} 消费
- * {@code DispenseRecordedEvent} 同一范式）；2 参构造器保留给 {@code TelemetryUpMessageHandlerTest} 手工 new。
+ * 由 {@code EnvAlarmService} 做环境超标判定（与 {@code DispenseRecordedEvent} → {@code AlarmService}
+ * 的消费范式一致）；2 参构造器保留给 {@code TelemetryUpMessageHandlerTest} 手工 new。
  */
 @Component
 public class TelemetryUpMessageHandler implements UpMessageHandler {

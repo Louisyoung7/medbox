@@ -143,7 +143,6 @@ public class DispenseConsumeService {
         record.setPlanTime(planTime);
         record.setActualTime(actualTime);
         record.setOnTime(onTime);
-        record.setWrongDrug(payload.getWrongDrug());
         record.setSource(firstNonBlank(payload.getSource(), DEFAULT_SOURCE));
         record.setDeviceId(deviceId);
         record.setCreatedAt(OffsetDateTime.now(clock));
@@ -158,7 +157,7 @@ public class DispenseConsumeService {
             return Optional.empty();
         }
 
-        // —— 6. 扣库存（按识别到的药品，不足扣到 0，不阻断；错服也扣）——
+        // —— 6. 扣库存（按识别到的药品，不足扣到 0，不阻断；识别到非计划药也照扣）——
         if (isBlank(payload.getMedicineId())) {
             log.warn("dispense 未扣库存：medicineId 为空 deviceId={} msgId={}", deviceId, payload.getMsgId());
         } else {
@@ -174,7 +173,7 @@ public class DispenseConsumeService {
         eventPublisher.publishEvent(new DispenseRecordedEvent(
                 record.getRecordId(), record.getElderId(), record.getPlanId(), record.getPlanItemId(),
                 record.getMedicineId(), record.getPlanTime(), record.getActualTime(), record.getOnTime(),
-                record.getWrongDrug(), payload.getConfidence(), record.getDeviceId(), record.getCaptureId()));
+                payload.getConfidence(), record.getDeviceId(), record.getCaptureId()));
 
         return Optional.of(record);
     }
