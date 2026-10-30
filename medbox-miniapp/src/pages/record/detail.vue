@@ -53,7 +53,13 @@
           </view>
           <text class="capture__text">暂无抓拍留证</text>
         </view>
-      </MbCard>
+        </MbCard>
+
+        <!-- 抓拍留证：跳独立列表页（feat/mp-capture），按当前记录所属老人归类。
+           借用记录既有 elderId（老人端=自己，监护人端=该记录老人），不依赖"监护老人列表"接口。 -->
+        <view class="capture-entry" hover-class="capture-entry--hover" @click="goCaptureList">
+        <text class="capture-entry__text">查看全部抓拍 ›</text>
+        </view>
 
       <view v-if="canWrite" class="actions">
         <MbButton type="primary" block :loading="confirming" @click="openConfirm">
@@ -237,6 +243,12 @@ export default {
       this.confirmError = ''
       this.showConfirm = true
     },
+    goCaptureList() {
+      if (!this.elderId) return
+      uni.navigateTo({
+        url: `/pages/capture/list?elderId=${encodeURIComponent(this.elderId)}`,
+      })
+    },
     onConfirm() {
       if (this.confirming) return
       this.confirming = true
@@ -356,6 +368,21 @@ export default {
     font-size: 24rpx;
     color: #9a3412;
     background: #fed7aa;
+  }
+}
+
+.capture-entry {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12rpx;
+
+  &__text {
+    font-size: 26rpx;
+    color: $mb-primary;
+  }
+
+  &--hover {
+    opacity: 0.7;
   }
 }
 

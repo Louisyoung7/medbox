@@ -64,4 +64,30 @@ describe('capture —— 请求层', () => {
     expect(sent[0].url).toContain('/medbox/api/v1/captures/cap-5001')
     expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
   })
+
+  it('listCaptures：GET /captures，拼 elderId + reason query，带 Bearer', async () => {
+    const { capture } = await loadCaptureApi()
+    scripts = [{ body: { code: 0, data: { list: [{ captureId: 'cap-1' }], total: 1, page: 1, size: 1 } } }]
+
+    const data = await capture.listCaptures('u-1001', { reason: 'MANUAL' })
+
+    expect(data.total).toBe(1)
+    expect(sent[0].method).toBe('GET')
+    expect(sent[0].url).toContain('/medbox/api/v1/captures')
+    expect(sent[0].url).toContain('elderId=u-1001')
+    expect(sent[0].url).toContain('reason=MANUAL')
+    expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
+  })
+
+  it('deleteCapture：DELETE /captures/{id}，带 Bearer', async () => {
+    const { capture } = await loadCaptureApi()
+    scripts = [{ body: { code: 0, data: null } }]
+
+    const data = await capture.deleteCapture('cap-1')
+
+    expect(data).toBe(null)
+    expect(sent[0].method).toBe('DELETE')
+    expect(sent[0].url).toContain('/medbox/api/v1/captures/cap-1')
+    expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
+  })
 })

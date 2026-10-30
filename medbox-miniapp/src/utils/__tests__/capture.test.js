@@ -10,6 +10,11 @@ import {
   buildConfirmPayload,
   isUncertain,
   parseCapture,
+  parseCapturesPage,
+  toCaptureView,
+  isExpired,
+  REASON_LABEL,
+  FACE_RESULT_LABEL,
 } from '@/utils/capture.js'
 
 describe('isUncertain', () => {
@@ -86,5 +91,73 @@ describe('buildConfirmPayload', () => {
   it('非法 faceResult 不入参；note 去空白', () => {
     expect(buildConfirmPayload({ faceResult: 'WEIRD', note: ' x ' })).toEqual({ note: 'x' })
     expect(buildConfirmPayload({})).toEqual({})
+  })
+})
+
+describe('parseCapturesPage', () => {
+  it('裸数组 → list + total=length + 默认分页', () => {
+    const r = parseCapturesPage([{ captureId: 'a' }, { captureId: 'b' }])
+    expect(r).toEqual({ list: [{ captureId: 'a' }, { captureId: 'b' }], total: 2, page: 1, size: 2 })
+  })
+  it('标准 {list,total,page,size}', () => {
+    const r = parseCapturesPage({ list: [{ captureId: 'a' }], total: 9, page: 2, size: 1 })
+    expect(r).toEqual({ list: [{ captureId: 'a' }], total: 9, page: 2, size: 1 })
+  })
+  it('兼容 {records} / {items} 外壳', () => {
+    expect(parseCapturesPage({ records: [{ captureId: 'x' }] }).list.length).toBe(1)
+    expect(parseCapturesPage({ items: [{ captureId: 'y' }] }).list.length).toBe(1)
+  })
+  it('total 缺失 → 用 list.length 兜底', () => {
+    expect(parseCapturesPage({ list: [{ captureId: 'a' }] }).total).toBe(1)
+  })
+})
+
+describe('toCaptureView', () => {
+  it('字段兜底 + reason/faceResult 文案', () => {
+    const v = toCaptureView({ captureId: 'c1', reason: 'MANUAL', faceResult: 'TAKEN', expireAt: '2026-01-01T00:00:00Z' })
+    expect(v.captureId).toBe('c1')
+    expect(v.reasonLabel).toBe('主动留证')
+    expect(v.faceResultLabel).toBe('已服')
+    expect(v.uncertain).toBe(false)
+    expect(v.fileToken).toBe('')
+  })
+  it('faceResult=UNCERTAIN → uncertain=true', () => {
+    const v = toCaptureView({ faceResult: 'UNCERTAIN' })
+    expect(v.uncertain).toBe(true)
+  })
+  it('reason 缺失 → 文案回退「未知」', () => {
+    expect(toCaptureView({}).reasonLabel).toBe('未知')
+  })
+  it('confidence 字符串转数字 / 缺失置 null', () => {
+    expect(toCaptureView({ confidence: '0.6' }).confidence).toBe(0.6)
+    expect(toCaptureView({}).confidence).toBe(null)
+  })
+  it('expireAt 缺失 → expired=false', () => {
+    expect(toCaptureView({}).expired).toBe(false)
+  })
+})
+
+describe('isExpired', () => {
+  const now = new Date('2026-01-01T00:00:00Z')
+  it('过去 → true', () => {
+    expect(isExpired('2020-01-01T00:00:00Z', now)).toBe(true)
+  })
+  it('未来 → false', () => {
+    expect(isExpired('2030-01-01T00:00:00Z', now)).toBe(false)
+  })
+  it('缺失 → false', () => {
+    expect(isExpired('', now)).toBe(false)
+  })
+})
+
+describe('REASON_LABEL / FACE_RESULT_LABEL', () => {
+  it('reason 文案', () => {
+    expect(REASON_LABEL.NORMAL).toBe('正常服药')
+    expect(REASON_LABEL.MANUAL).toBe('主动留证')
+  })
+  it('faceResult 三态文案', () => {
+    expect(FACE_RESULT_LABEL.TAKEN).toBe('已服')
+    expect(FACE_RESULT_LABEL.ABSENT).toBe('未服')
+    expect(FACE_RESULT_LABEL.UNCERTAIN).toBe('待确认')
   })
 })

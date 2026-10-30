@@ -136,6 +136,20 @@
 			}
 		},
 		{
+			"path": "pages/capture/list",
+			"style": {
+				"navigationBarTitleText": "抓拍留证",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
+			"path": "pages/capture/viewer",
+			"style": {
+				"navigationBarTitleText": "抓拍详情",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/guardian/guardian",
 			"style": {
 				"navigationBarTitleText": "监护关系",

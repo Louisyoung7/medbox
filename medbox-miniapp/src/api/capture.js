@@ -10,7 +10,7 @@
  * 40401（抓拍不存在）/ -1（网络）。
  */
 
-import { get } from '@/api/request.js'
+import { get, del } from '@/api/request.js'
 
 /**
  * 抓拍详情（元数据，含 5 分钟短期 `fileToken`）。
@@ -24,4 +24,34 @@ import { get } from '@/api/request.js'
  */
 export function getCapture(captureId, options) {
   return get(`/captures/${captureId}`, undefined, options)
+}
+
+/**
+ * 抓拍列表（仅元数据，不含文件流；每条含 5 分钟短期 `fileToken`）。
+ *
+ * <p>对应 `02 §4.1.2` ②：按 `elderId`（必填）、`reason`、`from`/`to`、`page`/`size` 过滤；
+ * 分页上限 200（图片元数据体积小）。返回原始分页响应，页面用 {@link parseCapturesPage} 解析。
+ *
+ * @param {string} elderId 目标老人（READ_CAPTURE：老人本人 + GUARDIAN）
+ * @param {Object} [params] `{ reason, from, to, page, size }`
+ * @param {Object} [options] 透传给 `@/api/request`
+ * @returns {Promise<Object>} `R<PageResult<CaptureResponse>>`（`list` / `total` / `page` / `size`）
+ * @throws {ApiError} 40101 / 40301（越权）/ 40302（监护关系 PENDING）/ -1（网络）
+ */
+export function listCaptures(elderId, params, options) {
+  return get('/captures', { elderId, ...(params || {}) }, options)
+}
+
+/**
+ * 删除抓拍（仅 GUARDIAN，`WRITE_CAPTURE`；老人本人 / 护理 / 医生 40301）。
+ *
+ * <p>对应 `02 §4.1.2` ⑥：`DELETE /captures/{captureId}` → `R<Void>`。
+ *
+ * @param {string} captureId 抓拍编号
+ * @param {Object} [options] 透传给 `@/api/request`
+ * @returns {Promise<null>}
+ * @throws {ApiError} 40101 / 40301 / 40302 / 40401（不存在或已清理）/ -1
+ */
+export function deleteCapture(captureId, options) {
+  return del(`/captures/${captureId}`, undefined, options)
 }

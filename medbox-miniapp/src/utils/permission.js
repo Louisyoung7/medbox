@@ -40,6 +40,8 @@ export const ENTRY_ROLES = {
   elderBindGuide: [ROLE.ELDER],
   deviceCommand: [ROLE.GUARDIAN],
   alarmHandle: [ROLE.GUARDIAN],
+  // 抓拍删除（02 §4.1.2 ⑥）：WRITE_CAPTURE 仅 GUARDIAN，老人本人 / 护理 / 医生 40301
+  writeCapture: [ROLE.GUARDIAN],
 }
 
 /**
