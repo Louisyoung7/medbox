@@ -257,6 +257,26 @@ function createSeed() {
       mime: 'image/png', sizeBytes: 48213, confidence: 0.52, faceResult: 'UNCERTAIN',
       capturedAt: isoOffset(-1 * DAY - 8 * HOUR), viewedAt: null, expireAt: isoOffset(29 * DAY),
     },
+    {
+      // 监护人主动留证（异常排查）：reason=MANUAL，无 faceResult / confidence（02 §4.1 允许）
+      captureId: 'cap-5002', deviceId: 'BOXA1002-S-CAM01', elderId: 'u-1002',
+      medicineId: 'm-205', planId: '', reason: 'MANUAL',
+      mime: 'image/png', sizeBytes: 39120, confidence: null, faceResult: '',
+      capturedAt: isoOffset(-3 * DAY), viewedAt: null, expireAt: isoOffset(27 * DAY),
+    },
+    {
+      captureId: 'cap-5003', deviceId: 'BOXA1001-S-CAM01', elderId: 'u-1001',
+      medicineId: 'm-201', planId: 'p-3301', reason: 'NORMAL',
+      mime: 'image/jpeg', sizeBytes: 51234, confidence: 0.91, faceResult: 'TAKEN',
+      capturedAt: isoOffset(-2 * DAY), viewedAt: null, expireAt: isoOffset(28 * DAY),
+    },
+    {
+      // 已过期样例：expireAt 已在过去，/file 返回 404/401，前端提示"原图已过期"
+      captureId: 'cap-5004', deviceId: 'BOXA1001-S-CAM01', elderId: 'u-1001',
+      medicineId: '', planId: '', reason: 'MANUAL',
+      mime: 'image/png', sizeBytes: 12030, confidence: null, faceResult: '',
+      capturedAt: isoOffset(-40 * DAY), viewedAt: null, expireAt: isoOffset(-10 * DAY),
+    },
   ]
 
   // 告警（02 第 8 章；alarm-core 已落地，但 Mock 不接 EMQX，按契约播种样例让列表可读）：

@@ -1071,6 +1071,54 @@ async function handleGetCaptureFile(req, res, captureId, query) {
   res.end(PNG_1X1)
 }
 
+// ---------------------------------------------------------------- 抓拍列表 / 删除（02 设备管理.md §4.1；feat/mp-capture）
+async function handleListCaptures(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, '缺少 elderId')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  let list = state.captures.filter((c) => c.elderId === elderId)
+  const reason = String(query.reason || '').trim()
+  if (reason) list = list.filter((c) => (c.reason || 'NORMAL') === reason)
+  const from = String(query.from || '').trim()
+  const to = String(query.to || '').trim()
+  if (from && isValidDate(from)) list = list.filter((c) => dateOf(c.capturedAt) >= from)
+  if (to && isValidDate(to)) list = list.filter((c) => dateOf(c.capturedAt) <= to)
+  const page = Math.max(1, Number(query.page) || 1)
+  const size = Math.min(200, Math.max(1, Number(query.size) || 20))
+  const total = list.length
+  const start = (page - 1) * size
+  const pageItems = list.slice(start, start + size).map((c) => ({
+    captureId: c.captureId,
+    deviceId: c.deviceId,
+    elderId: c.elderId,
+    medicineId: c.medicineId || undefined,
+    planId: c.planId || undefined,
+    reason: c.reason || 'NORMAL',
+    mime: c.mime || 'image/png',
+    sizeBytes: c.sizeBytes || 0,
+    confidence: typeof c.confidence === 'number' ? c.confidence : undefined,
+    faceResult: c.faceResult || undefined,
+    capturedAt: c.capturedAt,
+    viewedAt: c.viewedAt || undefined,
+    expireAt: c.expireAt || undefined,
+    fileToken: `tok-${c.captureId}-${Date.now() + 5 * 60 * 1000}-${rand()}`,
+  }))
+  ok(res, { list: pageItems, total, page, size })
+}
+
+async function handleDeleteCapture(req, res, captureId) {
+  const user = requireUser(req)
+  const capture = state.captures.find((c) => c.captureId === captureId)
+  if (!capture) throw new BizError(40401, '抓拍不存在或已清理')
+  // WRITE_CAPTURE 仅 GUARDIAN（老人本人 / 护理 / 医生 40301；监护关系 PENDING 40302）
+  requireWrite(user, capture.elderId)
+  state.captures = state.captures.filter((c) => c.captureId !== captureId)
+  ok(res, null)
+}
+
 // ---------------------------------------------------------------- 监护关系四条（02 的 3.2）
 
 /** 关系响应形状：role 未指定时省略（02 的 3.2 示例口径）。 */
@@ -1335,13 +1383,15 @@ const server = http.createServer(async (req, res) => {
     matched = /^\/records\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetRecord(req, res, decodeURIComponent(matched[1]))
 
-    // 鉴权：抓拍（02 设备管理.md §4.1；capture-core 已落地，feat/mp-capture-event 联调）
+    // 鉴权：抓拍（02 设备管理.md §4.1；capture-core 已落地，feat/mp-capture 联调）
+    if (req.method === 'GET' && sub === '/captures') return await handleListCaptures(req, res, query)
     matched = /^\/captures\/([^/]+)\/file$/.exec(sub)
     if (req.method === 'GET' && matched) {
       return await handleGetCaptureFile(req, res, decodeURIComponent(matched[1]), query)
     }
     matched = /^\/captures\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetCapture(req, res, decodeURIComponent(matched[1]))
+    if (req.method === 'DELETE' && matched) return await handleDeleteCapture(req, res, decodeURIComponent(matched[1]))
 
     // 鉴权：告警（02 第 8 章；feat/alarm-core 已落地，Mock 先行）
     if (req.method === 'GET' && sub === '/alarms') return await handleListAlarms(req, res, query)

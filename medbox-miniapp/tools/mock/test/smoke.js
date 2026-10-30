@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 174 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 188 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -308,6 +308,27 @@ async function waitReady() {
     const recAfter = await call('GET', '/records/rec-9005', { token: gw.token })
     check('详情刷新后待确认解除', recAfter.code === 0 && recAfter.data.pendingConfirm === false)
     check('老人确认他人记录 40301', (await call('POST', '/records/rec-9005/confirm', { token: elder.token, body: { faceResult: 'TAKEN' } })).code === 40301)
+
+    console.log('== 抓拍列表 / 删除（02 §4.1；feat/mp-capture） ==')
+    const listU1002 = await call('GET', '/captures?elderId=u-1002', { token: gw.token })
+    check('监护人列 u-1002 抓拍 200 + total=2', listU1002.code === 0 && listU1002.data.total === 2 && listU1002.data.list.length === 2)
+    const listManual = await call('GET', '/captures?elderId=u-1002&reason=MANUAL', { token: gw.token })
+    check('reason=MANUAL 仅返回主动留证 1 条', listManual.code === 0 && listManual.data.total === 1 && listManual.data.list[0].captureId === 'cap-5002')
+    const listU1001 = await call('GET', '/captures?elderId=u-1001', { token: elder.token })
+    check('老人看自己抓拍 200 + 含过期 cap-5004', listU1001.code === 0 && listU1001.data.total === 2 && listU1001.data.list.some((c) => c.captureId === 'cap-5004'))
+    check('列表每条带 fileToken', listU1001.code === 0 && listU1001.data.list.every((c) => typeof c.fileToken === 'string' && c.fileToken.length > 0))
+    check('缺 elderId 40001', (await call('GET', '/captures', { token: gw.token })).code === 40001)
+    check('老人看他人抓拍 40301', (await call('GET', '/captures?elderId=u-1002', { token: elder.token })).code === 40301)
+    check('PENDING 监护人看抓拍 40302', (await call('GET', '/captures?elderId=u-1001', { token: pending.token })).code === 40302)
+    check('老人删除抓拍 40301', (await call('DELETE', '/captures/cap-5002', { token: elder.token })).code === 40301)
+    const delOk = await call('DELETE', '/captures/cap-5002', { token: gw.token })
+    check('监护人删除抓拍 200', delOk.code === 0)
+    check('删除后详情 40401', (await call('GET', '/captures/cap-5002', { token: gw.token })).code === 40401)
+    check('删除不存在 40401', (await call('DELETE', '/captures/cap-9999', { token: gw.token })).code === 40401)
+    const del5004 = await call('DELETE', '/captures/cap-5004', { token: gw.token })
+    check('监护人删除过期抓拍 cap-5004 成功', del5004.code === 0)
+    const listU1001After = await call('GET', '/captures?elderId=u-1001', { token: gw.token })
+    check('删除后 u-1001 抓拍剩 1 条（cap-5003）', listU1001After.code === 0 && listU1001After.data.total === 1 && listU1001After.data.list[0].captureId === 'cap-5003')
 
     console.log('== 用户资料（02 第 3 章） ==')
     const elderProfile = await call('GET', '/users/u-1001/profile', { token: elder.token })
