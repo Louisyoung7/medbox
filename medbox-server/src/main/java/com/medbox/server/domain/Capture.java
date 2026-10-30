@@ -54,6 +54,9 @@ public class Capture {
     /** 识别置信度（可空）。 */
     private BigDecimal confidence;
 
+    /** 摄像头三态结论：TAKEN / ABSENT / UNCERTAIN（可空，留证用）。 */
+    private String faceResult;
+
     /** 抓拍时刻（UTC）。 */
     private OffsetDateTime capturedAt;
 
