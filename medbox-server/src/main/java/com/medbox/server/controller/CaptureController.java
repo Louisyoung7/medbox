@@ -59,6 +59,10 @@ public class CaptureController {
                                           @RequestParam(value = "reason", required = false) String reason,
                                           @RequestParam(value = "medicineId", required = false) String medicineId,
                                           @RequestParam(value = "planId", required = false) String planId,
+                                          @RequestParam(value = "planItemId", required = false) String planItemId,
+                                          @RequestParam(value = "actualDose", required = false) String actualDose,
+                                          @RequestParam(value = "unit", required = false) String unit,
+                                          @RequestParam(value = "faceResult", required = false) String faceResult,
                                           @RequestParam(value = "confidence", required = false) BigDecimal confidence,
                                           @RequestParam(value = "capturedAt", required = false)
                                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime capturedAt) {
@@ -66,7 +70,8 @@ public class CaptureController {
         BizAssert.badRequestIf(headerDeviceId == null || !headerDeviceId.equals(deviceId),
                 "X-Device-Id 与路径 deviceId 不一致");
         deviceCaptureAuth.verify(deviceId, request.getHeader("X-Device-Sign"), request.getHeader("X-Timestamp"));
-        return R.ok(captureService.upload(deviceId, file, reason, medicineId, planId, confidence, capturedAt));
+        return R.ok(captureService.upload(deviceId, file, reason, medicineId, planId, planItemId,
+                actualDose, unit, faceResult, confidence, capturedAt));
     }
 
     @GetMapping("/captures")

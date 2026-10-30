@@ -3,6 +3,7 @@ package com.medbox.server.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import lombok.Data;
 
@@ -54,6 +55,12 @@ public class MedRecord {
 
     /** 来源：CAMERA / MANUAL。 */
     private String source;
+
+    /** 服药结论：TAKEN / ABSENT / UNCERTAIN（可空，监护人复核后改写）。 */
+    private String faceResult;
+
+    /** 摄像头识别置信度 0~1（可空，仅 CAMERA 来源有值）。 */
+    private BigDecimal confidence;
 
     /** 上报设备（药箱主控）的 {@code device_id}。 */
     private String deviceId;

@@ -20,6 +20,7 @@ import java.time.OffsetDateTime;
  * @param planTime     计划服药时间（UTC），无匹配槽时为 null
  * @param actualTime   实际服药时间（UTC）
  * @param onTime       是否按时
+ * @param faceResult   服药结论：TAKEN / ABSENT / UNCERTAIN（可空）
  * @param source       来源：CAMERA / MANUAL
  * @param captureId    抓拍留证业务 ID（无则为 null）
  * @param hasCapture   是否存在抓拍留证
@@ -37,6 +38,7 @@ public record RecordResponse(
         OffsetDateTime planTime,
         OffsetDateTime actualTime,
         Boolean onTime,
+        String faceResult,
         String source,
         String captureId,
         boolean hasCapture,
@@ -55,6 +57,7 @@ public record RecordResponse(
                 r.getPlanTime(),
                 r.getActualTime(),
                 r.getOnTime(),
+                r.getFaceResult(),
                 r.getSource(),
                 r.getCaptureId(),
                 r.getCaptureId() != null,

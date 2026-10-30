@@ -16,6 +16,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MedicineStockService {
+    private static final Logger log = LoggerFactory.getLogger(MedicineStockService.class);
+
     private final MedicineStockMapper medicineStockMapper;
     private final MedicineMapper medicineMapper;
     private final AccessService accessService;
@@ -112,6 +116,24 @@ public class MedicineStockService {
         MedicineStock stock=findStock(deviceId,medicineId);
         BizAssert.notFound(stock,"药品库存不存在");
         medicineStockMapper.deleteById(stock.getId());
+    }
+
+    /**
+     * 服药后扣减库存（feat/backend-capture-event 抽出公共方法，供 {@code DispenseConsumeService}
+     * 与 {@code RecordService.confirm} 补扣共用）：按识别到的药品扣，不足扣到 0 不阻断，无对应行记 warn。
+     *
+     * @return 受影响行数（0 = 该药箱无此药品库存行）
+     */
+    @Transactional
+    public int deduct(String deviceId, String medicineId, int delta) {
+        if (delta <= 0) {
+            return 1;
+        }
+        int affected = medicineStockMapper.deduct(deviceId, medicineId, delta);
+        if (affected == 0) {
+            log.warn("扣库存无对应库存行（识别到的药品可能不在该药箱）：deviceId={} medicineId={}", deviceId, medicineId);
+        }
+        return affected;
     }
 
     private MedicineStock findStock(String deviceId,String medicineId){

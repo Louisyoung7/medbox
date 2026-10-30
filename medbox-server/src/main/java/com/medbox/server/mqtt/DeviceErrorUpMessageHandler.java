@@ -11,7 +11,7 @@ import tools.jackson.databind.ObjectMapper;
  * 设备侧异常 {@code up/event/error} 的处理器（feat/device-fault，07 清单 P1）。
  *
  * <p><b>只做薄适配</b>：Jackson 反序列化 + 转发给 {@link DeviceFaultService#ingest}（判定核心在服务层，
- * 与 {@code SensorHeartbeatUpMessageHandler} / {@code DispenseUpMessageHandler} 同一形态）——测试期
+ * 与 {@code SensorHeartbeatUpMessageHandler} 同一形态）——测试期
  * {@code MEDBOX_MQTT_ENABLED=false} 时 mqtt 装配整体不建，但服务层仍是真 Bean，集成测试可直接注入打链路。
  *
  * <p>本类<b>不抛异常</b>：畸形 / 缺字段只记 warn，绝不外溢到 Paho 回调线程。

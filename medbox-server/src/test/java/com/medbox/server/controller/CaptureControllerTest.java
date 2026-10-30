@@ -58,7 +58,7 @@ class CaptureControllerTest {
     }
 
     private CaptureResponse sampleResponse() {
-        return new CaptureResponse("cap-1", "CAM01", "u-1001", "m-1", "p-1", "NORMAL",
+        return new CaptureResponse("cap-1", "CAM01", "u-1001", "m-1", "p-1", "NORMAL", null,
                 "image/jpeg", 10, new BigDecimal("0.9"),
                 OffsetDateTime.parse("2026-10-04T00:00:00Z"), null,
                 OffsetDateTime.parse("2026-11-03T00:00:00Z"), "tok-1");
@@ -68,7 +68,7 @@ class CaptureControllerTest {
     @DisplayName("上传：设备 HMAC 校验通过 → 200 返回 captureId/expireAt")
     void 上传成功() throws Exception {
         when(deviceCaptureAuth.verify(eq("CAM01"), any(), any())).thenReturn("CAM01");
-        when(captureService.upload(any(), any(), any(), any(), any(), any(), any()))
+        when(captureService.upload(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new CaptureUploadResponse("cap-1", OffsetDateTime.parse("2026-11-03T00:00:00Z")));
 
         MockMultipartFile file = new MockMultipartFile("file", "shot.jpg", "image/jpeg", "bytes".getBytes());
