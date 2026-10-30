@@ -85,4 +85,30 @@ public class DeviceProperties {
     public void setSensorScanIntervalMs(long sensorScanIntervalMs) {
         this.sensorScanIntervalMs = sensorScanIntervalMs;
     }
+
+    /**
+     * 主控设备离线判定阈值（毫秒）：连续这么久没刷新心跳（{@code last_heartbeat}）即判离线，
+     * 触发 DEVICE_OFFLINE 告警（文档 03 第 1 章 KeepAlive 60s，取 3 倍 = 180s 留余量）。
+     * 仅作用于 MAIN；传感器子设备离线在 {@code SensorStatusService} 处理且不告警。
+     */
+    private long mainOfflineAfterMs = 180_000L;
+
+    /** 主控离线扫描间隔（毫秒）。 */
+    private long mainScanIntervalMs = 60_000L;
+
+    public long getMainOfflineAfterMs() {
+        return mainOfflineAfterMs;
+    }
+
+    public void setMainOfflineAfterMs(long mainOfflineAfterMs) {
+        this.mainOfflineAfterMs = mainOfflineAfterMs;
+    }
+
+    public long getMainScanIntervalMs() {
+        return mainScanIntervalMs;
+    }
+
+    public void setMainScanIntervalMs(long mainScanIntervalMs) {
+        this.mainScanIntervalMs = mainScanIntervalMs;
+    }
 }

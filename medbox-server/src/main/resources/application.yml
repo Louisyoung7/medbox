@@ -96,6 +96,8 @@ medbox:
     event-max-page-size: 100           # 每页上限：防深分页拖垮数据库，也防客户端一次拉全量
     sensor-offline-after-ms: 180000    # 传感器子设备 180s 未上报判离线（不生成 DEVICE_OFFLINE 告警，见 03 第 3 章）
     sensor-scan-interval-ms: 60000     # 子设备离线扫描间隔
+    main-offline-after-ms: 180000      # 主控设备 180s 未刷新心跳（KeepAlive 60s ×3）判离线，触发 DEVICE_OFFLINE 告警
+    main-scan-interval-ms: 60000       # 主控离线扫描间隔
 
   # —— 出站地址：后端作为“客户端”要连的对端 —— #
   # MQTT 接入（feat/backend-mqtt，见文档 03）：本机 EMQX，本期匿名连接（无用户名密码）
@@ -144,6 +146,10 @@ medbox:
     device-fault:
       enabled: ${MEDBOX_ALARM_DEVICE_FAULT_ENABLED:true}   # 逃生开关：false 时只记事件流水，不告警不推 WS
       dedup-window-minutes: 30                              # 同设备同故障码去重窗口（分钟）：窗口内仅告警一次
+    # —— 主控离线判定与 DEVICE_OFFLINE 告警（feat/alarm-device-offline，见文档 06 的 2.9 / 03 第 1 章）——
+    device-offline:
+      enabled: ${MEDBOX_ALARM_DEVICE_OFFLINE_ENABLED:true}  # 逃生开关：false 时只走状态跃变（事件流水 + DEVICE_STATUS），不告警不推 ALARM
+      dedup-window-minutes: 30                               # 同设备离线去重窗口（分钟）：窗口内仅告警一次，重新上线后再离线可再告警
 
   # —— 服药提醒推送（feat/plan-reminder，见文档 06 的 2.6 / 02 第 8 章）——
   plan-reminder:
