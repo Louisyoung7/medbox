@@ -3,7 +3,6 @@ package com.medbox.server.mqtt;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.medbox.server.mqtt.payload.AckPayload;
-import com.medbox.server.mqtt.payload.DispenseEventPayload;
 import com.medbox.server.mqtt.payload.SensorHeartbeatPayload;
 import com.medbox.server.mqtt.payload.StatusPayload;
 import com.medbox.server.mqtt.payload.TelemetryPayload;
@@ -39,31 +38,6 @@ class UpPayloadParseTest {
         assertThat(payload.getTemperature()).isEqualTo(24.6);
         assertThat(payload.getHumidity()).isEqualTo(52.1);
         assertThat(payload.getLux()).isNull();
-    }
-
-    @Test
-    @DisplayName("服药事件：planItemId / imageId 等字段全部对齐")
-    void parseDispenseEvent() throws Exception {
-        String json = """
-            { "msgId":"BOXA1001-000124", "ts":1759474500000,
-              "planId":"p-3301", "planItemId":"pi-9001",
-              "medicineId":"m-205",
-              "actualDose":"1", "unit":"片", "onTime":true,
-              "confidence":0.93, "source":"CAMERA", "imageId":"cap-8801" }
-            """;
-
-        DispenseEventPayload payload = objectMapper.readValue(json, DispenseEventPayload.class);
-
-        assertThat(payload.getMsgId()).isEqualTo("BOXA1001-000124");
-        assertThat(payload.getPlanId()).isEqualTo("p-3301");
-        assertThat(payload.getPlanItemId()).isEqualTo("pi-9001");
-        assertThat(payload.getMedicineId()).isEqualTo("m-205");
-        assertThat(payload.getActualDose()).isEqualTo("1");
-        assertThat(payload.getUnit()).isEqualTo("片");
-        assertThat(payload.getOnTime()).isTrue();
-        assertThat(payload.getConfidence()).isEqualTo(0.93);
-        assertThat(payload.getSource()).isEqualTo("CAMERA");
-        assertThat(payload.getImageId()).isEqualTo("cap-8801");
     }
 
     @Test

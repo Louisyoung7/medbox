@@ -14,8 +14,10 @@ import com.medbox.server.common.security.AccessIdentity;
 import com.medbox.server.common.security.DeviceOwnerResolver;
 import com.medbox.server.config.CaptureProperties;
 import com.medbox.server.domain.Capture;
+import com.medbox.server.domain.MedRecord;
 import com.medbox.server.dto.capture.CaptureUploadResponse;
 import com.medbox.server.mapper.CaptureMapper;
+import com.medbox.server.service.DispenseConsumeService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,13 +26,17 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
@@ -41,6 +47,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 覆盖：上传去重 / 过期计算 / 扩展名白名单 / 首读标记 / 删除落盘。
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("CaptureService：去重 / 过期 / 落盘 / 首读标记")
 class CaptureServiceTest {
 
@@ -51,6 +58,7 @@ class CaptureServiceTest {
     @Mock DeviceOwnerResolver deviceOwnerResolver;
     @Mock AccessService accessService;
     @Mock CaptureFileTokenService fileTokenService;
+    @Mock DispenseConsumeService dispenseConsumeService;
 
     private CaptureProperties props;
     private CaptureService service;
@@ -65,7 +73,9 @@ class CaptureServiceTest {
         props.setFileTokenSecret("ftsec");
         props.setFileTokenTtlMinutes(5);
         service = new CaptureService(captureMapper, props, deviceOwnerResolver,
-                accessService, fileTokenService, Clock.fixed(CAP.toInstant(), ZoneOffset.UTC));
+                accessService, fileTokenService, dispenseConsumeService,
+                Clock.fixed(CAP.toInstant(), ZoneOffset.UTC));
+        when(dispenseConsumeService.consume(any())).thenReturn(Optional.empty());
     }
 
     private MultipartFile jpeg(String name) {
@@ -82,12 +92,34 @@ class CaptureServiceTest {
         when(captureMapper.insert(any(Capture.class))).thenReturn(1);
 
         CaptureUploadResponse r = service.upload("CAM01", jpeg("shot.jpg"), "NORMAL",
-                "m-1", "p-1", new java.math.BigDecimal("0.9"), CAP);
+                "m-1", "p-1", null, null, null, null, new java.math.BigDecimal("0.9"), CAP);
 
         assertEquals("cap-1001", r.getCaptureId());
         assertEquals(CAP.plusDays(30), r.getExpireAt());
         Path expected = tempDir.resolve("2026-10-04").resolve("cap-1001.jpg");
         assertTrue(Files.exists(expected), "图片应已落盘");
+    }
+
+    @Test
+    @DisplayName("上传带 faceResult + planId：capture.faceResult 落库；planId 非空触发判定核心并回带 recordId")
+    void 上传带FaceResult与Record() {
+        when(deviceOwnerResolver.resolveElderId("CAM01")).thenReturn("u-1001");
+        when(captureMapper.selectByPlanWithinWindow(any(), any(), anyInt())).thenReturn(null);
+        when(captureMapper.nextCaptureId()).thenReturn("cap-1001");
+        when(captureMapper.insert(any(Capture.class))).thenReturn(1);
+        MedRecord rec = new MedRecord();
+        rec.setRecordId("mr-1");
+        when(dispenseConsumeService.consume(any())).thenReturn(Optional.of(rec));
+
+        CaptureUploadResponse r = service.upload("CAM01", jpeg("shot.jpg"), "NORMAL",
+                "m-1", "p-1", "pi-1", "1", "片", "TAKEN", new java.math.BigDecimal("0.9"), CAP);
+
+        assertEquals("cap-1001", r.getCaptureId());
+        assertEquals("mr-1", r.getRecordId());
+        ArgumentCaptor<Capture> cap = ArgumentCaptor.forClass(Capture.class);
+        verify(captureMapper).insert(cap.capture());
+        assertEquals("TAKEN", cap.getValue().getFaceResult());
+        verify(dispenseConsumeService).consume(any());
     }
 
     @Test
@@ -100,7 +132,7 @@ class CaptureServiceTest {
         when(captureMapper.selectByPlanWithinWindow(any(), any(), anyInt())).thenReturn(existing);
 
         CaptureUploadResponse r = service.upload("CAM01", jpeg("shot.jpg"), "NORMAL",
-                "m-1", "p-1", null, CAP);
+                "m-1", "p-1", null, null, null, null, null, CAP);
 
         assertEquals("cap-9001", r.getCaptureId());
         verify(captureMapper, never()).insert(any(Capture.class));
@@ -114,7 +146,7 @@ class CaptureServiceTest {
         when(captureMapper.nextCaptureId()).thenReturn("cap-1001");
         when(captureMapper.insert(any(Capture.class))).thenReturn(1);
 
-        service.upload("CAM01", jpeg("shot.jpg"), null, null, null, null, CAP);
+        service.upload("CAM01", jpeg("shot.jpg"), null, null, null, null, null, null, null, null, CAP);
         verify(captureMapper).nextCaptureId();
         verify(captureMapper).insert(any(Capture.class));
     }
@@ -128,12 +160,12 @@ class CaptureServiceTest {
         when(captureMapper.insert(any(Capture.class))).thenReturn(1);
 
         MultipartFile png = new MockMultipartFile("file", "x.png", "image/png", "p".getBytes());
-        service.upload("CAM01", png, "NORMAL", null, "p-1", null, CAP);
+        service.upload("CAM01", png, "NORMAL", null, "p-1", null, null, null, null, null, CAP);
         assertTrue(Files.exists(tempDir.resolve("2026-10-04").resolve("cap-1001.png")));
 
         when(captureMapper.nextCaptureId()).thenReturn("cap-1002");
         MultipartFile webp = new MockMultipartFile("file", "x.webp", "image/webp", "w".getBytes());
-        service.upload("CAM01", webp, "NORMAL", null, "p-1", null, CAP);
+        service.upload("CAM01", webp, "NORMAL", null, "p-1", null, null, null, null, null, CAP);
         assertTrue(Files.exists(tempDir.resolve("2026-10-04").resolve("cap-1002.webp")));
     }
 
