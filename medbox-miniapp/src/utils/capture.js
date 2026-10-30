@@ -54,6 +54,9 @@ export function buildCaptureFileUrl(captureId, fileToken, baseUrl = '') {
  * @param {Object|null|undefined} data 请求层兑现的 `data`
  * @returns {{ captureId: string, fileToken: string, faceResult: string, confidence: (number|null), expireAt: string, mime: string }}
  */
+
+import { formatDateTime, parseUtc } from '@/utils/datetime.js'
+
 export function parseCapture(data) {
   const d = data || {}
   let confidence = null
@@ -89,4 +92,101 @@ export function buildConfirmPayload(opts) {
   const trimmed = note && String(note).trim()
   if (trimmed) payload.note = trimmed
   return payload
+}
+
+/**
+ * 抓拍列表分页响应容错解析（`GET /captures` → `R<PageResult<CaptureResponse>>`，见 02 §4.1.2）。
+ *
+ * <p>兼容 `{list}` / `{records}` / `{items}` + `total` 与裸数组四种形状，便于后端定稿后收紧；
+ * 分页上限对齐 02 的 200（前端不主动传超过该值，但解析时不拦截）。
+ *
+ * @param {Object|Array|null} data 请求层兑现的 `data`
+ * @returns {{list: Array<Object>, total: number, page: number, size: number}}
+ */
+export function parseCapturesPage(data) {
+  if (Array.isArray(data)) return { list: data, total: data.length, page: 1, size: data.length }
+  const src = data || {}
+  let list = []
+  if (Array.isArray(src.list)) list = src.list
+  else if (Array.isArray(src.records)) list = src.records
+  else if (Array.isArray(src.items)) list = src.items
+  const total = typeof src.total === 'number' ? src.total : list.length
+  const page = typeof src.page === 'number' ? src.page : 1
+  const size = typeof src.size === 'number' ? src.size : list.length
+  return { list, total, page, size }
+}
+
+/** `reason` 文案（02 §4.1.2：`NORMAL` 正常服药 / `MANUAL` 监护人主动留证）。 */
+export const REASON_LABEL = {
+  NORMAL: '正常服药',
+  MANUAL: '主动留证',
+}
+
+/** `faceResult` 三态文案（TAKEN 已服 / ABSENT 未服 / UNCERTAIN 待确认）。 */
+export const FACE_RESULT_LABEL = {
+  TAKEN: '已服',
+  ABSENT: '未服',
+  UNCERTAIN: '待确认',
+}
+
+/**
+ * 抓拍是否已过期（`expireAt` 早于当前时刻）。
+ *
+ * <p>02 §4.1：过期后 `/file` 返回 404/401，前端据此提示"原图已过期，无法访问"。
+ * `expireAt` 缺失（后端未回）按未过期处理（交给后端最终判定）。
+ *
+ * @param {string} [expireAt] ISO-8601 UTC
+ * @param {Date|number} [now=Date.now()]
+ * @returns {boolean}
+ */
+export function isExpired(expireAt, now = new Date()) {
+  const d = parseUtc(expireAt)
+  if (!d) return false
+  const base = now instanceof Date ? now : new Date(now)
+  return d.getTime() < base.getTime()
+}
+
+/**
+ * 抓拍视图归一化（列表项 / 查看器共用）：字段兜底 + 文案 + 时间本地化 + 待确认 / 过期标记。
+ *
+ * <p>只抽取页面需要字段，缺省兜底空串 / null / false，避免空值视图崩溃。后端未落地时
+ * 各字段已做容错；后端定稿后仅改本文件即可收紧。
+ *
+ * @param {Object|null|undefined} data `CaptureResponse`（列表 item 或详情）
+ * @returns {Object} 含 `captureId` / `fileToken` / `reason` / `reasonLabel` / `faceResultLabel` /
+ *   `confidence` / `capturedAtText` / `expireAtText` / `uncertain` / `expired` / `thumbnailUrl`(需调用方补)
+ */
+export function toCaptureView(data) {
+  const d = data || {}
+  let confidence = null
+  if (typeof d.confidence === 'number') confidence = d.confidence
+  else if (typeof d.confidence === 'string' && d.confidence !== '') {
+    const n = Number(d.confidence)
+    if (!Number.isNaN(n)) confidence = n
+  }
+  const reason = d.reason || ''
+  const faceResult = d.faceResult || ''
+  const uncertain = faceResult === 'UNCERTAIN'
+  return {
+    captureId: d.captureId || '',
+    deviceId: d.deviceId || '',
+    elderId: d.elderId || '',
+    medicineId: d.medicineId || '',
+    planId: d.planId || '',
+    reason,
+    reasonLabel: REASON_LABEL[reason] || reason || '未知',
+    faceResult,
+    faceResultLabel: FACE_RESULT_LABEL[faceResult] || '',
+    confidence,
+    mime: d.mime || '',
+    sizeBytes: typeof d.sizeBytes === 'number' ? d.sizeBytes : 0,
+    capturedAt: d.capturedAt || '',
+    capturedAtText: formatDateTime(d.capturedAt),
+    viewedAt: d.viewedAt || '',
+    expireAt: d.expireAt || '',
+    expireAtText: formatDateTime(d.expireAt),
+    fileToken: d.fileToken || '',
+    uncertain,
+    expired: isExpired(d.expireAt),
+  }
 }
