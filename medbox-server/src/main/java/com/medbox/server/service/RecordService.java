@@ -26,8 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,7 +49,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RecordService {
 
-    private static final Logger log = LoggerFactory.getLogger(RecordService.class);
     private static final String SOURCE_MANUAL = "MANUAL";
 
     private final MedRecordMapper medRecordMapper;
@@ -61,15 +58,13 @@ public class RecordService {
     private final DeviceTimezoneResolver timezoneResolver;
     private final PlanSlotResolver slotResolver;
     private final AccessService accessService;
-    private final MedicineStockService medicineStockService;
     private final Clock clock;
 
     /** 测试 / 非 Spring 场景：可注入 {@link Clock} 以固定时间。 */
     public RecordService(MedRecordMapper medRecordMapper, MedPlanMapper medPlanMapper,
                          MedicineMapper medicineMapper, DeviceMapper deviceMapper,
                          DeviceTimezoneResolver timezoneResolver, PlanSlotResolver slotResolver,
-                         AccessService accessService, MedicineStockService medicineStockService,
-                         Clock clock) {
+                         AccessService accessService, Clock clock) {
         this.medRecordMapper = medRecordMapper;
         this.medPlanMapper = medPlanMapper;
         this.medicineMapper = medicineMapper;
@@ -77,7 +72,6 @@ public class RecordService {
         this.timezoneResolver = timezoneResolver;
         this.slotResolver = slotResolver;
         this.accessService = accessService;
-        this.medicineStockService = medicineStockService;
         this.clock = clock;
     }
 
@@ -86,9 +80,9 @@ public class RecordService {
     public RecordService(MedRecordMapper medRecordMapper, MedPlanMapper medPlanMapper,
                          MedicineMapper medicineMapper, DeviceMapper deviceMapper,
                          DeviceTimezoneResolver timezoneResolver, PlanSlotResolver slotResolver,
-                         AccessService accessService, MedicineStockService medicineStockService) {
+                         AccessService accessService) {
         this(medRecordMapper, medPlanMapper, medicineMapper, deviceMapper,
-                timezoneResolver, slotResolver, accessService, medicineStockService, Clock.systemUTC());
+                timezoneResolver, slotResolver, accessService, Clock.systemUTC());
     }
 
     // ———————————————— 列表 ————————————————
@@ -164,7 +158,6 @@ public class RecordService {
         }
 
         accessService.require(existing.getElderId(), Permission.WRITE_RECORD);
-        String oldFaceResult = existing.getFaceResult();
         if (request.actualTime() != null) {
             existing.setActualTime(request.actualTime());
         }
@@ -174,16 +167,8 @@ public class RecordService {
         if (request.onTime() != null) {
             existing.setOnTime(request.onTime());
         }
-        if (request.faceResult() != null) {
-            existing.setFaceResult(request.faceResult());
-        }
         existing.setSource(SOURCE_MANUAL);
         medRecordMapper.updateById(existing);
-
-        // 规则5 step②：改写 / 补录为 TAKEN（且此前非 TAKEN）时事后补扣库存（幂等）
-        if (isTaken(existing.getFaceResult()) && !isTaken(oldFaceResult)) {
-            deductForRecord(existing);
-        }
         return detail(existing.getRecordId());
     }
 
@@ -212,17 +197,11 @@ public class RecordService {
         record.setActualTime(request.actualTime());
         record.setActualDose(request.actualDose());
         record.setOnTime(request.onTime());
-        record.setFaceResult(request.faceResult());
         record.setSource(SOURCE_MANUAL);
         record.setPlanTime(recomputePlanTime(request.elderId(), request.planId(), request.actualTime()));
         record.setDeviceId(resolveMainDeviceId(request.elderId()));
         record.setCreatedAt(OffsetDateTime.now(clock));
         medRecordMapper.insert(record);
-
-        // 规则5 step②：新建补录为 TAKEN 时事后补扣库存（新建无历史扣减，直接扣）
-        if (isTaken(record.getFaceResult())) {
-            deductForRecord(record);
-        }
         return detail(record.getRecordId());
     }
 
@@ -264,48 +243,6 @@ public class RecordService {
                 .eq(Device::getElderId, elderId)
                 .eq(Device::getDeviceType, DeviceType.MAIN));
         return device == null ? null : device.getDeviceId();
-    }
-
-    // ———————————————— 内部：confirm 补扣（规则5 step②） ————————————————
-
-    /** 仅 {@code TAKEN} 才扣库存；设备取记录归属药箱（缺则按老人反查 MAIN）。 */
-    private void deductForRecord(MedRecord record) {
-        if (isBlank(record.getMedicineId())) {
-            log.warn("confirm 补扣未执行：medicineId 为空 recordId={}", record.getRecordId());
-            return;
-        }
-        String deviceId = firstNonBlank(record.getDeviceId(), resolveMainDeviceId(record.getElderId()));
-        if (deviceId == null) {
-            log.warn("confirm 补扣未执行：无法解析归属药箱 recordId={} elderId={}",
-                    record.getRecordId(), record.getElderId());
-            return;
-        }
-        int delta = parseDose(record.getActualDose());
-        medicineStockService.deduct(deviceId, record.getMedicineId(), delta);
-    }
-
-    private static boolean isTaken(String faceResult) {
-        return "TAKEN".equals(faceResult);
-    }
-
-    private int parseDose(String actualDose) {
-        if (isBlank(actualDose)) {
-            return 1;
-        }
-        try {
-            int v = (int) Math.floor(Double.parseDouble(actualDose.trim()));
-            return v > 0 ? v : 1;
-        } catch (NumberFormatException e) {
-            return 1;
-        }
-    }
-
-    private static boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
-
-    private static String firstNonBlank(String s, String fallback) {
-        return isBlank(s) ? fallback : s;
     }
 
     // ———————————————— 内部：批量查名（避免 N+1） ————————————————

@@ -31,12 +31,11 @@ public class DispenseRecordedEvent {
     private final Double confidence;
     private final String deviceId;
     private final String captureId;
-    private final String faceResult;
 
     public DispenseRecordedEvent(String recordId, String elderId, String planId, String planItemId,
                                  String medicineId, OffsetDateTime planTime, OffsetDateTime actualTime,
                                  Boolean onTime, Double confidence,
-                                 String deviceId, String captureId, String faceResult) {
+                                 String deviceId, String captureId) {
         this.recordId = recordId;
         this.elderId = elderId;
         this.planId = planId;
@@ -48,6 +47,5 @@ public class DispenseRecordedEvent {
         this.confidence = confidence;
         this.deviceId = deviceId;
         this.captureId = captureId;
-        this.faceResult = faceResult;
     }
 }

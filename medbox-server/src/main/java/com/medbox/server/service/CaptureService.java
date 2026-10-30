@@ -12,7 +12,6 @@ import com.medbox.server.common.security.Permission;
 import com.medbox.server.config.CaptureProperties;
 import com.medbox.server.domain.Capture;
 import com.medbox.server.dto.PageResult;
-import com.medbox.server.dto.capture.CaptureDispenseInput;
 import com.medbox.server.dto.capture.CaptureResponse;
 import com.medbox.server.dto.capture.CaptureUploadResponse;
 import com.medbox.server.mapper.CaptureMapper;
@@ -35,7 +34,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -71,7 +69,6 @@ public class CaptureService {
     private final DeviceOwnerResolver deviceOwnerResolver;
     private final AccessService accessService;
     private final CaptureFileTokenService fileTokenService;
-    private final DispenseConsumeService dispenseConsumeService;
     private final Clock clock;
 
     @Autowired
@@ -79,10 +76,9 @@ public class CaptureService {
                           CaptureProperties captureProperties,
                           DeviceOwnerResolver deviceOwnerResolver,
                           AccessService accessService,
-                          CaptureFileTokenService fileTokenService,
-                          DispenseConsumeService dispenseConsumeService) {
+                          CaptureFileTokenService fileTokenService) {
         this(captureMapper, captureProperties, deviceOwnerResolver, accessService,
-                fileTokenService, dispenseConsumeService, Clock.systemUTC());
+                fileTokenService, Clock.systemUTC());
     }
 
     /** 测试用：注入固定时钟，便于断言过期计算。 */
@@ -91,14 +87,12 @@ public class CaptureService {
                           DeviceOwnerResolver deviceOwnerResolver,
                           AccessService accessService,
                           CaptureFileTokenService fileTokenService,
-                          DispenseConsumeService dispenseConsumeService,
                           Clock clock) {
         this.captureMapper = captureMapper;
         this.captureProperties = captureProperties;
         this.deviceOwnerResolver = deviceOwnerResolver;
         this.accessService = accessService;
         this.fileTokenService = fileTokenService;
-        this.dispenseConsumeService = dispenseConsumeService;
         this.clock = clock;
     }
 
@@ -107,11 +101,8 @@ public class CaptureService {
      *
      * @return 本次（或命中的既有）抓拍的 {@code captureId} 与 {@code expireAt}
      */
-    @Transactional
     public CaptureUploadResponse upload(String deviceId, MultipartFile file, String reason,
-                                       String medicineId, String planId, String planItemId,
-                                       String actualDose, String unit,
-                                       String faceResult, BigDecimal confidence,
+                                       String medicineId, String planId, BigDecimal confidence,
                                        OffsetDateTime capturedAt) {
         String elderId = deviceOwnerResolver.resolveElderId(deviceId);
         BizAssert.forbiddenIf(elderId == null, "设备归属老人解析失败（设备未注册或父设备缺失）");
@@ -153,35 +144,13 @@ public class CaptureService {
             entity.setMime(file.getContentType() != null ? file.getContentType() : "image/jpeg");
             entity.setSizeBytes((int) file.getSize());
             entity.setConfidence(confidence);
-            entity.setFaceResult(faceResult);
             entity.setCapturedAt(capAt);
             entity.setExpireAt(expireAt);
             captureMapper.insert(entity);
         } catch (IOException e) {
             throw BizException.of(ErrorCode.INTERNAL_ERROR, "抓拍文件落盘失败：" + e.getMessage());
         }
-
-        // planId 非空 → 调判定核心生成 med_record（与 capture 同事务）
-        String recordId = null;
-        if (planId != null && !planId.isBlank()) {
-            CaptureDispenseInput input = new CaptureDispenseInput();
-            input.setCameraDeviceId(deviceId);
-            input.setCaptureId(captureId);
-            input.setPlanId(planId);
-            input.setPlanItemId(planItemId);
-            input.setMedicineId(medicineId);
-            input.setActualDose(actualDose);
-            input.setUnit(unit);
-            input.setFaceResult(faceResult);
-            input.setConfidence(confidence);
-            input.setCapturedAt(capAt);
-            input.setSource("CAMERA");
-            recordId = dispenseConsumeService.consume(input)
-                    .map(com.medbox.server.domain.MedRecord::getRecordId)
-                    .orElse(null);
-        }
-
-        return new CaptureUploadResponse(captureId, expireAt, recordId);
+        return new CaptureUploadResponse(captureId, expireAt);
     }
 
     /** 抓拍列表（仅元数据，不含文件流），支持按 reason 过滤与时间区间筛选。 */
@@ -285,7 +254,6 @@ public class CaptureService {
                 c.getMedicineId(),
                 c.getPlanId(),
                 c.getReason(),
-                c.getFaceResult(),
                 c.getMime(),
                 c.getSizeBytes(),
                 c.getConfidence(),

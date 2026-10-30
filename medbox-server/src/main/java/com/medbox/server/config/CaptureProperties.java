@@ -1,6 +1,5 @@
 package com.medbox.server.config;
 
-import java.math.BigDecimal;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -24,9 +23,6 @@ public class CaptureProperties {
 
     /** 设备上传 HMAC 共用密钥（一把密钥写在固件与后端配置里，不入库，见 02 的 4.1）。 */
     private String uploadSecret;
-
-    /** 识别置信度阈值（0~1，默认 0.6）：摄像头报 TAKEN/ABSENT 但 confidence < 该值 → 记 UNCERTAIN（待确认）。 */
-    private BigDecimal confidenceThreshold = new BigDecimal("0.6");
 
     /** fileToken 签发/校验密钥（小程序 {@code <image src>} 用，避免暴露长期 JWT）。 */
     private String fileTokenSecret;
@@ -64,14 +60,6 @@ public class CaptureProperties {
 
     public void setUploadSecret(String uploadSecret) {
         this.uploadSecret = uploadSecret;
-    }
-
-    public BigDecimal getConfidenceThreshold() {
-        return confidenceThreshold;
-    }
-
-    public void setConfidenceThreshold(BigDecimal confidenceThreshold) {
-        this.confidenceThreshold = confidenceThreshold;
     }
 
     public String getFileTokenSecret() {

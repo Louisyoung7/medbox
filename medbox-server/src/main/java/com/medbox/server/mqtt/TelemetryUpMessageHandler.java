@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
  * 环境遥测 {@code up/telemetry} 的处理器（feat/env-core，07 清单 P1）。
  *
  * <p><b>只做薄适配</b>：Jackson 反序列化 + 转发给 {@link EnvSampleService#ingest}
- * （判定核心在服务层，与 {@link SensorHeartbeatUpMessageHandler}
+ * （判定核心在服务层，与 {@link SensorHeartbeatUpMessageHandler} / {@link DispenseUpMessageHandler}
  * 同一形态）——测试期 {@code MEDBOX_MQTT_ENABLED=false} 时 mqtt 装配整体不建，但服务层仍是真 Bean，
  * 集成测试可直接注入打链路。
  *
