@@ -929,6 +929,108 @@ function defaultAlarmSettings(elderId) {
   }
 }
 
+// ---------------------------------------------------------------- 环境监测（02 第 9 章；env-core 已落地，Mock 先行）
+
+/**
+ * 最新温湿光读数（GET /env/realtime）：合并各传感器最新非空读数。
+ * requireDevice（40301 / 40302 / 子设备编号 40301）；deviceId 必填；sensorId 可选（按传感器查）。
+ * 温湿度与光照分两条 env_sample 入库，本接口合并两者最新非空读数（sampleTime 取较新者）。
+ */
+async function handleGetEnvRealtime(req, res, query) {
+  const user = requireUser(req)
+  const deviceId = String(query.deviceId || '').trim()
+  if (!deviceId) throw new BizError(40001, 'deviceId 不能为空')
+  requireDevice(user, deviceId) // 40301 / 40302 / 子设备 40301
+  const sensorId = String(query.sensorId || '').trim()
+  let rows = state.envSamples.filter((s) => s.gatewayDeviceId === deviceId)
+  if (sensorId) rows = rows.filter((s) => s.deviceId === sensorId)
+  const pickLatest = (key) => {
+    let best = null
+    for (const s of rows) {
+      const v = s[key]
+      if (typeof v === 'number' && (best === null || s.sampleTime > best.sampleTime)) best = s
+    }
+    return best
+  }
+  const t = pickLatest('temperature')
+  const h = pickLatest('humidity')
+  const l = pickLatest('lux')
+  const times = [t, h, l].filter(Boolean).map((s) => s.sampleTime).sort()
+  ok(res, {
+    temperature: t ? t.temperature : null,
+    humidity: h ? h.humidity : null,
+    lux: l ? l.lux : null,
+    sampleTime: times.length ? times[times.length - 1] : null,
+  })
+}
+
+/**
+ * 历史曲线（GET /env/history）：参数校验（02 第 9.2）→ 40001（from/to 缺省 / from>to /
+ * interval 越界 1~1440 / 跨度 >30 天）；按 sensorId 或 gateway 筛；interval 分桶 avg，否则原始有序点。
+ */
+async function handleGetEnvHistory(req, res, query) {
+  const user = requireUser(req)
+  const deviceId = String(query.deviceId || '').trim()
+  const from = String(query.from || '').trim()
+  const to = String(query.to || '').trim()
+  if (!deviceId) throw new BizError(40001, 'deviceId 不能为空')
+  requireDevice(user, deviceId) // 40301 / 40302 / 子设备 40301
+  if (!from || !to) throw new BizError(40001, 'from / to 不能为空')
+  const fromMs = Date.parse(from)
+  const toMs = Date.parse(to)
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) throw new BizError(40001, 'from / to 格式不正确')
+  if (fromMs > toMs) throw new BizError(40001, 'from 不能晚于 to')
+  if (toMs - fromMs > 30 * 24 * 60 * 60 * 1000) throw new BizError(40001, '时间跨度不能超过 30 天')
+  const interval = query.interval !== undefined ? Number(query.interval) : 0
+  if (interval !== 0 && (!Number.isInteger(interval) || interval < 1 || interval > 1440)) {
+    throw new BizError(40001, 'interval 超出范围(1~1440)')
+  }
+  const sensorId = String(query.sensorId || '').trim()
+  let rows = state.envSamples.filter((s) => s.gatewayDeviceId === deviceId)
+  if (sensorId) rows = rows.filter((s) => s.deviceId === sensorId)
+  rows = rows.filter((s) => {
+    const ms = Date.parse(s.sampleTime)
+    return Number.isFinite(ms) && ms >= fromMs && ms <= toMs
+  })
+  if (!interval) {
+    const points = rows
+      .slice()
+      .sort((a, b) => String(a.sampleTime).localeCompare(String(b.sampleTime)))
+      .map((s) => ({
+        sampleTime: s.sampleTime,
+        temperature: s.temperature,
+        humidity: s.humidity,
+        lux: s.lux,
+      }))
+    return ok(res, { points })
+  }
+  // 分桶 avg：按 interval 分钟分桶，桶内各指标均值（忽略 null），sampleTime 取桶内最新
+  const bucketMs = interval * 60 * 1000
+  const buckets = new Map()
+  rows.forEach((s) => {
+    const ms = Date.parse(s.sampleTime)
+    if (!Number.isFinite(ms)) return
+    const idx = Math.floor((ms - fromMs) / bucketMs)
+    if (!buckets.has(idx)) {
+      buckets.set(idx, { tSum: 0, tN: 0, hSum: 0, hN: 0, lSum: 0, lN: 0, maxTime: '' })
+    }
+    const b = buckets.get(idx)
+    if (typeof s.temperature === 'number') { b.tSum += s.temperature; b.tN += 1 }
+    if (typeof s.humidity === 'number') { b.hSum += s.humidity; b.hN += 1 }
+    if (typeof s.lux === 'number') { b.lSum += s.lux; b.lN += 1 }
+    if (!b.maxTime || s.sampleTime > b.maxTime) b.maxTime = s.sampleTime
+  })
+  const points = Array.from(buckets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, b]) => ({
+      sampleTime: b.maxTime,
+      temperature: b.tN ? Number((b.tSum / b.tN).toFixed(2)) : null,
+      humidity: b.hN ? Number((b.hSum / b.hN).toFixed(2)) : null,
+      lux: b.lN ? Number((b.lSum / b.lN).toFixed(2)) : null,
+    }))
+  ok(res, { points })
+}
+
 // ---------------------------------------------------------------- 记录（02 第 7 章；capture-core 属 P1，缩略图前端留空占位）
 
 /** 取 ISO 字符串的日期部分（YYYY-MM-DD），用于 from/to 日粒度过滤。 */
@@ -1403,6 +1505,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && sub === '/alarm-settings') return await handleGetAlarmSettings(req, res, query)
     matched = /^\/alarm-settings$/.exec(sub)
     if (req.method === 'PUT' && matched) return await handleSaveAlarmSettings(req, res, query, await readBody(req))
+
+    // ---------------------------------------------------------------- 环境监测（02 第 9 章；env-core 已落地）
+    if (req.method === 'GET' && sub === '/env/realtime') return await handleGetEnvRealtime(req, res, query)
+    if (req.method === 'GET' && sub === '/env/history') return await handleGetEnvHistory(req, res, query)
 
     // 鉴权：监护关系四条（02 的 3.2）
     matched = /^\/users\/([^/]+)\/guardians$/.exec(sub)

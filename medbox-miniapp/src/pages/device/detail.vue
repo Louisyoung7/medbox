@@ -55,6 +55,16 @@
         <MbEmpty v-else text="暂无传感器" />
       </MbCard>
 
+      <MbCard title="环境监测">
+        <MbCell
+          title="实时温湿光与历史曲线"
+          label="温度/湿度/光照读数，超标高亮"
+          clickable
+          arrow
+          @click="goEnv"
+        />
+      </MbCard>
+
       <RoleGate entry="deviceCommand">
         <MbCard title="远程控制">
           <view class="cmd-grid">
@@ -234,6 +244,13 @@ export default {
       if (text === '成功') return 'cmd-state--ok'
       if (text === '失败') return 'cmd-state--fail'
       return 'cmd-state--pending'
+    },
+
+    /** 去环境监测页（feat/mp-env）。 */
+    goEnv() {
+      uni.navigateTo({
+        url: `/pages/env/index?deviceId=${encodeURIComponent(this.deviceId)}`,
+      })
     },
 
     // ------------------------------------------------------------ 设备事件（feat/mp-device-extra）

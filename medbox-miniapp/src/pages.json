@@ -36,6 +36,13 @@
 			}
 		},
 		{
+			"path": "pages/env/index",
+			"style": {
+				"navigationBarTitleText": "环境监测",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/device/events",
 			"style": {
 				"navigationBarTitleText": "设备事件",

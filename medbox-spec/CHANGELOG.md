@@ -18,6 +18,15 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-10-30] 小程序落地环境监测（feat/mp-env）
+
+`feat/mp-env`（08 清单 = `mp-env-realtime` + `mp-env-history`）落地：复用已 `[x]` 的 `mp-device` 与已落地的后端 `env-core`，新增只读的"环境监测"页——`GET /env/realtime` 合并温湿度/光照最新读数、`GET /env/history` 按时间区间/粒度/传感器查历史；实时三卡对照老人级 `envThreshold` 做超标红/偏低蓝高亮（阈值**仅读取** `GET /alarm-settings`，不新增写入口）；历史曲线用 uni `<canvas type="2d">` 自绘（不引第三方图表库、微信端不支持内联 SVG）。`READ_ENV` 全角色只读，不改 `permission.js`、不碰 WS、不重复 ENV 告警。
+
+- **改了哪个文件**：`api/env.js` + `utils/env.js`（解析/容错阈值/状态判定/图表几何）+ `pages/env/index.vue`（新）+ `components/EnvLineChart.vue`（新）+ `pages/device/detail.vue`（入口）+ `pages.json`；`tools/mock`（`env_sample` 种子 + `GET /env/realtime`/`/env/history` + 19 项 smoke，rebase 后合入 main 共 207 项）
+- **跨分支约定**：阈值形状兼容扁平 `{tempMin,tempMax,...}`（06 §2.10）与嵌套 `{temp:{min,max},...}`（已落代码 / Mock），统一由 `toEnvThresholdView` 收敛；历史 `from/to` 由 UI 本地区间转 ISO-8601 UTC 下发、返回 `sampleTime` 本地化；不改 `medbox-server`
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
+
 ## [2026-10-28] 07/08 微调：已实现的 devtools 分支移入 P2 末尾
 
 - **改了哪些文件**：`07_特性分支清单_后端.md`（已实现 `[x]` 的 `backend-devtools` 从 P3 移回 P2 末尾）；`08_特性分支清单_小程序.md`（已实现 `[x]` 的 `mp-devtools` 从 P3 移回 P2 末尾）

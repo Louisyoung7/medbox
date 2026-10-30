@@ -330,7 +330,55 @@ function createSeed() {
     },
   }
 
-  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, planItems, records, captures, refreshTokens: new Set() }
+  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, planItems, records, captures, envSamples: seedEnvSamples(), refreshTokens: new Set() }
+}
+
+/**
+ * 环境遥测种子（06 的 2.8 env_sample；feat/mp-env 联调用）：给 BOXA1001 的温湿度
+ * （BOXA1001-S-TH01）与光照（BOXA1001-S-LGT01）子设备生成近 30 天、每小时一条的样本，
+ * 温湿度随昼夜正弦波动、光照白天有值夜间为 0，使实时读数 / 历史曲线可读。真实 env-core 按
+ * MQTT 上报入库（env-core 已落地），Mock 不接 EMQX，只给样例（仅演示用途）。
+ *
+ * @returns {Array} env_sample 行（device_id=传感器自身、gateway_device_id=主控）
+ */
+function seedEnvSamples() {
+  const HOUR = 60 * 60 * 1000
+  const totalHours = 30 * 24
+  const samples = []
+  for (let i = totalHours; i >= 0; i -= 1) {
+    const t = Date.now() - i * HOUR
+    const date = new Date(t)
+    const hour = date.getHours()
+    // 昼夜相位：0 点最低、12 点最高，幅度 1
+    const phase = Math.sin((hour / 24) * 2 * Math.PI - Math.PI / 2)
+    const temperature = Number((22 + phase * 5 + (Math.random() - 0.5) * 2).toFixed(2))
+    const humidity = Number((50 + phase * 10 + (Math.random() - 0.5) * 5).toFixed(2))
+    samples.push({
+      sampleId: `es-th-${i}`,
+      deviceId: 'BOXA1001-S-TH01',
+      gatewayDeviceId: 'BOXA1001',
+      elderId: 'u-1001',
+      temperature,
+      humidity,
+      lux: null,
+      sampleTime: date.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    })
+    const lux =
+      hour >= 7 && hour <= 19
+        ? Number((200 + phase * 300 + (Math.random() - 0.5) * 100).toFixed(2))
+        : 0
+    samples.push({
+      sampleId: `es-lgt-${i}`,
+      deviceId: 'BOXA1001-S-LGT01',
+      gatewayDeviceId: 'BOXA1001',
+      elderId: 'u-1001',
+      temperature: null,
+      humidity: null,
+      lux,
+      sampleTime: date.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    })
+  }
+  return samples
 }
 
 module.exports = { createSeed, DEMO_PASSWORD }
