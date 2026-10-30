@@ -79,7 +79,7 @@ git log --oneline -5 -- medbox-spec/
 1. **功能分支必须带集成测试，并输出测试报告**
    - 地基分支（骨架 / 统一响应 / 建表 / 认证）有单元测试即可；**从第一个功能分支起**，凡新增接口或判定逻辑，必须补集成测试（后端用 MockMvc 打真实接口链路，小程序侧至少覆盖请求层与编排层）；
    - 交付时**把测试报告贴给用户**（`./gradlew test` / npm test 的结果摘要：用例数、通过数、失败项），不要只说"已实现"；
-   - **小程序侧另跑 Mock 端到端**：每个功能分支完工时，在 `npm test`（单元测试）之后**自动执行 `npm run test:e2e`**（`medbox-miniapp/tools/mock`：自起服务、自选 18099 端口、163 项检查、跑完即关，不占用 8080），单元 + 端到端两份结果一并贴给用户；后端接口未落地时的联调与回归也用 `npm run mock` 起这个假后端；
+   - **小程序侧另跑 Mock 端到端**：每个功能分支完工时，在 `npm test`（单元测试）之后**自动执行 `npm run test:e2e`**（`medbox-miniapp/tools/mock`：自起服务、自选 18099 端口、207 项检查、跑完即关，不占用 8080），单元 + 端到端两份结果一并贴给用户；后端接口未落地时的联调与回归也用 `npm run mock` 起这个假后端；
    - 目的：把"人工手动跑一遍"从瓶颈里摘出来。用户的验证动作降级为**看报告**，不再逐接口手点。
    - 集成测试**不依赖外部 DB（CI 无 PostgreSQL）**：CI 环境没有 Postgres（localhost:5432 不可达）。凡 `@SpringBootTest` 会触达 `@Transactional` 服务，用 `@TestConfiguration` 提供一个 `@Primary` 的**嵌入式 H2 `DataSource`** 替换真实 DataSource，Mapper 仍 `@MockitoBean` 打桩、不跑真实 SQL；SQL / 建表正确性留给真机联调。
      - ⚠️ **Spring Boot 4 已移除 `@AutoConfigureTestDatabase`**（4.x 的 `spring-boot-test-autoconfigure` 的 jdbc 包只剩 `AutoConfigureDataSourceInitialization`），别再用它，改用 `@Primary` H2 方案。

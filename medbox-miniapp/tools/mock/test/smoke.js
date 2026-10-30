@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 188 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 207 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -268,6 +268,44 @@ async function waitReady() {
     check('days=0 → 40001', (await call('GET', '/plans/p-3301/next-doses?days=0', { token: gw.token })).code === 40001)
     check('days=61 → 40001', (await call('GET', '/plans/p-3301/next-doses?days=61', { token: gw.token })).code === 40001)
     check('未登录 next-doses 40101', (await call('GET', '/plans/p-3301/next-doses?days=7')).code === 40101)
+
+    console.log('== 环境监测（02 第 9 章；feat/mp-env；env-core 已落地，Mock 先行） ==')
+    const now = new Date()
+    const iso = (d) => d.toISOString()
+    const from7 = iso(new Date(now.getTime() - 7 * 86400000))
+    const toNow = iso(now)
+    // 实时：合并温湿度（TEMP_HUMI）+ 光照（LIGHT）
+    const rt = await call('GET', '/env/realtime?deviceId=BOXA1001', { token: gw.token })
+    check('GET /env/realtime 200 且三项数值 + sampleTime', rt.code === 0 && typeof rt.data.temperature === 'number' && typeof rt.data.humidity === 'number' && typeof rt.data.lux === 'number' && typeof rt.data.sampleTime === 'string')
+    const rtTh = await call('GET', '/env/realtime?deviceId=BOXA1001&sensorId=BOXA1001-S-TH01', { token: gw.token })
+    check('按温湿度传感器：temp/humidity 数值、lux 为 null', rtTh.code === 0 && typeof rtTh.data.temperature === 'number' && typeof rtTh.data.humidity === 'number' && rtTh.data.lux === null)
+    const rtLgt = await call('GET', '/env/realtime?deviceId=BOXA1001&sensorId=BOXA1001-S-LGT01', { token: gw.token })
+    check('按光照传感器：lux 数值、temp/humidity 为 null', rtLgt.code === 0 && typeof rtLgt.data.lux === 'number' && rtLgt.data.temperature === null && rtLgt.data.humidity === null)
+    check('实时缺 deviceId → 40001', (await call('GET', '/env/realtime', { token: gw.token })).code === 40001)
+    check('实时未知设备 → 40301', (await call('GET', '/env/realtime?deviceId=BOXA9999', { token: gw.token })).code === 40301)
+    check('实时子设备编号作 deviceId → 40301', (await call('GET', '/env/realtime?deviceId=BOXA1001-S-CAM01', { token: gw.token })).code === 40301)
+    check('实时未登录 → 40101', (await call('GET', '/env/realtime?deviceId=BOXA1001')).code === 40101)
+    check('老人读实时 200（READ_ENV 全角色）', (await call('GET', '/env/realtime?deviceId=BOXA1001', { token: elder.token })).code === 0)
+    // 历史：近 7 天原始
+    const hist = await call('GET', `/env/history?deviceId=BOXA1001&from=${from7}&to=${toNow}`, { token: gw.token })
+    check('GET /env/history 200 且 points 数组非空', hist.code === 0 && Array.isArray(hist.data.points) && hist.data.points.length > 100)
+    check('原始点按时间升序且带 sampleTime', hist.data.points.every((p, i) => !!p.sampleTime && (i === 0 || hist.data.points[i - 1].sampleTime <= p.sampleTime)))
+    check('原始点单行多为 null（温/光分属不同传感器）', hist.data.points.some((p) => p.temperature == null || p.lux == null))
+    // 历史分桶：interval=60（1 小时）
+    const histB = await call('GET', `/env/history?deviceId=BOXA1001&from=${from7}&to=${toNow}&interval=60`, { token: gw.token })
+    check('分桶(1h) 点数 < 原始 且 三项全为数值（avg 忽略 null）', histB.code === 0 && Array.isArray(histB.data.points) && histB.data.points.length > 0 && histB.data.points.length < hist.data.points.length && histB.data.points.every((p) => typeof p.temperature === 'number' && typeof p.humidity === 'number' && typeof p.lux === 'number'))
+    check('分桶 sampleTime 升序', histB.data.points.every((p, i) => i === 0 || histB.data.points[i - 1].sampleTime <= p.sampleTime))
+    // 历史按传感器：光照
+    const histLgt = await call('GET', `/env/history?deviceId=BOXA1001&sensorId=BOXA1001-S-LGT01&from=${from7}&to=${toNow}`, { token: gw.token })
+    check('按光照传感器：lux 数值、temp/humidity 为 null', histLgt.code === 0 && histLgt.data.points.every((p) => typeof p.lux === 'number' && p.temperature == null && p.humidity == null))
+    // 历史校验分支
+    check('历史缺 from → 40001', (await call('GET', `/env/history?deviceId=BOXA1001&to=${toNow}`, { token: gw.token })).code === 40001)
+    check('历史 from>to → 40001', (await call('GET', `/env/history?deviceId=BOXA1001&from=${toNow}&to=${from7}`, { token: gw.token })).code === 40001)
+    const from31 = iso(new Date(now.getTime() - 31 * 86400000))
+    check('历史跨度 >30 天 → 40001', (await call('GET', `/env/history?deviceId=BOXA1001&from=${from31}&to=${toNow}`, { token: gw.token })).code === 40001)
+    check('历史 interval 越界(2000) → 40001', (await call('GET', `/env/history?deviceId=BOXA1001&from=${from7}&to=${toNow}&interval=2000`, { token: gw.token })).code === 40001)
+    check('历史未知设备 → 40301', (await call('GET', `/env/history?deviceId=BOXA9999&from=${from7}&to=${toNow}`, { token: gw.token })).code === 40301)
+    check('历史未登录 → 40101', (await call('GET', `/env/history?deviceId=BOXA1001&from=${from7}&to=${toNow}`)).code === 40101)
 
     console.log('== 记录（02 第 7 章） ==')
     const records = await call('GET', '/records?elderId=u-1001', { token: gw.token })
