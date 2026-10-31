@@ -3,6 +3,7 @@ package com.medbox.server.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.medbox.server.domain.Capture;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -52,6 +53,25 @@ public interface CaptureMapper extends BaseMapper<Capture> {
     /** 删除单条（同时由 Service 负责删磁盘文件）。 */
     @Delete("DELETE FROM capture WHERE capture_id = #{captureId}")
     int deleteByCaptureId(@Param("captureId") String captureId);
+
+    /**
+     * 取一批已过期抓拍（{@code expire_at < now}），按 {@code expire_at} 升序、限量，供清理任务分页删除。
+     *
+     * <p>仅取删除所需的列（{@code capture_id} / {@code file_path} 映射进 {@link Capture} 对应字段），
+     * 其余字段为 null；命中 {@code idx_capture_elder_time} 前缀索引（含 {@code captured_at}，过期扫描走
+     * {@code expire_at}，仍按该列过滤+排序，数据量小、每日一次，可接受）。
+     */
+    @Select("SELECT capture_id, file_path FROM capture "
+            + "WHERE expire_at < #{now} ORDER BY expire_at ASC LIMIT #{limit}")
+    List<Capture> selectExpired(@Param("now") OffsetDateTime now, @Param("limit") int limit);
+
+    /**
+     * 判断指定 {@code capture_id} 是否仍存在（供孤儿文件扫描反查）。
+     *
+     * @return true 表示库里仍有该记录
+     */
+    @Select("SELECT EXISTS(SELECT 1 FROM capture WHERE capture_id = #{captureId})")
+    boolean existsByCaptureId(@Param("captureId") String captureId);
 
     /**
      * 低置信度标记（交人工复核）：把指定抓拍的 {@code reason} 改成给定值（如 {@code LOW_CONFIDENCE}）。
