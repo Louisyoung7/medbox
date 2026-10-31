@@ -20,7 +20,6 @@ import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.MedicineStock;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.DeviceType;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceMapper;
@@ -390,7 +389,7 @@ class PlanSyncWebIntegrationTest {
 
     private void givenGuardianGuards(String... elderIds) {
         List<com.medbox.server.domain.GuardianRelation> relations = java.util.Arrays.stream(elderIds)
-                .map(id -> relation(id, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE))
+                .map(id -> relation(id, GUARDIAN_ID, RelationStatus.ACTIVE))
                 .toList();
         when(guardianRelationMapper.selectList(any())).thenReturn(relations);
         when(guardianRelationMapper.selectOne(any()))
@@ -465,12 +464,10 @@ class PlanSyncWebIntegrationTest {
         return m;
     }
 
-    private static com.medbox.server.domain.GuardianRelation relation(String elderId, String guardianId,
-                                                                     RelationRole role, RelationStatus status) {
+    private static com.medbox.server.domain.GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         com.medbox.server.domain.GuardianRelation r = new com.medbox.server.domain.GuardianRelation();
         r.setElderId(elderId);
         r.setGuardianId(guardianId);
-        r.setRole(role);
         r.setStatus(status);
         return r;
     }

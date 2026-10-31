@@ -9,7 +9,6 @@ import com.medbox.server.common.security.DeviceOwnerResolver;
 import com.medbox.server.common.security.Permission;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.GuardianRelationMapper;
@@ -146,21 +145,19 @@ public class AccessService {
                 .eq(GuardianRelation::getStatus, RelationStatus.ACTIVE));
     }
  /**
-   * 校验当前用户是「任一 FAMILY 监护人」—— 供公共药品（ownerElderId 为空）的写操作使用。
-   * 老人本人 / 护理 / 医生都没有 WRITE_MEDICINE，一律 40301。
-   */
-  public void requireFamilyGuardian() {
-      AuthContext.CurrentUser current = AuthContext.required();
-      UserRole role = UserRole.parse(current.role());
-      BizAssert.forbiddenIf(role != UserRole.GUARDIAN, FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
+  * 校验当前用户是「任一监护人」—— 供公共药品（ownerElderId 为空）的写操作使用。
+  * 老人本人没有 WRITE_MEDICINE，一律 40301。监护人（统一单一角色）均具备该权限。
+  */
+ public void requireGuardian() {
+     AuthContext.CurrentUser current = AuthContext.required();
+     UserRole role = UserRole.parse(current.role());
+     BizAssert.forbiddenIf(role != UserRole.GUARDIAN, FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
 
-      boolean family = guardianRelationMapper.selectList(new LambdaQueryWrapper<GuardianRelation>()
-                      .eq(GuardianRelation::getGuardianId, current.userId())
-                      .eq(GuardianRelation::getStatus, RelationStatus.ACTIVE))
-              .stream()
-              .anyMatch(relation -> relation.getRole() == null || relation.getRole() == RelationRole.FAMILY);
-      BizAssert.forbiddenIf(!family, FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
-  }
+     List<GuardianRelation> active = guardianRelationMapper.selectList(new LambdaQueryWrapper<GuardianRelation>()
+                     .eq(GuardianRelation::getGuardianId, current.userId())
+                     .eq(GuardianRelation::getStatus, RelationStatus.ACTIVE));
+     BizAssert.forbiddenIf(active.isEmpty(), FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
+ }
 
  /**
        * 校验目标 userId 确实是老人账号 —— 供监护关系写接口（申请 /
@@ -199,18 +196,7 @@ public class AccessService {
         BizAssert.forbiddenIf(status == null || status == RelationStatus.REVOKED, FORBIDDEN_MESSAGE);
         BizAssert.pendingIf(status == RelationStatus.PENDING, "监护关系未生效，请等待老人确认");
 
-        return AccessIdentity.guardian(current.userId(), elderId, relationRoleOf(relation));
-    }
-
-    /** 关系角色；列为 NULL 时按 {@link RelationRole#DEFAULT_ROLE} 兜底并打 warn。 */
-    private String relationRoleOf(GuardianRelation relation) {
-        RelationRole role = relation.getRole();
-        if (role == null) {
-            log.warn("监护关系 role 为空，按 {} 兜底处理, relationId={}",
-                RelationRole.DEFAULT_ROLE, relation.getRelationId());
-            return RelationRole.DEFAULT_ROLE.name();
-        }
-        return role.name();
+        return AccessIdentity.guardian(current.userId(), elderId);
     }
 
     private GuardianRelation findRelation(String elderId, String guardianId) {

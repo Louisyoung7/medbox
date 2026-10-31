@@ -20,7 +20,6 @@ import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.MedicineStock;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceMapper;
@@ -402,7 +401,7 @@ class MedicineCoreWebIntegrationTest {
     /** 把当前登录人配成「监护这些老人的 FAMILY 监护人」，同时打桩 selectOne（findRelation）和 selectList（visibleElderIds / requireFamilyGuardian）。 */
     private void givenGuardianGuards(String... elderIds) {
         List<GuardianRelation> relations = Arrays.stream(elderIds)
-                .map(id -> relation(id, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE))
+                .map(id -> relation(id, GUARDIAN_ID, RelationStatus.ACTIVE))
                 .toList();
         when(guardianRelationMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
                 .thenReturn(relations);
@@ -434,13 +433,11 @@ class MedicineCoreWebIntegrationTest {
         return s;
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation r = new GuardianRelation();
         r.setRelationId("r-1001");
         r.setElderId(elderId);
         r.setGuardianId(guardianId);
-        r.setRole(role);
         r.setStatus(status);
         return r;
     }

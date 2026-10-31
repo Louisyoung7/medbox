@@ -6,22 +6,18 @@ package com.medbox.server.common.security;
  * <p>{@code AccessService.require(...)} 通过判定后返回它，业务代码据此知道"当前请求者是谁、
  * 以什么身份访问哪位老人的数据"；判定不通过直接抛 {@code BizException}（40301 / 40302），拿不到本对象。
  *
- * <p><b>为什么 {@code relationRole} 用字符串而不是 {@code RelationRole} 枚举</b>：与
- * {@link AuthContext.CurrentUser#role()} 同一口径 —— 避免 common 层依赖 domain 枚举，
- * 取值恒为 {@code FAMILY / DOCTOR / NURSE}（{@code kind == GUARDIAN} 时非空，
- * 且已在 {@code AccessService} 里把 NULL 兜底成 {@code FAMILY}）。
+ * <p>监护人已统一为单一 {@code GUARDIAN} 角色（文档 10 §1.2），不再携带细分的关系角色，
+ * 故本记录只保留访问身份 {@code kind}，不含 {@code relationRole}。
  *
- * @param userId      当前登录用户的业务 ID
- * @param userRole    当前登录用户的账号角色：{@code ELDER} / {@code GUARDIAN}
- * @param elderId     本次访问的资源归属老人（业务 user_id）
- * @param kind        访问身份：老人本人 / 监护人
- * @param relationRole 监护关系角色（{@code kind == GUARDIAN} 时非空；{@code SELF} 时为 {@code null}）
+ * @param userId    当前登录用户的业务 ID
+ * @param userRole  当前登录用户的账号角色：{@code ELDER} / {@code GUARDIAN}
+ * @param elderId   本次访问的资源归属老人（业务 user_id）
+ * @param kind      访问身份：老人本人 / 监护人
  */
 public record AccessIdentity(String userId,
                              String userRole,
                              String elderId,
-                             Kind kind,
-                             String relationRole) {
+                             Kind kind) {
 
     /** 访问身份。 */
     public enum Kind {
@@ -35,13 +31,12 @@ public record AccessIdentity(String userId,
 
     /** 老人本人身份。 */
     public static AccessIdentity self(String userId) {
-        return new AccessIdentity(userId, "ELDER", userId, Kind.SELF, null);
+        return new AccessIdentity(userId, "ELDER", userId, Kind.SELF);
     }
 
-    /** 监护人身份；{@code relationRole} 传 NULL 时按 {@code FAMILY} 兜底。 */
-    public static AccessIdentity guardian(String userId, String elderId, String relationRole) {
-        String role = relationRole == null || relationRole.isBlank() ? "FAMILY" : relationRole;
-        return new AccessIdentity(userId, "GUARDIAN", elderId, Kind.GUARDIAN, role);
+    /** 监护人身份（统一单一角色，无细分关系角色）。 */
+    public static AccessIdentity guardian(String userId, String elderId) {
+        return new AccessIdentity(userId, "GUARDIAN", elderId, Kind.GUARDIAN);
     }
 
     /** 是否以老人本人身份访问。 */

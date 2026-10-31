@@ -25,7 +25,6 @@ import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.MedPlanItem;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.DeviceType;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceMapper;
@@ -572,7 +571,7 @@ class PlanCoreWebIntegrationTest {
 
     private void givenGuardianGuards(String... elderIds) {
         List<GuardianRelation> relations = Arrays.stream(elderIds)
-                .map(id -> relation(id, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE))
+                .map(id -> relation(id, GUARDIAN_ID, RelationStatus.ACTIVE))
                 .toList();
         when(guardianRelationMapper.selectList(any()))
                 .thenReturn(relations);
@@ -637,12 +636,10 @@ class PlanCoreWebIntegrationTest {
         return m;
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation r = new GuardianRelation();
         r.setElderId(elderId);
         r.setGuardianId(guardianId);
-        r.setRole(role);
         r.setStatus(status);
         return r;
     }

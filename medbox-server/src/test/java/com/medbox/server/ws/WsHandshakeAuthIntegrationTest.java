@@ -10,7 +10,6 @@ import com.medbox.server.common.security.DeviceOwnerResolver;
 import com.medbox.server.common.security.JwtProvider;
 import com.medbox.server.common.security.TokenType;
 import com.medbox.server.domain.GuardianRelation;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.mapper.GuardianRelationMapper;
 import com.medbox.server.mapper.UserMapper;
@@ -137,8 +136,8 @@ class WsHandshakeAuthIntegrationTest {
     @DisplayName("②③ ACTIVE 监护人订阅被监护老人 → 放行")
     void activeGuardianIsAllowed() throws Exception {
         givenRelations(List.of(
-                relation(ELDER, GUARDIAN, RelationRole.FAMILY, RelationStatus.ACTIVE),
-                relation("e-1002", GUARDIAN, RelationRole.NURSE, RelationStatus.ACTIVE)));
+                relation(ELDER, GUARDIAN, RelationStatus.ACTIVE),
+                relation("e-1002", GUARDIAN, RelationStatus.ACTIVE)));
 
         // 多主题：全部落在可见老人才放行（任一越权即拒绝整个握手）
         HandshakeResult result = handshake(bearer(GUARDIAN, "GUARDIAN"),
@@ -173,13 +172,11 @@ class WsHandshakeAuthIntegrationTest {
         when(guardianRelationMapper.selectList(any())).thenReturn(relations);
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation relation = new GuardianRelation();
         relation.setRelationId("r-1001");
         relation.setElderId(elderId);
         relation.setGuardianId(guardianId);
-        relation.setRole(role);
         relation.setStatus(status);
         return relation;
     }

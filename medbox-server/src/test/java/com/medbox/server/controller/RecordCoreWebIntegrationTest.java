@@ -17,7 +17,6 @@ import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.MedRecord;
 import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceMapper;
@@ -371,7 +370,7 @@ class RecordCoreWebIntegrationTest {
     /** 配成「监护该老人的 FAMILY 监护人」（ACTIVE）。 */
     private void givenGuardianGuards(String... elderIds) {
         List<GuardianRelation> relations = java.util.Arrays.stream(elderIds)
-                .map(id -> relation(id, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE))
+                .map(id -> relation(id, GUARDIAN_ID, RelationStatus.ACTIVE))
                 .toList();
         when(guardianRelationMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(relations);
         when(guardianRelationMapper.selectOne(any(LambdaQueryWrapper.class)))
@@ -381,7 +380,7 @@ class RecordCoreWebIntegrationTest {
     /** 配成「监护该老人的 FAMILY 监护人」（PENDING）。 */
     private void givenGuardianGuardsPending(String... elderIds) {
         List<GuardianRelation> relations = java.util.Arrays.stream(elderIds)
-                .map(id -> relation(id, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.PENDING))
+                .map(id -> relation(id, GUARDIAN_ID, RelationStatus.PENDING))
                 .toList();
         when(guardianRelationMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(relations);
         when(guardianRelationMapper.selectOne(any(LambdaQueryWrapper.class)))
@@ -424,13 +423,11 @@ class RecordCoreWebIntegrationTest {
         return m;
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation r = new GuardianRelation();
         r.setRelationId("r-1001");
         r.setElderId(elderId);
         r.setGuardianId(guardianId);
-        r.setRole(role);
         r.setStatus(status);
         return r;
     }

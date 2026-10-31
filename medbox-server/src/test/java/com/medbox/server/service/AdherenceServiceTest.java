@@ -46,7 +46,7 @@ class AdherenceServiceTest {
 
         Clock clock = Clock.fixed(Instant.parse("2026-10-31T00:00:00Z"), ZoneOffset.UTC);
         when(tz.resolve(anyString())).thenReturn(ZONE);
-        when(access.require(anyString(), any())).thenReturn(AccessIdentity.guardian("g", ELDER_ID, "FAMILY"));
+        when(access.require(anyString(), any())).thenReturn(AccessIdentity.guardian("g", ELDER_ID));
 
         // total / onTime / late 三次 selectCount
         when(medRecordMapper.selectCount(any())).thenReturn(3L, 2L, 1L);
@@ -101,7 +101,7 @@ class AdherenceServiceTest {
 
         Clock clock = Clock.fixed(Instant.parse("2026-10-31T00:00:00Z"), ZoneOffset.UTC);
         when(tz.resolve(anyString())).thenReturn(ZONE);
-        when(access.require(anyString(), any())).thenReturn(AccessIdentity.guardian("g", ELDER_ID, "FAMILY"));
+        when(access.require(anyString(), any())).thenReturn(AccessIdentity.guardian("g", ELDER_ID));
 
         when(medRecordMapper.selectCount(any())).thenReturn(0L, 0L, 0L);
         when(alarmMapper.selectCount(any())).thenReturn(0L);

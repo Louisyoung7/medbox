@@ -5,7 +5,6 @@
   import com.medbox.server.common.security.AuthContext;
   import com.medbox.server.domain.GuardianRelation;
   import com.medbox.server.domain.User;
-  import com.medbox.server.domain.enums.RelationRole;
   import com.medbox.server.domain.enums.RelationStatus;
   import com.medbox.server.domain.enums.UserRole;
   import com.medbox.server.dto.guardian.GuardianAcceptRequest;
@@ -69,9 +68,8 @@
 
 
     BizAssert.conflictIf(existing.getStatus()==RelationStatus.PENDING||existing.getStatus()==RelationStatus.ACTIVE,"监护关系已存在或待确认，请勿重复申请");
-    // REVOKED → 重新申请：改回 PENDING 并清空 role（updateById会忽略 null，走显式 SQL）
+    // REVOKED → 重新申请：改回 PENDING
     existing.setStatus(RelationStatus.PENDING);
-    existing.setRole(null);
     guardianRelationMapper.reactivatePending(existing.getId(),RelationStatus.PENDING);
     return GuardianRelationResponse.from(existing);
     
@@ -89,21 +87,16 @@
         return relations.stream().map(relation->GuardianPendingResponse.from(relation,guardians.get(relation.getGuardianId()))).toList();
     }
 
-    /** PATCH /users/guardians/{relationId}/accept：老人确认，置
-  ACTIVE 并指定角色。 */
+    /** PATCH /users/guardians/{relationId}/accept：老人确认，置 ACTIVE（监护人统一单一角色，无需指定子角色）。 */
        @Transactional
       public GuardianRelationResponse accept(String relationId, GuardianAcceptRequest request) {
           AuthContext.CurrentUser current = AuthContext.required();
           BizAssert.forbiddenIf(UserRole.parse(current.role()) !=UserRole.ELDER, FORBIDDEN_MESSAGE);
 
-          RelationRole role = RelationRole.parse(request.role());
-          BizAssert.badRequestIf(role == null, "role 必须是 FAMILY /DOCTOR / NURSE 之一");
-
           GuardianRelation relation = findById(relationId);
           BizAssert.forbiddenIf(!current.userId().equals(relation.getElderId()), FORBIDDEN_MESSAGE);
           BizAssert.conflictIf(relation.getStatus() !=RelationStatus.PENDING, "该监护关系不处于待确认状态");
 
-          relation.setRole(role);
           relation.setStatus(RelationStatus.ACTIVE);
           guardianRelationMapper.updateById(relation);
           return GuardianRelationResponse.from(relation);

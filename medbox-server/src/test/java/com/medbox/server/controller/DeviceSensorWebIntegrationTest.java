@@ -14,7 +14,6 @@ import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceMapper;
@@ -217,7 +216,6 @@ class DeviceSensorWebIntegrationTest {
         relation.setRelationId("r-1001");
         relation.setElderId(elderId);
         relation.setGuardianId(guardianId);
-        relation.setRole(RelationRole.FAMILY);
         relation.setStatus(RelationStatus.ACTIVE);
         return relation;
     }

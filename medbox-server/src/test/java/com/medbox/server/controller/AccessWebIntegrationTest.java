@@ -11,7 +11,6 @@ import com.medbox.server.common.security.JwtProvider;
 import com.medbox.server.common.security.TokenType;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.GuardianRelationMapper;
@@ -91,7 +90,7 @@ class AccessWebIntegrationTest {
     @Test
     @DisplayName("③ PENDING 关系 → 40302 / HTTP 403")
     void PENDING关系返回_40302() throws Exception {
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.PENDING));
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.PENDING));
 
         mockMvc.perform(get("/api/v1/_test/access/plan-write")
                         .param("elderId", ELDER_ID)
@@ -104,7 +103,7 @@ class AccessWebIntegrationTest {
     @Test
     @DisplayName("④ ACTIVE 家属读计划 → 200，data = GUARDIAN")
     void 生效家属可读计划() throws Exception {
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
 
         mockMvc.perform(get("/api/v1/_test/access/plan")
                         .param("elderId", ELDER_ID)
@@ -115,15 +114,15 @@ class AccessWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("④ ACTIVE 护理改计划 → 40301")
-    void 护理不可改计划() throws Exception {
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.NURSE, RelationStatus.ACTIVE));
+    @DisplayName("④ ACTIVE 监护人可改计划 → 200（GUARDIAN 统一角色，无子角色差异）")
+    void 监护人可改计划() throws Exception {
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
 
         mockMvc.perform(get("/api/v1/_test/access/plan-write")
                         .param("elderId", ELDER_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value("GUARDIAN"));
     }
 
     @Test
@@ -150,8 +149,8 @@ class AccessWebIntegrationTest {
     @DisplayName("可见老人数量：老人 1 位、ACTIVE 监护 2 位")
     void 可见老人数量() throws Exception {
         when(guardianRelationMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any())).thenReturn(List.of(
-                relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE),
-                relation("u-1002", GUARDIAN_ID, RelationRole.NURSE, RelationStatus.ACTIVE)));
+                relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE),
+                relation("u-1002", GUARDIAN_ID, RelationStatus.ACTIVE)));
 
         mockMvc.perform(get("/api/v1/_test/access/visible")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
@@ -184,13 +183,11 @@ class AccessWebIntegrationTest {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any())).thenReturn(relation);
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation relation = new GuardianRelation();
         relation.setRelationId("r-1001");
         relation.setElderId(elderId);
         relation.setGuardianId(guardianId);
-        relation.setRole(role);
         relation.setStatus(status);
         return relation;
     }

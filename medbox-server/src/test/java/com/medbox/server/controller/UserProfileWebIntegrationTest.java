@@ -10,7 +10,6 @@ import com.medbox.server.common.security.JwtProvider;
 import com.medbox.server.common.security.TokenType;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.GuardianRelationMapper;
@@ -123,7 +122,7 @@ class UserProfileWebIntegrationTest {
     @DisplayName("监护人 ACTIVE 关系 → 200，可见老人基础信息")
     void 监护人生效关系可见() throws Exception {
         when(guardianRelationMapper.selectOne(any()))
-                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
+                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
 
         mockMvc.perform(get("/api/v1/users/{elderId}/profile", ELDER_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
@@ -149,7 +148,7 @@ class UserProfileWebIntegrationTest {
     @DisplayName("监护关系 PENDING → 40302（老人尚未确认）")
     void 待确认关系返回_40302() throws Exception {
         when(guardianRelationMapper.selectOne(any()))
-                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, null, RelationStatus.PENDING));
+                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.PENDING));
 
         mockMvc.perform(get("/api/v1/users/{elderId}/profile", ELDER_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
@@ -161,7 +160,7 @@ class UserProfileWebIntegrationTest {
     @DisplayName("监护关系 REVOKED → 40301（与无关系同码，不泄漏曾有关系）")
     void 已解除关系返回_40301() throws Exception {
         when(guardianRelationMapper.selectOne(any()))
-                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.REVOKED));
+                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.REVOKED));
 
         mockMvc.perform(get("/api/v1/users/{elderId}/profile", ELDER_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
@@ -186,14 +185,12 @@ class UserProfileWebIntegrationTest {
         return "Bearer " + jwtProvider.issue(userId, role, TokenType.ACCESS);
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation r = new GuardianRelation();
         r.setId(1L);
         r.setRelationId("r-1001");
         r.setElderId(elderId);
         r.setGuardianId(guardianId);
-        r.setRole(role);
         r.setStatus(status);
         r.setCreatedAt(OffsetDateTime.parse("2026-10-21T00:00:00Z"));
         return r;

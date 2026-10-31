@@ -49,7 +49,7 @@ public interface GuardianRelationMapper extends BaseMapper<GuardianRelation> {
 
     @Update("""
               UPDATE guardian_relation
-                 SET status = #{status}, role = NULL
+                 SET status = #{status}
                WHERE id = #{id}
               """)
 
