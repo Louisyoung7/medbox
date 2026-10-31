@@ -22,7 +22,6 @@ import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.DeviceEventType;
 import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceEventMapper;
@@ -141,7 +140,7 @@ class DeviceCoreWebIntegrationTest {
     @Test
     @DisplayName("家属代老人注册：主控 + 2 个子设备一起落库，各写 1 条 REGISTERED 事件")
     void 注册主控与子设备() throws Exception {
-        givenActiveRelation(RelationRole.FAMILY);
+        givenActiveRelation();
 
         mockMvc.perform(post("/api/v1/devices/register")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
@@ -174,7 +173,7 @@ class DeviceCoreWebIntegrationTest {
     @Test
     @DisplayName("重复登记 → 40901，且不写任何数据")
     void 重复登记返回_40901() throws Exception {
-        givenActiveRelation(RelationRole.FAMILY);
+        givenActiveRelation();
         when(deviceMapper.selectCount(ArgumentMatchers.<LambdaQueryWrapper<Device>>any())).thenReturn(1L);
 
         mockMvc.perform(post("/api/v1/devices/register")
@@ -192,7 +191,7 @@ class DeviceCoreWebIntegrationTest {
     @Test
     @DisplayName("子设备类型填 MAIN → 40001")
     void 子设备类型不可为主控() throws Exception {
-        givenActiveRelation(RelationRole.FAMILY);
+        givenActiveRelation();
 
         mockMvc.perform(post("/api/v1/devices/register")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
@@ -207,7 +206,7 @@ class DeviceCoreWebIntegrationTest {
     @Test
     @DisplayName("子设备编号与主控重复 → 40001")
     void 子设备编号重复返回_40001() throws Exception {
-        givenActiveRelation(RelationRole.FAMILY);
+        givenActiveRelation();
 
         mockMvc.perform(post("/api/v1/devices/register")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
@@ -222,7 +221,7 @@ class DeviceCoreWebIntegrationTest {
     @Test
     @DisplayName("非法时区 → 40001（避免把错误值写进库影响服药计划换算）")
     void 非法时区返回_40001() throws Exception {
-        givenActiveRelation(RelationRole.FAMILY);
+        givenActiveRelation();
 
         mockMvc.perform(post("/api/v1/devices/register")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
@@ -248,24 +247,23 @@ class DeviceCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("护理角色注册 → 40301")
-    void 护理不可注册() throws Exception {
-        givenActiveRelation(RelationRole.NURSE);
+    @DisplayName("监护人注册设备 → 200（GUARDIAN 统一角色，WRITE_DEVICE 放行）")
+    void 监护人可注册() throws Exception {
+        givenActiveRelation();
 
         mockMvc.perform(post("/api/v1/devices/register")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"deviceId":"BOXA1001","elderId":"u-1001"}"""))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
+                .andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("PENDING 监护关系注册 → 40302")
     void 监护关系未生效返回_40302() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.PENDING));
+                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.PENDING));
 
         mockMvc.perform(post("/api/v1/devices/register")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
@@ -282,7 +280,7 @@ class DeviceCoreWebIntegrationTest {
     @DisplayName("设备列表：只返回我监护老人的主控，并带上子设备数量")
     void 设备列表带子设备数量() throws Exception {
         when(guardianRelationMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(List.of(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE)));
+                .thenReturn(List.of(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE)));
         // 第一次 selectList 取主控，第二次取子设备（Service 里刻意只查两次，避免 N+1）
         when(deviceMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
                 .thenReturn(List.of(mainDevice(DEVICE_ID, ELDER_ID), mainDevice("BOXA1002", ELDER_ID)))
@@ -430,18 +428,16 @@ class DeviceCoreWebIntegrationTest {
         return "Bearer " + jwtProvider.issue(userId, role, TokenType.ACCESS);
     }
 
-    private void givenActiveRelation(RelationRole role) {
+    private void givenActiveRelation() {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, role, RelationStatus.ACTIVE));
+                .thenReturn(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation relation = new GuardianRelation();
         relation.setRelationId("r-1001");
         relation.setElderId(elderId);
         relation.setGuardianId(guardianId);
-        relation.setRole(role);
         relation.setStatus(status);
         return relation;
     }

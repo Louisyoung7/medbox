@@ -75,7 +75,7 @@ class DeviceCommandServiceTest {
         ReflectionTestUtils.setField(service, "downlinkPublisher", publisher);
 
         when(accessService.requireDevice(eq(DEVICE_ID), eq(Permission.WRITE_DEVICE)))
-                .thenReturn(AccessIdentity.guardian(GUARDIAN_ID, ELDER_ID, "FAMILY"));
+                .thenReturn(AccessIdentity.guardian(GUARDIAN_ID, ELDER_ID));
         when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
                 .thenReturn(mainDevice(OnlineState.ONLINE));
         when(commandMapper.nextCommandId()).thenReturn("c-1001");

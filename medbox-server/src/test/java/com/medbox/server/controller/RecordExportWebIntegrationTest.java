@@ -17,7 +17,6 @@ import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.MedRecord;
 import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceMapper;
@@ -110,7 +109,7 @@ class RecordExportWebIntegrationTest {
     @Test
     @DisplayName("导出：FAMILY 监护人 → 200，CSV 含表头与记录行，Content-Type/Disposition 正确")
     void 监护人导出CSV() throws Exception {
-        givenGuardianGuards(ELDER_ID, RelationRole.FAMILY);
+        givenGuardianGuards(ELDER_ID);
         stubExportData();
 
         MvcResult result = mockMvc.perform(get("/api/v1/records/export").param("elderId", ELDER_ID)
@@ -132,7 +131,7 @@ class RecordExportWebIntegrationTest {
     @Test
     @DisplayName("导出：不传 from/to → 默认最近 30 天窗口，仍返回 200 与数据")
     void 默认窗口导出() throws Exception {
-        givenGuardianGuards(ELDER_ID, RelationRole.FAMILY);
+        givenGuardianGuards(ELDER_ID);
         stubExportData();
 
         MvcResult result = mockMvc.perform(get("/api/v1/records/export").param("elderId", ELDER_ID)
@@ -146,7 +145,7 @@ class RecordExportWebIntegrationTest {
     @Test
     @DisplayName("导出：DOCTOR 监护人（放开 EXPORT_RECORD）→ 200，可导出")
     void 医生监护人导出() throws Exception {
-        givenGuardianGuards(ELDER_ID, RelationRole.DOCTOR);
+        givenGuardianGuards(ELDER_ID);
         stubExportData();
 
         mockMvc.perform(get("/api/v1/records/export").param("elderId", ELDER_ID)
@@ -192,19 +191,17 @@ class RecordExportWebIntegrationTest {
         return "Bearer " + jwtProvider.issue(userId, role, TokenType.ACCESS);
     }
 
-    private void givenGuardianGuards(String elderId, RelationRole role) {
-        GuardianRelation r = relation(elderId, GUARDIAN_ID, role, RelationStatus.ACTIVE);
+    private void givenGuardianGuards(String elderId) {
+        GuardianRelation r = relation(elderId, GUARDIAN_ID, RelationStatus.ACTIVE);
         when(guardianRelationMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(r));
         when(guardianRelationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(r);
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                            RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation r = new GuardianRelation();
         r.setRelationId("r-1001");
         r.setElderId(elderId);
         r.setGuardianId(guardianId);
-        r.setRole(role);
         r.setStatus(status);
         return r;
     }

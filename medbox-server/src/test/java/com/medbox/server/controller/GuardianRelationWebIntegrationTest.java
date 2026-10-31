@@ -16,7 +16,6 @@ import com.medbox.server.common.security.JwtProvider;
 import com.medbox.server.common.security.TokenType;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.GuardianRelationMapper;
@@ -48,8 +47,8 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>真实链路：MockMvc → {@code GuardianRelationController} → 真实
  * {@code GuardianRelationService} → 真实 {@code AccessService} → 打桩的 Mapper。
- * 覆盖 4 个接口的判定规则：申请的角色/目标校验、PENDING→ACTIVE→REVOKED 状态流转、
- * 越权一律 40301（防枚举）、非法 role 40001、重复申请 40901。
+ * 覆盖 4 个接口的判定规则：申请的目标校验、PENDING→ACTIVE→REVOKED 状态流转、
+ * 越权一律 40301（防枚举）、重复申请 40901（监护人统一单一角色，确认时不再指定子角色）。
  *
  * <p><b>不连真实 PostgreSQL</b>：apply 是 {@code @Transactional}，进入方法要开 JDBC 连接，
  * 用内嵌 H2 替换 DataSource（Mapper 仍是 mock、不跑真实 SQL）。Flyway 已在测试任务里关闭。
@@ -156,7 +155,7 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("申请：已 PENDING → 40901（重复申请）")
     void 已待确认重复申请返回_40901() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, null, RelationStatus.PENDING));
+                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationStatus.PENDING));
 
         mockMvc.perform(post("/api/v1/users/{elderId}/guardians", ELDER_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
@@ -168,7 +167,7 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("申请：已 ACTIVE → 40901（重复申请）")
     void 已生效重复申请返回_40901() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
+                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
 
         mockMvc.perform(post("/api/v1/users/{elderId}/guardians", ELDER_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
@@ -180,7 +179,7 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("申请：已 REVOKED → 改回 PENDING 重新申请（清空 role）")
     void 已解除可重新申请() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.REVOKED));
+                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationStatus.REVOKED));
         when(guardianRelationMapper.reactivatePending(any(), any())).thenReturn(1);
 
         mockMvc.perform(post("/api/v1/users/{elderId}/guardians", ELDER_ID)
@@ -205,7 +204,7 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("待确认：老人看自己的列表 → 200，带监护人姓名 + 手机")
     void 老人看待确认列表带姓名手机() throws Exception {
         when(guardianRelationMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(List.of(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, null, RelationStatus.PENDING)));
+                .thenReturn(List.of(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationStatus.PENDING)));
         when(userMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<User>>any()))
                 .thenReturn(List.of(guardian(GUARDIAN_ID, "张三", "13800001234")));
 
@@ -221,17 +220,6 @@ class GuardianRelationWebIntegrationTest {
     // ————————————————— 确认 PATCH /users/guardians/{relationId}/accept —————————————————
 
     @Test
-    @DisplayName("确认：非法 role → 40001")
-    void 非法角色返回_40001() throws Exception {
-        mockMvc.perform(patch("/api/v1/users/guardians/{relationId}/accept", RELATION_ID)
-                        .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"HACKER\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40001));
-    }
-
-    @Test
     @DisplayName("确认：关系查不到 → 40301（防枚举，不是 40401）")
     void 关系不存在返回_40301() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
@@ -240,7 +228,7 @@ class GuardianRelationWebIntegrationTest {
         mockMvc.perform(patch("/api/v1/users/guardians/{relationId}/accept", RELATION_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"FAMILY\"}"))
+                        .content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(40301));
     }
@@ -249,12 +237,12 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("确认：不是本人的关系 → 40301")
     void 确认他人关系返回_40301() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(RELATION_ID, "u-1002", GUARDIAN_ID, null, RelationStatus.PENDING));
+                .thenReturn(relation(RELATION_ID, "u-1002", GUARDIAN_ID, RelationStatus.PENDING));
 
         mockMvc.perform(patch("/api/v1/users/guardians/{relationId}/accept", RELATION_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"FAMILY\"}"))
+                        .content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(40301));
     }
@@ -263,12 +251,12 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("确认：关系已非 PENDING → 40901")
     void 确认非待确认关系返回_40901() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, null, RelationStatus.ACTIVE));
+                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
 
         mockMvc.perform(patch("/api/v1/users/guardians/{relationId}/accept", RELATION_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"FAMILY\"}"))
+                        .content("{}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(40901));
     }
@@ -277,16 +265,15 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("确认：正常 PENDING → ACTIVE，角色生效")
     void 确认置生效() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, null, RelationStatus.PENDING));
+                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationStatus.PENDING));
         when(guardianRelationMapper.updateById(any(GuardianRelation.class))).thenReturn(1);
 
         mockMvc.perform(patch("/api/v1/users/guardians/{relationId}/accept", RELATION_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"DOCTOR\"}"))
+                        .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.data.role").value("DOCTOR"));
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
     }
 
     // ————————————————— 解除 DELETE /users/guardians/{relationId} —————————————————
@@ -295,7 +282,7 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("解除：非关系任一方 → 40301")
     void 陌生人不可解除() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
+                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
 
         mockMvc.perform(delete("/api/v1/users/guardians/{relationId}", RELATION_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(STRANGER_ID, "GUARDIAN")))
@@ -309,7 +296,7 @@ class GuardianRelationWebIntegrationTest {
     @DisplayName("解除：关系任一方（监护人）→ 200，软删置 REVOKED")
     void 任一方可解除() throws Exception {
         when(guardianRelationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
+                .thenReturn(relation(RELATION_ID, ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
         when(guardianRelationMapper.updateById(any(GuardianRelation.class))).thenReturn(1);
 
         mockMvc.perform(delete("/api/v1/users/guardians/{relationId}", RELATION_ID)
@@ -324,14 +311,12 @@ class GuardianRelationWebIntegrationTest {
         return "Bearer " + jwtProvider.issue(userId, role, TokenType.ACCESS);
     }
 
-    private static GuardianRelation relation(String relationId, String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String relationId, String elderId, String guardianId, RelationStatus status) {
         GuardianRelation r = new GuardianRelation();
         r.setId(1L);
         r.setRelationId(relationId);
         r.setElderId(elderId);
         r.setGuardianId(guardianId);
-        r.setRole(role);
         r.setStatus(status);
         r.setCreatedAt(OffsetDateTime.parse("2026-10-21T00:00:00Z"));
         return r;

@@ -17,7 +17,6 @@ import com.medbox.server.domain.AlarmSetting;
 import com.medbox.server.domain.EnvThreshold;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.AlarmMapper;
@@ -49,8 +48,8 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>真实链路：MockMvc → Controller → 真实 Service → 真实 {@code AccessService} → 打桩的 Mapper
  * （不跑真实 SQL，用内嵌 H2 顶替 DataSource）。覆盖：列表/未读/标记已读/处理连通、权限矩阵
- * （FAMILY+NURSE 可处理、ELDER/DOCTOR/陌生人 40301、PENDING 40302）、告警不存在 40401、
- * 阈值配置 PUT 仅 FAMILY 可写 + envThreshold JSONB 往返。
+ * （监护人统一角色，FAMILY/NURSE/DOCTOR 均可处理、ELDER/陌生人 40301、PENDING 40302）、告警不存在 40401、
+ * 阈值配置 PUT 仅 GUARDIAN 可写 + envThreshold JSONB 往返。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -107,7 +106,7 @@ class AlarmCoreWebIntegrationTest {
     @Test
     @DisplayName("列表：FAMILY 监护人 → 200，分页结构正确")
     void 列表返回_200() throws Exception {
-        givenActiveRelation(GUARDIAN_ID, ELDER_ID, RelationRole.FAMILY);
+        givenActiveRelation(GUARDIAN_ID, ELDER_ID);
         when(alarmMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class)))
                 .thenAnswer(inv -> {
                     Page<Alarm> page = inv.getArgument(0);
@@ -128,7 +127,7 @@ class AlarmCoreWebIntegrationTest {
     @Test
     @DisplayName("未读角标：FAMILY → 200，返回未读数")
     void 未读角标_200() throws Exception {
-        givenActiveRelation(GUARDIAN_ID, ELDER_ID, RelationRole.FAMILY);
+        givenActiveRelation(GUARDIAN_ID, ELDER_ID);
         when(alarmMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(2L);
 
         mockMvc.perform(get("/api/v1/alarms/unread-count")
@@ -143,7 +142,7 @@ class AlarmCoreWebIntegrationTest {
     @Test
     @DisplayName("标记已读：FAMILY → 200")
     void 标记已读_200() throws Exception {
-        givenActiveRelation(GUARDIAN_ID, ELDER_ID, RelationRole.FAMILY);
+        givenActiveRelation(GUARDIAN_ID, ELDER_ID);
         when(alarmMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(alarm());
 
         mockMvc.perform(patch("/api/v1/alarms/{alarmId}/read", ALARM_ID)
@@ -154,7 +153,7 @@ class AlarmCoreWebIntegrationTest {
     @Test
     @DisplayName("处理：FAMILY → 200")
     void 处理_FAMILY_200() throws Exception {
-        givenActiveRelation(GUARDIAN_ID, ELDER_ID, RelationRole.FAMILY);
+        givenActiveRelation(GUARDIAN_ID, ELDER_ID);
         when(alarmMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(alarm());
 
         mockMvc.perform(patch("/api/v1/alarms/{alarmId}/handle", ALARM_ID)
@@ -165,7 +164,7 @@ class AlarmCoreWebIntegrationTest {
     @Test
     @DisplayName("处理：NURSE（GUARDIAN 用户 + NURSE 监护关系）→ 200")
     void 处理_NURSE_200() throws Exception {
-        givenActiveRelation(NURSE_ID, ELDER_ID, RelationRole.NURSE);
+        givenActiveRelation(NURSE_ID, ELDER_ID);
         when(alarmMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(alarm());
 
         mockMvc.perform(patch("/api/v1/alarms/{alarmId}/handle", ALARM_ID)
@@ -185,21 +184,20 @@ class AlarmCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("处理：DOCTOR（GUARDIAN 用户 + DOCTOR 监护关系）→ 40301（无 HANDLE_ALARM 权限）")
-    void 处理_DOCTOR_40301() throws Exception {
-        givenActiveRelation(DOCTOR_ID, ELDER_ID, RelationRole.DOCTOR);
+    @DisplayName("处理：DOCTOR 型监护人（GUARDIAN 用户）→ 200（统一角色均可处理告警）")
+    void 处理_DOCTOR_200() throws Exception {
+        givenActiveRelation(DOCTOR_ID, ELDER_ID);
         when(alarmMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(alarm());
 
         mockMvc.perform(patch("/api/v1/alarms/{alarmId}/handle", ALARM_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(DOCTOR_ID, "GUARDIAN")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
+                .andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("处理：告警不存在 → 40401")
     void 处理_告警不存在_40401() throws Exception {
-        givenActiveRelation(GUARDIAN_ID, ELDER_ID, RelationRole.FAMILY);
+        givenActiveRelation(GUARDIAN_ID, ELDER_ID);
         when(alarmMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
 
         mockMvc.perform(patch("/api/v1/alarms/{alarmId}/handle", ALARM_ID)
@@ -211,7 +209,7 @@ class AlarmCoreWebIntegrationTest {
     @Test
     @DisplayName("处理：监护关系 PENDING → 40302")
     void 处理_PENDING_40302() throws Exception {
-        givenPendingRelation(GUARDIAN_ID, ELDER_ID, RelationRole.FAMILY);
+        givenPendingRelation(GUARDIAN_ID, ELDER_ID);
         when(alarmMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(alarm());
 
         mockMvc.perform(patch("/api/v1/alarms/{alarmId}/handle", ALARM_ID)
@@ -239,7 +237,7 @@ class AlarmCoreWebIntegrationTest {
     @Test
     @DisplayName("PUT 阈值：FAMILY → 200，envThreshold JSONB 往返")
     void 配置阈值_FAMILY_200() throws Exception {
-        givenActiveRelation(GUARDIAN_ID, ELDER_ID, RelationRole.FAMILY);
+        givenActiveRelation(GUARDIAN_ID, ELDER_ID);
         when(settingMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
 
         mockMvc.perform(put("/api/v1/alarm-settings")
@@ -258,7 +256,7 @@ class AlarmCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("PUT 阈值：ELDER 本人 → 40301（仅 FAMILY 可写）")
+    @DisplayName("PUT 阈值：ELDER 本人 → 40301（仅 GUARDIAN 可写）")
     void 配置阈值_ELDER_40301() throws Exception {
         mockMvc.perform(put("/api/v1/alarm-settings")
                         .param("elderId", ELDER_ID)
@@ -270,22 +268,21 @@ class AlarmCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("PUT 阈值：NURSE（GUARDIAN 用户 + NURSE 监护关系）→ 40301（仅 FAMILY 可写）")
-    void 配置阈值_NURSE_40301() throws Exception {
-        givenActiveRelation(NURSE_ID, ELDER_ID, RelationRole.NURSE);
+    @DisplayName("PUT 阈值：NURSE 型监护人（GUARDIAN 用户）→ 200（统一角色均可配置）")
+    void 配置阈值_NURSE_200() throws Exception {
+        givenActiveRelation(NURSE_ID, ELDER_ID);
         mockMvc.perform(put("/api/v1/alarm-settings")
                         .param("elderId", ELDER_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(NURSE_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
+                .andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("GET 阈值：FAMILY → 200")
     void 查询阈值_FAMILY_200() throws Exception {
-        givenActiveRelation(GUARDIAN_ID, ELDER_ID, RelationRole.FAMILY);
+        givenActiveRelation(GUARDIAN_ID, ELDER_ID);
         AlarmSetting setting = new AlarmSetting();
         setting.setElderId(ELDER_ID);
         setting.setMissTolerateMin(15);
@@ -306,15 +303,15 @@ class AlarmCoreWebIntegrationTest {
         return "Bearer " + jwtProvider.issue(userId, role, TokenType.ACCESS);
     }
 
-    private void givenActiveRelation(String guardianId, String elderId, RelationRole role) {
-        List<GuardianRelation> relations = List.of(relation(elderId, guardianId, role, RelationStatus.ACTIVE));
+    private void givenActiveRelation(String guardianId, String elderId) {
+        List<GuardianRelation> relations = List.of(relation(elderId, guardianId, RelationStatus.ACTIVE));
         when(guardianRelationMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(relations);
         when(guardianRelationMapper.selectOne(any(LambdaQueryWrapper.class)))
                 .thenReturn(relations.get(0));
     }
 
-    private void givenPendingRelation(String guardianId, String elderId, RelationRole role) {
-        List<GuardianRelation> relations = List.of(relation(elderId, guardianId, role, RelationStatus.PENDING));
+    private void givenPendingRelation(String guardianId, String elderId) {
+        List<GuardianRelation> relations = List.of(relation(elderId, guardianId, RelationStatus.PENDING));
         when(guardianRelationMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(relations);
         when(guardianRelationMapper.selectOne(any(LambdaQueryWrapper.class)))
                 .thenReturn(relations.get(0));
@@ -332,13 +329,11 @@ class AlarmCoreWebIntegrationTest {
         return a;
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation r = new GuardianRelation();
         r.setRelationId("r-1001");
         r.setElderId(elderId);
         r.setGuardianId(guardianId);
-        r.setRole(role);
         r.setStatus(status);
         return r;
     }

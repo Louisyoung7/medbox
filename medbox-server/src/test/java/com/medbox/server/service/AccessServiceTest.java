@@ -1,7 +1,6 @@
 package com.medbox.server.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -17,7 +16,6 @@ import com.medbox.server.common.security.DeviceOwnerResolver;
 import com.medbox.server.common.security.Permission;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.GuardianRelationMapper;
@@ -33,6 +31,7 @@ import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * 权限判定规则表的全矩阵测试（07 清单 {@code feat/backend-authz} 的 🧭 规则表）。
+ * 监护人已统一为单一 GUARDIAN 角色（文档 10 §1.2），故矩阵只有「老人本人 / 监护人」两行。
  *
  * <p>Mapper 全部用 Mockito 打桩 —— **不启容器、不连库**（CI 里没有 PostgreSQL）。
  * 每个用例对应规则表里的一格或一条边界口径。
@@ -71,7 +70,6 @@ class AccessServiceTest {
     void 未登录_抛_40101() {
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require(ELDER_ID, Permission.READ_PLAN));
-
         assertEquals(ErrorCode.UNAUTHORIZED.code(), ex.code());
     }
 
@@ -81,13 +79,10 @@ class AccessServiceTest {
     @DisplayName("② 老人访问自己的数据 → 放行，身份 SELF")
     void 老人访问自己的数据_身份为_SELF() {
         login(ELDER_ID, "ELDER");
-
         AccessIdentity identity = accessService.require(ELDER_ID, Permission.READ_PLAN);
-
         assertEquals(AccessIdentity.Kind.SELF, identity.kind());
         assertEquals(ELDER_ID, identity.userId());
         assertEquals(ELDER_ID, identity.elderId());
-        assertNull(identity.relationRole());
         assertTrue(identity.isSelf());
     }
 
@@ -95,10 +90,8 @@ class AccessServiceTest {
     @DisplayName("② 老人访问他人数据 → 40301")
     void 老人访问他人数据_抛_40301() {
         login(ELDER_ID, "ELDER");
-
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require(OTHER_ELDER_ID, Permission.READ_PLAN));
-
         assertEquals(ErrorCode.FORBIDDEN.code(), ex.code());
     }
 
@@ -106,10 +99,8 @@ class AccessServiceTest {
     @DisplayName("② 监护人与目标老人无任何关系 → 40301")
     void 监护人无关系_抛_40301() {
         login(GUARDIAN_ID, "GUARDIAN");
-
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require(ELDER_ID, Permission.READ_PLAN));
-
         assertEquals(ErrorCode.FORBIDDEN.code(), ex.code());
     }
 
@@ -118,10 +109,8 @@ class AccessServiceTest {
     void 目标不是老人_抛_40301() {
         login(GUARDIAN_ID, "GUARDIAN");
         when(userMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<User>>any())).thenReturn(null);
-
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require(OTHER_ELDER_ID, Permission.READ_PLAN));
-
         assertEquals(ErrorCode.FORBIDDEN.code(), ex.code());
     }
 
@@ -131,11 +120,9 @@ class AccessServiceTest {
     @DisplayName("③ 关系为 PENDING → 40302（即使该权限本该放行）")
     void 关系为_PENDING_抛_40302() {
         login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.PENDING));
-
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.PENDING));
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require(ELDER_ID, Permission.WRITE_PLAN));
-
         assertEquals(ErrorCode.GUARDIAN_PENDING.code(), ex.code());
     }
 
@@ -143,11 +130,9 @@ class AccessServiceTest {
     @DisplayName("③ 关系为 REVOKED → 40301（与无关系同码，不回 40302）")
     void 关系为_REVOKED_抛_40301() {
         login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.REVOKED));
-
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.REVOKED));
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require(ELDER_ID, Permission.READ_PLAN));
-
         assertEquals(ErrorCode.FORBIDDEN.code(), ex.code());
     }
 
@@ -155,65 +140,38 @@ class AccessServiceTest {
     @DisplayName("③ 关系状态为 NULL（脏数据）→ 40301")
     void 关系状态为空_抛_40301() {
         login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, null));
-
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, null));
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require(ELDER_ID, Permission.READ_PLAN));
-
         assertEquals(ErrorCode.FORBIDDEN.code(), ex.code());
     }
 
     // —— 第 ④ 步：角色是否具备此操作权限 —— //
 
     @Test
-    @DisplayName("④ ACTIVE 家属：可读计划、可写计划")
-    void 家属可读可写计划() {
+    @DisplayName("④ ACTIVE 监护人：可读计划、可写计划（统一角色，无子角色差异）")
+    void 监护人可读可写计划() {
         login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
-
-        AccessIdentity read = accessService.require(ELDER_ID, Permission.READ_PLAN);
-        AccessIdentity write = accessService.require(ELDER_ID, Permission.WRITE_PLAN);
-
-        assertEquals(AccessIdentity.Kind.GUARDIAN, read.kind());
-        assertEquals("FAMILY", read.relationRole());
-        assertEquals("FAMILY", write.relationRole());
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
+        assertEquals(AccessIdentity.Kind.GUARDIAN, accessService.require(ELDER_ID, Permission.READ_PLAN).kind());
+        assertEquals(AccessIdentity.Kind.GUARDIAN, accessService.require(ELDER_ID, Permission.WRITE_PLAN).kind());
     }
 
     @Test
-    @DisplayName("④ 护理：不可写计划，但可处理告警、可导出记录")
-    void 护理可处理告警但不可写计划() {
+    @DisplayName("④ 监护人：可处理告警、可导出记录、可写药品、可删抓拍（统一放行）")
+    void 监护人统一放行写操作() {
         login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.NURSE, RelationStatus.ACTIVE));
-
-        assertEquals(ErrorCode.FORBIDDEN.code(),
-                assertThrows(BizException.class,
-                        () -> accessService.require(ELDER_ID, Permission.WRITE_PLAN)).code());
-
-        AccessIdentity handled = accessService.require(ELDER_ID, Permission.HANDLE_ALARM);
-        assertEquals("NURSE", handled.relationRole());
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
+        assertEquals(AccessIdentity.Kind.GUARDIAN, accessService.require(ELDER_ID, Permission.HANDLE_ALARM).kind());
         assertEquals(AccessIdentity.Kind.GUARDIAN, accessService.require(ELDER_ID, Permission.EXPORT_RECORD).kind());
-    }
-
-    @Test
-    @DisplayName("④ 医生：可写计划，但不可写药品 / 不可删除抓拍")
-    void 医生可写计划但不可写药品() {
-        login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.DOCTOR, RelationStatus.ACTIVE));
-
-        assertEquals("DOCTOR", accessService.require(ELDER_ID, Permission.WRITE_PLAN).relationRole());
-        assertEquals(ErrorCode.FORBIDDEN.code(),
-                assertThrows(BizException.class,
-                        () -> accessService.require(ELDER_ID, Permission.WRITE_MEDICINE)).code());
-        assertEquals(ErrorCode.FORBIDDEN.code(),
-                assertThrows(BizException.class,
-                        () -> accessService.require(ELDER_ID, Permission.WRITE_CAPTURE)).code());
+        assertEquals(AccessIdentity.Kind.GUARDIAN, accessService.require(ELDER_ID, Permission.WRITE_MEDICINE).kind());
+        assertEquals(AccessIdentity.Kind.GUARDIAN, accessService.require(ELDER_ID, Permission.WRITE_CAPTURE).kind());
     }
 
     @Test
     @DisplayName("④ 老人只读：READ_PLAN 放行，WRITE_PLAN → 40301")
     void 老人只读_写计划抛_40301() {
         login(ELDER_ID, "ELDER");
-
         assertEquals(AccessIdentity.Kind.SELF, accessService.require(ELDER_ID, Permission.READ_PLAN).kind());
         assertEquals(ErrorCode.FORBIDDEN.code(),
                 assertThrows(BizException.class,
@@ -221,76 +179,57 @@ class AccessServiceTest {
     }
 
     @Test
-    @DisplayName("④ 抓拍口径更严格：护理 / 医生 READ_CAPTURE → 40301，家属与老人本人放行")
-    void 抓拍可见范围更严格() {
+    @DisplayName("④ 抓拍：监护人 / 老人本人可 READ_CAPTURE，老人写 → 40301")
+    void 抓拍可见范围() {
         login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.NURSE, RelationStatus.ACTIVE));
-        assertEquals(ErrorCode.FORBIDDEN.code(),
-                assertThrows(BizException.class,
-                        () -> accessService.require(ELDER_ID, Permission.READ_CAPTURE)).code());
-
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.DOCTOR, RelationStatus.ACTIVE));
-        assertEquals(ErrorCode.FORBIDDEN.code(),
-                assertThrows(BizException.class,
-                        () -> accessService.require(ELDER_ID, Permission.READ_CAPTURE)).code());
-
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
-        assertEquals("FAMILY", accessService.require(ELDER_ID, Permission.READ_CAPTURE).relationRole());
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
+        assertEquals(AccessIdentity.Kind.GUARDIAN, accessService.require(ELDER_ID, Permission.READ_CAPTURE).kind());
 
         login(ELDER_ID, "ELDER");
-        assertNull(accessService.require(ELDER_ID, Permission.READ_CAPTURE).relationRole());
-    }
-
-    @Test
-    @DisplayName("④ 关系 role 为 NULL → 按 FAMILY 兜底放行写计划")
-    void 关系角色为空_按家属兜底() {
-        login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, null, RelationStatus.ACTIVE));
-
-        assertEquals("FAMILY", accessService.require(ELDER_ID, Permission.WRITE_PLAN).relationRole());
+        assertEquals(AccessIdentity.Kind.SELF, accessService.require(ELDER_ID, Permission.READ_CAPTURE).kind());
+        assertEquals(ErrorCode.FORBIDDEN.code(),
+                assertThrows(BizException.class,
+                        () -> accessService.require(ELDER_ID, Permission.WRITE_CAPTURE)).code());
     }
 
     @Test
     @DisplayName("④ 账号角色不在枚举内 → 40301")
     void 账号角色非法_抛_40301() {
         login(GUARDIAN_ID, "ADMIN");
-
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require(ELDER_ID, Permission.READ_PLAN));
-
         assertEquals(ErrorCode.FORBIDDEN.code(), ex.code());
     }
 
     @Test
-    @DisplayName("④ 所有监护角色都能读计划 / 读记录 / 读设备 / 读环境 / 读依从性")
-    void 只读类权限对所有监护角色放行() {
-        for (RelationRole role : RelationRole.values()) {
-            login(GUARDIAN_ID, "GUARDIAN");
-            givenRelation(relation(ELDER_ID, GUARDIAN_ID, role, RelationStatus.ACTIVE));
-
-            for (Permission permission : new Permission[]{Permission.READ_PLAN, Permission.READ_RECORD,
-                    Permission.READ_DEVICE, Permission.READ_ENV, Permission.READ_ADHERENCE,
-                    Permission.READ_ALARM, Permission.READ_MEDICINE, Permission.READ_GUARDIAN}) {
-                assertTrue(Permission.allows(accessService.require(ELDER_ID, permission), permission),
-                        role + " 应可 " + permission);
-            }
+    @DisplayName("④ 监护人（统一角色）可读计划 / 记录 / 设备 / 环境 / 依从性 / 告警 / 药品 / 监护关系")
+    void 只读类权限对监护人放行() {
+        login(GUARDIAN_ID, "GUARDIAN");
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
+        for (Permission permission : new Permission[]{Permission.READ_PLAN, Permission.READ_RECORD,
+                Permission.READ_DEVICE, Permission.READ_ENV, Permission.READ_ADHERENCE,
+                Permission.READ_ALARM, Permission.READ_MEDICINE, Permission.READ_GUARDIAN}) {
+            assertTrue(Permission.allows(accessService.require(ELDER_ID, permission), permission),
+                    "监护人应可 " + permission);
         }
     }
 
     @Test
-    @DisplayName("④ AI 问答：老人本人与家属可问，护理 / 医生不可")
-    void AI问答权限() {
+    @DisplayName("④ AI 洞察：老人本人与监护人都可问")
+    void AI洞察权限() {
         login(ELDER_ID, "ELDER");
-        assertEquals(AccessIdentity.Kind.SELF, accessService.require(ELDER_ID, Permission.AI_CHAT).kind());
+        assertEquals(AccessIdentity.Kind.SELF, accessService.require(ELDER_ID, Permission.AI_INSIGHT).kind());
 
         login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
-        assertEquals("FAMILY", accessService.require(ELDER_ID, Permission.AI_CHAT).relationRole());
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
+        assertEquals(AccessIdentity.Kind.GUARDIAN, accessService.require(ELDER_ID, Permission.AI_INSIGHT).kind());
 
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.NURSE, RelationStatus.ACTIVE));
+        // 无监护关系 → 40301（重打桩：抹掉前面 givenRelation 留下的 ACTIVE 桩）
+        login(GUARDIAN_ID, "GUARDIAN");
+        when(relationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any())).thenReturn(null);
         assertEquals(ErrorCode.FORBIDDEN.code(),
                 assertThrows(BizException.class,
-                        () -> accessService.require(ELDER_ID, Permission.AI_CHAT)).code());
+                        () -> accessService.require(ELDER_ID, Permission.AI_INSIGHT)).code());
     }
 
     // —— 可见范围（列表接口行级过滤） —— //
@@ -299,7 +238,6 @@ class AccessServiceTest {
     @DisplayName("可见老人集合：老人只有自己")
     void 可见老人集合_老人只有自己() {
         login(ELDER_ID, "ELDER");
-
         assertEquals(Set.of(ELDER_ID), accessService.visibleElderIds());
     }
 
@@ -308,9 +246,8 @@ class AccessServiceTest {
     void 可见老人集合_监护人取所有生效关系() {
         login(GUARDIAN_ID, "GUARDIAN");
         when(relationMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any())).thenReturn(List.of(
-                relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE),
-                relation(OTHER_ELDER_ID, GUARDIAN_ID, RelationRole.NURSE, RelationStatus.ACTIVE)));
-
+                relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE),
+                relation(OTHER_ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE)));
         assertEquals(Set.of(ELDER_ID, OTHER_ELDER_ID), accessService.visibleElderIds());
     }
 
@@ -318,10 +255,9 @@ class AccessServiceTest {
     @DisplayName("ACTIVE 关系列表：按老人查监护关系")
     void 查指定老人的生效监护关系() {
         login(GUARDIAN_ID, "GUARDIAN");
-        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
+        givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE));
         when(relationMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
-                .thenReturn(List.of(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE)));
-
+                .thenReturn(List.of(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE)));
         assertEquals(1, accessService.activeRelationsOf(ELDER_ID).size());
     }
 
@@ -331,10 +267,8 @@ class AccessServiceTest {
     @DisplayName("设备维度：DeviceOwnerResolver 未接入 → 50000")
     void 设备归属解析未接入_抛_50000() {
         login(ELDER_ID, "ELDER");
-
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.requireDevice("BOXA1001", Permission.READ_DEVICE));
-
         assertEquals(ErrorCode.INTERNAL_ERROR.code(), ex.code());
     }
 
@@ -344,10 +278,8 @@ class AccessServiceTest {
     @DisplayName("elderId 为空 → 40001")
     void elderId为空_抛_40001() {
         login(ELDER_ID, "ELDER");
-
         BizException ex = assertThrows(BizException.class,
                 () -> accessService.require("  ", Permission.READ_PLAN));
-
         assertEquals(ErrorCode.BAD_REQUEST.code(), ex.code());
     }
 
@@ -355,9 +287,7 @@ class AccessServiceTest {
     @DisplayName("permission 为 null → 40001")
     void permission为空_抛_40001() {
         login(ELDER_ID, "ELDER");
-
         BizException ex = assertThrows(BizException.class, () -> accessService.require(ELDER_ID, null));
-
         assertEquals(ErrorCode.BAD_REQUEST.code(), ex.code());
     }
 
@@ -371,13 +301,11 @@ class AccessServiceTest {
         when(relationMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any())).thenReturn(relation);
     }
 
-    private static GuardianRelation relation(String elderId, String guardianId,
-                                             RelationRole role, RelationStatus status) {
+    private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation relation = new GuardianRelation();
         relation.setRelationId("r-1001");
         relation.setElderId(elderId);
         relation.setGuardianId(guardianId);
-        relation.setRole(role);
         relation.setStatus(status);
         return relation;
     }

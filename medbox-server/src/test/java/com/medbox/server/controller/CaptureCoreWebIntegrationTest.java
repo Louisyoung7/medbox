@@ -165,12 +165,11 @@ class CaptureCoreWebIntegrationTest {
         return "Bearer " + jwtProvider.issue(userId, role, TokenType.ACCESS);
     }
 
-    /** 以监护人 u-2001 登录，并把其与老人 u-1001 的关系设为指定角色/ACTIVE。 */
-    private String guardianBearer(com.medbox.server.domain.enums.RelationRole role) {
+    /** 以监护人 u-2001 登录，并把其与老人 u-1001 的关系设为 ACTIVE（统一单一监护人角色）。 */
+    private String guardianBearer() {
         GuardianRelation r = new GuardianRelation();
         r.setGuardianId("u-2001");
         r.setElderId("u-1001");
-        r.setRole(role);
         r.setStatus(com.medbox.server.domain.enums.RelationStatus.ACTIVE);
         when(guardianRelationMapper.selectList(any())).thenReturn(List.of(r));
         when(guardianRelationMapper.selectOne(any())).thenReturn(r);
@@ -271,7 +270,7 @@ class CaptureCoreWebIntegrationTest {
     @DisplayName("列表：ACTIVE 监护人(FAMILY) → 200，含 fileToken")
     void 列表监护人可见() throws Exception {
         when(captureMapper.selectPage(any(), any())).thenReturn(pageWithOne());
-        String bearer = guardianBearer(com.medbox.server.domain.enums.RelationRole.FAMILY);
+        String bearer = guardianBearer();
         mockMvc.perform(get("/api/v1/captures").param("elderId", "u-1001").header("Authorization", bearer))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.list[0].captureId").value("cap-1"))
@@ -279,28 +278,27 @@ class CaptureCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("详情：FAMILY 监护人 → 200；NURSE/DOCTOR → 40301")
+    @DisplayName("详情：监护人（统一单一角色）→ 200")
     void 详情权限矩阵() throws Exception {
         when(captureMapper.selectByCaptureId("cap-1")).thenReturn(capWithElder("u-1001"));
 
-        String family = guardianBearer(com.medbox.server.domain.enums.RelationRole.FAMILY);
+        String family = guardianBearer();
         mockMvc.perform(get("/api/v1/captures/cap-1").header("Authorization", family))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.captureId").value("cap-1"));
 
-        String nurse = guardianBearer(com.medbox.server.domain.enums.RelationRole.NURSE);
+        // 统一的 GUARDIAN 角色不再区分 家属/护理/医生，三类监护人都可看抓拍详情
+        String nurse = guardianBearer();
         mockMvc.perform(get("/api/v1/captures/cap-1").header("Authorization", nurse))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
+                .andExpect(status().isOk());
 
-        String doctor = guardianBearer(com.medbox.server.domain.enums.RelationRole.DOCTOR);
+        String doctor = guardianBearer();
         mockMvc.perform(get("/api/v1/captures/cap-1").header("Authorization", doctor))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("删除：仅 FAMILY 监护人可删；ELDER 本人 40301")
+    @DisplayName("删除：监护人（统一单一角色）可删；ELDER 本人 40301")
     void 删除权限矩阵() throws Exception {
         Path delFile = tmpDir.resolve("del-cap-1.jpg");
         Files.write(delFile, "DEL".getBytes(StandardCharsets.UTF_8));
@@ -309,7 +307,7 @@ class CaptureCoreWebIntegrationTest {
         when(captureMapper.selectByCaptureId("cap-1")).thenReturn(c);
         when(captureMapper.deleteByCaptureId("cap-1")).thenReturn(1);
 
-        String family = guardianBearer(com.medbox.server.domain.enums.RelationRole.FAMILY);
+        String family = guardianBearer();
         mockMvc.perform(delete("/api/v1/captures/cap-1").header("Authorization", family))
                 .andExpect(status().isOk());
 
@@ -329,7 +327,7 @@ class CaptureCoreWebIntegrationTest {
         when(captureMapper.selectByCaptureId("cap-1")).thenReturn(c);
 
         String token = fileTokenService.issue("cap-1");
-        String bearer = guardianBearer(com.medbox.server.domain.enums.RelationRole.FAMILY);
+        String bearer = guardianBearer();
         mockMvc.perform(get("/api/v1/captures/cap-1/file").param("token", token).header("Authorization", bearer))
                 .andExpect(status().isOk());
         verify(captureMapper).markViewed(eq("cap-1"), any(), any());
@@ -340,7 +338,7 @@ class CaptureCoreWebIntegrationTest {
     void 文件流Token不符400() throws Exception {
         when(captureMapper.selectByCaptureId("cap-1")).thenReturn(capWithElder("u-1001"));
         String wrongToken = fileTokenService.issue("cap-2");
-        String bearer = guardianBearer(com.medbox.server.domain.enums.RelationRole.FAMILY);
+        String bearer = guardianBearer();
         mockMvc.perform(get("/api/v1/captures/cap-1/file").param("token", wrongToken).header("Authorization", bearer))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40001));
