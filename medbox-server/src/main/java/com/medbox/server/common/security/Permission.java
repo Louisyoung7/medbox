@@ -9,7 +9,7 @@ import java.util.Set;
  *
  * <p>校验顺序的第 ④ 步「该角色是否具备此操作权限」就落在 {@link #allows} 这一个方法上 ——
  * 矩阵写在这一个文件里，后续功能分支（{@code feat/medicine-core}、{@code feat/plan-core}、
- * {@code feat/alarm-core}、{@code feat/ai-chat} ...）只需在接口里声明自己要哪个
+ * {@code feat/alarm-core}、{@code feat/ai-insight} ...）只需在接口里声明自己要哪个
  * {@code Permission}，不再各自写 if 判断角色。
  *
  * <p>矩阵口径（行 = 访问身份，列 = 权限；未列出的组合一律 40301）：
@@ -33,7 +33,6 @@ import java.util.Set;
  *   WRITE_DEVICE(命令)            ✅
  *   READ_ENV              ✅      ✅      ✅      ✅
  *   READ_ADHERENCE        ✅      ✅      ✅      ✅
- *   WRITE_DRUG_MANUAL                             ✅
  *   AI_CHAT               ✅      ✅
  *   READ_GUARDIAN         ✅      ✅      ✅      ✅
  * </pre>
@@ -94,10 +93,7 @@ public enum Permission {
     /** 查看依从性统计。 */
     READ_ADHERENCE,
 
-    /** 维护药品禁忌知识库（说明书 / 禁忌条目）。 */
-    WRITE_DRUG_MANUAL,
-
-    /** AI 药品问答。 */
+    /** AI 洞察（按需 / 周期分析，仅本机结构化数据，不落库、不自动执行，见文档 05）。 */
     AI_CHAT,
 
     /** 查看该老人的监护关系列表。 */
@@ -126,7 +122,7 @@ public enum Permission {
                     HANDLE_ALARM, EXPORT_RECORD, CONFIG_LLM_KEY, WRITE_ALARM_SETTINGS,
                     READ_CAPTURE, WRITE_CAPTURE, WRITE_DEVICE, AI_CHAT)),
             NURSE, union(READABLE, EnumSet.of(HANDLE_ALARM, EXPORT_RECORD)),
-            DOCTOR, union(READABLE, EnumSet.of(WRITE_PLAN, WRITE_DRUG_MANUAL)));
+            DOCTOR, union(READABLE, EnumSet.of(WRITE_PLAN)));
 
     /**
      * 第 ④ 步：该访问身份是否具备此操作权限。
