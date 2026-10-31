@@ -143,6 +143,13 @@
 			}
 		},
 		{
+			"path": "pages/report/report",
+			"style": {
+				"navigationBarTitleText": "服药依从性报告",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/capture/list",
 			"style": {
 				"navigationBarTitleText": "抓拍留证",

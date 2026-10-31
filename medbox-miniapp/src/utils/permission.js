@@ -40,6 +40,10 @@ export const ENTRY_ROLES = {
   alarmHandle: [ROLE.GUARDIAN],
   // 抓拍删除（02 §4.1.2 ⑥）：WRITE_CAPTURE 仅 GUARDIAN，老人本人 / 护理 / 医生 40301
   writeCapture: [ROLE.GUARDIAN],
+  // 记录导出（02 第 7 章 §7.0）：EXPORT_RECORD 仅监护人，老人不可（40301）；
+  // 小程序注册角色只有 ELDER/GUARDIAN，护理/医生是 guardian_relation.role 不暴露，以 GUARDIAN 代理，
+  // 精细权限由后端 EXPORT_RECORD 强校验兜底（同 canExportRecord 口径）。
+  exportRecord: [ROLE.GUARDIAN],
 }
 
 /**

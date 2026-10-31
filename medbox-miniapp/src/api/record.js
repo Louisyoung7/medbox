@@ -55,7 +55,7 @@ export function getRecord(recordId) {
 /**
  * 监护人补录 / 确认（设备异常时手工校准）。
  *
- * <p>**仅 `WRITE_RECORD`（FAMILY）可见**：前端按角色隐藏入口（{@link canWriteRecord}），
+ * <p>**仅 `WRITE_RECORD`（GUARDIAN）可见**：前端按角色隐藏入口（{@link canWriteRecord}），
  * 服务端仍强校验——老人写 40301、监护关系 PENDING 40302。本期补录内容以"确认/校准"为主，
  * `payload` 由页面组装（如 `actualDose` / `note`，后端未定稿前以最小契约传递）。
  *

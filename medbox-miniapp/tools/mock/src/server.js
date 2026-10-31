@@ -1103,6 +1103,144 @@ async function handleGetRecord(req, res, recordId) {
   ok(res, buildRecordView(record))
 }
 
+// ---------------------------------------------------------------- 依从性统计（02 第 7 章 §7.0；feat/mp-report）
+// 后端 record-report 已落地，Mock 按契约复算：按时率 / 漏服 / 每日分桶。
+
+/** 周期 → 滚动窗口毫秒数（终点=now）。 */
+const ADHERENCE_WINDOW_MS = { day: 86400000, week: 7 * 86400000, month: 30 * 86400000 }
+
+function timeOf(iso) {
+  return iso ? new Date(iso).getTime() : NaN
+}
+
+async function handleGetAdherence(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+
+  const period = String(query.period || 'week').trim()
+  if (!ADHERENCE_WINDOW_MS[period]) throw new BizError(40001, 'period 必须为 day / week / month')
+
+  const windowEnd = Date.now()
+  const windowStart = windowEnd - ADHERENCE_WINDOW_MS[period]
+
+  const list = state.records.filter((r) => {
+    if (r.elderId !== elderId) return false
+    const t = timeOf(r.planTime)
+    if (!isFinite(t)) return false
+    return t >= windowStart && t <= windowEnd
+  })
+
+  const totalDoses = list.length
+  const onTimeCount = list.filter((r) => r.onTime === true).length
+  const lateCount = list.filter((r) => r.onTime === false).length
+  const unjudgedCount = list.filter((r) => r.onTime !== true && r.onTime !== false).length
+  const onTimeRate = totalDoses > 0 ? onTimeCount / totalDoses : 0
+
+  // 漏服：周期内 MISS 类告警条数（02 §8 / §7.0）
+  const missCount = state.alarms.filter((a) => {
+    if (a.type !== 'MISS' || a.elderId !== elderId) return false
+    const t = timeOf(a.createdAt)
+    return isFinite(t) && t >= windowStart && t <= windowEnd
+  }).length
+
+  // 每日分桶（按 ISO 日期部分，Mock 不换算时区）
+  const byDay = new Map()
+  list.forEach((r) => {
+    const d = dateOf(r.planTime)
+    if (!d) return
+    if (!byDay.has(d)) byDay.set(d, { date: d, totalDoses: 0, onTimeCount: 0, missCount: 0 })
+    const bucket = byDay.get(d)
+    bucket.totalDoses += 1
+    if (r.onTime === true) bucket.onTimeCount += 1
+  })
+  state.alarms.forEach((a) => {
+    if (a.type !== 'MISS' || a.elderId !== elderId) return
+    const d = dateOf(a.createdAt)
+    if (byDay.has(d)) byDay.get(d).missCount += 1
+  })
+  const dailyBreakdown = Array.from(byDay.values())
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .map((b) => ({
+      date: b.date,
+      onTimeRate: b.totalDoses > 0 ? Number((b.onTimeCount / b.totalDoses).toFixed(4)) : 0,
+      totalDoses: b.totalDoses,
+      onTimeCount: b.onTimeCount,
+      missCount: b.missCount,
+    }))
+
+  ok(res, {
+    elderId,
+    period,
+    windowStart: new Date(windowStart).toISOString(),
+    windowEnd: new Date(windowEnd).toISOString(),
+    totalDoses,
+    onTimeCount,
+    lateCount,
+    unjudgedCount,
+    onTimeRate: Number(onTimeRate.toFixed(4)),
+    missCount,
+    dailyBreakdown,
+  })
+}
+
+// ---------------------------------------------------------------- 记录导出（02 第 7 章 §7.0；feat/mp-report）
+// 权限 EXPORT_RECORD：仅 GUARDIAN（老人不可，40301）。返回 CSV 文件流（带 UTF-8 BOM），不走 R<T>。
+
+function csvField(value) {
+  const s = value === null || value === undefined ? '' : String(value)
+  if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+async function handleExportRecords(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  // 权限：EXPORT_RECORD 仅 GUARDIAN（老人不可导出，40301）；监护关系需 ACTIVE
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+
+  const to = String(query.to || '').trim()
+  const toTime = isFinite(timeOf(to)) ? timeOf(to) : Date.now()
+  const from = String(query.from || '').trim() || new Date(Date.now() - 30 * 86400000).toISOString()
+  const fromTime = timeOf(from)
+
+  const list = state.records.filter((r) => {
+    if (r.elderId !== elderId) return false
+    const t = timeOf(r.planTime)
+    return isFinite(t) && t >= fromTime && t <= toTime
+  })
+
+  const header = ['记录ID', '老人ID', '计划名', '药品名称', '计划时间', '实际时间', '是否按时', '结论', '来源', '剂量', '抓拍ID', '设备ID']
+  const rows = list.map((r) => {
+    const v = buildRecordView(r)
+    const onTimeText = r.onTime === true ? '是' : r.onTime === false ? '否' : '未判定'
+    const conclusion = r.pendingConfirm ? '待确认' : r.confirmedBy ? '已确认' : '正常'
+    const source = r.captureId ? '智能药箱抓拍' : '手动录入'
+    const dose = [v.medicineDose, v.medicineUnit].filter(Boolean).join('')
+    return [r.recordId, r.elderId, v.planName, v.medicineName, v.planTime, v.actualTime, onTimeText, conclusion, source, dose, r.captureId || '', r.deviceId]
+  })
+
+  const fileDate = (s) => (s ? String(s).slice(0, 10) : 'all')
+  const filename = `medication-records-${elderId}-${fileDate(from)}-${fileDate(to || new Date().toISOString())}.csv`
+  const csv = [header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')
+
+  // 文件流不走统一响应体（02 §7.0）：开头 UTF-8 BOM，便于 Excel 正确识别中文
+  res.writeHead(200, {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${filename}"`,
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-store',
+  })
+  res.end('﻿' + csv + '\r\n')
+}
+
 async function handleConfirmRecord(req, res, recordId, body) {
   const user = requireUser(req)
   const record = state.records.find((r) => r.recordId === recordId)
@@ -1472,8 +1610,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && matched) {
       return await handleConfirmRecord(req, res, decodeURIComponent(matched[1]), await readBody(req))
     }
+    // 鉴权：记录导出（CSV 文件流，EXPORT_RECORD 仅 GUARDIAN；feat/mp-report）
+    // ⚠️ 必须放在 /records/{id} 单条路由之前，否则 export 会被 [^/]+ 捕获成 recordId → 40401
+    if (req.method === 'GET' && sub === '/records/export') return await handleExportRecords(req, res, query)
     matched = /^\/records\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetRecord(req, res, decodeURIComponent(matched[1]))
+
+    // 鉴权：依从性统计（02 第 7 章 §7.0；feat/mp-report）
+    if (req.method === 'GET' && sub === '/adherence') return await handleGetAdherence(req, res, query)
 
     // 鉴权：抓拍（02 设备管理.md §4.1；capture-core 已落地，feat/mp-capture 联调）
     if (req.method === 'GET' && sub === '/captures') return await handleListCaptures(req, res, query)

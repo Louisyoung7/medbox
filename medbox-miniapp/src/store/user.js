@@ -16,8 +16,8 @@ export const USER_INFO_KEY = 'userInfo'
 /**
  * 注册与角色判断用的角色枚举（见 06 的 2.1 `user.role`）。
  *
- * <p>**只有这两个值**：社区护理 / 家庭医生是 `guardian_relation.role`
- * （`FAMILY` / `DOCTOR` / `NURSE`），不是用户的注册角色。
+ * <p>**只有这两个值**：系统已将监护人统一为单一 `GUARDIAN` 角色（02 的 1.3 权限矩阵仅
+ * `ELDER` / `GUARDIAN` 两行），不再细分家属 / 护理 / 医生等子角色。
  */
 export const ROLE = {
   ELDER: 'ELDER',

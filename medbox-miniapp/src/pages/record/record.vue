@@ -1,8 +1,13 @@
 <template>
   <view class="page">
     <view class="head">
-      <text class="head__title">服药记录</text>
-      <text class="head__sub">服药明细与抓拍留证</text>
+      <view class="head__left">
+        <text class="head__title">服药记录</text>
+        <text class="head__sub">服药明细与抓拍留证</text>
+      </view>
+      <view class="head__action" hover-class="head__action--hover" @click="goReport">
+        <text class="head__action-text">依从性报告 ›</text>
+      </view>
     </view>
 
     <!-- 老人选择器：监护人可见；候选来自可见设备的 elderId（P1 mp-guardian 前无老人列表接口，同 plan 模式）。
@@ -271,6 +276,12 @@ export default {
           `&elderId=${encodeURIComponent(this.elderId)}`,
       })
     },
+    // 跳转到依从性报告页（feat/mp-report），携带当前选中的老人，便于跨页续接上下文
+    goReport() {
+      uni.navigateTo({
+        url: `/pages/report/report?elderId=${encodeURIComponent(this.elderId || this.myUserId)}`,
+      })
+    },
   },
 }
 </script>
@@ -284,8 +295,15 @@ export default {
 
 .head {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
   margin-bottom: $mb-gap;
+
+  &__left {
+    display: flex;
+    flex-direction: column;
+  }
 
   &__title {
     font-size: 40rpx;
@@ -297,6 +315,24 @@ export default {
     margin-top: 8rpx;
     font-size: 26rpx;
     color: $mb-text-3;
+  }
+
+  // 头部右侧「依从性报告 ›」入口（feat/mp-report），全角色可见
+  &__action {
+    flex-shrink: 0;
+    padding: 10rpx 20rpx;
+    border-radius: 999rpx;
+    background: rgba(14, 159, 142, 0.1);
+
+    &--hover {
+      background: rgba(14, 159, 142, 0.18);
+    }
+  }
+
+  &__action-text {
+    font-size: 26rpx;
+    font-weight: 500;
+    color: $mb-primary;
   }
 }
 
