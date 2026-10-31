@@ -27,6 +27,9 @@ public enum WsFrameType {
     /** AI 流式分片：<b>本期不使用</b>，只在文档里占位。 */
     AI_STREAM,
 
+    /** AI 周期洞察结果推送（非流式，一次性整段；见文档 05 §2.3）。 */
+    AI_INSIGHT,
+
     /** 心跳应答。 */
     PONG,
 
@@ -35,6 +38,6 @@ public enum WsFrameType {
 
     /** 是否允许由业务方通过 {@link WsPushService} 主动推送（内部帧走专用通道）。 */
     public boolean pushable() {
-        return this == ALARM || this == DEVICE_STATUS || this == REMINDER;
+        return this == ALARM || this == DEVICE_STATUS || this == REMINDER || this == AI_INSIGHT;
     }
 }
