@@ -53,7 +53,7 @@
       </MbCard>
     </view>
 
-    <!-- 老人屏：待确认列表 + 确认（选角色）/ 拒绝 -->
+    <!-- 老人屏：待确认列表 + 确认 / 拒绝 -->
     <view v-else-if="isElder" class="section">
       <MbLoading v-if="loading && pending.length === 0" fullscreen text="加载中" />
 
@@ -68,7 +68,7 @@
             <MbButton class="req-actions__btn" type="primary" @click="onOpenAccept(item)">确认</MbButton>
           </view>
         </MbCard>
-        <text class="list-hint">确认后，监护人即可按所选角色查看与管理你的用药数据；之后也可随时在此解除。</text>
+        <text class="list-hint">确认后，监护人即可查看与管理你的用药数据；之后也可随时在此解除。</text>
       </template>
 
       <MbEmpty v-else-if="!loading" text="暂无待确认的监护请求" />
@@ -78,31 +78,18 @@
       <MbEmpty text="当前账号角色不支持监护关系管理" />
     </view>
 
-    <!-- 确认弹窗：单选监护角色（FAMILY / DOCTOR / NURSE，必选） -->
+    <!-- 确认弹窗：确认监护请求（无角色，确认即生效） -->
     <MbModal
       v-model="acceptVisible"
       title="确认监护请求"
       confirm-text="确认"
       cancel-text="我再想想"
-      :confirm-disabled="!acceptRole"
       :confirm-loading="accepting"
       :close-on-confirm="false"
       :mask-closable="false"
       @confirm="onConfirmAccept"
     >
-      <text class="accept-tip">请指定 {{ acceptingName || '该监护人' }} 的监护角色：</text>
-      <view class="roles">
-        <view
-          v-for="option in roleOptions"
-          :key="option.value"
-          class="roles__item"
-          :class="{ 'roles__item--on': acceptRole === option.value }"
-          @click="acceptRole = option.value"
-        >
-          <text class="roles__label">{{ option.label }}</text>
-        </view>
-      </view>
-      <text v-if="acceptRole" class="roles__perm">{{ rolePermissionText }}</text>
+      <text class="accept-tip">确认后，{{ acceptingName || '该监护人' }} 即可查看并管理你的用药数据。</text>
       <text v-if="acceptError" class="roles__error">{{ acceptError }}</text>
     </MbModal>
 
@@ -125,9 +112,6 @@ import { CODE } from '@/api/request.js'
 import {
   normalizeElderId,
   parsePendingList,
-  RELATION_ROLE,
-  RELATION_ROLE_LABEL,
-  relationRolePermissionText,
   relationTimeText,
 } from '@/utils/guardian.js'
 import { elderNameText } from '@/utils/profile.js'
@@ -148,11 +132,10 @@ function applyErrorText(err) {
   return (err && err.message) || '申请失败，请稍后重试'
 }
 
-/** 确认错误文案：40901 已被处理（并发 / 老人在另一端操作过）/ 40001 角色无效。 */
+/** 确认错误文案：40901 已被处理（并发 / 老人在另一端操作过）。 */
 function acceptErrorText(err) {
   if (err && err.code === CODE.CONFLICT) return '该请求已被处理，请刷新列表'
   if (err && err.code === CODE.FORBIDDEN) return '无权处理该请求'
-  if (err && err.code === CODE.BAD_REQUEST) return '监护角色无效，请重新选择'
   return (err && err.message) || '确认失败，请稍后重试'
 }
 
@@ -179,7 +162,6 @@ export default {
       acceptVisible: false,
       acceptingId: '',
       acceptingName: '',
-      acceptRole: '',
       accepting: false,
       acceptError: '',
     }
@@ -203,19 +185,10 @@ export default {
     canSubmit() {
       return !!normalizeElderId(this.elderIdInput) && !this.applying
     },
-    roleOptions() {
-      return [RELATION_ROLE.FAMILY, RELATION_ROLE.DOCTOR, RELATION_ROLE.NURSE].map((value) => ({
-        value,
-        label: RELATION_ROLE_LABEL[value],
-      }))
-    },
-    rolePermissionText() {
-      return relationRolePermissionText(this.acceptRole)
-    },
     flowSteps() {
       return [
         '输入老人的用户ID，发起监护申请',
-        '老人在本页确认，并指定你的监护角色',
+        '老人在本页确认你的监护申请',
         '确认生效后，即可查看与管理该老人的设备、计划与记录',
       ]
     },
@@ -356,17 +329,16 @@ export default {
     onOpenAccept(item) {
       this.acceptingId = item.relationId
       this.acceptingName = item.guardianName || ''
-      this.acceptRole = ''
       this.acceptError = ''
       this.acceptVisible = true
     },
 
     async onConfirmAccept() {
-      if (!this.acceptRole || this.accepting) return
+      if (this.accepting) return
       this.accepting = true
       this.acceptError = ''
       try {
-        await acceptGuardian(this.acceptingId, this.acceptRole, { silent: true })
+        await acceptGuardian(this.acceptingId, { silent: true })
         this.pending = this.pending.filter((item) => item.relationId !== this.acceptingId)
         this.acceptVisible = false
         uni.showToast({ title: '已确认', icon: 'none' })

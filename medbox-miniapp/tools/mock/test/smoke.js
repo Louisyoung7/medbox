@@ -403,14 +403,13 @@ async function waitReady() {
     check('按 createdAt 升序（gr-3 在前）', pendList.code === 0 && pendList.data[0].relationId === 'gr-3' && pendList.data[1].relationId === 'gr-4')
     check('join 监护人姓名+手机', pendList.code === 0 && pendList.data[0].guardianName === '王芳' && pendList.data[0].guardianPhone === '13800001235' && pendList.data[1].guardianName === '周杰')
     check('非老人看待确认 40301', (await call('GET', '/users/guardians/pending', { token: gw.token })).code === 40301)
-    // ③ 确认：张桂英确认王芳为 DOCTOR
-    const accepted = await call('PATCH', '/users/guardians/gr-3/accept', { token: elder.token, body: { role: 'DOCTOR' } })
-    check('确认置 ACTIVE 并落角色', accepted.code === 0 && accepted.data.status === 'ACTIVE' && accepted.data.role === 'DOCTOR' && accepted.data.elderId === 'u-1001')
-    check('重复确认 40901', (await call('PATCH', '/users/guardians/gr-3/accept', { token: elder.token, body: { role: 'FAMILY' } })).code === 40901)
-    check('非法 role 40001', (await call('PATCH', '/users/guardians/gr-4/accept', { token: elder.token, body: { role: 'BOSS' } })).code === 40001)
-    check('role 缺失 40001', (await call('PATCH', '/users/guardians/gr-4/accept', { token: elder.token, body: {} })).code === 40001)
-    check('确认他人的关系 40301', (await call('PATCH', '/users/guardians/gr-1/accept', { token: elder2.token, body: { role: 'FAMILY' } })).code === 40301)
-    check('监护人点确认 40301', (await call('PATCH', '/users/guardians/gr-4/accept', { token: pending.token, body: { role: 'FAMILY' } })).code === 40301)
+    // ③ 确认：张桂英确认王芳的监护请求（监护关系无角色，确认即生效）
+    const accepted = await call('PATCH', '/users/guardians/gr-3/accept', { token: elder.token, body: {} })
+    check('确认置 ACTIVE（无 role）', accepted.code === 0 && accepted.data.status === 'ACTIVE' && accepted.data.role === undefined && accepted.data.elderId === 'u-1001')
+    check('携带多余 role 字段仍生效（后端忽略）', (await call('PATCH', '/users/guardians/gr-4/accept', { token: elder.token, body: { role: 'DOCTOR' } })).code === 0)
+    check('重复确认 40901', (await call('PATCH', '/users/guardians/gr-3/accept', { token: elder.token, body: {} })).code === 40901)
+    check('确认他人的关系 40301', (await call('PATCH', '/users/guardians/gr-1/accept', { token: elder2.token, body: {} })).code === 40301)
+    check('监护人点确认 40301', (await call('PATCH', '/users/guardians/gr-4/accept', { token: pending.token, body: {} })).code === 40301)
     // ④ 拒绝 / 解除：老人拒绝周杰（gr-4）；周杰撤销对 u-1002 的申请
     check('老人拒绝 PENDING', (await call('DELETE', '/users/guardians/gr-4', { token: elder.token })).code === 0)
     check('监护人撤销申请', (await call('DELETE', `/users/guardians/${newRelId}`, { token: revoked.token })).code === 0)

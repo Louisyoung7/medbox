@@ -57,13 +57,13 @@ describe('ENTRY_ROLES 已登记项（feat/mp-profile）', () => {
     expect(canAccess('', 'elderBindGuide')).toBe(false)
   })
 
-  it('deviceCommand「远程控制」仅监护人（WRITE_DEVICE 仅 FAMILY）', () => {
+  it('deviceCommand「远程控制」仅监护人（WRITE_DEVICE 仅 GUARDIAN）', () => {
     expect(canAccess(ROLE.GUARDIAN, 'deviceCommand')).toBe(true)
     expect(canAccess(ROLE.ELDER, 'deviceCommand')).toBe(false)
     expect(canAccess('', 'deviceCommand')).toBe(false)
   })
 
-  it('alarmHandle「处理/确认告警」仅监护人（HANDLE_ALARM = FAMILY+NURSE，小程序仅 GUARDIAN）', () => {
+  it('alarmHandle「处理/确认告警」仅监护人（HANDLE_ALARM 仅 GUARDIAN）', () => {
     expect(canAccess(ROLE.GUARDIAN, 'alarmHandle')).toBe(true)
     expect(canAccess(ROLE.ELDER, 'alarmHandle')).toBe(false)
     expect(canAccess('', 'alarmHandle')).toBe(false)

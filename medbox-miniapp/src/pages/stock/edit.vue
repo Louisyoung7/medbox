@@ -157,7 +157,7 @@ export default {
   onLoad(options) {
     this.deviceId = (options && options.deviceId) || ''
     this.medicineId = (options && options.medicineId) || ''
-    // WRITE_MEDICINE 覆盖库存录入与补药（02 的 1.3 矩阵），仅 FAMILY；服务端仍强校验
+    // WRITE_MEDICINE 覆盖库存录入与补药（02 的 1.3 矩阵），仅 GUARDIAN；服务端仍强校验
     if (!canWriteMedicine(getRole())) {
       this.error = '仅监护人可维护药箱库存'
       return

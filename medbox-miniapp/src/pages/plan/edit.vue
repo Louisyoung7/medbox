@@ -189,7 +189,7 @@ export default {
     this.elderId = (options && options.elderId) || ''
     this.isEdit = !!this.planId
     uni.setNavigationBarTitle({ title: this.isEdit ? '编辑计划' : '新建计划' })
-    // WRITE_PLAN 仅 FAMILY+DOCTOR（02 的 1.3），前端只给监护人进编辑页
+    // WRITE_PLAN 仅 GUARDIAN（02 的 1.3），前端只给监护人进编辑页
     if (!canWritePlan(getRole())) {
       this.error = '仅监护人可维护服药计划'
       return

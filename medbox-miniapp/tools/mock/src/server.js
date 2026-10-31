@@ -1223,17 +1223,15 @@ async function handleDeleteCapture(req, res, captureId) {
 
 // ---------------------------------------------------------------- 监护关系四条（02 的 3.2）
 
-/** 关系响应形状：role 未指定时省略（02 的 3.2 示例口径）。 */
+/** 关系响应形状（监护关系无 role，02 的 3.2）。 */
 function toRelationView(relation) {
-  const view = {
+  return {
     relationId: relation.relationId,
     elderId: relation.elderId,
     guardianId: relation.guardianId,
     status: relation.status,
     createdAt: relation.createdAt,
   }
-  if (relation.role) view.role = relation.role
-  return view
 }
 
 /** ① 申请绑定（监护人发起，无请求体）：无关系新建 / REVOKED 复活 / PENDING·ACTIVE 40901。 */
@@ -1246,9 +1244,8 @@ async function handleApplyGuardian(req, res, elderId) {
   const existing = state.relations.find((r) => r.guardianId === user.userId && r.elderId === elderId)
   if (existing && existing.status !== 'REVOKED') throw new BizError(40901, '已存在进行中或已生效的监护关系')
   if (existing) {
-    // REVOKED → 复活为 PENDING，并清空 role（后端 reactivatePending 显式置 NULL）
+    // REVOKED → 复活为 PENDING（监护关系无 role）
     existing.status = 'PENDING'
-    existing.role = null
     existing.createdAt = isoNow()
     return ok(res, toRelationView(existing))
   }
@@ -1256,7 +1253,6 @@ async function handleApplyGuardian(req, res, elderId) {
     relationId: `gr-${rand()}`,
     guardianId: user.userId,
     elderId,
-    role: null,
     status: 'PENDING',
     createdAt: isoNow(),
   }
@@ -1285,21 +1281,15 @@ async function handlePendingGuardians(req, res) {
   ok(res, list)
 }
 
-/** ③ 确认（老人本人）：role 必填（FAMILY / DOCTOR / NURSE），仅 PENDING → ACTIVE。 */
+/** ③ 确认（老人本人）：监护关系无角色，确认即 PENDING → ACTIVE（多余字段忽略）。 */
 async function handleAcceptGuardian(req, res, relationId, body) {
   const user = requireUser(req)
   if (user.role !== 'ELDER') throw new BizError(40301, '只有老人账号可以确认监护请求')
-  const role = String((body && body.role) || '').trim()
-  if (!role) throw new BizError(40001, 'role 不能为空')
-  if (role !== 'FAMILY' && role !== 'DOCTOR' && role !== 'NURSE') {
-    throw new BizError(40001, 'role 只能是 FAMILY / DOCTOR / NURSE')
-  }
   // 查不到 → 40301（防枚举，不回 40401）
   const relation = state.relations.find((r) => r.relationId === relationId)
   if (!relation) throw new BizError(40301, '监护关系不存在')
   if (relation.elderId !== user.userId) throw new BizError(40301, '只能确认发给自己的监护请求')
   if (relation.status !== 'PENDING') throw new BizError(40901, '该监护请求已被处理')
-  relation.role = role
   relation.status = 'ACTIVE'
   ok(res, toRelationView(relation))
 }

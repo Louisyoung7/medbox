@@ -2,8 +2,7 @@
  * 入口角色可见性（`feat/mp-ui-kit`，对应 08 的"按角色切换可见入口"与 01 第 3 章）。
  *
  * <p>当前小程序注册角色仅 `ELDER` / `GUARDIAN`（见 `src/store/user.js` 的 {@link ROLE} 与
- * 06 的 2.1）；护理 / 医生是 `guardian_relation.role`（FAMILY / DOCTOR / NURSE），非注册角色，
- * 本模块预留扩展位（下游分支细化）。
+ * 06 的 2.1）；监护关系已统一为单一 `GUARDIAN` 角色，不再区分护理 / 医生子角色。
  *
  * <p>**白名单式**：`ENTRY_ROLES` 未登记的入口对所有角色可见；只把"需要限制"的入口登记进去，
  * 改入口可见性只改这份配置，组件与页面不写死角色判断。
@@ -24,10 +23,9 @@ import { ROLE } from '@/store/user.js'
  *   仅监护人；
  * - `elderBindGuide`「告诉监护人」绑定引导卡：仅老人（监护人不需要被引导去绑定自己）；
  * - `deviceCommand`「远程控制」（设备命令下发，归 `feat/mp-device-extra`）：仅监护人
- *   （02 的 1.3 矩阵 `WRITE_DEVICE` 仅 FAMILY）；
+ *   （02 的 1.3 矩阵 `WRITE_DEVICE` 仅 GUARDIAN）；
  * - `alarmHandle`「处理/确认告警」（归 `feat/mp-alarm`）：仅监护人（02 第 8 章 `HANDLE_ALARM`
- *   = FAMILY + NURSE；但小程序注册角色目前只有 `ELDER` / `GUARDIAN`，NURSE 非登录角色，
- *   故此处登记 `[GUARDIAN]`，真后端仍按 `HANDLE_ALARM` 强校验）。
+ *   仅 GUARDIAN，真后端仍按 `HANDLE_ALARM` 强校验）。
  *
  * @example
  * alarmSettings: [ROLE.GUARDIAN],
