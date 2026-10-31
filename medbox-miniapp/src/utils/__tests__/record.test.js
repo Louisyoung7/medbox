@@ -84,7 +84,7 @@ describe('recordStatusTags', () => {
 })
 
 describe('canWriteRecord', () => {
-  it('仅 GUARDIAN 可写（FAMILY 代理）', () => {
+  it('仅 GUARDIAN 可写', () => {
     expect(canWriteRecord(ROLE.GUARDIAN)).toBe(true)
     expect(canWriteRecord(ROLE.ELDER)).toBe(false)
     expect(canWriteRecord('')).toBe(false)

@@ -97,7 +97,7 @@ describe('medicineOwnerLabel', () => {
 })
 
 describe('canWriteMedicine', () => {
-  it('仅监护人可写（WRITE_MEDICINE 仅 FAMILY，老人只读）', () => {
+  it('仅监护人可写（WRITE_MEDICINE 仅 GUARDIAN，老人只读）', () => {
     expect(canWriteMedicine('GUARDIAN')).toBe(true)
     expect(canWriteMedicine('ELDER')).toBe(false)
     expect(canWriteMedicine('')).toBe(false)

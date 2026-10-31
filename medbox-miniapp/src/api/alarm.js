@@ -7,9 +7,9 @@
  *
  * <p>权限矩阵（02 第 8 章，feat/alarm-core 落地口径）：
  * - `GET /alarms`、`GET /alarms/unread-count`、`PATCH /alarms/{id}/read`、`GET /alarm-settings`
- *   → `READ_ALARM`（四角色可读，前端不拦）；
- * - `PATCH /alarms/{id}/handle` → `HANDLE_ALARM`（FAMILY + NURSE，前端 `RoleGate entry="alarmHandle"`）；
- * - `PUT /alarm-settings` → `WRITE_ALARM_SETTINGS`（仅 FAMILY，DOCTOR/NURSE/ELDER 写返回 40301，
+ *   → `READ_ALARM`（ELDER + GUARDIAN 可读，前端不拦）；
+ * - `PATCH /alarms/{id}/handle` → `HANDLE_ALARM`（GUARDIAN，前端 `RoleGate entry="alarmHandle"`）；
+ * - `PUT /alarm-settings` → `WRITE_ALARM_SETTINGS`（仅 GUARDIAN，ELDER 写返回 40301，
  *   前端 `RoleGate entry="alarmSettings"` 包裹设置页）。
  */
 
@@ -54,11 +54,11 @@ export function markAlarmRead(alarmId) {
 }
 
 /**
- * 处理/确认告警（`PATCH /alarms/{alarmId}/handle`，`HANDLE_ALARM` = FAMILY + NURSE）。
+ * 处理/确认告警（`PATCH /alarms/{alarmId}/handle`，`HANDLE_ALARM` = GUARDIAN）。
  *
  * @param {string} alarmId
  * @returns {Promise<null>}
- * @throws {ApiError} 40101 / 40301（非 FAMILY+NURSE）/ 40401 / -1
+ * @throws {ApiError} 40101 / 40301（非 GUARDIAN）/ 40401 / -1
  */
 export function handleAlarm(alarmId) {
   return patch(`/alarms/${alarmId}/handle`)
@@ -76,7 +76,7 @@ export function getAlarmSettings(query) {
 }
 
 /**
- * 配置告警规则与阈值（`PUT /alarm-settings`，`WRITE_ALARM_SETTINGS` 仅 FAMILY）。
+ * 配置告警规则与阈值（`PUT /alarm-settings`，`WRITE_ALARM_SETTINGS` 仅 GUARDIAN）。
  *
  * <p>后端字段可选、仅提供项覆盖原值；`elderId` 走 query，`body` 为阈值（提前期 / 环境上下限 /
  * 漏服容忍）。写操作，自动注入 `X-Request-Id`。
@@ -84,7 +84,7 @@ export function getAlarmSettings(query) {
  * @param {{elderId:string}} query
  * @param {Object} settings 阈值对象（可只传要改的字段）
  * @returns {Promise<null>}
- * @throws {ApiError} 40101 / 40301（非 FAMILY）/ -1
+ * @throws {ApiError} 40101 / 40301（非 GUARDIAN）/ -1
  */
 export function saveAlarmSettings(query, settings) {
   return put('/alarm-settings', settings || {}, { params: query || {} })

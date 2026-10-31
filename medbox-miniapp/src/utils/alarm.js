@@ -9,9 +9,9 @@
  * - 告警 `type` ∈ `MISS`(漏服) / `ENV`(环境超标) /
  *   `DEVICE_OFFLINE`(设备离线) / `DEVICE_FAULT`(设备故障)（02 第 8 章枚举）；
  * - 告警 `level` ∈ `INFO` / `WARN` / `CRITICAL`（04 第 3 章 ALARM 帧 `level`）；
- * - 列表 / 未读 / 已读 / 设置查询属 `READ_ALARM`（四角色可读）；`PATCH /alarms/{id}/handle`
- *   属 `HANDLE_ALARM`（FAMILY + NURSE）；`PUT /alarm-settings` 属 `WRITE_ALARM_SETTINGS`
- *   （仅 FAMILY，DOCTOR / NURSE / ELDER 写返回 40301）；
+ * - 列表 / 未读 / 已读 / 设置查询属 `READ_ALARM`（ELDER + GUARDIAN 可读）；`PATCH /alarms/{id}/handle`
+ *   属 `HANDLE_ALARM`（GUARDIAN）；`PUT /alarm-settings` 属 `WRITE_ALARM_SETTINGS`
+ *   （仅 GUARDIAN，ELDER 写返回 40301）；
  * - WS 收到 `ALARM` 帧：`payload` 含 `alarmId` / `type` / `level` / `message` / `elderId` /
  *   `medicineIds[]`；`REMINDER` 帧：`payload` 含 `planId` / `planTime` / `medicines[]`
  *   （一次提醒可含多种药，非告警、不进列表）。

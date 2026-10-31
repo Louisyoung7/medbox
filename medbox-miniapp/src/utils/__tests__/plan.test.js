@@ -145,7 +145,7 @@ describe('文案与权限', () => {
     expect(planItemsText([], map)).toBe('未添加药品')
   })
 
-  it('canWritePlan：仅监护人（WRITE_PLAN 仅 FAMILY+DOCTOR，GUARDIAN 代理）', () => {
+  it('canWritePlan：仅监护人（WRITE_PLAN 仅 GUARDIAN）', () => {
     expect(canWritePlan(ROLE.GUARDIAN)).toBe(true)
     expect(canWritePlan(ROLE.ELDER)).toBe(false)
     expect(canWritePlan('')).toBe(false)

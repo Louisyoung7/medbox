@@ -34,8 +34,7 @@ export function login({ account, password }) {
  * @param {string} payload.phone 手机号（UNIQUE）
  * @param {string} payload.password 明文密码
  * @param {'ELDER'|'GUARDIAN'} payload.role 老人 / 监护人（见 06 的 2.1 `user.role`）；
- *   **护理 / 医生不是这里的值**，它们是 `guardian_relation.role`（FAMILY / DOCTOR / NURSE），
- *   注册页因此只给两个选项
+ *   系统已统一为单一 `GUARDIAN` 角色，不再细分护理 / 医生等子角色，注册页因此只给两个选项
  * @param {string} [payload.username] 用户名（可空，手机号亦可直接登录）
  * @param {string} [payload.name] 姓名
  * @returns {Promise<Object>} 同登录响应
