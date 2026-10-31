@@ -36,9 +36,8 @@ export function parseRecordsPage(data) {
 /**
  * 当前角色是否可见记录写入口（监护人补录 / 确认）。
  *
- * <p>02 的 1.3 权限矩阵：`WRITE_RECORD` 仅 FAMILY ✅，老人只读。注册角色只有 ELDER / GUARDIAN
- * （relationRole 未暴露，P1 `mp-guardian` 才有），这里用 GUARDIAN 代理 FAMILY；
- * **服务端仍按矩阵强校验**，前端只决定显不显示。
+ * <p>02 的 1.3 权限矩阵：`WRITE_RECORD` 仅 GUARDIAN ✅，老人只读。注册角色只有 ELDER / GUARDIAN，
+ * 这里用 GUARDIAN 代理；**服务端仍按矩阵强校验**，前端只决定显不显示。
  *
  * @param {string} role `store/user.js` 的角色
  * @returns {boolean}

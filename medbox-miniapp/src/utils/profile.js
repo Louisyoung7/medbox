@@ -29,8 +29,8 @@ export function profileFieldText(value) {
 /**
  * 角色权限一句说明（文案口径取 01 第 3 章与 02 的 1.3 权限矩阵）。
  *
- * <p>**只覆盖注册角色** `ELDER` / `GUARDIAN`：护理 / 医生是 `guardian_relation.role`
- * （FAMILY / DOCTOR / NURSE），不在 `user.role` 里，本端也拿不到，故不展示。
+ * <p>**只覆盖注册角色** `ELDER` / `GUARDIAN`：监护关系已统一为单一 `GUARDIAN` 角色，
+ * 不再区分护理 / 医生子角色，故只按注册角色展示。
  *
  * @param {string} [role] `store/user.js` 的角色
  * @returns {string} 未知角色返回空串（页面不渲染该行说明）

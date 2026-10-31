@@ -87,7 +87,7 @@
           <text class="role-desc">代管老人的药品与计划</text>
         </view>
       </view>
-      <text class="role-hint">护理 / 医生身份由老人确认监护关系时指定，无需在此选择</text>
+      <text class="role-hint">选择「监护人」后，需由老人在 App 内确认监护关系方可生效</text>
 
       <text class="error" v-if="errorMsg">{{ errorMsg }}</text>
 

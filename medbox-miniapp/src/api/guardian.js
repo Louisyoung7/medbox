@@ -5,8 +5,10 @@
  * 均按 02 的 3.2 实现，**无前端先行契约**，联调以真后端为准。
  *
  * <p>**两步绑定**：① 监护人发起申请（{@link applyGuardian}）→ 关系 `PENDING`；
- * ② 老人端确认（{@link acceptGuardian}，指定 `FAMILY` / `DOCTOR` / `NURSE`）→ 关系 `ACTIVE`，
- * 监护人才真正获得读写权限。**未确认前访问该老人数据返回 40302**（{@link CODE.GUARDIAN_PENDING}）。
+ * ② 老人端确认（{@link acceptGuardian}）→ 关系 `ACTIVE`，监护人才真正获得读写权限。
+ * **监护关系无角色**：spec 已统一为单一 `GUARDIAN`（02 的 1.3 矩阵仅 `ELDER` / `GUARDIAN` 两行），
+ * 确认时不再指定 `FAMILY` / `DOCTOR` / `NURSE`。**未确认前访问该老人数据返回 40302**
+ * （{@link CODE.GUARDIAN_PENDING}）。
  *
  * <p>**没有"我发起的申请列表"接口**：后端只提供老人端的待确认列表（{@link listPendingGuardians}）。
  * 监护人侧"我的申请"是**设备本地视图**，由 `src/store/guardian.js` 维护（申请响应即时写入），
@@ -15,7 +17,7 @@
  * ```js
  * import { applyGuardian, acceptGuardian } from '@/api/guardian.js'
  * await applyGuardian('u-1001')                    // 监护人：输入老人用户ID 发起申请
- * await acceptGuardian('gr-3', 'FAMILY')           // 老人：确认并指定监护角色
+ * await acceptGuardian('gr-3')                     // 老人：确认监护请求（无角色，确认即生效）
  * ```
  */
 
@@ -26,7 +28,7 @@ import { get, del, post, request } from '@/api/request.js'
  *
  * <p>规则表（02 的 3.2，服务端强校验）：当前角色非 `GUARDIAN` → 40301；目标 `elderId`
  * 不是真实老人 → 40301（防枚举）；已有 `PENDING` / `ACTIVE` → 40901；已有 `REVOKED` →
- * **复活为 `PENDING` 并清空 role**（重新申请）。
+ * **复活为 `PENDING`**（重新申请）。
  *
  * <p>**入参是老人的用户ID（`userId`）**：02 第 3 章没有"按手机号 / 用户名查找老人"的接口，
  * 页面输入框即 `elderId`（引导监护人向老人索取，见 `src/pages/guardian/guardian.vue`）。
@@ -57,25 +59,23 @@ export function listPendingGuardians(options) {
 }
 
 /**
- * 确认监护请求（**老人本人**，置 `ACTIVE` 并指定监护角色）。
+ * 确认监护请求（**老人本人**，置 `ACTIVE`）。
  *
- * <p>`role` **必填**且只取 `FAMILY` / `DOCTOR` / `NURSE`（`guardian_relation.role`，
- * 护理 / 医生是监护关系上的角色，不是注册角色）；缺失 / 非法 → 40001。
+ * <p>监护关系**无角色**（spec 统一为单一 `GUARDIAN`），确认即生效，无需指定角色。
  * 关系查不到或非本人 → 40301（防枚举）；已非 `PENDING` → 40901。
  *
  * @param {string} relationId 关系编号（`relation_id`，如 `gr-3`）
- * @param {'FAMILY'|'DOCTOR'|'NURSE'} role 监护角色（见 `utils/guardian.RELATION_ROLE`）
  * @param {Object} [options] 透传请求选项（弹窗提交场景传 `silent: true`）
  * @returns {Promise<Object>} 确认后的关系：
- *   `{relationId, elderId, guardianId, role, status:'ACTIVE', createdAt}`
- * @throws {ApiError} 40101 / 40001（role 缺失或非法）/ 40301（查不到或非本人）/
+ *   `{relationId, elderId, guardianId, status:'ACTIVE', createdAt}`
+ * @throws {ApiError} 40101 / 40301（查不到或非本人）/
  *   40901（已非 PENDING）/ -1
  */
-export function acceptGuardian(relationId, role, options) {
+export function acceptGuardian(relationId, options) {
   return request({
     url: `/users/guardians/${relationId}/accept`,
     method: 'PATCH',
-    data: { role },
+    data: {},
     ...(options || {}),
   })
 }

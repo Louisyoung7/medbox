@@ -1,7 +1,7 @@
 {
     "name" : "medbox-miniapp",
     "appid" : "",
-    "description" : "家用智能药品箱 · 小程序端（老人 / 监护人 / 护理 / 医生）",
+    "description" : "家用智能药品箱 · 小程序端（老人 / 监护人）",
     "versionName" : "1.0.0",
     "versionCode" : "100",
     "transformPx" : false,
