@@ -276,19 +276,19 @@ class AccessServiceTest {
     }
 
     @Test
-    @DisplayName("④ AI 问答：老人本人与家属可问，护理 / 医生不可")
-    void AI问答权限() {
+    @DisplayName("④ AI 洞察：老人本人与家属可用，护理 / 医生不可")
+    void AI洞察权限() {
         login(ELDER_ID, "ELDER");
-        assertEquals(AccessIdentity.Kind.SELF, accessService.require(ELDER_ID, Permission.AI_CHAT).kind());
+        assertEquals(AccessIdentity.Kind.SELF, accessService.require(ELDER_ID, Permission.AI_INSIGHT).kind());
 
         login(GUARDIAN_ID, "GUARDIAN");
         givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.FAMILY, RelationStatus.ACTIVE));
-        assertEquals("FAMILY", accessService.require(ELDER_ID, Permission.AI_CHAT).relationRole());
+        assertEquals("FAMILY", accessService.require(ELDER_ID, Permission.AI_INSIGHT).relationRole());
 
         givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.NURSE, RelationStatus.ACTIVE));
         assertEquals(ErrorCode.FORBIDDEN.code(),
                 assertThrows(BizException.class,
-                        () -> accessService.require(ELDER_ID, Permission.AI_CHAT)).code());
+                        () -> accessService.require(ELDER_ID, Permission.AI_INSIGHT)).code());
     }
 
     // —— 可见范围（列表接口行级过滤） —— //

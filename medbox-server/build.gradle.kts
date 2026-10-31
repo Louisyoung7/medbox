@@ -79,6 +79,10 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
     // pgvector 的 JDBC vector 类型绑定由 spring-ai-starter-vector-store-pgvector 传递引入，无需显式声明
 
+    // BYOK 动态 ChatClient（feat/ai-insight，见文档 05）：OpenAI 兼容协议；不用 starter 自动装配 ——
+    // apiKey / baseUrl 按老人从 llm_config 解密后动态注入（SpringAiLlmChatGateway），全局单例装不了
+    implementation("org.springframework.ai:spring-ai-openai")
+
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 
@@ -100,4 +104,15 @@ tasks.named<Test>("test") {
     // 将来接 Testcontainers 做集成测试时，删掉这两行即可。
     environment("SPRING_FLYWAY_ENABLED", "false")
     environment("MEDBOX_MQTT_ENABLED", "false")
+    // 测试期关掉全部定时调度（各 *IntegrationTest 都是手动调 scanner.scan(clock) 触发，不依赖 @Scheduled）。
+    // 开着的话，调度线程会在测试线程 stubbing Mockito 的同时调同一个 mock → WrongTypeOfReturnValue 串台（ flaky ）
+    environment("MEDBOX_ALARM_MISS_ENABLED", "false")
+    environment("MEDBOX_ALARM_ENV_ENABLED", "false")
+    environment("MEDBOX_ALARM_DEVICE_FAULT_ENABLED", "false")
+    environment("MEDBOX_ALARM_DEVICE_OFFLINE_ENABLED", "false")
+    environment("MEDBOX_PLAN_REMINDER_ENABLED", "false")
+    environment("MEDBOX_AI_INSIGHT_ENABLED", "false")
+    // 全量 580+ 个测试共用一个 JVM、缓存十几个 ApplicationContext，默认堆在尾部会 OOM
+    // （pgVectorStoreBatchingStrategy 装配失败 → 上下文缓存被污染 → 后续 @SpringBootTest 全红）
+    maxHeapSize = "2g"
 }

@@ -34,7 +34,7 @@ import java.util.Set;
  *   READ_ENV              ✅      ✅      ✅      ✅
  *   READ_ADHERENCE        ✅      ✅      ✅      ✅
  *   WRITE_DRUG_MANUAL                             ✅
- *   AI_CHAT               ✅      ✅
+ *   AI_INSIGHT            ✅      ✅
  *   READ_GUARDIAN         ✅      ✅      ✅      ✅
  * </pre>
  *
@@ -97,8 +97,8 @@ public enum Permission {
     /** 维护药品禁忌知识库（说明书 / 禁忌条目）。 */
     WRITE_DRUG_MANUAL,
 
-    /** AI 药品问答。 */
-    AI_CHAT,
+    /** AI 洞察（分析 / 预测 / 建议，见文档 05）。 */
+    AI_INSIGHT,
 
     /** 查看该老人的监护关系列表。 */
     READ_GUARDIAN;
@@ -108,11 +108,11 @@ public enum Permission {
     private static final String DOCTOR = "DOCTOR";
     private static final String NURSE = "NURSE";
 
-    /** 老人本人（{@code SELF}）：只读本人数据 + AI 问答 + 自己的抓拍。 */
+    /** 老人本人（{@code SELF}）：只读本人数据 + AI 洞察 + 自己的抓拍。 */
     private static final Set<Permission> SELF_ALLOWED = EnumSet.of(
             READ_PLAN, READ_MEDICINE, READ_RECORD, READ_ALARM,
             READ_CAPTURE, READ_DEVICE, READ_ENV, READ_ADHERENCE,
-            AI_CHAT, READ_GUARDIAN);
+            AI_INSIGHT, READ_GUARDIAN);
 
     /** 只读类权限：任何监护角色都能看（但抓拍除外，见 {@link #BY_RELATION_ROLE}）。 */
     private static final Set<Permission> READABLE = EnumSet.of(
@@ -124,7 +124,7 @@ public enum Permission {
             FAMILY, union(READABLE, EnumSet.of(
                     WRITE_PLAN, WRITE_MEDICINE, WRITE_RECORD,
                     HANDLE_ALARM, EXPORT_RECORD, CONFIG_LLM_KEY, WRITE_ALARM_SETTINGS,
-                    READ_CAPTURE, WRITE_CAPTURE, WRITE_DEVICE, AI_CHAT)),
+                    READ_CAPTURE, WRITE_CAPTURE, WRITE_DEVICE, AI_INSIGHT)),
             NURSE, union(READABLE, EnumSet.of(HANDLE_ALARM, EXPORT_RECORD)),
             DOCTOR, union(READABLE, EnumSet.of(WRITE_PLAN, WRITE_DRUG_MANUAL)));
 
