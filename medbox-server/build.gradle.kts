@@ -43,7 +43,7 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     // Flyway 10+ 把各数据库支持拆成独立模块，只引 flyway-core 会报 "Unsupported Database: PostgreSQL"
     implementation("org.flywaydb:flyway-database-postgresql")
-    runtimeOnly("org.postgresql:postgresql")
+    implementation("org.postgresql:postgresql")
 
     // 持久层：MyBatis-Plus（见 07 清单地基第 3 项的《持久层框架》，首个引入点是 feat/backend-auth）
     // Boot 4 专用 starter（不是 spring-boot3-starter），版本取 Maven Central 上的最新稳定版
@@ -73,11 +73,13 @@ dependencies {
     // 单调递增的事件 id 用于断线补推），STOMP 的订阅语义表达不了"按 lastEventId 补增量"。
     implementation("org.springframework.boot:spring-boot-starter-websocket")
 
-    // AI 地基（feat/backend-ai-infra）：本地 OCR 调用（RestClient）+ 本地 Embedding（Ollama bge-m3）+ pgvector 向量库
-    // 版本由上方 spring-ai-bom:2.0.1 统一管理（适配 Boot 4，Jackson 3 一致）
-    implementation("org.springframework.ai:spring-ai-starter-model-ollama")
-    implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
-    // pgvector 的 JDBC vector 类型绑定由 spring-ai-starter-vector-store-pgvector 传递引入，无需显式声明
+    // AI 洞察层（refactor/ai-insight-layer 清理后保留）：BYOK 模式，按老人 llm_config 动态构造 Chat 调用（openai-compatible）
+    // 版本由上方 spring-ai-bom:2.0.1 统一管理（适配 Boot 4，Jackson 3 一致）。
+    // 用 starter 以获得 spring-ai-commons（ChatClient 接口所在）传递依赖；但 starter 的 OpenAI 模型自动装配
+    // matchIfMissing=true，会在缺全局 Key 时于上下文加载期创建 openAiSdk*Model Bean 而启动失败，
+    // 故在 application.yml 用 spring.autoconfigure.exclude 关闭这 6 个自动装配类，
+    // 全局不注入任何 Chat 单例，运行时由 AiConfig 工厂按 llm_config 动态构造 ChatClient。
+    implementation("org.springframework.ai:spring-ai-starter-model-openai")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

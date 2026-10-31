@@ -1,12 +1,12 @@
 # medbox-server/docker-compose.yml
 #
-# 本机没有现成的 PostgreSQL 时用这个起一个：PostgreSQL 17 + pgvector（文档 06 第 3 章）
+# 本机没有现成的 PostgreSQL 时用这个起一个：PostgreSQL 17（文档 06 第 3 章）
 # 镜像与文档 01 的 4.0.1 保持一致（pg17）；库名 / 账号与 application.yml 的默认值一致，起完即可直接 bootRun。
 # 本机已有实例时不需要它，直接建库即可（见 README.md）。
 
 services:
-  pgvector:
-    image: pgvector/pgvector:pg17
+  postgres:
+    image: postgres:17
     container_name: medbox-pg
     restart: unless-stopped
     environment:
@@ -19,21 +19,6 @@ services:
       - medbox-pg-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U myuser -d medbox"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # RapidOCR 侧车（文档 05 的 4.1 / feat/backend-ai-infra）：本地 OCR，POST /ocr 收图片/PDF 返回纯文本
-  # 源码在 ./ocr-sidecar/（main.py + requirements.txt + Dockerfile），Java 侧 OcrClient 默认调 http://localhost:8000/ocr
-  ocr:
-    build:
-      context: ./ocr-sidecar
-    container_name: medbox-ocr
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
       retries: 5

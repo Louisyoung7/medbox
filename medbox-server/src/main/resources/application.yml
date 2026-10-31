@@ -1,7 +1,8 @@
 # medbox-server/src/main/resources/application.yml
 #
 # 入库版配置：不含任何因人而异的内网 IP。
-#   - PostgreSQL / EMQX / Ollama / OCR 都在本机，一律写 localhost（各人一套，见文档 01 的 4.5）
+#   - PostgreSQL / EMQX 在本机，一律写 localhost（各人一套，见文档 01 的 4.5）
+#   - 大模型走 BYOK（监护人代配的 llm_config，含 baseUrl/apiKey/model），推理出网由监护人所选端点决定，不在本文件写死
 #   - 唯一因人而异的 medbox.host 走 ${MEDBOX_HOST} 占位
 #   - 本地覆盖用 src/main/resources/application-local.yml（不入库，模板见 application-local.yml.example）
 #     或直接在 IDE Run Configuration 里配环境变量 MEDBOX_HOST=192.168.1.x
@@ -35,19 +36,22 @@ spring:
     clean-disabled: true                 # 禁止 clean，避免误清库
     validate-on-migrate: true            # 已执行脚本被改动则启动失败
   ai:
-    # 本分支只接本地 Embedding（bge-m3）与 pgvector 向量库；Chat 后续由 feat/ai-chat 按需动态构造，这里先关掉自动装配
+    # 不注入全局 Chat 单例：openai starter 的模型自动装配（chat/embedding/image/audio/moderation）
+    # 默认 matchIfMissing=true，缺全局 Key 会在上下文加载期创建 openAiSdk*Model Bean 而启动失败；
+    # 统一在下方 spring.autoconfigure.exclude 关闭，运行时由 AiConfig 工厂按老人 llm_config
+    # （baseUrl/apiKey/model）动态构造 ChatClient（BYOK，见 05 洞察层 / refactor/ai-insight-layer）
     model:
       chat: none
-    ollama:
-      base-url: http://localhost:11434   # 本地 Embedding（bge-m3），不出网、无需 Key
-      embedding:
-        model: bge-m3
-    vectorstore:
-      pgvector:
-        dimensions: 1024                 # 与 bge-m3 一致，换模型须重建向量
-        index-type: HNSW                 # 默认 HNSW（多层图索引）
-        distance-type: COSINE_DISTANCE   # 默认余弦距离
-        initialize-schema: false         # 默认不自动建表：缺 PG 也不阻塞启动；仅 ai-local profile 开 true 供集成测试
+  autoconfigure:
+    # 关闭 OpenAI starter 的全部模型自动装配：我们只在 AiConfig 里按 llm_config 手动构造，
+    # 不想要任何全局 Model / ChatClient Bean（缺全局 Key 会启动失败）
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
 
 server:
   port: 8080
@@ -75,9 +79,6 @@ medbox:
     http: 8080
     ws: 8080
     mqtt: 1883                  # 对外暴露的 EMQX 端口（设备用）
-  ocr:
-    provider: local             # local=本机 RapidOCR 侧车服务；cloud=云端 OCR API（需 Key）
-    endpoint: http://localhost:8000/ocr
   capture:
     dir: /var/medbox/captures     # 抓拍图片本地存储目录（需可写、留意磁盘配额）
     retention-days-unread: 30     # 未读最长保留天数
@@ -157,9 +158,6 @@ medbox:
     scan-interval-ms: 60000                       # 扫描间隔（毫秒），每 60s 扫一次
     lead-time-minutes: 10                          # 提前量（分钟）：计划时间前多久推送提醒
     skip-when-device-offline: false                # 默认不跳过离线（云端兜底，提醒对监护端有价值）
-
-  ai:
-    base-url: https://api.example.com/v1 # 公网大模型，属后端出网方向（唯一必须写死的外网地址）
 
   # —— 认证（feat/backend-auth，见文档 02 第 3 章）—— #
   jwt:

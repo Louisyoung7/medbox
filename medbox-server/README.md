@@ -11,16 +11,16 @@
 
 任务清单见 `../medbox-spec/07_特性分支清单_后端.md`，表结构见 `../medbox-spec/06_数据库设计.md`。
 
-## 1. 准备数据库（PostgreSQL 17 + pgvector）
+## 1. 准备数据库（PostgreSQL 17）
 
-后端在 **PostgreSQL 17 + pgvector**（默认 `localhost:5432`，库 `medbox`）上运行。两种方式二选一。
+后端在 **PostgreSQL 17**（默认 `localhost:5432`，库 `medbox`）上运行。两种方式二选一。
 
-### A. 本机已有 PG 实例（本机 `pgvector_db` 容器即如此，推荐）
+### A. 本机已有 PG 实例（本机 `medbox-pg` 容器即如此，推荐）
 
-只需建一次库（`myuser` 是超级用户时可直接执行；扩展由 Flyway 自动建）：
+只需建一次库（`myuser` 是超级用户时可直接执行；表由 Flyway 自动建）：
 
 ```bash
-docker exec -e PGPASSWORD=mypassword pgvector_db \
+docker exec -e PGPASSWORD=mypassword medbox-pg \
   psql -U myuser -d mydb -c "CREATE DATABASE medbox OWNER myuser;"
 ```
 
@@ -30,7 +30,7 @@ docker exec -e PGPASSWORD=mypassword pgvector_db \
 
 ```bash
 cd medbox-server
-docker compose up -d        # pgvector/pgvector:pg17，库 medbox / 账号 myuser / 密码 mypassword
+docker compose up -d        # postgres:17，库 medbox / 账号 myuser / 密码 mypassword
 docker compose down         # 停止（数据卷 medbox-pg-data 保留）
 ```
 
@@ -55,8 +55,9 @@ spring:
 
 | 脚本 | 内容 |
 |------|------|
-| `V1__init_schema.sql` | `CREATE EXTENSION IF NOT EXISTS vector` + 15 张表 + 约束 + 5 个普通索引 |
-| `V2__vector_hnsw.sql` | `drug_manual_chunk` 的 HNSW 索引（余弦距离） |
+| `V1__init_schema.sql` | 初始化全部关系表 + 约束 + 5 个普通索引（含说明书 RAG 表与 vector 扩展，历史遗留、已由 V18 下线） |
+| `V2__vector_hnsw.sql` | `drug_manual_chunk` 的 HNSW 索引（余弦距离，已由 V18 下线） |
+| `V18__drop_ai_rag.sql` | 下线 AI RAG：`DROP TABLE drug_manual_chunk, drug_manual` + `DROP EXTENSION vector`（refactor/ai-insight-layer） |
 | `V3__auth.sql` | `user_biz_id_seq` 序列 + `refresh_token` + `idempotency_record`（`feat/backend-auth`，见文档 06 的 2.13 / 2.14） |
 | `V4__authz.sql` | `guardian_relation.relation_id` 业务列 + `guardian_relation_biz_id_seq` 序列 + 关系查询索引（`feat/backend-authz`，见 06 的 2.2） |
 | `V5__mqtt.sql` | `mqtt_message` 上行消息去重表（`feat/backend-mqtt`，见文档 06 的 2.15） |
@@ -68,14 +69,12 @@ spring:
 ## 4. 验收
 
 ```bash
-# 15 张表
-docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "\dt"
-# 索引（含 V2 的 HNSW）
-docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "\di"
-# pgvector 扩展
-docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "select extname from pg_extension;"
-# 迁移记录（应为 V1 / V2 / V3 三条 success = t）
-docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox \
+# 关系表
+docker exec -e PGPASSWORD=mypassword medbox-pg psql -U myuser -d medbox -c "\dt"
+# 索引
+docker exec -e PGPASSWORD=mypassword medbox-pg psql -U myuser -d medbox -c "\di"
+# 迁移记录（应含 V1 … V18 且 success = t）
+docker exec -e PGPASSWORD=mypassword medbox-pg psql -U myuser -d medbox \
   -c "select installed_rank, version, success from flyway_schema_history order by installed_rank;"
 ```
 
@@ -85,7 +84,7 @@ docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox \
 |------|-------------|
 | `Unsupported Database: PostgreSQL` | 缺 `flyway-database-postgresql`（Flyway 10+ 把数据库支持拆成了独立模块） |
 | 启动没有任何 Flyway 日志、表也没建 | Boot 4 把自动装配拆成了独立模块，缺 `org.springframework.boot:spring-boot-flyway` —— **只加 `flyway-core` 会静默不迁移**（无报错） |
-| 启动报扩展权限不足 | `CREATE EXTENSION` 需要库所有者 / 超级用户；先用超管执行一次 `CREATE EXTENSION IF NOT EXISTS vector;`（V1 里是 `IF NOT EXISTS`，不会重复创建） |
+| 历史库迁移报 vector 扩展权限不足 | V1 历史脚本曾 `CREATE EXTENSION vector`（现已由 V18 下线、不再需要）；若旧库迁移失败，先用超管执行一次 `CREATE EXTENSION IF NOT EXISTS vector;` 让 V1/V2 通过，V18 会自行删除该扩展 |
 | CI（GitHub Actions）测试失败在 Flyway | CI 无数据库；`build.gradle.kts` 的 test 任务已注入 `SPRING_FLYWAY_ENABLED=false`，测试期不跑迁移 |
 | `actuator/health` 变 DOWN | 引入 JDBC 后健康检查多了 `db` 指示器，数据库不可达即 DOWN；实例起来后恢复 200 |
 
@@ -157,35 +156,10 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/users/me/delete \
 | 关系角色 | 能干什么（对 ACTIVE 关系下的老人） |
 |----------|--------------------------------------|
 | `FAMILY` 家属 / 子女 | 可读可写：计划、药品、库存、处理告警、阈值、代配 AI Key |
-| `DOCTOR` 家庭医生 | 制定 / 修改服药计划、维护药品禁忌知识库、看依从性报告；**不处理告警、不导出** |
+| `DOCTOR` 家庭医生 | 制定 / 修改服药计划、看依从性报告与 AI 洞察；**不处理告警、不导出** |
 | `NURSE` 社区护理 | 所辖老人**只读** + 处理告警 + 导出记录；**不可改计划与药品** |
 
 > 所以"医生 / 护士能干什么"的开关落在**监护关系确认**那一步，不在注册接口；传 `role:DOCTOR` 给注册接口会被判非法。
-
-## 8. 本地 AI 服务（OCR / Embedding，feat/backend-ai-infra）
-
-OCR 转文本与中文文本向量化**全部本地化、不出网、无需 Key**（见文档 05），为后续 `feat/ai-chat` / `feat/manual-ingest` 打地基。
-
-- **Ollama（Embedding）**：本机起 Ollama 并拉取 `bge-m3`（1024 维）：
-  ```bash
-  docker run -d --name ollama -p 11434:11434 ollama/ollama
-  docker exec ollama ollama pull bge-m3
-  ```
-  `spring.ai.ollama.base-url`（默认 `http://localhost:11434`）、`spring.ai.ollama.embedding.model=bge-m3` 已在 `application.yml`，无需覆盖。
-- **RapidOCR 侧车（OCR）**：一个 FastAPI 包一层、`POST /ocr` 收图片/PDF 返回纯文本。源码已落在仓库内 `medbox-server/ocr-sidecar/`（`main.py` + `requirements.txt` + `Dockerfile`），**不在 `src/main/resources`**（那只是 Java classpath 资源，会被打进 JAR，跑不起来）。
-  - 用 Docker 起（推荐，与 pgvector 一起 `docker compose up`）：
-    ```bash
-    docker compose up -d ocr      # 构建并起 medbox-ocr，监听 :8000
-    curl -F file=@说明书.jpg http://localhost:8000/ocr
-    ```
-  - 或本机直接跑（需 Python 3.11+）：
-    ```bash
-    cd medbox-server/ocr-sidecar
-    pip install -r requirements.txt
-    uvicorn main:app --host 0.0.0.0 --port 8000
-    ```
-  `medbox.ocr.endpoint`（默认 `http://localhost:8000/ocr`）已在 `application.yml`；`medbox.ocr.provider=cloud` 可切换到云端 OCR（本期仅骨架，未实装）。
-- **验证（本地集成测试）**：起好上面两个服务后，设环境变量 `MEDBOX_AI_LOCAL_TEST=true`，运行 `AiLocalIntegrationTest`：① 中文文本 embed→1024 维；② 渲染带文字图片 OCR→非空；③ PgVectorStore 写入 + 相似召回回环。**CI 无本地 AI 栈，该测试自动跳过。**
 
 ## 9. MQTT（`feat/backend-mqtt`，见文档 03）
 
@@ -233,7 +207,7 @@ mosquitto_pub -h localhost -p 1883 -i BOXA1001 -q 1 \
 `V5__mqtt.sql` 建 `mqtt_message`（上行去重，按 `msgId` 唯一键，默认保留 7 天，见文档 06 的 2.15）。
 
 ```bash
-docker exec -e PGPASSWORD=mypassword pgvector_db psql -U myuser -d medbox -c "select msg_id, topic, received_at from mqtt_message order by id desc limit 10;"
+docker exec -e PGPASSWORD=mypassword medbox-pg psql -U myuser -d medbox -c "select msg_id, topic, received_at from mqtt_message order by id desc limit 10;"
 ```
 
 ### 9.5 后续分支怎么接

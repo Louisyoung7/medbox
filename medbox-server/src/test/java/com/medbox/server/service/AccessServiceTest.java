@@ -195,16 +195,18 @@ class AccessServiceTest {
     }
 
     @Test
-    @DisplayName("④ 医生：可写计划、可维护禁忌知识库，但不可写药品")
-    void 医生可写计划与知识库但不可写药品() {
+    @DisplayName("④ 医生：可写计划，但不可写药品 / 不可删除抓拍")
+    void 医生可写计划但不可写药品() {
         login(GUARDIAN_ID, "GUARDIAN");
         givenRelation(relation(ELDER_ID, GUARDIAN_ID, RelationRole.DOCTOR, RelationStatus.ACTIVE));
 
         assertEquals("DOCTOR", accessService.require(ELDER_ID, Permission.WRITE_PLAN).relationRole());
-        assertEquals("DOCTOR", accessService.require(ELDER_ID, Permission.WRITE_DRUG_MANUAL).relationRole());
         assertEquals(ErrorCode.FORBIDDEN.code(),
                 assertThrows(BizException.class,
                         () -> accessService.require(ELDER_ID, Permission.WRITE_MEDICINE)).code());
+        assertEquals(ErrorCode.FORBIDDEN.code(),
+                assertThrows(BizException.class,
+                        () -> accessService.require(ELDER_ID, Permission.WRITE_CAPTURE)).code());
     }
 
     @Test
