@@ -88,6 +88,11 @@ medbox:
     # —— 文件读取短期令牌（fileToken）密钥与有效期：供小程序 <image src> 拼接，避免暴露长期 JWT —— #
     file-token-secret: ${MEDBOX_CAPTURE_FILE_TOKEN_SECRET:medbox-capture-file-token-secret-change-me}
     file-token-ttl-minutes: 5     # fileToken 有效期（分钟）
+    # —— 过期清理定时任务（feat/capture-cleanup）：每日扫描 expire_at 删文件与记录 —— #
+    cleanup:
+      enabled: true               # 清理总开关
+      cron: "0 0 4 * * *"          # 每日 04:00（6 段：秒 分 时 日 月 周）
+      batch-size: 500             # 每轮批量删除上限，防长事务锁表
 
   # —— 设备注册与事件流水（feat/device-core，见文档 02 第 4 章 / 06 的 2.16）——
   device:

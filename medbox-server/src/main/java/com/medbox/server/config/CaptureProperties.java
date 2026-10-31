@@ -34,6 +34,18 @@ public class CaptureProperties {
     /** fileToken 有效期（分钟），默认 5。 */
     private int fileTokenTtlMinutes = 5;
 
+    /** 过期清理定时任务总开关（默认 true，见 feat/capture-cleanup）。 */
+    private boolean cleanupEnabled = true;
+
+    /**
+     * 过期清理 Cron 表达式（默认每日 04:00，见 feat/capture-cleanup）。
+     * 走 Spring {@code @Scheduled(cron=...)}，6 段式（秒 分 时 日 月 周）。
+     */
+    private String cleanupCron = "0 0 4 * * *";
+
+    /** 每轮过期删除的批量上限（默认 500，防长事务锁表，见 feat/capture-cleanup）。 */
+    private int cleanupBatchSize = 500;
+
     public String getDir() {
         return dir;
     }
@@ -88,5 +100,29 @@ public class CaptureProperties {
 
     public void setFileTokenTtlMinutes(int fileTokenTtlMinutes) {
         this.fileTokenTtlMinutes = fileTokenTtlMinutes;
+    }
+
+    public boolean isCleanupEnabled() {
+        return cleanupEnabled;
+    }
+
+    public void setCleanupEnabled(boolean cleanupEnabled) {
+        this.cleanupEnabled = cleanupEnabled;
+    }
+
+    public String getCleanupCron() {
+        return cleanupCron;
+    }
+
+    public void setCleanupCron(String cleanupCron) {
+        this.cleanupCron = cleanupCron;
+    }
+
+    public int getCleanupBatchSize() {
+        return cleanupBatchSize;
+    }
+
+    public void setCleanupBatchSize(int cleanupBatchSize) {
+        this.cleanupBatchSize = cleanupBatchSize;
     }
 }
