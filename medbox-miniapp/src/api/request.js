@@ -406,3 +406,136 @@ export const patch = (url, data, options) =>
  */
 export const del = (url, data, options) =>
   request({ ...options, url, data, method: 'DELETE' })
+
+/**
+ * 文件流下载（CSV 导出等不走 `R<T>` 包装的端点，如 02 第 7 章 `GET /records/export`）。
+ *
+ * <p>与 `request` 同风格：拼 `BASE_URL`、注入 `Authorization: Bearer`；但不解析 JSON 响应体，
+ * 而是把下载结果兑现为 `{ tempFilePath, filePath, filename }` 交页面处理（保存 / 转发 / 预览）。
+ *
+ * <p>错误映射（下载类端点成功也走 HTTP 200，非 200 视为失败）：2xx 之外，401→40101、
+ * 403→40301、其余→INTERNAL_ERROR；若临时文件可解析为 JSON 错误体（后端全局异常处理器产出），
+ * 优先用其 `code`/`message`。**不触发 40101 续期重试**（导出为监护人 GET，且文件流无法透明重试）。
+ *
+ * @typedef {Object} DownloadOptions
+ * @property {string} url 相对路径（如 `/records/export`）
+ * @property {Object} [params] query 参数
+ * @property {boolean} [auth=true] 是否注入 `Authorization: Bearer`
+ * @property {number} [timeout=DEFAULT_TIMEOUT]
+ * @property {string} [filePath] 期望保存到的本地路径（不传则落临时目录）
+ *
+ * @param {DownloadOptions} options
+ * @returns {Promise<{tempFilePath: string, filePath: string, filename: string|null}>}
+ * @throws {ApiError}
+ */
+export function downloadFile(options) {
+  const { url, params, auth = true, timeout = DEFAULT_TIMEOUT, filePath } = options || {}
+  const fullUrl = buildUrl(url, params)
+
+  const headers = {}
+  if (auth) {
+    const token = getAccessToken()
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    uni.downloadFile({
+      url: fullUrl,
+      header: headers,
+      timeout,
+      filePath,
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          const savedPath = res.filePath || res.tempFilePath || ''
+          resolve({
+            tempFilePath: res.tempFilePath || savedPath,
+            filePath: savedPath,
+            filename: parseContentDisposition(res.header),
+          })
+          return
+        }
+        rejectDownloadError(reject, res, fullUrl)
+      },
+      fail: (err) => {
+        const error = new ApiError({
+          code: NETWORK_ERROR_CODE,
+          message: (err && err.errMsg) || NETWORK_ERROR_MESSAGE,
+          url: fullUrl,
+          method: 'GET',
+        })
+        handleError(error, false)
+        reject(error)
+      },
+    })
+  })
+}
+
+/** 从响应头 `content-disposition` 解析文件名（兼容 `filename*=UTF-8''` 编码形式）。 */
+function parseContentDisposition(header) {
+  const cd = (header && (header['content-disposition'] || header['Content-Disposition'])) || ''
+  if (!cd) return null
+  const star = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(cd)
+  if (star && star[1]) {
+    try {
+      return decodeURIComponent(star[1].trim().replace(/^"|"$/g, ''))
+    } catch (e) {
+      return star[1].trim().replace(/^"|"$/g, '')
+    }
+  }
+  const plain = /filename="?([^"]+)"?/i.exec(cd)
+  return plain ? plain[1].trim() : null
+}
+
+/** 非 2xx 下载：临时文件若是 JSON 错误体则优先用其 code/message，否则按状态码映射。 */
+function rejectDownloadError(reject, res, fullUrl) {
+  const fallback = () => {
+    let code = CODE.INTERNAL_ERROR
+    if (res.statusCode === 401) code = CODE.UNAUTHORIZED
+    else if (res.statusCode === 403) code = CODE.FORBIDDEN
+    else if (res.statusCode === 404) code = CODE.NOT_FOUND
+    const error = new ApiError({
+      code,
+      message: messageOf(code),
+      httpStatus: res.statusCode,
+      url: fullUrl,
+      method: 'GET',
+    })
+    handleError(error, false)
+    reject(error)
+  }
+  const tmp = res.tempFilePath || res.filePath
+  if (!tmp || typeof uni.getFileSystemManager !== 'function') return fallback()
+  try {
+    uni.getFileSystemManager().readFile({
+      filePath: tmp,
+      encoding: 'utf-8',
+      success: (r) => {
+        let parsed = null
+        try {
+          parsed = JSON.parse(r.data)
+        } catch (e) {
+          parsed = null
+        }
+        if (parsed && typeof parsed.code === 'number') {
+          const error = new ApiError({
+            code: parsed.code,
+            message: parsed.message || messageOf(parsed.code),
+            traceId: parsed.traceId,
+            httpStatus: res.statusCode,
+            url: fullUrl,
+            method: 'GET',
+          })
+          handleError(error, false)
+          reject(error)
+          return
+        }
+        fallback()
+      },
+      fail: fallback,
+    })
+  } catch (e) {
+    fallback()
+  }
+}
