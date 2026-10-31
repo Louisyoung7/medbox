@@ -15,7 +15,6 @@ import com.medbox.server.domain.PlanReminder;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
-import com.medbox.server.domain.enums.RelationRole;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.domain.enums.UserStatus;
@@ -185,7 +184,6 @@ public class DevtoolsSeedService {
         relation.setRelationId(RELATION_ID);
         relation.setElderId(s.getElderUserId());
         relation.setGuardianId(s.getGuardianUserId());
-        relation.setRole(RelationRole.FAMILY);
         relation.setStatus(RelationStatus.ACTIVE);
         relation.setCreatedAt(OffsetDateTime.now());
         guardianRelationMapper.insert(relation);

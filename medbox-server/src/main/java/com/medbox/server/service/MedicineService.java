@@ -148,10 +148,10 @@ public class MedicineService {
         return medicine;
     }
 
-    /** 公共（owner 为空）→ requireFamilyGuardian；私有 → 该老人WRITE_MEDICINE。 */
+    /** 公共（owner 为空）→ requireGuardian；私有 → 该老人WRITE_MEDICINE。 */
       private void requireWriteByOwner(String ownerElderId) {
         if (ownerElderId == null) {
-            accessService.requireFamilyGuardian();
+            accessService.requireGuardian();
         } else {
             accessService.require(ownerElderId,Permission.WRITE_MEDICINE);
         }
