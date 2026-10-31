@@ -121,18 +121,47 @@ public class RecordService {
             return PageResult.empty(safePage, safeSize);
         }
 
+        return PageResult.of(toResponses(records), result.getTotal(), safePage, safeSize);
+    }
+
+    // ———————————————— 导出 ————————————————
+
+    /**
+     * GET /records/export：按老人 + 时间窗导出全部服药记录（不翻页），join 计划名 / 药名后返回。
+     *
+     * <p>权限 {@code EXPORT_RECORD}（监护人可导出、老人不可）；越权 / PENDING 由 {@link AccessService} 转 40301 / 40302。
+     * {@code from}/{@code to} 为空则由 Controller 侧补默认窗口（最近 30 天），此处直接用传入边界查询。
+     */
+    public List<RecordResponse> exportRecords(String elderId, OffsetDateTime from, OffsetDateTime to) {
+        accessService.require(elderId, Permission.EXPORT_RECORD);
+
+        LambdaQueryWrapper<MedRecord> wrapper = new LambdaQueryWrapper<MedRecord>()
+                .eq(MedRecord::getElderId, elderId)
+                .orderByDesc(MedRecord::getActualTime);
+        if (from != null) {
+            wrapper.ge(MedRecord::getActualTime, from);
+        }
+        if (to != null) {
+            wrapper.le(MedRecord::getActualTime, to);
+        }
+        return toResponses(medRecordMapper.selectList(wrapper));
+    }
+
+    /** 批量把 {@link MedRecord} 转 {@link RecordResponse} 并 join 计划名 / 药名（避免 N+1）。 */
+    private List<RecordResponse> toResponses(List<MedRecord> records) {
+        if (records.isEmpty()) {
+            return List.of();
+        }
         Set<String> planIds = records.stream().map(MedRecord::getPlanId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Set<String> medicineIds = records.stream().map(MedRecord::getMedicineId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<String, String> planNames = planNames(planIds);
         Map<String, String> medicineNames = medicineNames(medicineIds);
-
-        List<RecordResponse> list = records.stream()
+        return records.stream()
                 .map(r -> RecordResponse.from(r, planNames.get(r.getPlanId()),
                         medicineNames.get(r.getMedicineId())))
                 .toList();
-        return PageResult.of(list, result.getTotal(), safePage, safeSize);
     }
 
     // ———————————————— 详情 ————————————————
