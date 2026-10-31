@@ -6,8 +6,14 @@ import com.medbox.server.dto.PageResult;
 import com.medbox.server.dto.R;
 import com.medbox.server.dto.record.RecordConfirmRequest;
 import com.medbox.server.dto.record.RecordResponse;
+import com.medbox.server.common.CsvUtil;
 import com.medbox.server.service.RecordService;
+import java.io.IOException;
+import java.io.Writer;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,6 +62,65 @@ public class RecordController {
     public R<RecordResponse> confirm(@PathVariable String recordId,
                                      @RequestBody RecordConfirmRequest request) {
         return R.ok(recordService.confirm(recordId, request));
+    }
+
+    /**
+     * GET /records/export：以 CSV 文件下载服药报告（护理 / 医生视角）。
+     *
+     * <p>权限 {@code EXPORT_RECORD} 在 {@link RecordService#exportRecords} 内校验（老人 / 越权 / PENDING
+     * → 40301 / 40302）。{@code from}/{@code to} 可选：都不传 → 最近 30 天；仅传其一 → 另一边界按
+     * 30 天窗口推导。响应体是 CSV 流，不走 {@code R<T>} 包装。
+     */
+    @GetMapping("/export")
+    public void export(@RequestParam("elderId") String elderId,
+                       @RequestParam(value = "from", required = false) String from,
+                       @RequestParam(value = "to", required = false) String to,
+                       HttpServletResponse response) throws IOException {
+        OffsetDateTime fromTime = parse(from);
+        OffsetDateTime toTime = parse(to);
+        OffsetDateTime now = OffsetDateTime.now();
+        if (fromTime == null && toTime == null) {
+            toTime = now;
+            fromTime = now.minusDays(30);
+        } else if (fromTime == null) {
+            fromTime = (toTime != null ? toTime : now).minusDays(30);
+        } else if (toTime == null) {
+            toTime = now;
+        }
+
+        List<RecordResponse> records = recordService.exportRecords(elderId, fromTime, toTime);
+
+        String filename = "medication-records-" + elderId + "-"
+                + fromTime.toLocalDate() + "-" + toTime.toLocalDate() + ".csv";
+        response.setContentType("text/csv; charset=utf-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        response.setCharacterEncoding("utf-8");
+
+        DateTimeFormatter iso = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+        try (Writer writer = response.getWriter()) {
+            writer.write("﻿"); // UTF-8 BOM，便于 Excel 正确识别中文
+            CsvUtil.writeRow(writer, "记录ID", "老人ID", "计划名", "药品名称", "计划时间",
+                    "实际时间", "是否按时", "结论", "来源", "剂量", "抓拍ID", "设备ID");
+            for (RecordResponse r : records) {
+                CsvUtil.writeRow(writer,
+                        str(r.recordId()), str(r.elderId()), str(r.planName()), str(r.medicineName()),
+                        fmt(r.planTime(), iso), fmt(r.actualTime(), iso),
+                        bool(r.onTime()), str(r.faceResult()), str(r.source()),
+                        str(r.actualDose()), str(r.captureId()), str(r.deviceId()));
+            }
+        }
+    }
+
+    private static String str(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static String fmt(OffsetDateTime value, DateTimeFormatter formatter) {
+        return value == null ? "" : value.format(formatter);
+    }
+
+    private static String bool(Boolean value) {
+        return value == null ? "" : value.toString();
     }
 
     /** from/to 解析为 ISO-8601（OffsetDateTime）；空串返回 null，格式非法 → 40001。 */

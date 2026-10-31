@@ -24,7 +24,7 @@ import java.util.Set;
  *   WRITE_RECORD(补录)           ✅
  *   READ_ALARM            ✅      ✅      ✅      ✅
  *   HANDLE_ALARM                  ✅      ✅
- *   EXPORT_RECORD                 ✅      ✅
+ *   EXPORT_RECORD                 ✅      ✅      ✅
  *   CONFIG_LLM_KEY                ✅
  *   WRITE_ALARM_SETTINGS          ✅
  *   READ_CAPTURE          ✅      ✅
@@ -122,7 +122,8 @@ public enum Permission {
                     HANDLE_ALARM, EXPORT_RECORD, CONFIG_LLM_KEY, WRITE_ALARM_SETTINGS,
                     READ_CAPTURE, WRITE_CAPTURE, WRITE_DEVICE, AI_CHAT)),
             NURSE, union(READABLE, EnumSet.of(HANDLE_ALARM, EXPORT_RECORD)),
-            DOCTOR, union(READABLE, EnumSet.of(WRITE_PLAN)));
+            // DOCTOR：医生型监护人同样可导出服药报告（01 §3 监护人统一单一角色，导出属监护人通用能力）
+            DOCTOR, union(READABLE, EnumSet.of(WRITE_PLAN, EXPORT_RECORD)));
 
     /**
      * 第 ④ 步：该访问身份是否具备此操作权限。
