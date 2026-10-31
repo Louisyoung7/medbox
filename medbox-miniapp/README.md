@@ -199,6 +199,40 @@ logout()            // 清 token + 用户资料 + reLaunch 登录页
 - **真机预览**默认强制校验域名：开发阶段用「真机调试（开发版）」模式，或改走 App 端（Android / iOS）直连局域网 IP。
 - `src/manifest.json` 的 `mp-weixin.appid` **两人共用同一个**（微信公众平台「成员管理」里把对方加为开发者 / 体验成员），不要各填各的测试号。
 
+## Android 真机联调（局域网，仅测试）
+
+> 目前只做"能装到 Android 上、连局域网后端测一遍"的最小配置，**不用于上线**。
+> 后端地址机制与微信小程序完全一致：编译期 `VITE_SERVER_HOST` + 运行时「开发调试」页覆盖，**装好 App 后改 IP 不必重编译**。
+
+**1. 配后端地址（二选一，推荐运行时）**
+
+- 运行时（推荐，零重编译）：App 内「我的 → 开发调试 → 服务器地址」粘贴 `http://电脑局域网IP:8080/`，保存后**杀掉 App 重开**即生效（`setServerHost` 写本地缓存，见 `src/config/index.js`）。
+- 编译期：在 `.env.local` 写 `VITE_SERVER_HOST=192.168.1.x`，再走下面的 build。
+
+**2. 构建 App 资源**
+
+```bash
+npm install
+npm run build:app-plus     # 产物在 dist/build/app-plus
+```
+
+> `dev:app-plus` 仅用于 HBuilderX 真机运行热更新；纯命令行出包用 `build:app-plus` 即可。
+
+**3. 打包安装 APK（需要 HBuilderX）**
+
+CLI 只能产出 App 资源，**出 APK 要在 HBuilderX 里做**（本机是 Linux 命令行，无 GUI 打包环境）：
+
+- 用 HBuilderX 打开本工程 → 发行 → 原生 App-云打包（或本地打包 / 自定义基座）；
+- 选 Android，勾「使用自定义基座 / 公共测试证书」即可，无需自有签名与上架资质；
+- 打出来的 debug 包默认允许 `http://` 明文（Android 9+ 的 cleartext 限制在调试基座下已放开），正合局域网 `http` 联调；
+- 装到手机，按步骤 1 设 IP，重启 App，登录即可。
+
+**4. 排错**
+
+- 登录/请求报"网络异常"：先确认手机与电脑**同一 WiFi 网段**，且后端 `:8080` 在电脑上已起（可用电脑浏览器开 `http://电脑IP:8080/medbox/api/v1/...` 验证）。
+- 改了 IP 没生效：App 要**彻底杀进程重开**（缓存是启动时读取的快照）。
+- 明文被拦（极少，正式云打包偶发）：改用 HBuilderX「自定义调试基座」运行，或临时把 `VITE_TLS` 设为 `true`（需后端已配 TLS，局域网一般没有，故不推荐）。
+
 ## Mock 后端与端到端测试（`tools/mock`）
 
 后端接口未落地期间的前端自测底座（**不替代 `medbox-server/`**，纯 Node 内置模块、零依赖）：
