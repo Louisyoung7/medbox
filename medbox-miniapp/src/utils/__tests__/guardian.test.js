@@ -9,38 +9,12 @@ import { describe, expect, it } from 'vitest'
 import {
   normalizeElderId,
   parsePendingList,
-  relationRoleLabel,
-  relationRolePermissionText,
   relationStatusTag,
   relationTimeText,
-  RELATION_ROLE,
-  RELATION_ROLE_LABEL,
   RELATION_STATUS,
 } from '@/utils/guardian.js'
 
-describe('guardian utils —— 角色与状态文案', () => {
-  it('RELATION_ROLE 只有 FAMILY / DOCTOR / NURSE（护理 / 医生是关系角色，非注册角色）', () => {
-    expect(Object.keys(RELATION_ROLE).sort()).toEqual(['DOCTOR', 'FAMILY', 'NURSE'])
-    expect(RELATION_ROLE_LABEL[RELATION_ROLE.FAMILY]).toBe('家庭亲属')
-    expect(RELATION_ROLE_LABEL[RELATION_ROLE.DOCTOR]).toBe('家庭医生')
-    expect(RELATION_ROLE_LABEL[RELATION_ROLE.NURSE]).toBe('护理人员')
-  })
-
-  it('relationRoleLabel：已知角色中文名，未知原样，空串返回空', () => {
-    expect(relationRoleLabel('FAMILY')).toBe('家庭亲属')
-    expect(relationRoleLabel('BOSS')).toBe('BOSS')
-    expect(relationRoleLabel('')).toBe('')
-    expect(relationRoleLabel(undefined)).toBe('')
-  })
-
-  it('relationRolePermissionText：三角色各一句权限说明，未知返回空串', () => {
-    expect(relationRolePermissionText('FAMILY')).toContain('计划')
-    expect(relationRolePermissionText('DOCTOR')).toContain('计划')
-    expect(relationRolePermissionText('NURSE')).toContain('告警')
-    expect(relationRolePermissionText('BOSS')).toBe('')
-    expect(relationRolePermissionText(undefined)).toBe('')
-  })
-
+describe('guardian utils —— 状态文案', () => {
   it('relationStatusTag：PENDING 待确认(warn) / ACTIVE 已生效(ok) / REVOKED 已解除(info)', () => {
     expect(relationStatusTag(RELATION_STATUS.PENDING)).toEqual({ text: '待确认', level: 'warn' })
     expect(relationStatusTag(RELATION_STATUS.ACTIVE)).toEqual({ text: '已生效', level: 'ok' })

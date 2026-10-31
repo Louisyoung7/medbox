@@ -5,8 +5,8 @@
  * 错误码分流走 `src/api/request.js` 真实实现。
  *
  * <p>**后端 `guardian-relation` 已落地**（07 已勾选）：这里断言的是 02 的 3.2 契约本身 ——
- * 四条接口的路径与方法、申请无请求体、accept 的 `{role}` 体、写操作注入 `X-Request-Id`、
- * 40301 / 40901 / 40001 兑现，无前端先行契约。
+ * 四条接口的路径与方法、申请无请求体、accept 的空 `{}` 体、写操作注入 `X-Request-Id`、
+ * 40301 / 40901 兑现，无前端先行契约。
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -128,41 +128,31 @@ describe('guardian —— 请求层', () => {
     expect(error.code).toBe(CODE.FORBIDDEN)
   })
 
-  it('acceptGuardian：PATCH /users/guardians/{relationId}/accept，请求体 { role }', async () => {
+  it('acceptGuardian：PATCH /users/guardians/{relationId}/accept，请求体为空的 {}', async () => {
     const { guardian } = await loadGuardianApi()
     scripts = [
       {
         body: {
           code: 0,
-          data: { relationId: 'gr-3', elderId: 'u-1001', guardianId: 'u-2002', role: 'FAMILY', status: 'ACTIVE', createdAt: '2026-10-21T08:00:00Z' },
+          data: { relationId: 'gr-3', elderId: 'u-1001', guardianId: 'u-2002', status: 'ACTIVE', createdAt: '2026-10-21T08:00:00Z' },
         },
       },
     ]
 
-    const data = await guardian.acceptGuardian('gr-3', 'FAMILY')
+    const data = await guardian.acceptGuardian('gr-3')
 
     expect(data.status).toBe('ACTIVE')
-    expect(data.role).toBe('FAMILY')
     expect(sent[0].method).toBe('PATCH')
     expect(sent[0].url).toContain('/medbox/api/v1/users/guardians/gr-3/accept')
-    expect(sent[0].data).toEqual({ role: 'FAMILY' })
+    expect(sent[0].data).toEqual({})
     expect(sent[0].header['X-Request-Id']).toMatch(/^[0-9a-f]{32}$/)
-  })
-
-  it('acceptGuardian：40001（role 缺失 / 非法）兑现 ApiError（BAD_REQUEST）', async () => {
-    const { guardian, CODE } = await loadGuardianApi()
-    scripts = [{ body: { code: 40001, message: 'role 只能是 FAMILY / DOCTOR / NURSE' } }]
-
-    const error = await guardian.acceptGuardian('gr-3', 'BOSS').catch((err) => err)
-
-    expect(error.code).toBe(CODE.BAD_REQUEST)
   })
 
   it('acceptGuardian：40901（已非 PENDING）兑现 ApiError（CONFLICT）', async () => {
     const { guardian, CODE } = await loadGuardianApi()
     scripts = [{ body: { code: 40901, message: '该监护请求已被处理' } }]
 
-    const error = await guardian.acceptGuardian('gr-3', 'FAMILY').catch((err) => err)
+    const error = await guardian.acceptGuardian('gr-3').catch((err) => err)
 
     expect(error.code).toBe(CODE.CONFLICT)
   })

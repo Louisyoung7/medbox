@@ -33,7 +33,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `POST /auth/login`、`POST /auth/register`、`POST /auth/refresh`（轮换）、`GET /users/me`、`POST /users/me/delete`、`GET /users/{elderId}/profile`（老人基础信息，`feat/mp-profile`：本人或 ACTIVE 监护人可见；PENDING→40302；无关系/REVOKED/目标非老人→40301 防枚举；响应同 `/users/me`，`username` 选填省略）
 - `GET /devices`、`GET /devices/{id}`（含 `sensors[]`）
 - `GET /devices/{id}/events`（事件流水：分页、按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`detail` 对 FAULT 为故障码、对 COMMAND 为 `{commandId,cmd,state}`，`feat/mp-device-extra`：`REGISTERED`/`ONLINE`/`OFFLINE` 由 device-core 播种，`FAULT`/`COMMAND` 由 device-fault/device-command 续写，Mock 已播种样例）
-- `POST /devices/{id}/commands`（下发控制命令：异步受理回 `{commandId,state:PENDING}`，`cmd` ∈ `BUZZ`/`UNLOCK`/`CALIBRATE`/`REBOOT`；设备离线 → **40901**；`cmd` 非法 → **40001**；仅监护人（WRITE_DEVICE 仅 FAMILY）→ **40301**；子设备编号 → **40301**；Mock 同步落一条 COMMAND 事件（state=SUCCESS）模拟设备 ack）
+- `POST /devices/{id}/commands`（下发控制命令：异步受理回 `{commandId,state:PENDING}`，`cmd` ∈ `BUZZ`/`UNLOCK`/`CALIBRATE`/`REBOOT`；设备离线 → **40901**；`cmd` 非法 → **40001**；仅监护人（WRITE_DEVICE 仅 GUARDIAN）→ **40301**；子设备编号 → **40301**；Mock 同步落一条 COMMAND 事件（state=SUCCESS）模拟设备 ack）
 - `GET /medicines`（分页 + keyword，返回 `{list,total}`）、`GET /medicines/{id}`、`POST /medicines`（新建/更新同一入口）、`DELETE /medicines/{id}`（被库存引用 → **40901**）
 - `GET /devices/{id}/stocks`（裸数组）、`PUT .../stocks/{medicineId}`（数量绝对值）、`POST .../stocks/{medicineId}/in`（数量增量）、`DELETE .../stocks/{medicineId}`
 - `GET /plans?elderId=`（列表含 items 概览）、`GET /plans/{id}`（含 items 明细）、`POST /plans`、`PUT /plans/{id}`（整体覆盖）、`PATCH /plans/{id}/status`（请求体契约 `{status:'ENABLED'|'DISABLED'}`）、`DELETE /plans/{id}`（级联删明细）
@@ -43,16 +43,16 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `GET /env/realtime`（`feat/mp-env`：最新温湿光读数，合并各传感器最新非空读数；`deviceId` 必填、`sensorId` 可选按传感器查；`requireDevice(deviceId, READ_ENV)`，越权 / 子设备编号 / 不存在 → **40301**、`deviceId` 缺 → **40001**、未登录 → **40101**；温湿度与光照分两条 `env_sample` 入库，本接口合并两者最新非空读数，`sampleTime` 取较新者）
 - `GET /env/history`（`feat/mp-env`：历史曲线；`deviceId` 必填、`from`/`to` 必填（ISO-8601 UTC，含端点）、`interval` 可选（分钟 1~1440，分桶 `avg()` 聚合，缺省返回原始有序点）；按 `sensorId` 查只筛该传感器 `device_id`，否则按 `gateway_device_id` 筛其下全部传感器；`from`/`to` 缺省 / `from>to` / `interval` 越界 / 跨度 >30 天 → **40001**；权限同实时 → **40301**/**40101**；响应 `{ points: [{ sampleTime, temperature, humidity, lux }] }`，原始模式单行只带一类数值其余 `null`、分桶模式 `avg()` 忽略 `null`）
 - `GET /records?elderId=&from=&to=`（分页 + 时间区间过滤，列表 join 计划名/药品名）、`GET /records/{id}`（关联计划与抓拍留证占位）、`POST /records/{id}/confirm`（监护人补录/确认）
-  - 权限口径照 02 的 1.3.1 与 1.2：老人读他人 / 越权 → **40301**；监护 PENDING → **40302**；写操作仅 FAMILY → **40301**；不存在 → **40401**
+  - 权限口径照 02 的 1.3.1 与 1.2：老人读他人 / 越权 → **40301**；监护 PENDING → **40302**；写操作仅 GUARDIAN → **40301**；不存在 → **40401**
   - 种子含 6 条记录（覆盖 u-1001/u-1002、按时/未按时、已确认与未确认、部分带 `captureId`）；`capture-core` 属 P1，详情缩略图由前端留空占位
-- `POST /users/{elderId}/guardians`（申请，无请求体）、`GET /users/guardians/pending`（老人端待确认，join 姓名+手机，按 `createdAt` 升序）、`PATCH /users/guardians/{relationId}/accept`（确认，请求体 `{role}` 必填，FAMILY/DOCTOR/NURSE）、`DELETE /users/guardians/{relationId}`（拒绝 / 解除，任一方，幂等）
-  - 权限口径照 02 的 3.2 规则表：非监护人申请 / 目标不是老人 / 查不到 / 非关系双方 → **40301**（防枚举，不回 40401）；已有 PENDING/ACTIVE → **40901**；REVOKED → 复活为 PENDING 并清空 role；非老人看列表 / 监护人点确认 → **40301**；role 缺失或非法 → **40001**；重复确认（已非 PENDING）→ **40901**
+- `POST /users/{elderId}/guardians`（申请，无请求体）、`GET /users/guardians/pending`（老人端待确认，join 姓名+手机，按 `createdAt` 升序）、`PATCH /users/guardians/{relationId}/accept`（确认，请求体为空 `{}`，监护关系无角色）、`DELETE /users/guardians/{relationId}`（拒绝 / 解除，任一方，幂等）
+  - 权限口径照 02 的 3.2 规则表：非监护人申请 / 目标不是老人 / 查不到 / 非关系双方 → **40301**（防枚举，不回 40401）；已有 PENDING/ACTIVE → **40901**；REVOKED → 复活为 PENDING（监护关系无 role）；非老人看列表 / 监护人点确认 → **40301**；重复确认（已非 PENDING）→ **40901**
   - 种子 4 条关系（gr-1/gr-2 ACTIVE、gr-3 PENDING、gr-4 REVOKED），`createdAt` 相对运行时刻计算
 - `GET /alarms?elderId=&type=&readState=`（告警分页：按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`type` ∈ `MISS`/`ENV`/`DEVICE_OFFLINE`/`DEVICE_FAULT`，`readState` ∈ `READ`/`UNREAD`；`feat/mp-alarm`：`alarm-core` 已落地，Mock 播种 `MISS`/`ENV` 样例，`DEVICE_OFFLINE` 对应后端 `alarm-device-offline` 在 07 仍未落地，不播）
 - `GET /alarms/unread-count?elderId=`（未读告警数，驱动角标）
-- `PATCH /alarms/{alarmId}/read`（标记已读，四角色 `READ_ALARM`；不存在 → **40401**；无关系 → **40301**）
-- `PATCH /alarms/{alarmId}/handle`（处理/确认，`HANDLE_ALARM` = FAMILY + NURSE；小程序注册角色仅 GUARDIAN → 非监护人 → **40301**；不存在 → **40401**）
-- `GET /alarm-settings?elderId=`（查询阈值；缺则回默认 `advanceMin=10`/`missTolerateMin=15`/`envThreshold` 温湿光上下限）、`PUT /alarm-settings?elderId=`（保存，字段可选仅覆盖提供项；`WRITE_ALARM_SETTINGS` 仅 FAMILY → 非监护人 → **40301**）
+- `PATCH /alarms/{alarmId}/read`（标记已读，`READ_ALARM` 双角色均可；不存在 → **40401**；无关系 → **40301**）
+- `PATCH /alarms/{alarmId}/handle`（处理/确认，`HANDLE_ALARM` 仅 GUARDIAN；小程序注册角色仅 GUARDIAN → 非监护人 → **40301**；不存在 → **40401**）
+- `GET /alarm-settings?elderId=`（查询阈值；缺则回默认 `advanceMin=10`/`missTolerateMin=15`/`envThreshold` 温湿光上下限）、`PUT /alarm-settings?elderId=`（保存，字段可选仅覆盖提供项；`WRITE_ALARM_SETTINGS` 仅 GUARDIAN → 非监护人 → **40301**）
 - `POST /_debug/seed`（一键播种，免登录，回带双 access token）、`POST /_debug/mqtt/publish`（服务端模拟设备上报，免登录）
   - 与真后端口径一致：这两个路径在 `WebMvcConfig` 里被排除在 `AuthInterceptor` 之外（`medbox.devtools.enabled=false` 时真后端直接不装配、返回 404）
   - ⚠️ **Mock 不接 EMQX**：`mqtt/publish` 只校验 `deviceId` / `subTopic` 必填、`payload` 必须是 JSON **字符串**（后端 DTO 收 `String`，传对象会被 Jackson 拒掉）、`deviceId` 须是 Mock 里存在的设备，然后打日志回显，**不落库、不推 WS**，也不校验 payload 里的业务 ID（Mock 种子 ID 与后端 devtools 种子不同，如光照子设备这里是 `-S-LGT01`）
@@ -66,7 +66,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - 补药入库：数量为增量，日期选填（不传不更新）
 - 老人端登录 → 写入口隐藏、直接调写接口 40301
 - token 过期自动续期：`MOCK_ACCESS_TTL_MS=15000 npm run mock`，等 15s 后再操作，页面无感续期
-- 监护绑定：王芳登录 → 对 u-1001 重复申请 40901；张桂英登录 → 待确认列表见王芳，确认（选 DOCTOR）后王芳即可读 u-1001 数据；周杰对 u-1001 重新申请（REVOKED 复活）→ 确认前访问 40302；撤销 / 拒绝后关系 REVOKED，可再次申请
+- 监护绑定：王芳登录 → 对 u-1001 重复申请 40901；张桂英登录 → 待确认列表见王芳，确认后王芳即可读 u-1001 数据；周杰对 u-1001 重新申请（REVOKED 复活）→ 确认前访问 40302；撤销 / 拒绝后关系 REVOKED，可再次申请
 - 用户资料：张桂英登录 →「我的」页个人资料卡含姓名/手机号/用户名；王芳（PENDING）在「监护关系」页的申请卡只显示 elderId（拉不到姓名，静默回退）；张伟（ACTIVE）的申请卡显示"张桂英（u-1001）"
 - 设备命令与事件（feat/mp-device-extra）：张伟（监护人）进 BOXA1001 详情 →「远程控制」卡可点 蜂鸣/解锁/校准/重启，下发后显示"下发中"并在事件列表落一条 COMMAND 成功事件；切到离线设备 BOXA1002 下发 → 提示"设备离线，无法下发"（40901）；张桂英（老人）无「远程控制」卡（WRITE_DEVICE 仅监护人）；「设备事件」卡与事件全量页可读 上线/离线/设备异常（FAULT）/控制命令 流水（Mock 播种了 门超时/硬件故障 两条异常）
 - 告警（feat/mp-alarm）：张伟（监护人）首页「告警」卡显示未读数 → 进告警列表（u-1001 共 4 条，3 未读），可按类型/已读筛选、上拉加载；点未读项进详情 →「标记已读」后未读数 -1；「处理/确认」按钮仅监护人可见（张桂英点 → 40301）；张桂英（老人）登录也能看自己告警列表但无处理按钮；进「告警设置」（仅监护台，老人不可见）改 提前期/环境上限 后保存，再查回显合并结果（老人保存 → 40301）
