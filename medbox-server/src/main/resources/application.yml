@@ -164,6 +164,19 @@ medbox:
     lead-time-minutes: 10                          # 提前量（分钟）：计划时间前多久推送提醒
     skip-when-device-offline: false                # 默认不跳过离线（云端兜底，提醒对监护端有价值）
 
+  # —— AI 洞察层（feat/ai-insight，见文档 05 第 2 章）——
+  # 全局 medbox.ai.base-url 已由 refactor/ai-insight-layer 清理（BYOK 按 llm_config 动态注入，无全局端点）
+  ai:
+    insight:
+      enabled: ${MEDBOX_AI_INSIGHT_ENABLED:true}   # 逃生开关：false 时周期任务不跑（REST 仍可用）
+      timeout-ms: 15000                            # 上游单次调用超时，超时 → 50310
+      stream-timeout-ms: 60000                     # SSE 连接最长存活
+      max-records: 200                             # 每类数据最多取多少行，防 Prompt 爆炸
+      timezone: Asia/Shanghai                      # 按时段 / 星期聚合用的展示时区
+      aes-key: ${MEDBOX_LLM_AES_KEY:medbox-local-dev-llm-key-change-me-32b}
+      # ⚠️ 正式部署必须设 MEDBOX_LLM_AES_KEY（≥32 字符、与库分离）；换 Key 会使已有密文不可解
+      schedule-scan-interval-ms: 3600000           # 周期洞察扫描间隔（1 小时）
+
   # —— 认证（feat/backend-auth，见文档 02 第 3 章）—— #
   jwt:
     # HS256 签名密钥：≥32 字节。**本地开发可用下面的默认值，正式/对外部署必须设 MEDBOX_JWT_SECRET 覆盖**

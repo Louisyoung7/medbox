@@ -102,4 +102,15 @@ tasks.named<Test>("test") {
     // 将来接 Testcontainers 做集成测试时，删掉这两行即可。
     environment("SPRING_FLYWAY_ENABLED", "false")
     environment("MEDBOX_MQTT_ENABLED", "false")
+    // 测试期关掉全部定时调度（各 *IntegrationTest 都是手动调 scanner.scan(clock) 触发，不依赖 @Scheduled）。
+    // 开着的话，调度线程会在测试线程 stubbing Mockito 的同时调同一个 mock → WrongTypeOfReturnValue 串台（ flaky ）
+    environment("MEDBOX_ALARM_MISS_ENABLED", "false")
+    environment("MEDBOX_ALARM_ENV_ENABLED", "false")
+    environment("MEDBOX_ALARM_DEVICE_FAULT_ENABLED", "false")
+    environment("MEDBOX_ALARM_DEVICE_OFFLINE_ENABLED", "false")
+    environment("MEDBOX_PLAN_REMINDER_ENABLED", "false")
+    environment("MEDBOX_AI_INSIGHT_ENABLED", "false")
+    // 全量 580+ 个测试共用一个 JVM、缓存十几个 ApplicationContext，默认堆在尾部会 OOM
+    // （pgVectorStoreBatchingStrategy 装配失败 → 上下文缓存被污染 → 后续 @SpringBootTest 全红）
+    maxHeapSize = "2g"
 }
