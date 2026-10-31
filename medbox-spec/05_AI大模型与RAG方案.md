@@ -148,12 +148,12 @@ POST /ai/insight
 - **不落库、不自动执行**（FP-10）：洞察结果不写入任何业务表、不改动计划 / 库存 / 设备；上游超时（如 15s）或失败时降级为模板化安全提示（仍可返回 `code:0` 的兜底文案），不抛出未捕获异常。
 - **出网范围**：仅大模型 Chat 调用出网（放行监护人所选模型域名），结构化数据不出内网。
 
-## 3. 跨文档一致性（剩余待清理）
+## 3. 跨文档一致性（清理已完成）
 
-AI 重定位的**文档文字**已在 `93950b4`（02 / 06 的 `drug_manual` 移除注记、10 洞察层口径、`07` `feat/backend-ai-infra` 方向重定位注记）与本 `05` 配套提交（01 / 02 / 00_README 的"AI 问答"→"AI 洞察"、01 §1 功能范围改写、架构图标签 `PostgreSQL + pgvector`→`PostgreSQL 17` / `Chat 问答`→`Chat 调用` / `AI 药品问答`→`AI 洞察`、架构图 OCR / Embedding 节点与连线移除）中基本清完；04 的 `AI_STREAM` 已注"本期不使用"、`AI_INSIGHT` 帧已定义。以下**仍残留**（归 07 后端清单的 `refactor/ai-insight-layer` 分支处理）：
+AI 重定位的**文档文字**已在 `93950b4`（02 / 06 的 `drug_manual` 移除注记、10 洞察层口径、`07` `feat/backend-ai-infra` 方向重定位注记）与本 `05` 配套提交（01 / 02 / 00_README 的"AI 问答"→"AI 洞察"、01 §1 功能范围改写、架构图标签 `PostgreSQL + pgvector`→`PostgreSQL 17` / `Chat 问答`→`Chat 调用` / `AI 药品问答`→`AI 洞察`、架构图 OCR / Embedding 节点与连线移除）中清完；04 的 `AI_STREAM` 已注"本期不使用"、`AI_INSIGHT` 帧已定义。代码侧清理由 07 后端清单的 `refactor/ai-insight-layer` 分支完成：
 
 - **diagrams/（network-topology.html、backend-architecture.html）** ✅ 已移除「本地 OCR 侧车」「本地 Embedding（Ollama bge-m3）」节点及其连线、对应 tooltip（`ext-localai` / `ocr:` / `ollama:`）；`pkg-ai` 节点改写为 BYOK `ChatClient`（结构化数据拼 Prompt → 出网 Chat → 自然语言洞察），图例「AI 本地调用」改为「AI 集成（BYOK Chat）」。
-- **06_数据库设计.md / Flyway**：`drug_manual` / `drug_manual_chunk` 的文档注记已加，但 `V1` 的 `CREATE EXTENSION vector` 与建表、`V2__vector_hnsw.sql` 的实际删除在代码侧（见下）。
-- **medbox-server 代码与 docker-compose**：见 07 `refactor/ai-insight-layer`（向量 / OCR / Embedding 依赖与 `pgvector/pgvector:pg17` 镜像下线、`V1` / `V2` 迁移清理）。
+- **medbox-server 代码与 docker-compose** ✅ 已下线：`ollama` / `pgvector` / OCR 依赖与 `ocr-sidecar/` 目录、`AiConfig` 收敛为 BYOK `ChatClient` 工厂（`spring-ai-starter-model-openai` 替换）；`docker-compose.yml` 改用官方 `postgres:17`、删 `ocr` 侧车服务；详见 07 `refactor/ai-insight-layer`。
+- **Flyway** ✅ `V1` 的 `CREATE EXTENSION vector` 与说明书表、`V2__vector_hnsw.sql` 历史不可改（`validate-on-migrate=true`），由新增 `V18__drop_ai_rag.sql` 下线（`DROP TABLE drug_manual_chunk, drug_manual` + `DROP EXTENSION vector`，见 06 第 3 章）。
 
 
