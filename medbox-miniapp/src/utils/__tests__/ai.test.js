@@ -1,0 +1,94 @@
+import { describe, expect, it } from 'vitest'
+import {
+  AI_TYPE,
+  AI_TYPES,
+  MAX_RANGE_DAYS,
+  SCHEDULE_FREQUENCIES,
+  buildInsightRange,
+  buildInsightPayload,
+  initialState,
+  applyInsightFrame,
+  parseInsight,
+  isNoKeyError,
+  aiErrorMessage,
+} from '@/utils/ai.js'
+
+describe('utils/ai —— 维度与范围', () => {
+  it('AI_TYPE / AI_TYPES 五个维度且含 COMPREHENSIVE 默认', () => {
+    expect(AI_TYPES).toHaveLength(5)
+    expect(AI_TYPE.COMPREHENSIVE).toBe('COMPREHENSIVE')
+    expect(AI_TYPES.map((t) => t.value)).toContain('ENV_CORRELATION')
+  })
+
+  it('buildInsightRange 封顶 30 天，输出 ISO-8601 UTC', () => {
+    const now = new Date('2026-11-01T00:00:00Z')
+    const r = buildInsightRange(7, now)
+    expect(r.from).toMatch(/Z$/)
+    expect(r.to).toBe('2026-11-01T00:00:00.000Z')
+    const r30 = buildInsightRange(999, now)
+    const span = Date.parse(r30.to) - Date.parse(r30.from)
+    expect(span).toBe(MAX_RANGE_DAYS * 24 * 60 * 60 * 1000)
+  })
+
+  it('buildInsightPayload 缺 elderId 抛错；deviceId 仅在提供时下发', () => {
+    expect(() => buildInsightPayload({})).toThrow(/elderId/)
+    const p1 = buildInsightPayload({ elderId: 'u-1001', type: 'STOCK', rangeDays: 14 })
+    expect(p1.type).toBe('STOCK')
+    expect(p1.range).toHaveProperty('from')
+    const p2 = buildInsightPayload({ elderId: 'u-1001' })
+    expect(p2.type).toBe('COMPREHENSIVE')
+    expect(p2.deviceId).toBeUndefined()
+  })
+})
+
+describe('utils/ai —— 流式 reducer', () => {
+  it('initialState 全空', () => {
+    expect(initialState()).toEqual({ content: '', citations: [], disclaimer: '', done: false })
+  })
+
+  it('delta 帧追加 content；done 帧落定 citations/disclaimer 并置 done', () => {
+    let s = initialState()
+    s = applyInsightFrame(s, { type: 'delta', content: '你好' })
+    s = applyInsightFrame(s, { type: 'delta', content: '世界' })
+    expect(s.content).toBe('你好世界')
+    expect(s.done).toBe(false)
+    s = applyInsightFrame(s, { type: 'done', citations: ['a'], disclaimer: '免责' })
+    expect(s.content).toBe('你好世界')
+    expect(s.citations).toEqual(['a'])
+    expect(s.disclaimer).toBe('免责')
+    expect(s.done).toBe(true)
+  })
+
+  it('null / 未知帧原样返回', () => {
+    const s = initialState()
+    expect(applyInsightFrame(s, null)).toBe(s)
+    expect(applyInsightFrame(s, { type: 'ping' })).toBe(s)
+  })
+})
+
+describe('utils/ai —— 解析与错误', () => {
+  it('parseInsight 容错缺字段', () => {
+    expect(parseInsight()).toEqual({ elderId: '', type: '', range: null, content: '', citations: [], disclaimer: '' })
+    const d = parseInsight({ content: 'c', citations: ['x'], disclaimer: 'd', type: 'TREND' })
+    expect(d.content).toBe('c')
+    expect(d.citations).toEqual(['x'])
+    expect(d.type).toBe('TREND')
+  })
+
+  it('isNoKeyError 仅识别 50310', () => {
+    expect(isNoKeyError({ code: 50310 })).toBe(true)
+    expect(isNoKeyError({ code: 40001 })).toBe(false)
+    expect(isNoKeyError(null)).toBe(false)
+  })
+
+  it('aiErrorMessage 按错误码细分', () => {
+    expect(aiErrorMessage({ code: 50310 })).toContain('暂未开通')
+    expect(aiErrorMessage({ code: 40301 })).toContain('无权')
+    expect(aiErrorMessage({ code: 40001 })).toContain('参数')
+    expect(aiErrorMessage()).toContain('失败')
+  })
+
+  it('SCHEDULE_FREQUENCIES 含 DAILY / WEEKLY', () => {
+    expect(SCHEDULE_FREQUENCIES.map((f) => f.value)).toEqual(['DAILY', 'WEEKLY'])
+  })
+})

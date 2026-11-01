@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 207 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 234 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -306,6 +306,66 @@ async function waitReady() {
     check('历史 interval 越界(2000) → 40001', (await call('GET', `/env/history?deviceId=BOXA1001&from=${from7}&to=${toNow}&interval=2000`, { token: gw.token })).code === 40001)
     check('历史未知设备 → 40301', (await call('GET', `/env/history?deviceId=BOXA9999&from=${from7}&to=${toNow}`, { token: gw.token })).code === 40301)
     check('历史未登录 → 40101', (await call('GET', `/env/history?deviceId=BOXA1001&from=${from7}&to=${toNow}`)).code === 40101)
+
+    console.log('== AI 洞察层（05 第 2 章；feat/mp-ai-insight；后端未落地，Mock 先行） ==')
+    // 流式消费辅助：fetch 读取分块响应，逐行解析 {type:delta}/{type:done} 帧，或错误 JSON
+    async function streamCall(apiPath, body, token) {
+      const res = await fetch(BASE + apiPath, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+      })
+      const text = await res.text()
+      let errCode = null
+      try {
+        const j = JSON.parse(text)
+        if (j && typeof j.code === 'number' && j.code !== 0) errCode = j.code
+      } catch (e) {
+        /* 多帧文本，非整体 JSON */
+      }
+      if (errCode) return { code: errCode }
+      const frames = text
+        .split('\n')
+        .map((l) => {
+          try {
+            return JSON.parse(l)
+          } catch (e) {
+            return null
+          }
+        })
+        .filter(Boolean)
+      const content = frames.filter((f) => f.type === 'delta').map((f) => f.content || '').join('')
+      const done = frames.find((f) => f.type === 'done')
+      return {
+        code: 0,
+        content,
+        citations: done ? done.citations : [],
+        disclaimer: done ? done.disclaimer : '',
+      }
+    }
+    const aiBody = (elderId, type, days) => ({
+      elderId,
+      type,
+      range: { from: iso(new Date(now.getTime() - days * 86400000)), to: iso(now) },
+    })
+    const aiHappy = await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'COMPREHENSIVE', 14) })
+    check('AI 同步洞察 u-1001 200 且 content/citations/disclaimer', aiHappy.code === 0 && typeof aiHappy.data.content === 'string' && aiHappy.data.content.length > 0 && Array.isArray(aiHappy.data.citations) && typeof aiHappy.data.disclaimer === 'string')
+    check('AI 同步五维度均 200', (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'ADHERENCE', 7) })).code === 0 && (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'STOCK', 7) })).code === 0 && (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'ENV_CORRELATION', 7) })).code === 0 && (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'TREND', 7) })).code === 0)
+    check('AI 未配 Key（u-1002） → 50310', (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1002', 'COMPREHENSIVE', 7) })).code === 50310)
+    check('AI 跨度 >30 天 → 40001', (await call('POST', '/ai/insight', { token: gw.token, body: { elderId: 'u-1001', type: 'COMPREHENSIVE', range: { from: iso(new Date(now.getTime() - 31 * 86400000)), to: iso(now) } } })).code === 40001)
+    check('AI 缺 elderId → 40001', (await call('POST', '/ai/insight', { token: gw.token, body: { type: 'COMPREHENSIVE', range: { from: iso(new Date(now.getTime() - 7 * 86400000)), to: iso(now) } } })).code === 40001)
+    check('AI 未登录 → 40101', (await call('POST', '/ai/insight', { body: aiBody('u-1001', 'COMPREHENSIVE', 7) })).code === 40101)
+    check('AI 老人跨看他人(u-1002) → 40301', (await call('POST', '/ai/insight', { token: elder.token, body: aiBody('u-1002', 'COMPREHENSIVE', 7) })).code === 40301)
+    const aiStream = await streamCall('/ai/insight/stream', aiBody('u-1001', 'COMPREHENSIVE', 14), gw.token)
+    check('AI 流式逐字：delta 拼接 content 非空 + done 带 citations/disclaimer', aiStream.code === 0 && aiStream.content.length > 0 && Array.isArray(aiStream.citations) && typeof aiStream.disclaimer === 'string')
+    const aiStreamNoKey = await streamCall('/ai/insight/stream', aiBody('u-1002', 'COMPREHENSIVE', 7), gw.token)
+    check('AI 流式未配 Key → 50310', aiStreamNoKey.code === 50310)
+    const aiSched = await call('GET', '/ai/insight/schedule?elderId=u-1001', { token: gw.token })
+    check('AI 周期洞察查询 200（默认关闭/每日）', aiSched.code === 0 && aiSched.data.enabled === false && aiSched.data.frequency === 'DAILY')
+    const aiSchedPut = await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: gw.token, body: { enabled: true, frequency: 'WEEKLY' } })
+    check('AI 周期洞察设置（监护人） 200 且回显 WEEKLY', aiSchedPut.code === 0 && aiSchedPut.data.enabled === true && aiSchedPut.data.frequency === 'WEEKLY')
+    check('AI 周期洞察老人 PUT → 40301', (await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: elder.token, body: { enabled: true, frequency: 'WEEKLY' } })).code === 40301)
+    await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: gw.token, body: { enabled: false, frequency: 'DAILY' } }) // 复位
 
     console.log('== 记录（02 第 7 章） ==')
     const records = await call('GET', '/records?elderId=u-1001', { token: gw.token })

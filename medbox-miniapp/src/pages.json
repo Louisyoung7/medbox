@@ -43,6 +43,13 @@
 			}
 		},
 		{
+			"path": "pages/ai/insight",
+			"style": {
+				"navigationBarTitleText": "AI 健康洞察",
+				"navigationBarBackgroundColor": "#FFFFFF"
+			}
+		},
+		{
 			"path": "pages/device/events",
 			"style": {
 				"navigationBarTitleText": "设备事件",

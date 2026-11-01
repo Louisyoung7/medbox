@@ -27,6 +27,15 @@
 - 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
 
 
+## [2026-11-01] 小程序落地 AI 健康洞察（feat/mp-ai-insight）
+
+`feat/mp-ai-insight`（08 清单 = `mp-ai-insight` + `mp-ai-insight-stream`，P3）落地：按 medbox-spec/05 第 2 章「洞察层」契约，新增「AI 健康洞察」页——选分析维度 `type`（漏服/库存/环境关联/趋势/综合）+ 时间范围（近 7/14/30 天，封顶 30 天）后，经 `POST /ai/insight/stream` **流式逐字**渲染自然语言洞察、citations 与 disclaimer；并含周期洞察开关与节奏设置（`GET/PUT /ai/insight/schedule`，`DAILY`/`WEEKLY`）。严格守 05 边界：LLM 只输出建议性自然语言，**前端不落库、不自动执行、不提供"采纳改计划"按钮**（FP-9/FP-10）；未配 Key（05 第 2.4）走 50310 友好降级。后端 `feat/ai-insight`（07）仍未落地，按 AGENTS.md 通行做法**按 05 契约 + Mock 先行**（不引第三方流式库：H5 `fetch` ReadableStream / 小程序 `wx.request({enableChunked})`+`onChunkReceived` 按行解析 JSON 帧，纯 reducer `applyInsightFrame` 双端共用）。
+
+- **改了哪个文件**：`api/ai.js` + `utils/ai.js`（维度枚举/payload 构造/容错解析/流式 reducer）+ `pages/ai/insight.vue`（新）+ `pages/profile/profile.vue`（入口卡片）+ `pages.json`；`utils/permission.js`（`aiInsightSchedule:[GUARDIAN]` 供 `RoleGate`）；`tools/mock`（`llm_config` 种子 + `/ai/insight`、`/ai/insight/stream`、`/ai/insight/schedule` 四端点 + 27 项 smoke，共 234 项）
+- **跨分支约定**：监护人取"首个被监护老人"复用 `store/alarm.js` 的可见老人推导（与告警/记录/报告页同源），不新建"老人列表"端点；`elderId` 老人取自身、监护人取首个可见老人；`putInsightSchedule` 仅监护人（后端 40301 + 前端 `RoleGate` 双重校验）；`feat/mp-ai-config`（Key 配置）仍 `[ ]`，故未配 Key 演示态走 50310（Mock 为 `u-1001` 置启用、其余返回 50310）；不改 `medbox-server/`
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
+
 ## [2026-10-28] 07/08 微调：已实现的 devtools 分支移入 P2 末尾
 
 - **改了哪些文件**：`07_特性分支清单_后端.md`（已实现 `[x]` 的 `backend-devtools` 从 P3 移回 P2 末尾）；`08_特性分支清单_小程序.md`（已实现 `[x]` 的 `mp-devtools` 从 P3 移回 P2 末尾）

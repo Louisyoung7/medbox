@@ -44,6 +44,9 @@ export const ENTRY_ROLES = {
   // 小程序注册角色只有 ELDER/GUARDIAN，护理/医生是 guardian_relation.role 不暴露，以 GUARDIAN 代理，
   // 精细权限由后端 EXPORT_RECORD 强校验兜底（同 canExportRecord 口径）。
   exportRecord: [ROLE.GUARDIAN],
+  // 周期洞察设置（05 第 2.3 章）：PUT /ai/insight/schedule 仅监护人（老人 40301）；
+  // 开关/节奏设置 UI 用 RoleGate 隐藏，后端强校验双保险（与 alarmSettings 同款做法）。
+  aiInsightSchedule: [ROLE.GUARDIAN],
 }
 
 /**
