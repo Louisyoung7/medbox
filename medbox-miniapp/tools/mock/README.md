@@ -8,7 +8,7 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、207 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、234 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 
@@ -42,6 +42,10 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `GET /plans/{id}/next-doses`（`feat/mp-plan-timeline`：未来待服药时间线，按次展开；`days` 默认 7 上限 60，越界 → **40001**；`scheduledTimeLocal` 按设备本地墙钟（Mock 用本地日期）；停用计划返回空；每次列出该计划 `items` 的药品与剂量；未知计划 → **40401**；权限同计划：越权 → **40301**、PENDING → **40302**、未登录 → **40101**）
 - `GET /env/realtime`（`feat/mp-env`：最新温湿光读数，合并各传感器最新非空读数；`deviceId` 必填、`sensorId` 可选按传感器查；`requireDevice(deviceId, READ_ENV)`，越权 / 子设备编号 / 不存在 → **40301**、`deviceId` 缺 → **40001**、未登录 → **40101**；温湿度与光照分两条 `env_sample` 入库，本接口合并两者最新非空读数，`sampleTime` 取较新者）
 - `GET /env/history`（`feat/mp-env`：历史曲线；`deviceId` 必填、`from`/`to` 必填（ISO-8601 UTC，含端点）、`interval` 可选（分钟 1~1440，分桶 `avg()` 聚合，缺省返回原始有序点）；按 `sensorId` 查只筛该传感器 `device_id`，否则按 `gateway_device_id` 筛其下全部传感器；`from`/`to` 缺省 / `from>to` / `interval` 越界 / 跨度 >30 天 → **40001**；权限同实时 → **40301**/**40101**；响应 `{ points: [{ sampleTime, temperature, humidity, lux }] }`，原始模式单行只带一类数值其余 `null`、分桶模式 `avg()` 忽略 `null`）
+- `POST /ai/insight`（`feat/mp-ai-insight`：按需洞察同步，05 第 2.2 章；`body`：`{elderId, type, range{from,to}, deviceId?}`，`type` ∈ `ADHERENCE/STOCK/ENV_CORRELATION/TREND/COMPREHENSIVE`；`requireElder`，缺 `elderId` → **40001**、越权/他人 → **40301**、PENDING → **40302**、未登录 → **40101**、`range` 跨度 >30 天 → **40001**；未配 LLM Key（05 第 2.1，`llm_config` 未启用）→ **50310**；响应 `{elderId,type,range,content,citations[],disclaimer}`，不落库、仅供参考）
+- `POST /ai/insight/stream`（同契约的**流式**版：分块 `Transfer-Encoding: chunked`，逐帧 `{"type":"delta","content":"…"}` 累计文本，收尾 `{"type":"done","citations":[…],"disclaimer":"…"}`；未配 Key 时直接返回 **50310** 错误 JSON，前端按整段错误解析）
+- `GET /ai/insight/schedule?elderId=`（周期洞察设置查询，05 第 2.3 章；`requireElder`；默认 `{enabled:false,frequency:"DAILY"}`）
+- `PUT /ai/insight/schedule?elderId=`（周期洞察开关 + 节奏，`frequency` ∈ `DAILY/WEEKLY`；**仅 GUARDIAN** 可写，老人写 → **40301**）
 - `GET /records?elderId=&from=&to=`（分页 + 时间区间过滤，列表 join 计划名/药品名）、`GET /records/{id}`（关联计划与抓拍留证占位）、`POST /records/{id}/confirm`（监护人补录/确认）
   - 权限口径照 02 的 1.3.1 与 1.2：老人读他人 / 越权 → **40301**；监护 PENDING → **40302**；写操作仅 GUARDIAN → **40301**；不存在 → **40401**
   - 种子含 6 条记录（覆盖 u-1001/u-1002、按时/未按时、已确认与未确认、部分带 `captureId`）；`capture-core` 属 P1，详情缩略图由前端留空占位
@@ -71,6 +75,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - 设备命令与事件（feat/mp-device-extra）：张伟（监护人）进 BOXA1001 详情 →「远程控制」卡可点 蜂鸣/解锁/校准/重启，下发后显示"下发中"并在事件列表落一条 COMMAND 成功事件；切到离线设备 BOXA1002 下发 → 提示"设备离线，无法下发"（40901）；张桂英（老人）无「远程控制」卡（WRITE_DEVICE 仅监护人）；「设备事件」卡与事件全量页可读 上线/离线/设备异常（FAULT）/控制命令 流水（Mock 播种了 门超时/硬件故障 两条异常）
 - 告警（feat/mp-alarm）：张伟（监护人）首页「告警」卡显示未读数 → 进告警列表（u-1001 共 4 条，3 未读），可按类型/已读筛选、上拉加载；点未读项进详情 →「标记已读」后未读数 -1；「处理/确认」按钮仅监护人可见（张桂英点 → 40301）；张桂英（老人）登录也能看自己告警列表但无处理按钮；进「告警设置」（仅监护台，老人不可见）改 提前期/环境上限 后保存，再查回显合并结果（老人保存 → 40301）
 - 环境监测（feat/mp-env）：张伟进 BOXA1001 详情 →「环境监测」卡进环境监测页 → 实时三卡（温度/湿度/光照）显示当前值，对照告警设置里的环境阈值区间做超标高亮（偏高红 / 偏低蓝）；历史曲线选「近1天/近7天/近30天」「原始/10分钟/1小时/1天」「全部/温湿度/光照」组合，折线随筛选重绘（自绘 canvas，温/湿/光各一段独立缩放、阈值虚线标示合规区）；切到「全部」时三指标同时画、切「光照」时只剩光照一条；时间跨度选超过 30 天 → 40001（前端不暴露该选项，Mock 兜底）；张桂英（老人）也能看（READ_ENV 全角色）
+- AI 健康洞察（feat/mp-ai-insight）：张伟「我的」页 →「AI 健康洞察」卡进洞察页 → 选维度（漏服/库存/环境关联/趋势/综合）→ 选时间范围（近7/14/30天）→「生成洞察」→ 文本**逐字流式**出现（SSE 逐帧），结尾展开 citations 引用锚点 + disclaimer 横幅；老人张桂英也能进（只鉴权）；切到监护人才可见的「周期洞察」开关 + 每日/每周 → 保存即时回显；给未配 Key 的老人（u-1002）生成 → 提示"AI 助手暂未开通"（50310）；张桂英尝试改周期洞察 → 40301
 
 ## 测试辅助
 

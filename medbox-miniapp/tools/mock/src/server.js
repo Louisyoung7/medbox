@@ -11,7 +11,7 @@
  *   # MOCK_ACCESS_TTL_MS=15000 npm run mock   # access token 15s 过期，验证 40101 自动续期
  *
  * 端到端测试（AI 完工时自动跑，见 AGENTS.md 3.1）：
- *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 46 项检查、跑完即关
+ *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 234 项检查、跑完即关
  *
  * 用法：把 .env.local 的 VITE_SERVER_HOST 指向运行本脚本的机器 IP（127.0.0.1 亦可），
  * 小程序侧无需任何改动；H5 联调走既有的 Vite 反代（/medbox → 127.0.0.1:8080）。
@@ -176,6 +176,18 @@ function requireWrite(user, elderId) {
 function medicineAccess(user, medicine) {
   if (!medicine.ownerElderId) return 'ok'
   return elderAccess(user, medicine.ownerElderId)
+}
+
+/**
+ * 老人维度：本人或 ACTIVE 监护才可访问（02 第 1.3 / 03 权限矩阵）；其余 40301 / 监护 PENDING 40302。
+ * 供 AI 洞察等按 `elderId` 鉴权的端点复用。
+ */
+function requireElder(user, elderId) {
+  if (!elderId) throw new BizError(40001, 'elderId 不能为空')
+  const access = elderAccess(user, elderId)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  return elderId
 }
 
 function toDeviceSummary(device) {
@@ -1031,6 +1043,144 @@ async function handleGetEnvHistory(req, res, query) {
   ok(res, { points })
 }
 
+// ---------------------------------------------------------------- AI 洞察层（05 第 2 章；feat/mp-ai-insight；后端 feat/ai-insight 未落地，Mock 先行）
+
+/** 某老人是否启用 LLM 配置（05 第 2.1 章 `llm_config`；本期未配 Key → 50310）。 */
+function isAiEnabled(_user, elderId) {
+  const cfg = state.llmConfigs.find((c) => c.elderId === elderId)
+  return !!(cfg && cfg.enabled)
+}
+
+/** 按维度生成自然语言洞察 + 引用锚点 + 免责声明（纯展示，不落库、不决策，见 05 FP-9/FP-10）。 */
+function aiInsightContent(type) {
+  const citations = [
+    'med_record#rec-12345',
+    'alarm#MISS:u-1001-2026-10-20',
+    'medicine_stock#m-205',
+    'env_sample#es-th-12',
+  ]
+  const map = {
+    ADHERENCE:
+      '近 14 天内，晚饭后时段漏服率较上旬上升约 18 个百分点，且与周末强相关；建议核查作息与提醒时间是否偏移。',
+    STOCK:
+      '二甲双胍按当前消耗速度约 6 天后耗尽，建议本周内补配；另有一批药品将在 12 天后到期，请提前处理。',
+    ENV_CORRELATION:
+      '近一周夜间光照偏低时段，取药依从性同步下降，二者或存在关联；建议改善夜间照明并复核用药提醒。',
+    TREND:
+      '近 30 天漏服与异常告警整体呈缓降趋势，但上周末出现反弹，建议持续关注周末时段。',
+    COMPREHENSIVE:
+      '综合来看：晚饭后漏服偏高且与周末相关；二甲双胍约 6 天耗尽需补配；夜间光照偏低或影响取药依从；整体趋势缓降但周末反弹，建议复核提醒与照明。',
+  }
+  const content = map[type] || map.COMPREHENSIVE
+  return {
+    content,
+    citations,
+    disclaimer: '本分析仅供参考，用药与设备调整请由监护人 / 医生决策。',
+  }
+}
+
+/** 校验洞察请求体（elderId 鉴权 + range 跨度 >30 天 → 40001），返回 {elderId, type, range}。 */
+function parseInsightBody(user, body, query) {
+  const elderId = String((body && body.elderId) || '').trim()
+  requireElder(user, elderId) // 40001(缺) / 40301 / 40302
+  const type = String((body && body.type) || 'COMPREHENSIVE')
+  const range = (body && body.range) || null
+  if (range && range.from && range.to) {
+    const span = Date.parse(range.to) - Date.parse(range.from)
+    if (Number.isFinite(span) && span > 30 * 24 * 60 * 60 * 1000) {
+      throw new BizError(40001, '时间跨度不能超过 30 天')
+    }
+  }
+  // Mock 仅演示：未配 Key（含 `?noKey=1` 开关）返回 50310
+  if (query.noKey || !isAiEnabled(user, elderId)) {
+    throw new BizError(50310, 'AI 助手暂未开通，请联系监护人配置')
+  }
+  return { elderId, type, range }
+}
+
+/**
+ * 同步洞察（POST /ai/insight，05 第 2.2 章）：返回 content / citations / disclaimer。
+ */
+async function handleAiInsight(req, res, body, query) {
+  const user = requireUser(req)
+  const { elderId, type, range } = parseInsightBody(user, body, query)
+  const { content, citations, disclaimer } = aiInsightContent(type)
+  ok(res, { elderId, type, range: range || null, content, citations, disclaimer })
+}
+
+/**
+ * 流式洞察（POST /ai/insight/stream，05 第 2.2 章）：逐句 delta 帧 + done 帧（分块写入）。
+ * 未配 Key → 直接返回 50310 错误 JSON（前端流消费会把整段当错误解析）。
+ */
+async function handleAiInsightStream(req, res, body, query) {
+  const user = requireUser(req)
+  let parsed
+  try {
+    parsed = parseInsightBody(user, body, query)
+  } catch (err) {
+    return fail(res, err)
+  }
+  const { elderId, type, range } = parsed
+  const { content, citations, disclaimer } = aiInsightContent(type)
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.setHeader('Transfer-Encoding', 'chunked')
+  const sentences = content.split(/(?<=[。！？])/).filter(Boolean)
+  let i = 0
+  const writeFrame = (frame) => {
+    try {
+      res.write(JSON.stringify(frame) + '\n')
+    } catch (e) {
+      /* 连接已断，忽略 */
+    }
+  }
+  const tick = () => {
+    if (i < sentences.length) {
+      writeFrame({ type: 'delta', content: sentences[i] })
+      i += 1
+      setTimeout(tick, 20)
+    } else {
+      writeFrame({ type: 'done', citations, disclaimer })
+      res.end()
+    }
+  }
+  tick()
+}
+
+/**
+ * 周期洞察设置查询（GET /ai/insight/schedule?elderId=，05 第 2.3 章）：默认关闭、每日。
+ */
+async function handleGetAiSchedule(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  requireElder(user, elderId)
+  const cfg = state.aiSchedules.find((s) => s.elderId === elderId) || {
+    elderId,
+    enabled: false,
+    frequency: 'DAILY',
+  }
+  ok(res, { elderId, enabled: !!cfg.enabled, frequency: cfg.frequency || 'DAILY' })
+}
+
+/**
+ * 周期洞察设置调整（PUT /ai/insight/schedule?elderId=，仅监护人；05 第 2.3 章）：开关 + 节奏。
+ */
+async function handlePutAiSchedule(req, res, query, body) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  requireElder(user, elderId)
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  const enabled = body && typeof body.enabled === 'boolean' ? body.enabled : false
+  const frequency = ['DAILY', 'WEEKLY'].includes(body && body.frequency) ? body.frequency : 'DAILY'
+  let cfg = state.aiSchedules.find((s) => s.elderId === elderId)
+  if (!cfg) {
+    cfg = { elderId, enabled: false, frequency: 'DAILY' }
+    state.aiSchedules.push(cfg)
+  }
+  cfg.enabled = enabled
+  cfg.frequency = frequency
+  ok(res, { elderId, enabled: cfg.enabled, frequency: cfg.frequency })
+}
+
 // ---------------------------------------------------------------- 记录（02 第 7 章；capture-core 属 P1，缩略图前端留空占位）
 
 /** 取 ISO 字符串的日期部分（YYYY-MM-DD），用于 from/to 日粒度过滤。 */
@@ -1643,6 +1793,12 @@ const server = http.createServer(async (req, res) => {
     // ---------------------------------------------------------------- 环境监测（02 第 9 章；env-core 已落地）
     if (req.method === 'GET' && sub === '/env/realtime') return await handleGetEnvRealtime(req, res, query)
     if (req.method === 'GET' && sub === '/env/history') return await handleGetEnvHistory(req, res, query)
+
+    // ---------------------------------------------------------------- AI 洞察层（05 第 2 章；feat/mp-ai-insight；后端未落地，Mock 先行）
+    if (req.method === 'POST' && sub === '/ai/insight') return await handleAiInsight(req, res, await readBody(req), query)
+    if (req.method === 'POST' && sub === '/ai/insight/stream') return await handleAiInsightStream(req, res, await readBody(req), query)
+    if (req.method === 'GET' && sub === '/ai/insight/schedule') return await handleGetAiSchedule(req, res, query)
+    if (req.method === 'PUT' && sub === '/ai/insight/schedule') return await handlePutAiSchedule(req, res, query, await readBody(req))
 
     // 鉴权：监护关系四条（02 的 3.2）
     matched = /^\/users\/([^/]+)\/guardians$/.exec(sub)

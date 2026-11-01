@@ -330,7 +330,7 @@ function createSeed() {
     },
   }
 
-  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, planItems, records, captures, envSamples: seedEnvSamples(), refreshTokens: new Set() }
+  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, planItems, records, captures, envSamples: seedEnvSamples(), llmConfigs: seedLlmConfigs(), aiSchedules: [], refreshTokens: new Set() }
 }
 
 /**
@@ -379,6 +379,30 @@ function seedEnvSamples() {
     })
   }
   return samples
+}
+
+/**
+ * LLM 配置种子（05 的 FP-8 / 06 的 2.11 `llm_config`；feat/mp-ai-insight 联调用）。
+ *
+ * <p>给演示老人 `u-1001` 一份**已启用**的 BYOK 占位配置，使按需 / 周期洞察的 happy path
+ * 有洞察输出；未配置或 Key 无效的老人由 Mock 返回 `50310`（"AI 助手暂未开通"）。真实
+ * `ai-config`（监护人代配 Key）归后端 `feat/ai-insight` 与小程序 `feat/mp-ai-config`，本期未落地。
+ *
+ * <p>⚠️ 仅演示用途：明文 `apiKey` 只为让 Mock / e2e 跑通契约；真后端按 05 第 2.1 章用 AES 加密存储、回显脱敏。
+ *
+ * @returns {Array} llm_config 行（按 `elderId`）
+ */
+function seedLlmConfigs() {
+  return [
+    {
+      elderId: 'u-1001',
+      provider: 'openai-compatible',
+      apiKey: 'sk-mock-ai-insight-demo',
+      model: 'gpt-4o-mini',
+      baseUrl: 'https://api.openai.com/v1',
+      enabled: true,
+    },
+  ]
 }
 
 module.exports = { createSeed, DEMO_PASSWORD }
