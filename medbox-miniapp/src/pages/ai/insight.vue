@@ -371,7 +371,7 @@ export default {
 .insight-content {
   font-size: 28rpx;
   line-height: 1.8;
-  color: $mb-text-1;
+  color: $mb-text;
   white-space: pre-wrap;
 }
 
@@ -417,7 +417,7 @@ export default {
 
   .schedule-label {
     font-size: 28rpx;
-    color: $mb-text-1;
+    color: $mb-text;
   }
 }
 </style>
