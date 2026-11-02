@@ -1,0 +1,68 @@
+@baseUrl = http://localhost:8080/medbox/api/v1
+
+# ============================================================
+# 服药计划与提醒 · 调试脚本
+# 前置：先跑 auth.http 的「登录」拿到 token
+# 契约详见 medbox-spec/02_服药计划与提醒.md
+#   - times 为设备本地墙钟 "HH:mm"，非 UTC，原样收发
+#   - items 一次提醒可含多种药；PUT 为整体覆盖
+#   - syncState 仅回显，创建后初始恒为 PENDING
+# ============================================================
+
+### 创建服药计划（一次提醒含两种药）
+POST {{baseUrl}}/plans
+Authorization: Bearer {{login.response.body.$.data.token}}
+Content-Type: application/json
+
+{
+  "elderId": "e-1001",
+  "name": "早餐后",
+  "times": ["08:00", "20:00"],
+  "repeatRule": "DAILY",
+  "missAlarmAfterMin": 15,
+  "alarmRule": { "miss": true, "env": true },
+  "items": [
+    { "medicineId": "m-205", "dose": "1", "unit": "片" },
+    { "medicineId": "m-388", "dose": "2", "unit": "粒", "note": "餐后" }
+  ]
+}
+
+### 查询老人计划列表（分页，列表项含药品概览）
+GET {{baseUrl}}/plans?elderId=e-1001&page=1&size=20
+Authorization: Bearer {{login.response.body.$.data.token}}
+
+### 计划详情（含 items 明细）
+GET {{baseUrl}}/plans/p-3301
+Authorization: Bearer {{login.response.body.$.data.token}}
+
+### 未来待服药时间线（按次展开，days 默认 7、上限 60）
+GET {{baseUrl}}/plans/p-3301/next-doses?days=7
+Authorization: Bearer {{login.response.body.$.data.token}}
+
+### 启用 / 停用计划
+PATCH {{baseUrl}}/plans/p-3301/status
+Authorization: Bearer {{login.response.body.$.data.token}}
+Content-Type: application/json
+
+{ "status": "ENABLED" }
+
+### 修改计划（整体覆盖：times / repeatRule / items 全量提交）
+PUT {{baseUrl}}/plans/p-3301
+Authorization: Bearer {{login.response.body.$.data.token}}
+Content-Type: application/json
+
+{
+  "elderId": "e-1001",
+  "name": "早餐后(改)",
+  "times": ["08:00"],
+  "repeatRule": "DAILY",
+  "missAlarmAfterMin": 15,
+  "alarmRule": { "miss": true, "env": false },
+  "items": [
+    { "medicineId": "m-205", "dose": "1", "unit": "片" }
+  ]
+}
+
+### 删除计划（级联删除明细）
+DELETE {{baseUrl}}/plans/p-3301
+Authorization: Bearer {{login.response.body.$.data.token}}
