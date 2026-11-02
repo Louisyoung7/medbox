@@ -1,0 +1,5 @@
+# 测试默认关闭限流（feat/ai-limit）：避免既有测试套件对同一 userId/deviceId/IP 高频请求被误限流。
+# 限流功能正确性由 RateLimitWebIntegrationTest 通过 @DynamicPropertySource 单独开启验证。
+medbox:
+  ratelimit:
+    enabled: false
