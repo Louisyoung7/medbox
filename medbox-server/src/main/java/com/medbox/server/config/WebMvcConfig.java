@@ -2,6 +2,8 @@ package com.medbox.server.config;
 
 import com.medbox.server.common.web.AdminAuthInterceptor;
 import com.medbox.server.common.web.AuthInterceptor;
+import com.medbox.server.common.web.RateLimitInterceptor;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -26,14 +28,18 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * <p>后续分支新增**无需登录**的接口（如抓拍上传走设备侧 HMAC 签名）时，在这里加排除路径。
  */
 @Configuration
+@EnableConfigurationProperties(RateLimitProperties.class)
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
     private final AdminAuthInterceptor adminAuthInterceptor;
+    private final RateLimitProperties rateLimitProperties;
 
-    public WebMvcConfig(AuthInterceptor authInterceptor, AdminAuthInterceptor adminAuthInterceptor) {
+    public WebMvcConfig(AuthInterceptor authInterceptor, AdminAuthInterceptor adminAuthInterceptor,
+                        RateLimitProperties rateLimitProperties) {
         this.authInterceptor = authInterceptor;
         this.adminAuthInterceptor = adminAuthInterceptor;
+        this.rateLimitProperties = rateLimitProperties;
     }
 
     @Override
@@ -49,6 +55,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/v1/_debug/plan-reminder/trigger",
                         "/api/v1/devices/*/captures",   // 抓拍上传走设备 HMAC，不走用户 JWT（feat/capture-core）
                         "/actuator/**");
+
+        // 限流拦截器：必须排在 AuthInterceptor 之后，AI 洞察维度才能取到其写入的 userId（见 feat/ai-limit）。
+        // 对未命中任何策略的请求是 no-op；这里覆盖整个 /api/v1/**（actuator 不在其下、auth 也由策略自身按 IP 维度处理）。
+        // 拦截器在 WebMvcConfig 内 new 出来（而非 @Component），保证「有本配置才有拦截器」，避免未加载本配置的
+        // @WebMvcTest 切片因缺少 RateLimitProperties bean 而无法建上下文。
+        registry.addInterceptor(new RateLimitInterceptor(rateLimitProperties))
+                .addPathPatterns("/api/v1/**");
 
         // 管理接口独立角色守卫：必须排在 AuthInterceptor 之后（前缀已被其覆盖、AuthContext 已写入，
         // 否则拦截器按顺序执行会先跑本守卫、拿到空 AuthContext 误报 401）。非 ADMIN → 40301。

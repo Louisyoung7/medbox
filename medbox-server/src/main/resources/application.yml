@@ -177,6 +177,21 @@ medbox:
       # ⚠️ 正式部署必须设 MEDBOX_LLM_AES_KEY（≥32 字符、与库分离）；换 Key 会使已有密文不可解
       schedule-scan-interval-ms: 3600000           # 周期洞察扫描间隔（1 小时）
 
+  # —— 限流（feat/ai-limit，见文档 02 的 1.4）—— #
+  # 内存固定窗口计数器（单实例、局域网部署）；超限统一返回 42901 + HTTP 429。
+  # 顶层 enabled 为逃生总开关；每维度可单独覆盖 limit / window-seconds（未填回落到代码默认）。
+  ratelimit:
+    enabled: ${MEDBOX_RATELIMIT_ENABLED:true}   # 总开关：false 时整体跳过限流
+    login:                                      # POST /api/v1/auth/login：按客户端 IP 防爆破
+      limit: 10
+      window-seconds: 60
+    ai-insight:                                 # POST /api/v1/ai/insight(+stream)：按调用者 userId 防刷 BYOK 配额
+      limit: 10
+      window-seconds: 60
+    device-command:                             # POST /api/v1/devices/{deviceId}/commands：按 deviceId 防刷单台设备
+      limit: 20
+      window-seconds: 60
+
   # —— 认证（feat/backend-auth，见文档 02 第 3 章）—— #
   jwt:
     # HS256 签名密钥：≥32 字节。**本地开发可用下面的默认值，正式/对外部署必须设 MEDBOX_JWT_SECRET 覆盖**
