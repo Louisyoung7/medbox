@@ -23,6 +23,7 @@
   - 内容：
     - **技术栈（已确认：默认 Vue 3 + Vite + Element Plus）**：与 `medbox-miniapp/` 同为 Vue3 系，降低上下文切换；Element Plus 含表格 / 表单 / 弹窗 / 二次确认组件，最贴合后台。备选 React + Ant Design 仍可行（用户无偏好），但本期按默认落地，不另起 React 工程
     - **登录与角色**：复用 `POST /auth/login`（账号可为手机号或用户名），admin 种子账号（`username=admin`、`password=public`、`status=ACTIVE`、`role=ADMIN`）登录后拿到普通 JWT，管理接口额外要求 `role == ADMIN`（后端门禁见 `02` 第 10 章）；路由守卫拦截未登录或非 ADMIN
+    - **会话失效兜底（axios 响应拦截器）**：后端 401/403 走 HTTP 非 2xx，axios 默认落**错误**分支，故在响应**错误**拦截器里统一兜底——业务码 `40101`/`40301` 或无业务码的 HTTP `401`/`403` 一律 `clearAuth()` 并跳 `/login`；`40102`（登录失败）有明确业务码、不算会话失效，不触发兜底。覆盖「库重建后旧 token 过期/失效」等场景，免手动清 `localStorage`
     - **页面**：
       - `/login`：管理员登录（手机号/用户名 + 密码），成功存 JWT 与 `role` 到 `localStorage`
       - `/test-data`（清理主页）：筛选条（`status` 下拉默认「测试/已注销」、`keyword`、`role`、`查询`/`重置`）；用户表格（`userId`/`role`/`name`/`phone`(可空)/`username`(可空)/`status`/`createdAt` + 每行「清理」按钮，ACTIVE 行禁用并提示「活跃账号不可清理」）；批量入口「清理全部已注销测试用户」（按当前筛选批量调 `DELETE /admin/users/{userId}`）；二次确认弹框要求手输 `userId` + 后果提示
