@@ -23,6 +23,7 @@ import {
   parseInsight,
   applyInsightFrame,
   initialState,
+  parseLlmConfig,
 } from '@/utils/ai.js'
 
 /** 拼 AI 接口完整 URL（相对 `/ai/*` 走 BASE_URL）。 */
@@ -85,6 +86,71 @@ export function putInsightSchedule({ elderId, frequency }) {
     method: 'PUT',
     params: { elderId },
     data: { frequency },
+    silent: true,
+  }).then((data) => data || {})
+}
+
+/**
+ * 查询 LLM 配置（05 第 2.1 章）：`GET /ai/config?elderId=`。
+ *
+ * <p>**不回显明文 Key**，只给 `apiKeyMask`；老人端无入口且本端不持有明文。
+ *
+ * @param {{elderId:string}} query
+ * @returns {Promise<Object>} `parseLlmConfig` 后的配置（缺字段容错）
+ */
+export function getLlmConfig({ elderId }) {
+  return request({
+    url: '/ai/config',
+    method: 'GET',
+    params: { elderId },
+    silent: true,
+  }).then((data) => parseLlmConfig(data))
+}
+
+/**
+ * 保存 LLM 配置（仅监护人）：`PUT /ai/config?elderId=`。
+ *
+ * @param {{elderId:string, provider:string, apiKey:string, model:string, baseUrl:string, enabled:boolean}} payload
+ * @returns {Promise<Object>} 保存后的脱敏配置（`apiKeyMask`，无明文）
+ */
+export function putLlmConfig(payload) {
+  const { elderId, provider, apiKey, model, baseUrl, enabled } = payload || {}
+  return request({
+    url: '/ai/config',
+    method: 'PUT',
+    params: { elderId },
+    data: { provider, apiKey, model, baseUrl, enabled: enabled !== false },
+    silent: true,
+  }).then((data) => parseLlmConfig(data))
+}
+
+/**
+ * 连通测试（仅监护人，不真正出网）：`POST /ai/config/test?elderId=`。
+ * @param {{elderId:string}} query
+ * @returns {Promise<{ok:boolean, message:string}>}
+ */
+export function testLlmConfig({ elderId }) {
+  return request({
+    url: '/ai/config/test',
+    method: 'POST',
+    params: { elderId },
+    silent: true,
+  }).then((data) => ({
+    ok: !!(data && data.ok),
+    message: (data && data.message) || (data && data.ok ? '连通正常' : '连通失败'),
+  }))
+}
+
+/**
+ * 清除 LLM 配置（仅监护人）：`DELETE /ai/config?elderId=`。
+ * @param {{elderId:string}} query
+ * @returns {Promise<Object>} 统一响应 `data`（通常为空对象）
+ */
+export function deleteLlmConfig({ elderId }) {
+  return request({
+    url: '/ai/config',
+    method: 'DELETE',
+    params: { elderId },
     silent: true,
   }).then((data) => data || {})
 }

@@ -18,6 +18,15 @@
 > **V1.8 起代码与文档同仓**（`medbox-server/` / `medbox-miniapp/` / `medbox-admin/` + `medbox-spec/`），不再需要跨仓库同步；V1.7 及以前的"代码仓库"表述指当时的独立仓库。
 
 
+## [2026-11-02] 小程序落地 AI 大模型 Key 配置（feat/mp-ai-config）
+
+`feat/mp-ai-config`（08 清单，P3）落地：按 medbox-spec/05 第 2.1 章（FP-8）契约，监护人为被监护老人代配洞察层所用的 Chat Key。新增「AI 大模型配置」页（从 `pages/ai/insight.vue` 监护人区「配置 AI Key」按钮进入，整页 `RoleGate entry="aiConfig"` 同款双保险，老人端不接触 Key），提供 provider 下拉 + baseUrl/model/apiKey 表单；`onLoad` 调 `GET /ai/config` 回填只展示脱敏 `apiKeyMask`（`sk****abcd`）、**不回填明文**；支持「连通测试」（`POST /ai/config/test`，不真正出网，Mock 按 Key 格式模拟）与「保存」（`PUT /ai/config`，响应仅回 `apiKeyMask`）、「清除」（`DELETE /ai/config`，二次确认）。严格守 05 边界：本端绝不持有/展示明文 Key；写操作仅监护人（后端 40301 + 前端 `RoleGate` 双保险）。
+
+- **改了哪个文件**：`api/ai.js`（扩 `getLlmConfig`/`putLlmConfig`/`testLlmConfig`/`deleteLlmConfig`）+ `utils/ai.js`（扩 `AI_PROVIDERS`/`validateLlmConfig`/`maskApiKey`(前端兜底脱敏)/`parseLlmConfig`）+ `pages/ai/config.vue`（新）+ `pages/ai/insight.vue`（监护人区入口按钮）+ `pages.json` + `utils/permission.js`（`aiConfig:[GUARDIAN]`）；`tools/mock`（`GET/PUT/POST test/DELETE /ai/config` 四端点 + 11 项 smoke，共 245 项）
+- **跨分支约定**：elderId 跟随首个可见老人（与洞察页一致，无选择控件）；`feat/mp-ai-insight` 的 50310 降级现可由本页为老人配 Key 后消除（Mock `u-1001` 已预置）；后端 `feat/ai-insight`（07）仍未落地，继续按 05 契约 + Mock 先行；不改 `medbox-server/`
+- 影响端：`medbox-server/` 否 · `medbox-miniapp/` 是 · 嵌入式 否
+
+
 ## [2026-10-30] 小程序落地环境监测（feat/mp-env）
 
 `feat/mp-env`（08 清单 = `mp-env-realtime` + `mp-env-history`）落地：复用已 `[x]` 的 `mp-device` 与已落地的后端 `env-core`，新增只读的"环境监测"页——`GET /env/realtime` 合并温湿度/光照最新读数、`GET /env/history` 按时间区间/粒度/传感器查历史；实时三卡对照老人级 `envThreshold` 做超标红/偏低蓝高亮（阈值**仅读取** `GET /alarm-settings`，不新增写入口）；历史曲线用 uni `<canvas type="2d">` 自绘（不引第三方图表库、微信端不支持内联 SVG）。`READ_ENV` 全角色只读，不改 `permission.js`、不碰 WS、不重复 ENV 告警。

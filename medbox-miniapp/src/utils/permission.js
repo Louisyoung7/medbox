@@ -47,6 +47,9 @@ export const ENTRY_ROLES = {
   // 周期洞察设置（05 第 2.3 章）：PUT /ai/insight/schedule 仅监护人（老人 40301）；
   // 开关/节奏设置 UI 用 RoleGate 隐藏，后端强校验双保险（与 alarmSettings 同款做法）。
   aiInsightSchedule: [ROLE.GUARDIAN],
+  // AI Key 配置（05 第 2.1 章 FP-8）：GET/PUT/POST test/DELETE /ai/config 仅监护人（老人端不接触 Key，40301）；
+  // 配置页 UI 用 RoleGate 隐藏，后端写操作强校验双保险。
+  aiConfig: [ROLE.GUARDIAN],
 }
 
 /**

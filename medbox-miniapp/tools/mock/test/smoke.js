@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 234 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 245 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -366,6 +366,25 @@ async function waitReady() {
     check('AI 周期洞察设置（监护人） 200 且回显 WEEKLY', aiSchedPut.code === 0 && aiSchedPut.data.enabled === true && aiSchedPut.data.frequency === 'WEEKLY')
     check('AI 周期洞察老人 PUT → 40301', (await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: elder.token, body: { enabled: true, frequency: 'WEEKLY' } })).code === 40301)
     await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: gw.token, body: { enabled: false, frequency: 'DAILY' } }) // 复位
+
+    console.log('== AI Key 配置（05 第 2.1 章 FP-8；feat/mp-ai-config；后端未落地，Mock 先行） ==')
+    const aiCfgGetInit = await call('GET', '/ai/config?elderId=u-1001', { token: gw.token })
+    check('AI 配置查询 200 且脱敏回显 apiKeyMask（不返明文）', aiCfgGetInit.code === 0 && typeof aiCfgGetInit.data.apiKeyMask === 'string' && !('apiKey' in aiCfgGetInit.data))
+    check('AI 配置查询跨老人越权 → 40301', (await call('GET', '/ai/config?elderId=u-1002', { token: elder.token })).code === 40301)
+    const aiCfgTestBad = await call('POST', '/ai/config/test?elderId=u-1001', { token: gw.token, body: { provider: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', apiKey: 'bad' } })
+    check('AI 连通测试（无效 Key） → ok:false', aiCfgTestBad.code === 0 && aiCfgTestBad.data.ok === false)
+    const aiCfgPut = await call('PUT', '/ai/config?elderId=u-1002', { token: gw.token, body: { provider: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', apiKey: 'sk-mock-u1002abcd', enabled: true } })
+    check('AI 配置保存（监护人） 200 且回显 apiKeyMask', aiCfgPut.code === 0 && typeof aiCfgPut.data.apiKeyMask === 'string' && aiCfgPut.data.apiKeyMask.length > 0)
+    const aiCfgGet2 = await call('GET', '/ai/config?elderId=u-1002', { token: gw.token })
+    check('AI 配置保存后查询回显 apiKeyMask（不返明文）', aiCfgGet2.code === 0 && aiCfgGet2.data.apiKeyMask === 'sk****abcd' && aiCfgGet2.data.enabled === true)
+    const aiCfgTestOk = await call('POST', '/ai/config/test?elderId=u-1002', { token: gw.token, body: { provider: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', apiKey: 'sk-mock-u1002abcd' } })
+    check('AI 连通测试（有效 Key） → ok:true', aiCfgTestOk.code === 0 && aiCfgTestOk.data.ok === true)
+    check('AI 配置保存缺 baseUrl → 40001', (await call('PUT', '/ai/config?elderId=u-1002', { token: gw.token, body: { provider: 'openai-compatible', baseUrl: 'not-url', model: 'gpt-4o-mini', apiKey: 'sk-xxx' } })).code === 40001)
+    check('AI 配置保存老人 → 40301', (await call('PUT', '/ai/config?elderId=u-1001', { token: elder.token, body: { provider: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', apiKey: 'sk-xxx' } })).code === 40301)
+    const aiCfgDel = await call('DELETE', '/ai/config?elderId=u-1002', { token: gw.token })
+    check('AI 配置清除（监护人） 200', aiCfgDel.code === 0)
+    check('AI 配置清除后查询回落未配置', (await call('GET', '/ai/config?elderId=u-1002', { token: gw.token })).data.apiKeyMask === '')
+    check('AI 配置清除老人 → 40301', (await call('DELETE', '/ai/config?elderId=u-1001', { token: elder.token })).code === 40301)
 
     console.log('== 记录（02 第 7 章） ==')
     const records = await call('GET', '/records?elderId=u-1001', { token: gw.token })

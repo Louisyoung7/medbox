@@ -11,7 +11,7 @@
  *   # MOCK_ACCESS_TTL_MS=15000 npm run mock   # access token 15s 过期，验证 40101 自动续期
  *
  * 端到端测试（AI 完工时自动跑，见 AGENTS.md 3.1）：
- *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 234 项检查、跑完即关
+ *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 245 项检查、跑完即关
  *
  * 用法：把 .env.local 的 VITE_SERVER_HOST 指向运行本脚本的机器 IP（127.0.0.1 亦可），
  * 小程序侧无需任何改动；H5 联调走既有的 Vite 反代（/medbox → 127.0.0.1:8080）。
@@ -1181,6 +1181,109 @@ async function handlePutAiSchedule(req, res, query, body) {
   ok(res, { elderId, enabled: cfg.enabled, frequency: cfg.frequency })
 }
 
+// ---------------------------------------------------------------- AI Key 配置（05 第 2.1 章 FP-8；feat/mp-ai-config；后端未落地，Mock 先行）
+
+/** Key 脱敏（与后端回显口径一致：保留前 2 + **** + 末 4；不返明文）。 */
+function maskKey(key) {
+  const k = typeof key === 'string' ? key : ''
+  if (!k || k.length <= 6) return '****'
+  return `${k.slice(0, 2)}****${k.slice(-4)}`
+}
+
+/**
+ * 查询配置（GET /ai/config?elderId=）：返回脱敏 `apiKeyMask`，**绝不回显明文**。
+ */
+async function handleGetAiConfig(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  requireElder(user, elderId)
+  const cfg = state.llmConfigs.find((c) => c.elderId === elderId)
+  if (!cfg) {
+    return ok(res, { elderId, provider: '', model: '', baseUrl: '', apiKeyMask: '', enabled: false })
+  }
+  ok(res, {
+    elderId,
+    provider: cfg.provider || '',
+    model: cfg.model || '',
+    baseUrl: cfg.baseUrl || '',
+    apiKeyMask: maskKey(cfg.apiKey),
+    enabled: !!cfg.enabled,
+  })
+}
+
+/**
+ * 保存配置（PUT /ai/config?elderId=，仅监护人）：provider/baseUrl/model/apiKey/enabled。
+ * apiKey 仅当本次提供时更新（保留原 Key，便于只改开关/地址）；缺必填 → 40001；老人 → 40301。
+ */
+async function handlePutAiConfig(req, res, query, body) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  requireElder(user, elderId)
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  const provider = String((body && body.provider) || '').trim()
+  const baseUrl = String((body && body.baseUrl) || '').trim()
+  const model = String((body && body.model) || '').trim()
+  const apiKey = String((body && body.apiKey) || '')
+  const enabled = body && typeof body.enabled === 'boolean' ? body.enabled : true
+  if (!provider) throw new BizError(40001, 'provider 不能为空')
+  if (!/^https?:\/\/.+/.test(baseUrl)) throw new BizError(40001, 'baseUrl 不合法')
+  if (!model) throw new BizError(40001, 'model 不能为空')
+  let cfg = state.llmConfigs.find((c) => c.elderId === elderId)
+  if (!cfg) {
+    if (!apiKey) throw new BizError(40001, 'apiKey 不能为空')
+    cfg = { elderId }
+    state.llmConfigs.push(cfg)
+  }
+  cfg.provider = provider
+  cfg.baseUrl = baseUrl
+  cfg.model = model
+  if (apiKey) cfg.apiKey = apiKey
+  cfg.enabled = enabled
+  ok(res, {
+    elderId,
+    provider: cfg.provider,
+    model: cfg.model,
+    baseUrl: cfg.baseUrl,
+    apiKeyMask: maskKey(cfg.apiKey),
+    enabled: cfg.enabled,
+  })
+}
+
+/**
+ * 连通测试（POST /ai/config/test?elderId=，仅监护人）：**不真正出网**，按 Key 格式模拟成功 / 失败。
+ * 优先用本次提交的候选 Key，否则用已保存配置；`sk-` 开头且长度足够视为可连通。
+ */
+async function handleTestAiConfig(req, res, query, body) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  requireElder(user, elderId)
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  const apiKey = String((body && body.apiKey) || '')
+  const baseUrl = String((body && body.baseUrl) || '').trim()
+  const cfg = state.llmConfigs.find((c) => c.elderId === elderId)
+  const useKey = apiKey || (cfg && cfg.apiKey) || ''
+  const useBase = baseUrl || (cfg && cfg.baseUrl) || ''
+  if (!useKey || !/^sk-/.test(useKey) || useKey.length < 12) {
+    return ok(res, { ok: false, message: '未配置有效 Key（应以 sk- 开头且长度足够）' })
+  }
+  if (!/^https?:\/\/.+/.test(useBase)) {
+    return ok(res, { ok: false, message: 'baseUrl 不合法' })
+  }
+  ok(res, { ok: true, message: '连通正常（Mock 未真正出网）' })
+}
+
+/**
+ * 清除配置（DELETE /ai/config?elderId=，仅监护人）。
+ */
+async function handleDeleteAiConfig(req, res, query) {
+  const user = requireUser(req)
+  const elderId = String(query.elderId || '').trim()
+  requireElder(user, elderId)
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  state.llmConfigs = state.llmConfigs.filter((c) => c.elderId !== elderId)
+  ok(res, {})
+}
+
 // ---------------------------------------------------------------- 记录（02 第 7 章；capture-core 属 P1，缩略图前端留空占位）
 
 /** 取 ISO 字符串的日期部分（YYYY-MM-DD），用于 from/to 日粒度过滤。 */
@@ -1799,6 +1902,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && sub === '/ai/insight/stream') return await handleAiInsightStream(req, res, await readBody(req), query)
     if (req.method === 'GET' && sub === '/ai/insight/schedule') return await handleGetAiSchedule(req, res, query)
     if (req.method === 'PUT' && sub === '/ai/insight/schedule') return await handlePutAiSchedule(req, res, query, await readBody(req))
+
+    // ---------------------------------------------------------------- AI Key 配置（05 第 2.1 章 FP-8；feat/mp-ai-config；后端未落地，Mock 先行）
+    if (req.method === 'GET' && sub === '/ai/config') return await handleGetAiConfig(req, res, query)
+    if (req.method === 'PUT' && sub === '/ai/config') return await handlePutAiConfig(req, res, query, await readBody(req))
+    if (req.method === 'POST' && sub === '/ai/config/test') return await handleTestAiConfig(req, res, query, await readBody(req))
+    if (req.method === 'DELETE' && sub === '/ai/config') return await handleDeleteAiConfig(req, res, query)
 
     // 鉴权：监护关系四条（02 的 3.2）
     matched = /^\/users\/([^/]+)\/guardians$/.exec(sub)

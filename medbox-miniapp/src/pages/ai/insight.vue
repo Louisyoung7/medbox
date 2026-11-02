@@ -93,6 +93,14 @@
       </MbCard>
     </RoleGate>
 
+    <!-- AI 大模型 Key 配置（仅监护人，05 第 2.1 章 FP-8；老人端不接触 Key） -->
+    <RoleGate entry="aiConfig">
+      <MbCard title="AI 大模型 Key">
+        <view class="range-hint">为被监护老人代配洞察层所用的 Chat Key（仅监护人可见，老人端不可见）。</view>
+        <MbButton type="ghost" block @click="onOpenAiConfig">配置 AI Key</MbButton>
+      </MbCard>
+    </RoleGate>
+
     <MbTabBar />
   </view>
 </template>
@@ -283,6 +291,11 @@ export default {
       } finally {
         this.scheduleSaving = false
       }
+    },
+
+    /** 进入 AI Key 配置页（仅监护人；05 第 2.1 章 FP-8）。 */
+    onOpenAiConfig() {
+      uni.navigateTo({ url: '/pages/ai/config' })
     },
   },
 }
