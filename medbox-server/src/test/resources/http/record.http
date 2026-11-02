@@ -1,0 +1,33 @@
+@baseUrl = http://localhost:8080/medbox/api/v1
+
+# ============================================================
+# 服药记录与依从性 · 调试脚本
+# 前置：先跑 auth.http 的「登录」拿到 token
+# 契约详见 medbox-spec/02_服药记录与依从性.md
+#   - /records/export 返回 CSV 文件流，不走 R<T> 包装
+#   - /records/{id}/confirm 单接口双语义：
+#       命中已有记录 → 校准（覆盖非空字段）；记录不存在 → 补录新建
+# ============================================================
+
+### 服药记录列表（可按 pendingConfirm=true 过滤待确认）
+GET {{baseUrl}}/records?elderId=e-1001&page=1&size=20&pendingConfirm=true
+Authorization: Bearer {{login.response.body.$.data.token}}
+
+### 记录详情（关联计划与抓拍留证）
+GET {{baseUrl}}/records/mr-1001
+Authorization: Bearer {{login.response.body.$.data.token}}
+
+### 依从性统计（period=day|week|month，滚动窗口）
+GET {{baseUrl}}/adherence?elderId=e-1001&period=week
+Authorization: Bearer {{login.response.body.$.data.token}}
+
+### 监护人补录 / 确认（校准已有记录：改写 faceResult 为 TAKEN/ABSENT）
+POST {{baseUrl}}/records/mr-1001/confirm
+Authorization: Bearer {{login.response.body.$.data.token}}
+Content-Type: application/json
+
+{ "faceResult": "TAKEN", "onTime": true, "source": "MANUAL" }
+
+### 导出服药报告（CSV 流，监护人 EXPORT_RECORD；本请求不在 R<T> 内）
+GET {{baseUrl}}/records/export?elderId=e-1001&from=2026-10-01T00:00:00Z&to=2026-10-31T23:59:59Z
+Authorization: Bearer {{login.response.body.$.data.token}}
