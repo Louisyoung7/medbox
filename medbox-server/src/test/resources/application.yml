@@ -1,0 +1,22 @@
+# 测试默认关闭限流（feat/ai-limit）：避免既有测试套件对同一 userId/deviceId/IP 高频请求被误限流。
+# 限流功能正确性由 RateLimitWebIntegrationTest 通过 @DynamicPropertySource 单独开启验证。
+medbox:
+  ratelimit:
+    enabled: false
+
+  # 测试自包含凭证（仅测试 classpath 生效，不进生产）：CI / 本地若未设 MEDBOX_JWT_SECRET /
+  # MEDBOX_LLM_AES_KEY，Spring 的 ${VAR:默认值} 在 VAR 为空串时会用空串而非默认值，导致
+  # JwtProvider / ApiKeyCipher 因密钥 < 32 字节而初始化失败、整套 @SpringBootTest 上下文挂掉。
+  # 这里显式给一份合法的测试密钥，使测试套件不依赖外部凭证即可跑通（生产仍走 env 覆盖）。
+  jwt:
+    secret: test-secret-for-unit-tests-only-0123456789abcdef
+  ai:
+    insight:
+      aes-key: test-aes-key-for-unit-tests-only-0123456789abcdef
+
+# OpenAI/Spring-AI 客户端构造也需要一个凭证（否则 OpenAiAudioSpeechModel 等 Bean 启动即失败、
+# 整套 @SpringBootTest 上下文挂掉）。测试用 dummy key 即可让 Bean 构造成功（实际调用在测试里被 mock）。
+spring:
+  ai:
+    openai:
+      api-key: ${MEDBOX_OPENAI_API_KEY:dummy-test-key-not-real-0123456789}

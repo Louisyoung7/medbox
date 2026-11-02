@@ -53,6 +53,22 @@
 
 > **上表是封闭集合**：新增错误码必须同时改本表与后端 `ErrorCode` 枚举，二者不一致即视为缺陷。
 
+### 1.4 限流（42901）
+
+> 落地分支：`feat/ai-limit`（依赖 `ai-insight`）。实现见 07。
+
+为防 BYOK 大模型配额被刷爆、登录接口被暴力破解、单台药箱被命令洪水拖垮，对三类高成本 / 高风险接口做**内存固定窗口计数器**限流（单实例、局域网部署，不依赖 Redis 等外部组件；重启即丢、多实例各计各的，本期可接受）。
+
+| 维度 | 命中接口 | 限流 key | 默认阈值（每 60s） |
+|------|----------|----------|--------------------|
+| 登录防爆破 | `POST /api/v1/auth/login` | 客户端 IP（`X-Forwarded-For` / `X-Real-IP` 回退 `remoteAddr`） | 10 次 |
+| AI 洞察额度 | `POST /api/v1/ai/insight`、`POST /api/v1/ai/insight/stream` | 调用者 `userId`（来自 `AuthContext`） | 10 次 |
+| 命令下发 | `POST /api/v1/devices/{deviceId}/commands` | `deviceId`（路径变量） | 20 次 |
+
+- 超限统一返回 **HTTP 429 + `code=42901`**（"请求过于频繁，请稍后再试"），结构与其他接口一致（统一 `R<T>`）。
+- 阈值与开关走 `medbox.ratelimit.*`（`application.yml`）：顶层 `enabled` 为总开关（逃生用，`${MEDBOX_RATELIMIT_ENABLED}`），每维度可单独覆盖 `limit` / `window-seconds`（未填回落到上表默认值）。
+- 限流在 Web 层拦截器完成（`RateLimitInterceptor`，注册于 `AuthInterceptor` 之后）；对未命中任何策略的请求是纯 no-op，不影响其它接口与既有业务逻辑。
+
 ### 1.3 权限默认规则
 
 除接口上显式标注【鉴权·仅监护人】等限定外，按下述默认规则校验（角色定义见文档 01 第 3 章）：
