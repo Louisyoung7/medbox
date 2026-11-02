@@ -176,3 +176,71 @@ export function aiErrorMessage(err) {
   }
   return err.message || '生成失败，请稍后重试'
 }
+
+/**
+ * LLM provider 预设（05 第 2.1 章 `provider`；`openai-compatible` 为示例值）。
+ *
+ * <p>仅"兼容 OpenAI 协议"一种为主，预留常见托管形态；真实可选集以后端 `llm_config` 为准，
+ * 这里提供下拉默认值即可，不臆造未文档化的 provider。
+ */
+export const AI_PROVIDERS = [
+  { value: 'openai-compatible', label: 'OpenAI 兼容（Chat Completions）' },
+  { value: 'deepseek-compatible', label: 'DeepSeek 兼容' },
+  { value: 'qwen-compatible', label: '通义千问兼容' },
+]
+
+/** 配置相关错误码与洞察复用同一封闭集合（02 的 1.2）。 */
+
+/**
+ * 配置表单校验（纯前端，无网络往返）。
+ *
+ * @param {Object} form `{ provider, apiKey, model, baseUrl, enabled }`
+ * @param {{requireApiKey?:boolean}} [opts] `requireApiKey=false` 时（已配置且仅改开关/地址）放过 apiKey 空
+ * @returns {{valid:boolean, errors:Object}} `errors` 仅含不通过字段的中文提示
+ */
+export function validateLlmConfig(form, { requireApiKey = true } = {}) {
+  const f = form || {}
+  const errors = {}
+  if (!f.provider) errors.provider = '请选择服务商'
+  if (!f.baseUrl || !/^https?:\/\/.+/.test(String(f.baseUrl).trim())) {
+    errors.baseUrl = '请填写合法的 baseUrl（http(s):// 开头）'
+  }
+  if (!f.model || !String(f.model).trim()) errors.model = '请填写模型名称'
+  if (requireApiKey && (!f.apiKey || !String(f.apiKey).trim())) errors.apiKey = '请填写 API Key'
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+/**
+ * 前端兜底脱敏（后端 `apiKeyMask` 缺失时的本地兜底，05 第 2.1 章回显格式 `sk****abcd`）。
+ *
+ * <p>规则：保留前 2 位 + `****` + 末 4 位；过短则整体打码。本端**绝不持有/展示明文**。
+ *
+ * @param {string} [key] 明文 Key（仅在兜底场景本地计算，不持久化）
+ * @returns {string} 脱敏串，空输入返回空串
+ */
+export function maskApiKey(key) {
+  const k = typeof key === 'string' ? key : ''
+  if (!k) return ''
+  if (k.length <= 6) return '****'
+  return `${k.slice(0, 2)}****${k.slice(-4)}`
+}
+
+/**
+ * 容错解析 LLM 配置响应（05 第 2.1 章 `GET /ai/config` 的 `data`）。
+ *
+ * <p>响应**不回显明文 Key**，只给 `apiKeyMask`；`baseUrl` 后端示例未列、按需容忍。
+ *
+ * @param {Object} [data] 统一响应的 `data`
+ * @returns {{elderId:string, provider:string, model:string, baseUrl:string, apiKeyMask:string, enabled:boolean}}
+ */
+export function parseLlmConfig(data) {
+  const d = data || {}
+  return {
+    elderId: typeof d.elderId === 'string' ? d.elderId : '',
+    provider: typeof d.provider === 'string' ? d.provider : '',
+    model: typeof d.model === 'string' ? d.model : '',
+    baseUrl: typeof d.baseUrl === 'string' ? d.baseUrl : '',
+    apiKeyMask: typeof d.apiKeyMask === 'string' ? d.apiKeyMask : '',
+    enabled: d.enabled === true,
+  }
+}

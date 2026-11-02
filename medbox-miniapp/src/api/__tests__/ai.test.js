@@ -131,3 +131,60 @@ describe('ai —— streamInsight 流式封装（注入 transport）', () => {
     expect(err).toBeInstanceOf(Error)
   })
 })
+
+describe('ai —— LLM 配置请求层（05 第 2.1 章 FP-8）', () => {
+  it('getLlmConfig GET 且只回 apiKeyMask 不回明文', async () => {
+    const { ai } = await loadApi()
+    scripts = [{ body: { code: 0, data: { elderId: 'u-1001', provider: 'openai-compatible', model: 'gpt-4o-mini', apiKeyMask: 'sk****abcd', enabled: true } } }]
+    const cfg = await ai.getLlmConfig({ elderId: 'u-1001' })
+    expect(sent[0].method).toBe('GET')
+    expect(sent[0].url).toContain('/medbox/api/v1/ai/config')
+    expect(sent[0].url).toContain('elderId=u-1001')
+    expect(cfg.apiKeyMask).toBe('sk****abcd')
+    expect(cfg.enabled).toBe(true)
+  })
+
+  it('putLlmConfig PUT 带 elderId(query) + 配置体，只回 apiKeyMask', async () => {
+    const { ai } = await loadApi()
+    scripts = [{ body: { code: 0, data: { elderId: 'u-1001', provider: 'openai-compatible', model: 'gpt-4o-mini', apiKeyMask: 'sk****abcd', enabled: true } } }]
+    const cfg = await ai.putLlmConfig({ elderId: 'u-1001', provider: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', apiKey: 'sk-xxx', enabled: true })
+    expect(sent[0].method).toBe('PUT')
+    expect(sent[0].url).toContain('/medbox/api/v1/ai/config')
+    expect(sent[0].url).toContain('elderId=u-1001')
+    expect(sent[0].data.apiKey).toBe('sk-xxx')
+    expect(sent[0].data.enabled).toBe(true)
+    expect(cfg.apiKeyMask).toBe('sk****abcd')
+  })
+
+  it('testLlmConfig POST /ai/config/test 回 ok/message', async () => {
+    const { ai } = await loadApi()
+    scripts = [{ body: { code: 0, data: { ok: true, message: '连通正常' } } }]
+    const res = await ai.testLlmConfig({ elderId: 'u-1001' })
+    expect(sent[0].method).toBe('POST')
+    expect(sent[0].url).toContain('/medbox/api/v1/ai/config/test')
+    expect(res.ok).toBe(true)
+    expect(res.message).toBe('连通正常')
+  })
+
+  it('deleteLlmConfig DELETE', async () => {
+    const { ai } = await loadApi()
+    scripts = [{ body: { code: 0, data: {} } }]
+    await ai.deleteLlmConfig({ elderId: 'u-1001' })
+    expect(sent[0].method).toBe('DELETE')
+    expect(sent[0].url).toContain('/medbox/api/v1/ai/config')
+  })
+
+  it('配置写操作老人 → 40301（后端强校验）', async () => {
+    const { ai, CODE } = await loadApi()
+    scripts = [{ body: { code: 40301, message: '无权限执行该操作' } }]
+    const err = await ai.putLlmConfig({ elderId: 'u-1001', provider: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', apiKey: 'sk-xxx' }).catch((e) => e)
+    expect(err.code).toBe(CODE.FORBIDDEN)
+  })
+
+  it('配置校验缺 baseUrl → 40001', async () => {
+    const { ai, CODE } = await loadApi()
+    scripts = [{ body: { code: 40001, message: 'baseUrl 不合法' } }]
+    const err = await ai.putLlmConfig({ elderId: 'u-1001', provider: 'openai-compatible', baseUrl: 'not-url', model: 'gpt-4o-mini', apiKey: 'sk-xxx' }).catch((e) => e)
+    expect(err.code).toBe(CODE.BAD_REQUEST)
+  })
+})

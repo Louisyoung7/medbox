@@ -8,7 +8,7 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、234 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、245 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 
@@ -46,6 +46,10 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `POST /ai/insight/stream`（同契约的**流式**版：分块 `Transfer-Encoding: chunked`，逐帧 `{"type":"delta","content":"…"}` 累计文本，收尾 `{"type":"done","citations":[…],"disclaimer":"…"}`；未配 Key 时直接返回 **50310** 错误 JSON，前端按整段错误解析）
 - `GET /ai/insight/schedule?elderId=`（周期洞察设置查询，05 第 2.3 章；`requireElder`；默认 `{enabled:false,frequency:"DAILY"}`）
 - `PUT /ai/insight/schedule?elderId=`（周期洞察开关 + 节奏，`frequency` ∈ `DAILY/WEEKLY`；**仅 GUARDIAN** 可写，老人写 → **40301**）
+- `GET /ai/config?elderId=`（AI Key 配置查询，05 第 2.1 章 FP-8；`requireElder`；**脱敏回显** `apiKeyMask`，**绝不回显明文**，无配置返回空 `apiKeyMask` + `enabled:false`）
+- `PUT /ai/config?elderId=`（AI Key 配置保存，`body`：`{provider,apiKey,model,baseUrl,enabled}`，**仅 GUARDIAN** 写；`provider`/`baseUrl`(http(s)://)/`model` 必填 → **40001**，老人 → **40301**；`apiKey` 仅当提供时更新，便于只改开关/地址；响应只回 `apiKeyMask`）
+- `POST /ai/config/test?elderId=`（连通测试，**仅 GUARDIAN** 写；**不真正出网**，按 Key 格式（`sk-` 开头且长度足够）模拟成功 / 失败，优先用本次提交的候选 Key 否则用已保存配置）
+- `DELETE /ai/config?elderId=`（清除配置，**仅 GUARDIAN** 写；老人 → **40301**）
 - `GET /records?elderId=&from=&to=`（分页 + 时间区间过滤，列表 join 计划名/药品名）、`GET /records/{id}`（关联计划与抓拍留证占位）、`POST /records/{id}/confirm`（监护人补录/确认）
   - 权限口径照 02 的 1.3.1 与 1.2：老人读他人 / 越权 → **40301**；监护 PENDING → **40302**；写操作仅 GUARDIAN → **40301**；不存在 → **40401**
   - 种子含 6 条记录（覆盖 u-1001/u-1002、按时/未按时、已确认与未确认、部分带 `captureId`）；`capture-core` 属 P1，详情缩略图由前端留空占位
@@ -76,6 +80,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - 告警（feat/mp-alarm）：张伟（监护人）首页「告警」卡显示未读数 → 进告警列表（u-1001 共 4 条，3 未读），可按类型/已读筛选、上拉加载；点未读项进详情 →「标记已读」后未读数 -1；「处理/确认」按钮仅监护人可见（张桂英点 → 40301）；张桂英（老人）登录也能看自己告警列表但无处理按钮；进「告警设置」（仅监护台，老人不可见）改 提前期/环境上限 后保存，再查回显合并结果（老人保存 → 40301）
 - 环境监测（feat/mp-env）：张伟进 BOXA1001 详情 →「环境监测」卡进环境监测页 → 实时三卡（温度/湿度/光照）显示当前值，对照告警设置里的环境阈值区间做超标高亮（偏高红 / 偏低蓝）；历史曲线选「近1天/近7天/近30天」「原始/10分钟/1小时/1天」「全部/温湿度/光照」组合，折线随筛选重绘（自绘 canvas，温/湿/光各一段独立缩放、阈值虚线标示合规区）；切到「全部」时三指标同时画、切「光照」时只剩光照一条；时间跨度选超过 30 天 → 40001（前端不暴露该选项，Mock 兜底）；张桂英（老人）也能看（READ_ENV 全角色）
 - AI 健康洞察（feat/mp-ai-insight）：张伟「我的」页 →「AI 健康洞察」卡进洞察页 → 选维度（漏服/库存/环境关联/趋势/综合）→ 选时间范围（近7/14/30天）→「生成洞察」→ 文本**逐字流式**出现（SSE 逐帧），结尾展开 citations 引用锚点 + disclaimer 横幅；老人张桂英也能进（只鉴权）；切到监护人才可见的「周期洞察」开关 + 每日/每周 → 保存即时回显；给未配 Key 的老人（u-1002）生成 → 提示"AI 助手暂未开通"（50310）；张桂英尝试改周期洞察 → 40301
+- AI 大模型配置（feat/mp-ai-config）：张伟「我的」页 →「AI 健康洞察」卡进洞察页 → 监护人区「配置 AI Key」按钮 → 进配置页（老人无此入口，RoleGate 隐藏）；进页自动 GET 回填（已配时只展示脱敏 `sk****abcd`，不展示明文）→ 填 provider/baseUrl/model/apiKey →「连通测试」（Mock 不真正出网，Key 格式合法即成功）→「保存」（PUT 只回 `apiKeyMask`，明文不留存）→ 保存后展示脱敏值；「清除配置」二次确认后 DELETE 回落未配置；张桂英无入口、即便直调写操作 → 40301
 
 ## 测试辅助
 
