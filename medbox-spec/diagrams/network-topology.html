@@ -285,7 +285,7 @@
 </div>
 
 <footer>
-  数据来源：medbox-spec/01（系统架构与部署）、03（MQTT 协议）、04（WebSocket 协议）、10（产品形态调整方案）。本页为只读可视化，权威口径以文档为准。
+  数据来源：medbox-spec/01（系统架构与产品定义）、03（MQTT 协议）、04（WebSocket 协议）。本页为只读可视化，权威口径以文档为准。
 </footer>
 
 <script>
@@ -298,7 +298,7 @@
     guardian: {
       title: "监护端小程序", tag: "client", tagText: "小程序端",
       rows: [["角色","GUARDIAN（统一单一角色，含子女/护理/医生）"],["协议","HTTP REST + WebSocket(:8080/medbox/ws)"],["鉴权","JWT 握手 + elder:{elderId} 主题归属校验"]],
-      points: ["接收告警、查看全部数据、配置计划与阈值","为老人配置大模型 API Key","不再区分家属/医生/护理形态（见文档 10）"]
+      points: ["接收告警、查看全部数据、配置计划与阈值","为老人配置大模型 API Key","不再区分家属/医生/护理形态（见文档 01 §5）"]
     },
     admin: {
       title: "Web 管理后台（medbox-admin）", tag: "client", tagText: "管理后台",
@@ -348,7 +348,7 @@
     cam: {
       title: "摄像头", tag: "device", tagText: "设备",
       rows: [["职责","端侧人脸识别 + 全量抓拍原图"],["链路","识别结果→WiFi→单片机；原图+置信度+结论→HTTP 直传"],["不直连","既不连 EMQX，也不参与判定"]],
-      points: ["图片走 HTTP multipart，不过单片机","自报置信度低于阈值标记待确认","后端不运行图像识别（见文档 10）"]
+      points: ["图片走 HTTP multipart，不过单片机","自报置信度低于阈值标记待确认","后端不运行图像识别（见文档 01 §2.2）"]
     }
   };
 
