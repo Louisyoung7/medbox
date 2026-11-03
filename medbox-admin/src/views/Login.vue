@@ -81,12 +81,12 @@ async function onSubmit() {
     try {
       const data = await auth.login(form.account, form.password)
       if (data.role !== 'ADMIN') {
-        // 非 ADMIN 一律拒绝进入（本工具仅 ADMIN 可用）
-        errorMsg.value = '当前账号非 ADMIN，无权使用测试数据清理工具'
+        // 非 ADMIN 一律拒绝进入（管理后台仅 ADMIN 可用）
+        errorMsg.value = '当前账号非 ADMIN，无权使用管理后台'
         auth.logout()
         return
       }
-      router.replace('/test-data')
+      router.replace('/dashboard')
     } catch (e) {
       // 40102 已在表单内红字提示，不重复 toast
       errorMsg.value = (e && e.message) || '登录失败'
