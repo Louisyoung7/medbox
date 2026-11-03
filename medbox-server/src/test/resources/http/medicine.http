@@ -3,7 +3,7 @@
 # ============================================================
 # 药品与库存 · 调试脚本
 # 前置：先跑 auth.http 的「登录」拿到 token
-# 契约详见 medbox-spec/02_药品与库存.md
+# 契约详见 medbox-spec/02c_药品与库存.md
 #   - POST /medicines 新建与更新同接口：带 medicineId=更新，不带=创建
 #   - 库存按「药箱 + 药品」管理；PUT 的 quantity 为绝对值，POST /in 为增量
 #   - productionDate / expiryDate 为 DATE，收发 "YYYY-MM-DD"，不做时区换算

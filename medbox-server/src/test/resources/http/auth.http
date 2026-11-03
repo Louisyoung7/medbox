@@ -8,7 +8,7 @@
 #   3. 先点下方「登录」的 Send 拿到 token，
 #      其余【鉴权】请求用 {{login.response.body.$.data.token}} 自动带 JWT
 #   4. 响应为统一结构 R<T>：{ code, message, data, traceId, timestamp }
-# 契约详见 medbox-spec/02_认证与用户.md
+# 契约详见 medbox-spec/02a_认证与用户.md
 # ============================================================
 
 ### 登录（账号密码）→ 拿 token，后续请求用 {{login.response.body.$.data.token}}

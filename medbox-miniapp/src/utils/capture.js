@@ -1,6 +1,6 @@
 /**
  * 抓拍 / 待确认态纯函数（`feat/mp-capture-event`，对应 medbox-spec/02 设备管理.md §4.1、
- * 02_服药记录与依从性.md §7.1）。
+ * 02e_服药记录与依从性.md §7.1）。
  *
  * <p>只放与页面解耦、可单测的逻辑：待确认判定、fileToken 图片 URL 拼接、抓拍元数据容错解析、
  * 确认请求体组装。后端 `backend-capture-event` 未落地，字段对 `pendingConfirm` / `faceResult`
