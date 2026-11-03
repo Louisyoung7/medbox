@@ -247,7 +247,7 @@ function createSeed() {
     },
   ]
 
-  // 抓拍（02 设备管理.md §4.1；capture-core 已落地，fileToken 由 /captures/{id} 端点签发）。
+  // 抓拍（02b_设备管理.md §1.1；capture-core 已落地，fileToken 由 /captures/{id} 端点签发）。
   // 只存元数据；fileToken 不在种子里（每次 GET 实时签发），原图二进制由 /file 端点返回占位图。
   // 关联 rec-9005（u-1002，UNCERTAIN 待确认）的可视原图。
   const captures = [

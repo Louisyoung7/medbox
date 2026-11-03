@@ -1,5 +1,5 @@
 /**
- * 抓拍域接口（`feat/mp-capture-event`，对应 medbox-spec/02 设备管理.md §4.1）。
+ * 抓拍域接口（`feat/mp-capture-event`，对应 medbox-spec/02b_设备管理.md §1.1）。
  *
  * <p>本分支只用到"读元数据取 fileToken"这一端点（`GET /captures/{captureId}`），
  * 原图二进制走 `GET /captures/{captureId}/file?token=`（由页面用 `buildCaptureFileUrl`

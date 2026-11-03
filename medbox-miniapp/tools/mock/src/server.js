@@ -1513,7 +1513,7 @@ async function handleConfirmRecord(req, res, recordId, body) {
   ok(res, buildRecordView(record))
 }
 
-// ---------------------------------------------------------------- 抓拍（02 设备管理.md §4.1；feat/mp-capture-event）
+// ---------------------------------------------------------------- 抓拍（02b_设备管理.md §1.1；feat/mp-capture-event）
 
 /** 1x1 透明 PNG（占位原图；Mock 不存真图）。 */
 const PNG_1X1 = Buffer.from(
@@ -1564,7 +1564,7 @@ async function handleGetCaptureFile(req, res, captureId, query) {
   res.end(PNG_1X1)
 }
 
-// ---------------------------------------------------------------- 抓拍列表 / 删除（02 设备管理.md §4.1；feat/mp-capture）
+// ---------------------------------------------------------------- 抓拍列表 / 删除（02b_设备管理.md §1.1；feat/mp-capture）
 async function handleListCaptures(req, res, query) {
   const user = requireUser(req)
   const elderId = String(query.elderId || '').trim()
@@ -1872,7 +1872,7 @@ const server = http.createServer(async (req, res) => {
     // 鉴权：依从性统计（02 第 7 章 §7.0；feat/mp-report）
     if (req.method === 'GET' && sub === '/adherence') return await handleGetAdherence(req, res, query)
 
-    // 鉴权：抓拍（02 设备管理.md §4.1；capture-core 已落地，feat/mp-capture 联调）
+    // 鉴权：抓拍（02b_设备管理.md §1.1；capture-core 已落地，feat/mp-capture 联调）
     if (req.method === 'GET' && sub === '/captures') return await handleListCaptures(req, res, query)
     matched = /^\/captures\/([^/]+)\/file$/.exec(sub)
     if (req.method === 'GET' && matched) {
