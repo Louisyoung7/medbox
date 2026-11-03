@@ -1,5 +1,5 @@
 /**
- * 抓拍接口的**请求层链路**测试（`feat/mp-capture-event`，对应 medbox-spec/02 设备管理.md §4.1）。
+ * 抓拍接口的**请求层链路**测试（`feat/mp-capture-event`，对应 medbox-spec/02b_设备管理.md §1.1）。
  *
  * <p>与 `record.test.js` 同一套打桩方式：stub `uni.request`，断言 URL / 方法 / Bearer /
  * 错误码分流走 `src/api/request.js` 真实实现。

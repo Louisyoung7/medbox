@@ -1,5 +1,5 @@
 /**
- * 环境监测接口（medbox-spec/02_环境监测.md 第 9 章）—— 全部需鉴权（默认 `auth: true`，不带 Bearer 会 40101）。
+ * 环境监测接口（medbox-spec/02g_环境监测.md 第 1 章）—— 全部需鉴权（默认 `auth: true`，不带 Bearer 会 40101）。
  *
  * <p>`feat/mp-env` 落地「实时温湿光读数」与「历史曲线」；后端 `env-core`（`feat/env-core`）已落地（07），
  * `alarm-core` 的 `envThreshold` 阈值仅供前端**高亮读取**、不在此配置。本文件只消费，不告警、不推 WS。
