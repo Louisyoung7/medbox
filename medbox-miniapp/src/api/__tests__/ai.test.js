@@ -144,6 +144,14 @@ describe('ai —— LLM 配置请求层（05 第 2.1 章 FP-8）', () => {
     expect(cfg.enabled).toBe(true)
   })
 
+  it('getLlmConfig 未配置(40401) 不抛错、返回空配置（真后端口径）', async () => {
+    const { ai } = await loadApi()
+    scripts = [{ body: { code: 40401, message: '尚未配置大模型' } }]
+    const cfg = await ai.getLlmConfig({ elderId: 'u-1002' })
+    expect(cfg.apiKeyMask).toBe('')
+    expect(cfg.enabled).toBe(false)
+  })
+
   it('putLlmConfig PUT 带 elderId(query) + 配置体，只回 apiKeyMask', async () => {
     const { ai } = await loadApi()
     scripts = [{ body: { code: 0, data: { elderId: 'u-1001', provider: 'openai-compatible', model: 'gpt-4o-mini', apiKeyMask: 'sk****abcd', enabled: true } } }]

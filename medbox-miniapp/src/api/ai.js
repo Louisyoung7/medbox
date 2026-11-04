@@ -95,8 +95,11 @@ export function putInsightSchedule({ elderId, frequency }) {
  *
  * <p>**不回显明文 Key**，只给 `apiKeyMask`；老人端无入口且本端不持有明文。
  *
+ * <p>未配置时后端口径不统一：真后端 `feat/ai-insight` 返回 **40401**（`BizAssert.notFound`），
+ * 而 Mock 返回 200 空。两者都视作「空配置」，页面展示空表单而非报错。
+ *
  * @param {{elderId:string}} query
- * @returns {Promise<Object>} `parseLlmConfig` 后的配置（缺字段容错）
+ * @returns {Promise<Object>} `parseLlmConfig` 后的配置（缺字段容错；40401 → 空配置）
  */
 export function getLlmConfig({ elderId }) {
   return request({
@@ -104,7 +107,13 @@ export function getLlmConfig({ elderId }) {
     method: 'GET',
     params: { elderId },
     silent: true,
-  }).then((data) => parseLlmConfig(data))
+  })
+    .then((data) => parseLlmConfig(data))
+    .catch((err) => {
+      // 未配置大模型：真后端 40401 / Mock 200 空 —— 统一为空配置（页面空表单）
+      if (err instanceof ApiError && err.code === CODE.NOT_FOUND) return parseLlmConfig(null)
+      throw err
+    })
 }
 
 /**
