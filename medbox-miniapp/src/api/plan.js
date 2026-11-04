@@ -15,7 +15,7 @@
 import { get, post, put, del, request } from '@/api/request.js'
 
 /**
- * 计划列表：按老人查询（**列表项含药品概览**，02 第 6 章）。
+ * 计划列表：按老人查询（列表项含药品概览：后端返回 `medicineNames` 名称数组与 `itemCount` 条数，**不含** `items` 明细，02 第 6 章）。
  *
  * @param {Object} [params]
  * @param {string} params.elderId 老人 `userId`（老人端传自身；监护人端传所选老人）
@@ -24,7 +24,7 @@ import { get, post, put, del, request } from '@/api/request.js'
  * @param {Object} [options] 透传请求选项（页面自绘错误时传 `silent: true`）
  * @returns {Promise<{list: Array<Object>, total: number}>} 分页结果（经 {@link parsePlansPage} 容错）；
  *   每项 `planId` / `elderId` / `name` / `times` / `repeatRule` / `status` / `syncState` /
- *   `items`（药品概览）/ `createdAt`
+ *   `medicineNames`（药品名称概览，去重去 null）/ `itemCount`（明细条数）/ `createdAt`
  * @throws {ApiError} 40001 / 40101 / 40301 / 40302 / -1（网络）
  */
 export function listPlans(params, options) {

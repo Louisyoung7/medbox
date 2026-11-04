@@ -75,15 +75,11 @@ import MbEmpty from '@/components/MbEmpty.vue'
 import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import { listDevices } from '@/api/device.js'
-import { listMedicines } from '@/api/medicine.js'
 import { listPlans, updatePlanStatus } from '@/api/plan.js'
 import { CODE } from '@/api/request.js'
-import { parseMedicinePage } from '@/utils/medicine.js'
-import { toMedicineMap } from '@/utils/stock.js'
 import {
   canWritePlan,
   parsePlansPage,
-  planItemsText,
   planTimesText,
   repeatRuleLabel,
   syncStateLabel,
@@ -108,7 +104,6 @@ export default {
       elderId: '',
       plans: [],
       total: 0,
-      medicineMap: {},
       loading: false,
       error: '',
       loaded: false,
@@ -147,7 +142,6 @@ export default {
         const page = parsePlansPage(data)
         this.plans = page.list
         this.total = page.total
-        this.medicineMap = toMedicineMap(await this.loadMedicines())
         this.loaded = true
       } catch (err) {
         this.error = errorText(err)
@@ -169,15 +163,6 @@ export default {
         this.elders = []
       }
     },
-    async loadMedicines() {
-      try {
-        // 药品概览 join：字典拉不到不阻塞列表（planItemsText 回退显示 medicineId）
-        const page = parseMedicinePage(await listMedicines({ page: 1, size: 100 }, { silent: true }))
-        return page.list
-      } catch (err) {
-        return []
-      }
-    },
     selectElder(elder) {
       if (elder === this.elderId) return
       this.elderId = elder
@@ -185,7 +170,9 @@ export default {
     },
     planLabel(plan) {
       const parts = [planTimesText(plan.times), repeatRuleLabel(plan.repeatRule)]
-      parts.push(planItemsText(plan.items, this.medicineMap))
+      // 列表响应已返回药品概览 medicineNames（字符串数组），直接拼接；空则"未添加药品"
+      const names = Array.isArray(plan.medicineNames) ? plan.medicineNames : []
+      parts.push(names.length ? names.join(' + ') : '未添加药品')
       return parts.join(' · ')
     },
     async onToggle(plan, e) {
