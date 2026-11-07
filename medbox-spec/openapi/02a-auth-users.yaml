@@ -61,7 +61,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthTokenResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: './common.yaml#/components/responses/BadRequest'
 
   /auth/login:
     post:
@@ -94,12 +94,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: './common.yaml#/components/schemas/R'
               example:
                 code: 40102
                 message: 账号或密码错误
         '429':
-          $ref: '#/components/responses/TooManyRequests'
+          $ref: './common.yaml#/components/responses/TooManyRequests'
 
   /auth/refresh:
     post:
@@ -123,7 +123,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/R'
+                  - $ref: './common.yaml#/components/schemas/R'
                   - type: object
                     properties:
                       data:
@@ -133,7 +133,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: './common.yaml#/components/schemas/R'
 
   /users/me:
     get:
@@ -150,13 +150,13 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/R'
+                  - $ref: './common.yaml#/components/schemas/R'
                   - type: object
                     properties:
                       data:
                         $ref: '#/components/schemas/UserProfile'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: './common.yaml#/components/responses/Unauthorized'
 
   /users/me/delete:
     post:
@@ -197,7 +197,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/R'
+                  - $ref: './common.yaml#/components/schemas/R'
                   - type: object
                     properties:
                       data:
@@ -212,19 +212,19 @@ paths:
                             description: ISO-8601 UTC
                             example: "2026-10-14T08:30:00Z"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: './common.yaml#/components/responses/BadRequest'
         '401':
           description: 未登录（40101）或账号已注销（40101，复用同码防枚举）
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: './common.yaml#/components/schemas/R'
         '403':
           description: 密码校验不符（40102 → HTTP 401 场景除外；通用越权 40301）
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: './common.yaml#/components/schemas/R'
 
   /users/{elderId}/profile:
     get:
@@ -236,7 +236,7 @@ paths:
         - **可见性**：老人本人，或与老人存在 ACTIVE 监护关系的监护人 —— 复用 `require(elderId, READ_GUARDIAN)`，判定顺序见 02 §1.3（① 40101 → ②③ 关系 → ④ 权限矩阵）。
         - **越权口径（防枚举）**：无关系 / REVOKED / 目标不是老人 → **40301**；关系 PENDING → **40302**。
       parameters:
-        - $ref: '#/components/parameters/ElderId'
+        - $ref: './common.yaml#/components/parameters/ElderId'
       responses:
         '200':
           description: 老人资料（code=0）
@@ -244,13 +244,13 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/R'
+                  - $ref: './common.yaml#/components/schemas/R'
                   - type: object
                     properties:
                       data:
                         $ref: '#/components/schemas/UserProfile'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: './common.yaml#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/GuardianDenied'
 
@@ -272,7 +272,7 @@ paths:
         | ④ | 已有 PENDING / ACTIVE | 40901 |
         | ⑤ | 已有 REVOKED | code=0 改回 PENDING |
       parameters:
-        - $ref: '#/components/parameters/ElderId'
+        - $ref: './common.yaml#/components/parameters/ElderId'
       responses:
         '200':
           description: 创建成功（PENDING，或 REVOKED 改回 PENDING）
@@ -280,13 +280,13 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/R'
+                  - $ref: './common.yaml#/components/schemas/R'
                   - type: object
                     properties:
                       data:
                         $ref: '#/components/schemas/GuardianRelation'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: './common.yaml#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/GuardianDenied'
         '409':
@@ -294,7 +294,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: './common.yaml#/components/schemas/R'
 
   /users/guardians/pending:
     get:
@@ -312,7 +312,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/R'
+                  - $ref: './common.yaml#/components/schemas/R'
                   - type: object
                     properties:
                       data:
@@ -320,7 +320,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/PendingGuardianRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: './common.yaml#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/GuardianDenied'
 
@@ -341,7 +341,7 @@ paths:
         | ④ | 关系已非 PENDING | 40901 |
         | ⑤ | 通过 | code=0 置 ACTIVE |
       parameters:
-        - $ref: '#/components/parameters/RelationId'
+        - $ref: './common.yaml#/components/parameters/RelationId'
       requestBody:
         required: true
         content:
@@ -356,13 +356,13 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/R'
+                  - $ref: './common.yaml#/components/schemas/R'
                   - type: object
                     properties:
                       data:
                         $ref: '#/components/schemas/GuardianRelation'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: './common.yaml#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/GuardianDenied'
         '409':
@@ -370,7 +370,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: './common.yaml#/components/schemas/R'
 
   /users/guardians/{relationId}:
     delete:
@@ -390,21 +390,21 @@ paths:
         **边界用例**：申请后确认前监护人访问老人数据 → 40302；解除后再申请 → REVOKED 改回 PENDING；
         陌生人 accept/delete → 40301（防枚举）。
       parameters:
-        - $ref: '#/components/parameters/RelationId'
+        - $ref: './common.yaml#/components/parameters/RelationId'
       responses:
         '200':
           description: 成功（code=0，data 缺省）
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/R'
+                $ref: './common.yaml#/components/schemas/R'
               example:
                 code: 0
                 message: success
                 traceId: 9f2c0f11a2b34c55d6e7f809a1b2c3d4
                 timestamp: 1759474487
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: './common.yaml#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/GuardianDenied'
 
@@ -416,55 +416,7 @@ components:
       bearerFormat: JWT
       description: "Authorization: Bearer {JWT}；设备端走 MQTT，不走此通道"
 
-  parameters:
-    ElderId:
-      name: elderId
-      in: path
-      required: true
-      description: 老人 userId
-      schema:
-        type: string
-        example: u-1001
-    RelationId:
-      name: relationId
-      in: path
-      required: true
-      description: 监护关系 ID
-      schema:
-        type: string
-        example: r-1001
-
   schemas:
-    R:
-      type: object
-      description: 统一响应包装（02 §1.1）
-      required: [code]
-      properties:
-        code:
-          type: integer
-          description: 0=成功，非 0=业务错误码（封闭集合见 02 §1.2）
-          example: 0
-        message:
-          type: string
-          example: success
-        traceId:
-          type: string
-          description: 32 位十六进制、无连字符；请求可带 X-Request-Id 沿用，响应同时经 X-Trace-Id 头回写
-          example: 9f2c0f11a2b34c55d6e7f809a1b2c3d4
-        timestamp:
-          type: integer
-          description: epoch 秒（不是毫秒）
-          example: 1759474487
-      # data 为 null 时受全局 non_null 配置影响不出现；客户端判失败只看 code != 0
-
-    ErrorResponse:
-      $ref: '#/components/schemas/R'
-
-    Role:
-      type: string
-      enum: [ELDER, GUARDIAN]
-      description: 只取 ELDER / GUARDIAN（06 §2.1）；监护关系不细分护理/医生角色
-
     RegisterRequest:
       type: object
       required: [phone, password, role]
@@ -477,7 +429,7 @@ components:
           format: password
           example: "******"
         role:
-          $ref: '#/components/schemas/Role'
+          $ref: './common.yaml#/components/schemas/Role'
         username:
           type: string
           description: 选填
@@ -527,11 +479,11 @@ components:
           example: u-1001
           description: 注册 / 登录响应中返回
         role:
-          $ref: '#/components/schemas/Role'
+          $ref: './common.yaml#/components/schemas/Role'
 
     AuthTokenResponse:
       allOf:
-        - $ref: '#/components/schemas/R'
+        - $ref: './common.yaml#/components/schemas/R'
         - type: object
           properties:
             data:
@@ -545,7 +497,7 @@ components:
           type: string
           example: u-1001
         role:
-          $ref: '#/components/schemas/Role'
+          $ref: './common.yaml#/components/schemas/Role'
         name:
           type: string
           example: 李四
@@ -602,24 +554,6 @@ components:
               example: "13800001234"
 
   responses:
-    BadRequest:
-      description: 参数校验失败 / 请求体非法（40001）
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            code: 40001
-            message: 参数校验失败
-    Unauthorized:
-      description: 未登录 / Token 过期（40101）
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            code: 40101
-            message: 未登录或登录已过期
     GuardianDenied:
       description: |
         越权 / 关系未生效（HTTP 403）：
@@ -628,7 +562,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: './common.yaml#/components/schemas/R'
           examples:
             forbidden:
               value:
@@ -638,12 +572,3 @@ components:
               value:
                 code: 40302
                 message: 监护关系未生效
-    TooManyRequests:
-      description: 触发限流（42901；登录接口每客户端 IP 每 60s 10 次）
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            code: 42901
-            message: 请求过于频繁，请稍后再试
