@@ -55,14 +55,14 @@ public class CaptureController {
     @PostMapping("/devices/{deviceId}/captures")
     public R<CaptureUploadResponse> upload(@PathVariable("deviceId") String deviceId,
                                           HttpServletRequest request,
-                                          @RequestParam("file") MultipartFile file,
+                                          @RequestParam(value = "file", required = false) MultipartFile file,
                                           @RequestParam(value = "reason", required = false) String reason,
                                           @RequestParam(value = "medicineId", required = false) String medicineId,
                                           @RequestParam(value = "planId", required = false) String planId,
                                           @RequestParam(value = "planItemId", required = false) String planItemId,
                                           @RequestParam(value = "actualDose", required = false) String actualDose,
                                           @RequestParam(value = "unit", required = false) String unit,
-                                          @RequestParam(value = "faceResult", required = false) String faceResult,
+                                          @RequestParam(value = "takenResult", required = false) String takenResult,
                                           @RequestParam(value = "confidence", required = false) BigDecimal confidence,
                                           @RequestParam(value = "capturedAt", required = false)
                                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime capturedAt) {
@@ -71,7 +71,7 @@ public class CaptureController {
                 "X-Device-Id 与路径 deviceId 不一致");
         deviceCaptureAuth.verify(deviceId, request.getHeader("X-Device-Sign"), request.getHeader("X-Timestamp"));
         return R.ok(captureService.upload(deviceId, file, reason, medicineId, planId, planItemId,
-                actualDose, unit, faceResult, confidence, capturedAt));
+                actualDose, unit, takenResult, capturedAt));
     }
 
     @GetMapping("/captures")

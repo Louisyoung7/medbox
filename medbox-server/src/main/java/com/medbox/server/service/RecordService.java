@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -193,7 +194,7 @@ public class RecordService {
         }
 
         accessService.require(existing.getElderId(), Permission.WRITE_RECORD);
-        String oldFaceResult = existing.getFaceResult();
+        String oldTaken = existing.getTakenResult();
         if (request.actualTime() != null) {
             existing.setActualTime(request.actualTime());
         }
@@ -203,14 +204,14 @@ public class RecordService {
         if (request.onTime() != null) {
             existing.setOnTime(request.onTime());
         }
-        if (request.faceResult() != null) {
-            existing.setFaceResult(request.faceResult());
+        if (request.takenResult() != null) {
+            existing.setTakenResult(normalizeTaken(request.takenResult()));
         }
         existing.setSource(SOURCE_MANUAL);
         medRecordMapper.updateById(existing);
 
         // 规则5 step②：改写 / 补录为 TAKEN（且此前非 TAKEN）时事后补扣库存（幂等）
-        if (isTaken(existing.getFaceResult()) && !isTaken(oldFaceResult)) {
+        if (isTaken(existing.getTakenResult()) && !isTaken(oldTaken)) {
             deductForRecord(existing);
         }
         return detail(existing.getRecordId());
@@ -241,7 +242,7 @@ public class RecordService {
         record.setActualTime(request.actualTime());
         record.setActualDose(request.actualDose());
         record.setOnTime(request.onTime());
-        record.setFaceResult(request.faceResult());
+        record.setTakenResult(normalizeTaken(request.takenResult()));
         record.setSource(SOURCE_MANUAL);
         record.setPlanTime(recomputePlanTime(request.elderId(), request.planId(), request.actualTime()));
         record.setDeviceId(resolveMainDeviceId(request.elderId()));
@@ -249,7 +250,7 @@ public class RecordService {
         medRecordMapper.insert(record);
 
         // 规则5 step②：新建补录为 TAKEN 时事后补扣库存（新建无历史扣减，直接扣）
-        if (isTaken(record.getFaceResult())) {
+        if (isTaken(record.getTakenResult())) {
             deductForRecord(record);
         }
         return detail(record.getRecordId());
@@ -313,8 +314,15 @@ public class RecordService {
         medicineStockService.deduct(deviceId, record.getMedicineId(), delta);
     }
 
-    private static boolean isTaken(String faceResult) {
-        return "TAKEN".equals(faceResult);
+    private static boolean isTaken(String takenResult) {
+        return "TAKEN".equals(takenResult);
+    }
+
+    private static String normalizeTaken(String taken) {
+        if (taken == null || taken.isBlank()) {
+            return "UNTAKEN";
+        }
+        return "TAKEN".equals(taken.trim().toUpperCase(Locale.ROOT)) ? "TAKEN" : "UNTAKEN";
     }
 
     private int parseDose(String actualDose) {

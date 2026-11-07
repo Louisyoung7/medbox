@@ -47,7 +47,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * <p>本类重点验两件事：
  * <ol>
  *   <li><b>第二层业务幂等</b>：{@code med_record} 唯一索引冲突 → {@code setRollbackOnly()} → 写记录与扣库存都回滚、不重复；</li>
- *   <li><b>领域事件</b>：事务提交后（AFTER_COMMIT）{@link DispenseRecordedEvent} 被监听器收到（带 faceResult）。</li>
+ *   <li><b>领域事件</b>：事务提交后（AFTER_COMMIT）{@link DispenseRecordedEvent} 被监听器收到（带 takenResult）。</li>
  * </ol>
  */
 @SpringBootTest
@@ -148,14 +148,13 @@ class DispenseConsumeIntegrationTest {
         i.setMedicineId(MED_ID);
         i.setActualDose("1");
         i.setSource("CAMERA");
-        i.setFaceResult("TAKEN");
-        i.setConfidence(new BigDecimal("0.9"));
+        i.setTakenResult("TAKEN");
         i.setCapturedAt(OffsetDateTime.parse("2026-10-23T00:05:00Z")); // 本地 08:05，onTime=true
         return i;
     }
 
     @Test
-    @DisplayName("正常链路：写记录 + 扣库存 + 事务提交后派发 DispenseRecordedEvent（带 faceResult）")
+    @DisplayName("正常链路：写记录 + 扣库存 + 事务提交后派发 DispenseRecordedEvent（带 takenResult）")
     void commitsAndPublishesEvent() {
         assertThat(consumeService.consume(payload())).isPresent();
 
@@ -165,7 +164,7 @@ class DispenseConsumeIntegrationTest {
         assertThat(listener.events).hasSize(1);
         assertThat(listener.events.get(0).getPlanId()).isEqualTo(PLAN_ID);
         assertThat(listener.events.get(0).getOnTime()).isTrue();
-        assertThat(listener.events.get(0).getFaceResult()).isEqualTo("TAKEN");
+        assertThat(listener.events.get(0).getTakenResult()).isEqualTo("TAKEN");
     }
 
     @Test

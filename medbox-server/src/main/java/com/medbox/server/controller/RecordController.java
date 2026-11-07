@@ -105,7 +105,7 @@ public class RecordController {
                 CsvUtil.writeRow(writer,
                         str(r.recordId()), str(r.elderId()), str(r.planName()), str(r.medicineName()),
                         fmt(r.planTime(), iso), fmt(r.actualTime(), iso),
-                        bool(r.onTime()), str(r.faceResult()), str(r.source()),
+                        bool(r.onTime()), str(r.takenResult()), str(r.source()),
                         str(r.actualDose()), str(r.captureId()), str(r.deviceId()));
             }
         }

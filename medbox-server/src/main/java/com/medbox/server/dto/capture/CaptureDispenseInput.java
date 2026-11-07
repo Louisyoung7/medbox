@@ -1,6 +1,5 @@
 package com.medbox.server.dto.capture;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import lombok.Data;
 
@@ -32,11 +31,8 @@ public class CaptureDispenseInput {
     /** 剂量单位（如 片/粒），本期仅接收、不持久化（med_record 无该列，与旧 MQTT 行为一致）。 */
     private String unit;
 
-    /** 摄像头上报三态结论 TAKEN/ABSENT/UNCERTAIN（可空）。 */
-    private String faceResult;
-
-    /** 摄像头自报置信度 0~1（可空）。 */
-    private BigDecimal confidence;
+    /** 设备端侧取药结论 TAKEN/UNTAKEN（可空）。 */
+    private String takenResult;
 
     /** 抓拍时刻（UTC）。 */
     private OffsetDateTime capturedAt;

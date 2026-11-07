@@ -1,7 +1,6 @@
 package com.medbox.server.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.medbox.server.config.CaptureProperties;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.MedPlanItem;
@@ -11,7 +10,6 @@ import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.MedPlanItemMapper;
 import com.medbox.server.mapper.MedPlanMapper;
 import com.medbox.server.mapper.MedRecordMapper;
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -37,8 +35,9 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
  * 后转发本类。判定逻辑（就近槽 / 三级容忍 / 库存扣减）口径保持不变。
  *
  * <p>消费流程：准入校验 → 由摄像头子设备 {@code parent_device_id} 反查 MAIN 药箱 → 时区 + 就近槽算
- * {@code plan_time} → 三级容忍算 {@code onTime}（单侧窗口，提前恒 true 只判迟到）→ 据置信度阈值把
- * 低置信度 / UNCERTAIN 结论标为待确认 → 写 {@code med_record}（唯一索引冲突回滚）→ 仅 {@code TAKEN}
+ * {@code plan_time} → 三级容忍算 {@code onTime}（单侧窗口，提前恒 true 只判迟到）→ 取药结论
+ * {@code takenResult} 归一为二值（TAKEN / UNTAKEN，不再做人脸识别 / 不报置信度 / 无 UNCERTAIN 第三态）→ 写
+ * {@code med_record}（唯一索引冲突回滚）→ 仅 {@code TAKEN}
  * 扣库存 → 发布 {@link DispenseRecordedEvent}（事务提交后派发）。
  *
  * <p><b>msgId 第一层幂等已由网关完成</b>；第二层幂等是 {@code med_record} 上的部分唯一索引
@@ -54,7 +53,7 @@ public class DispenseConsumeService {
 
     private static final Logger log = LoggerFactory.getLogger(DispenseConsumeService.class);
     private static final String DEFAULT_SOURCE = "CAMERA";
-    private static final Set<String> KNOWN_FACE_RESULTS = Set.of("TAKEN", "ABSENT", "UNCERTAIN");
+    private static final Set<String> KNOWN_TAKEN_RESULTS = Set.of("TAKEN", "UNTAKEN");
 
     private final MedRecordMapper medRecordMapper;
     private final MedPlanMapper medPlanMapper;
@@ -65,7 +64,6 @@ public class DispenseConsumeService {
     private final MissToleranceResolver toleranceResolver;
     private final PlanSlotResolver planSlotResolver;
     private final ApplicationEventPublisher eventPublisher;
-    private final CaptureProperties captureProperties;
     private final Clock clock;
 
     /**
@@ -75,7 +73,7 @@ public class DispenseConsumeService {
                                   MedPlanItemMapper medPlanItemMapper, DeviceMapper deviceMapper,
                                   MedicineStockService medicineStockService, DeviceTimezoneResolver timezoneResolver,
                                   MissToleranceResolver toleranceResolver, PlanSlotResolver planSlotResolver,
-                                  ApplicationEventPublisher eventPublisher, CaptureProperties captureProperties) {
+                                  ApplicationEventPublisher eventPublisher) {
         this.medRecordMapper = medRecordMapper;
         this.medPlanMapper = medPlanMapper;
         this.medPlanItemMapper = medPlanItemMapper;
@@ -85,7 +83,6 @@ public class DispenseConsumeService {
         this.toleranceResolver = toleranceResolver;
         this.planSlotResolver = planSlotResolver;
         this.eventPublisher = eventPublisher;
-        this.captureProperties = captureProperties;
         this.clock = Clock.systemUTC();
     }
 
@@ -147,9 +144,8 @@ public class DispenseConsumeService {
         int tolerance = toleranceResolver.resolveMinutes(plan, main.getElderId());
         Boolean onTime = planTime == null ? null : !actualTime.isAfter(planTime.plusMinutes(tolerance));
 
-        // —— 4. faceResult 最终值解析（阈值 / UNCERTAIN 容错）——
-        String finalFace = resolveFaceResult(input.getFaceResult(), input.getConfidence(),
-                captureProperties.getConfidenceThreshold());
+        // —— 4. takenResult 归一为二值（TAKEN / UNTAKEN）——
+        String finalResult = normalizeTakenResult(input.getTakenResult());
 
         // —— 5. 组装记录 ——
         MedRecord record = new MedRecord();
@@ -164,8 +160,7 @@ public class DispenseConsumeService {
         record.setActualTime(actualTime);
         record.setOnTime(onTime);
         record.setSource(firstNonBlank(input.getSource(), DEFAULT_SOURCE));
-        record.setFaceResult(finalFace);
-        record.setConfidence(input.getConfidence());
+        record.setTakenResult(finalResult);
         record.setDeviceId(mainDeviceId);
         record.setCreatedAt(OffsetDateTime.now(clock));
 
@@ -180,7 +175,7 @@ public class DispenseConsumeService {
         }
 
         // —— 7. 扣库存（仅 TAKEN；按识别到的药品，不足扣到 0，不阻断）——
-        if ("TAKEN".equals(finalFace)) {
+        if ("TAKEN".equals(finalResult)) {
             if (isBlank(input.getMedicineId())) {
                 log.warn("dispense 未扣库存：medicineId 为空 camera={} capture={}",
                         input.getCameraDeviceId(), input.getCaptureId());
@@ -194,8 +189,7 @@ public class DispenseConsumeService {
         eventPublisher.publishEvent(new DispenseRecordedEvent(
                 record.getRecordId(), record.getElderId(), record.getPlanId(), record.getPlanItemId(),
                 record.getMedicineId(), record.getPlanTime(), record.getActualTime(), record.getOnTime(),
-                input.getConfidence() == null ? null : input.getConfidence().doubleValue(),
-                record.getDeviceId(), record.getCaptureId(), finalFace));
+                record.getDeviceId(), record.getCaptureId(), finalResult));
 
         return Optional.of(record);
     }
@@ -228,32 +222,21 @@ public class DispenseConsumeService {
         return best;
     }
 
-    // ————————————————— 内部：faceResult 解析 —————————————————
+    // ————————————————— 内部：takenResult 归一 —————————————————
 
     /**
-     * 摄像头上报三态结论的最终值解析（纯函数，便于单测）。
+     * 设备端侧取药结论归一为二值（纯函数，便于单测）。
      * <ul>
-     *   <li>上报为空 / 非法值 → UNCERTAIN（容错，待确认）；</li>
-     *   <li>上报 UNCERTAIN → UNCERTAIN；</li>
-     *   <li>上报 TAKEN/ABSENT 但 confidence &lt; 阈值 → UNCERTAIN（待监护人复核）；</li>
-     *   <li>否则取摄像头原值。</li>
+     *   <li>上报为空 / 非法值 → {@code UNTAKEN}（容错兜底，见 11 §1）；</li>
+     *   <li>上报 {@code TAKEN} → {@code TAKEN}；</li>
+     *   <li>其余（含 {@code UNTAKEN} 及任何非 TAKEN 取值）→ {@code UNTAKEN}。</li>
      * </ul>
      */
-    static String resolveFaceResult(String reported, BigDecimal confidence, BigDecimal threshold) {
-        if (isBlank(reported)) {
-            return "UNCERTAIN";
+    static String normalizeTakenResult(String reported) {
+        if (reported == null || reported.isBlank()) {
+            return "UNTAKEN";
         }
-        String r = reported.trim().toUpperCase(Locale.ROOT);
-        if (!KNOWN_FACE_RESULTS.contains(r)) {
-            return "UNCERTAIN";
-        }
-        if ("UNCERTAIN".equals(r)) {
-            return "UNCERTAIN";
-        }
-        if (confidence != null && threshold != null && confidence.compareTo(threshold) < 0) {
-            return "UNCERTAIN";
-        }
-        return r;
+        return "TAKEN".equals(reported.trim().toUpperCase(Locale.ROOT)) ? "TAKEN" : "UNTAKEN";
     }
 
     // ————————————————— 内部：小工具 —————————————————

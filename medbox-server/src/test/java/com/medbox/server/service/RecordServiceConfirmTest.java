@@ -74,7 +74,7 @@ class RecordServiceConfirmTest {
         when(timezoneResolver.resolve(anyString())).thenReturn(ZoneId.of("Asia/Shanghai"));
     }
 
-    private MedRecord existing(String faceResult) {
+    private MedRecord existing(String takenResult) {
         MedRecord r = new MedRecord();
         r.setRecordId(RECORD_ID);
         r.setElderId(ELDER_ID);
@@ -83,15 +83,15 @@ class RecordServiceConfirmTest {
         r.setMedicineId(MED_ID);
         r.setActualDose("1");
         r.setDeviceId(MAIN_ID);
-        r.setFaceResult(faceResult);
+        r.setTakenResult(takenResult);
         r.setCreatedAt(OffsetDateTime.parse("2026-10-23T00:00:00Z"));
         return r;
     }
 
     @Test
-    @DisplayName("校准：UNCERTAIN → TAKEN 改写时事后补扣库存一次")
+    @DisplayName("校准：UNTAKEN → TAKEN 改写时事后补扣库存一次")
     void uncertainToTakenDeducts() {
-        when(medRecordMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing("UNCERTAIN"));
+        when(medRecordMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing("UNTAKEN"));
         when(medRecordMapper.updateById(any(MedRecord.class))).thenReturn(1);
 
         service.confirm(RECORD_ID, new RecordConfirmRequest(ELDER_ID, PLAN_ID, ITEM_ID, MED_ID,
@@ -113,13 +113,13 @@ class RecordServiceConfirmTest {
     }
 
     @Test
-    @DisplayName("校准：UNCERTAIN → ABSENT 不扣库存")
+    @DisplayName("校准：UNTAKEN → UNTAKEN 不扣库存")
     void uncertainToAbsentNoDeduct() {
-        when(medRecordMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing("UNCERTAIN"));
+        when(medRecordMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing("UNTAKEN"));
         when(medRecordMapper.updateById(any(MedRecord.class))).thenReturn(1);
 
         service.confirm(RECORD_ID, new RecordConfirmRequest(ELDER_ID, PLAN_ID, ITEM_ID, MED_ID,
-                OffsetDateTime.parse("2026-10-23T00:05:00Z"), "1", null, "ABSENT"));
+                OffsetDateTime.parse("2026-10-23T00:05:00Z"), "1", null, "UNTAKEN"));
 
         verify(medicineStockService, never()).deduct(anyString(), anyString(), anyInt());
     }
@@ -130,7 +130,7 @@ class RecordServiceConfirmTest {
         MedRecord created = new MedRecord();
         created.setRecordId("mr-2001");
         created.setPlanId(PLAN_ID);
-        created.setFaceResult("TAKEN");
+        created.setTakenResult("TAKEN");
         created.setMedicineId(MED_ID);
         created.setDeviceId(MAIN_ID);
         created.setActualDose("2");

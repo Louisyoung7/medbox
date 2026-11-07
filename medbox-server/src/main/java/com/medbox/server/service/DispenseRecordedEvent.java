@@ -28,15 +28,13 @@ public class DispenseRecordedEvent {
     private final OffsetDateTime planTime;
     private final OffsetDateTime actualTime;
     private final Boolean onTime;
-    private final Double confidence;
     private final String deviceId;
     private final String captureId;
-    private final String faceResult;
+    private final String takenResult;
 
     public DispenseRecordedEvent(String recordId, String elderId, String planId, String planItemId,
                                  String medicineId, OffsetDateTime planTime, OffsetDateTime actualTime,
-                                 Boolean onTime, Double confidence,
-                                 String deviceId, String captureId, String faceResult) {
+                                 Boolean onTime, String deviceId, String captureId, String takenResult) {
         this.recordId = recordId;
         this.elderId = elderId;
         this.planId = planId;
@@ -45,9 +43,8 @@ public class DispenseRecordedEvent {
         this.planTime = planTime;
         this.actualTime = actualTime;
         this.onTime = onTime;
-        this.confidence = confidence;
         this.deviceId = deviceId;
         this.captureId = captureId;
-        this.faceResult = faceResult;
+        this.takenResult = takenResult;
     }
 }

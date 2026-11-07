@@ -214,7 +214,7 @@ class CaptureCoreWebIntegrationTest {
         MockMultipartFile file = new MockMultipartFile("file", "shot.jpg", "image/jpeg", "bytes".getBytes());
         return multipart("/api/v1/devices/" + deviceId + "/captures")
                 .file(file)
-                .param("reason", "LOW_CONFIDENCE")
+                .param("reason", "NORMAL")
                 .param("planId", "p-1")
                 .param("capturedAt", "2026-10-04T00:00:00Z")
                 .header("X-Device-Id", deviceId)
@@ -269,7 +269,9 @@ class CaptureCoreWebIntegrationTest {
     @Test
     @DisplayName("列表：ACTIVE 监护人(FAMILY) → 200，含 fileToken")
     void 列表监护人可见() throws Exception {
-        when(captureMapper.selectPage(any(), any())).thenReturn(pageWithOne());
+        Page<Capture> page = pageWithOne();
+        page.getRecords().forEach(c -> c.setFilePath(tmpDir.resolve(c.getCaptureId() + ".jpg").toString()));
+        when(captureMapper.selectPage(any(), any())).thenReturn(page);
         String bearer = guardianBearer();
         mockMvc.perform(get("/api/v1/captures").param("elderId", "u-1001").header("Authorization", bearer))
                 .andExpect(status().isOk())
