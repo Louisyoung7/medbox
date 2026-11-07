@@ -1,6 +1,6 @@
 # 02 · REST 接口设计
 
-> 所有路径均相对 Base URL：`http://{后端主机内网IP}:8080/medbox/api/v1`　|　版本见 `CHANGELOG.md`
+> 所有路径均相对 Base URL：`http://{后端主机内网IP}:8080/medbox/api/v1`　|　变更历史看 `git log -- medbox-spec/`
 > 标注【鉴权】表示需携带 JWT，监护数据类接口需校验权限。AI 相关接口见文档 05。
 >
 > **接口契约（端点 / 字段 / 响应示例 / 错误码）以 `openapi/*.yaml` 为事实源**（经 redocly lint；可读 WebUI `openapi/api-docs-*.html`，调试页 `openapi/swagger-ui.html?spec=<模块>.yaml`）。本文件只写**通用约定**，`02a`~`02h` 分册只写**判定规则表、边界用例与口径说明**；三者分工互不重复，不一致即视为缺陷。
@@ -57,7 +57,7 @@
 
 ### 1.4 限流（42901）
 
-> 落地分支：`feat/ai-limit`（依赖 `ai-insight`）。实现见 07。
+> 落地分支：`feat/ai-limit`（依赖 `ai-insight`，首轮清单见归档 `archive/07`）。
 
 为防 BYOK 大模型配额被刷爆、登录接口被暴力破解、单台药箱被命令洪水拖垮，对三类高成本 / 高风险接口做**内存固定窗口计数器**限流（单实例、局域网部署，不依赖 Redis 等外部组件；重启即丢、多实例各计各的，本期可接受）。
 
