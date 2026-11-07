@@ -151,21 +151,9 @@ POST /ai/insight
 
 ### 2.5 小程序侧落地（feat/mp-ai-insight；后端 `ai-insight` 未落地，Mock 先行）
 
-`08` 的 `feat/mp-ai-insight`（P3，= `mp-ai-insight` + `mp-ai-insight-stream`）按本章契约实现，后端 `feat/ai-insight`（07）本期未落地，故按 AGENTS.md 通行做法**按契约 + Mock 先行**、字段做容错（后端定稿后收紧）：
+`08` 的 `feat/mp-ai-insight`（P3）已按本章契约实现（`api/ai.js` + `utils/ai.js` + `pages/ai/insight.vue` / `config.vue`，实现细节看代码与 08 清单）；后端 `feat/ai-insight`（07）本期未落地，期间走 `tools/mock`（契约同本章），字段做容错、后端定稿后收紧。**边界严守（FP-9/FP-10）**：前端只展示洞察文本 + citations + disclaimer，**不提供任何「采纳并落库 / 改计划 / 发指令」动作按钮**；`disclaimer` 缺失时前端补本地兜底文案；不改 `medbox-server/`。
 
-1. **接口层**：`api/ai.js` 的 `requestInsight`（同步 `POST /ai/insight`，降级 / 单测用）+ `streamInsight`（流式 `POST /ai/insight/stream`）+ `getInsightSchedule` / `putInsightSchedule`。同步请求复用 `request()`（Bearer、`POST` 自动带 `X-Request-Id`、错误码分流 50310/40001/40301）。**流式不引第三方库**：H5 用浏览器 `fetch` 的 `ReadableStream` 读取分块、小程序用 `wx.request({enableChunked:true})` + `onChunkReceived` 累加字节后按 `\n` 切行解析 JSON 帧（`{"type":"delta",...}` / `{"type":"done",...}`），两端统一回调 `onDelta/onDone/onError`，纯帧逻辑由 `utils/ai.js` 的 `applyInsightFrame` 收敛。
-2. **纯函数**：`utils/ai.js` 的 `AI_TYPES`（五维度枚举 + 中文标签 + 消费数据说明）、`buildInsightPayload`（UI 本地区间 → ISO-8601 UTC `range`，封顶 30 天，与 env/report 同口径）、`parseInsight`（容错取 `content/citations/disclaimer/type/range`，后端 `non_null` 省略空字段不判异常）、`applyInsightFrame`（流式 reducer：delta 追加文本、done 落定引用与声明）、`isNoKeyError`（识别 50310）。
-3. **页面**：`pages/ai/insight.vue`（「我的」页 `profile.vue` 加「AI 健康洞察」入口卡片进入）上方维度 chips（漏服/库存/环境关联/趋势/综合）+ 时间预设（近 7/14/30 天）；提交后流式逐字渲染 `content`（增量追加文本、无整页重绘），结尾展开 `citations` 引用锚点（标注"数据出处，非结论"）+ `disclaimer` 横幅；`50310` 显示"AI 助手暂未开通，请联系监护人配置"，参数/权限错误按 `code` 细分；`onUnload` 取消未完成的流（H5 `AbortController` / 小程序 `task.abort()`）。
-4. **周期洞察**：`GET/PUT /ai/insight/schedule`（`DAILY`/`WEEKLY`）；`PUT` 仅监护人（本章 2.3 + 权限矩阵），前端用 `RoleGate entry="aiInsightSchedule"`（`utils/permission.js` 新增白名单 `[GUARDIAN]`）隐藏设置 UI、后端强校验 40301 双保险；`onShow` 拉 `GET` 回填、切换即 `PUT`。
-5. **边界严守（FP-9/FP-10）**：前端只展示洞察文本 + citations + disclaimer，**不提供"采纳并落库 / 改计划 / 发指令"等动作按钮**；`disclaimer` 缺失时前端补本地兜底文案；不改 `medbox-server/`。
-6. **Mock 先行**：`tools/mock` 补 `llm_config` 种子（`u-1001` 置启用，使 happy path 有输出；其余老人 → 50310）+ `POST /ai/insight`（按 `type` 模板化 `content/citations/disclaimer`）+ `POST /ai/insight/stream`（分块逐句 delta + done 帧）+ `GET/PUT /ai/insight/schedule`（内存态）；仅演示用途，真后端按本章落地后替换。
+---
 
-## 3. 跨文档一致性（清理已完成）
-
-AI 重定位的**文档文字**已在 `93950b4`（02 / 06 的 `drug_manual` 移除注记、10 洞察层口径、`07` `feat/backend-ai-infra` 方向重定位注记）与本 `05` 配套提交（01 / 02 / 00_README 的"AI 问答"→"AI 洞察"、01 §1 功能范围改写、架构图标签 `PostgreSQL + pgvector`→`PostgreSQL 17` / `Chat 问答`→`Chat 调用` / `AI 药品问答`→`AI 洞察`、架构图 OCR / Embedding 节点与连线移除）中清完；04 的 `AI_STREAM` 已注"本期不使用"、`AI_INSIGHT` 帧已定义。代码侧清理由 07 后端清单的 `refactor/ai-insight-layer` 分支完成：
-
-- **diagrams/（network-topology.html、backend-architecture.html）** ✅ 已移除「本地 OCR 侧车」「本地 Embedding（Ollama bge-m3）」节点及其连线、对应 tooltip（`ext-localai` / `ocr:` / `ollama:`）；`pkg-ai` 节点改写为 BYOK `ChatClient`（结构化数据拼 Prompt → 出网 Chat → 自然语言洞察），图例「AI 本地调用」改为「AI 集成（BYOK Chat）」。
-- **medbox-server 代码与 docker-compose** ✅ 已下线：`ollama` / `pgvector` / OCR 依赖与 `ocr-sidecar/` 目录、`AiConfig` 收敛为 BYOK `ChatClient` 工厂（`spring-ai-starter-model-openai` 替换）；`docker-compose.yml` 改用官方 `postgres:17`、删 `ocr` 侧车服务；详见 07 `refactor/ai-insight-layer`。
-- **Flyway** ✅ `V1` 的 `CREATE EXTENSION vector` 与说明书表、`V2__vector_hnsw.sql` 历史不可改（`validate-on-migrate=true`），由新增 `V18__drop_ai_rag.sql` 下线（`DROP TABLE drug_manual_chunk, drug_manual` + `DROP EXTENSION vector`，见 06 第 3 章）。
-
+> **重定位清理**：由「AI 问答 + RAG」重定位为「洞察层」涉及的全部文档 / 架构图 / 代码 / Flyway（`V18__drop_ai_rag.sql`）清理已完成，现状见 06 §3 与 07 `refactor/ai-insight-layer`；历史过程看 `git log`。
 

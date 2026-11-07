@@ -1,6 +1,6 @@
 # 03 · 设备接入协议（MQTT，Broker = EMQX）
 
-> 链路：设备 ⇄ EMQX ⇄ 后端　|　局域网内网部署　|　版本见 `CHANGELOG.md`
+> 链路：设备 ⇄ EMQX ⇄ 后端　|　局域网内网部署　|　变更历史看 `git log -- medbox-spec/`
 
 ## 1. 连接与鉴权
 
@@ -53,18 +53,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 `sensorId` = 该传感器子设备的 `device_id`（见文档 06 的 2.3）；主控转发时原样带上，后端据此区分来源、只更新对应列。
 
-上行·服药事件（**已改由摄像头经 HTTP 上报，不再走 MQTT**，见 `02b_设备管理.md` §1.1）：
-
-> 服药事件（**取药结论 + 仅未取药时附抓拍原图**，不再做人脸识别、不再报置信度）由**摄像头直接经 HTTP** 上报后端，MQTT 不再承载。字段语义：`takenResult` 二值（`TAKEN` 已取药 / `UNTAKEN` 未取药）、`source`（`CAMERA`/`MANUAL`）；`UNTAKEN` 才附 `file` 原图作留证，`TAKEN` 不上图。后端**不建模格子**（见 01 §2.1 / §2.3），故无 `slotNo`；带锁分格天然防错拿，是否取药由设备**端侧判定格子是否被取走**得出，不比对药品、不识别人脸。
-
-```json
-// 摄像头经 HTTP multipart 上报（见 02b_设备管理.md §1.1）：
-//   takenResult=TAKEN, source=CAMERA,                    // 正常取药：仅结论、不上图
-//   takenResult=UNTAKEN, file=抓拍原图, source=CAMERA,    // 未取药：附原图留证
-//   planId=p-3301, planItemId=pi-9001, medicineId=m-205, actualDose=1, unit="片"
-```
-
-字段说明：`takenResult` = 设备端侧**取药结论**——`TAKEN` 对应服药槽格子被取走（已取药）/ `UNTAKEN` 格子未取走（未取药）；**不再报 `confidence`、不再做人脸识别、无 `UNCERTAIN` 第三态**；`UNTAKEN` 必附 `file` 原图作留证，`TAKEN` 不上图；`source` = `CAMERA` 设备识别 / `MANUAL` 手工补录。
+上行·服药事件：**不走 MQTT**，由摄像头经 HTTP multipart 上报（端点与字段见 `02b_设备管理.md` §1.1）。`takenResult` 二值（`TAKEN` 已取药 / `UNTAKEN` 未取药）+ `source`（`CAMERA` / `MANUAL`）；**仅 `UNTAKEN` 附抓拍原图作留证，`TAKEN` 不上图**。后端不建模格子（无 `slotNo`）、不做人脸识别、无置信度、无第三态。
 
 上行·设备异常 `.../up/event/error`（**仅设备侧异常**）：
 ```json
@@ -111,19 +100,14 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 ## 4. 摄像头识别与上报链路（摄像头 → 后端 HTTP）
 
-设备（摄像头子设备）负责"对应服药槽格子是否被取走"的**端侧判定**，并**直接经 HTTP 把「是否拿药」结论（`takenResult` = `TAKEN`/`UNTAKEN`）上报后端**；**仅 `UNTAKEN`（未拿药）时才附带抓拍原图作留证**，正常 `TAKEN` 不上传图片（摄像头支持 HTTP，复用 `02b_设备管理.md` §1.1）。**单片机与摄像头之间如何协同（谁触发判定、如何取流）是设备内部实现细节，前后端不约束**——对后端而言，只看到一个 HTTP 请求带着取药结论（+ 异常时的原图）。
+摄像头端侧判定「服药槽格子是否被取走」，直接经 HTTP 把取药结论上报后端（复用 `02b_设备管理.md` §1.1 的 captures 端点）。单片机与摄像头之间的协同（谁触发判定、如何取流）是设备固件内部实现，协议只约束「摄像头 → 后端」这一跳 HTTP。
 
 ```
-设备(端侧判定格子是否取走) --HTTP multipart(takenResult[TAKEN/UNTAKEN] + 仅UNTAKEN附file)--> 后端(据结论判已服/未服, 不跑识别)
-                                  (UNTAKEN原图作留证, TAKEN不上图)
+摄像头(端侧判定格子是否取走) --HTTP multipart(takenResult + 仅UNTAKEN附file)--> 后端(据结论判已服/未服, 不跑识别)
 ```
-
-> **设备侧的逻辑（含格子占用检测算法与留证策略）不由后端 / 小程序团队负责**，后端只负责"接收它经 HTTP 给出的**取药结论 `takenResult`**（+ `UNTAKEN` 时的原图）"。设备端侧判定格子是否被取走后直接给出二值结论（`TAKEN` 已取药 / `UNTAKEN` 未取药）并上报；**仅 `UNTAKEN` 上传原图**（作留证回看，见 01 §2.2、文档 02b_设备管理.md §1.1），正常 `TAKEN` 不上传图片。
-
-**为什么摄像头走 HTTP 而不是经单片机聚合走 MQTT**：摄像头本就通过 HTTP 上报服药事件（`02` 的 captures 端点），顺手把"是否拿药结论 `takenResult`（`TAKEN`/`UNTAKEN`）"一起带上最直接，且仅 `UNTAKEN` 附原图作留证、正常 `TAKEN` 不上图；单片机与摄像头的内部连线（WiFi / 串口 / 其他）属于设备固件范畴，**前后端协议只约束"摄像头 → 后端"这一跳 HTTP**，内部如何触发判定、如何取流不约束。
 
 **职责划分**：
 
-- 摄像头：端侧判定格子是否被取走，经 HTTP 上报取药结论（`takenResult` = `TAKEN`/`UNTAKEN`）；仅 `UNTAKEN` 附抓拍原图作留证，正常 `TAKEN` 不上传图片；如需本地留证可同时本地存储；
-- 单片机：本地时钟基准与提醒触发（到点本地声光 + 解锁对应格，见 01 §2.3），**不参与服药事件上报**；环境遥测仍由单片机经 MQTT 上报；
-- 后端：**接收取药结论 `takenResult`，不运行图像识别**；据 `takenResult` 判已取药/未取药（不再报置信度、不再有"待确认"），据"规定时间内是否收到上报"判漏服（`MISS`）；`onTime` 由后端按计划时间 + 容忍时长计算（与 MISS 判定口径一致），**改阈值无需重烧固件**。**后端算法**：`med_plan.times` 按设备时区取与上报 `capturedAt` 最近（含前后各一天）的"就近槽"作为 `plan_time`，容忍时长取三级最小值（计划级 `miss_alarm_after_min` > 老人级 `miss_tolerate_min` > 15 分钟，见 11 §5）；`actual_time ≤ plan_time + 容忍` 即 `onTime=true`（**单侧窗口，提前吃恒为 true，只判迟到**）。完整判定规则表见 `11_业务规则.md`。
+- **摄像头**：端侧判定并经 HTTP 上报 `takenResult`（仅 `UNTAKEN` 附原图留证，可同时本地留证）；
+- **单片机**：本地时钟基准与提醒触发（到点本地声光 + 解锁对应格，见 01 §2.3），不参与服药事件上报；环境遥测仍经 MQTT 上报；
+- **后端**：只接收取药结论、不运行图像识别；据「规定时间内是否收到上报」判漏服（`MISS`）；`onTime` 由后端按「就近槽 + 三级最小容忍时长（计划级 > 老人级 > 15 分钟，见 11 §5）」重算，单侧窗口只判迟到，**改阈值无需重烧固件**。完整判定规则表见 `11_业务规则.md`。
