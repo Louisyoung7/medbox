@@ -45,7 +45,6 @@
             <text class="capture__icon">📷</text>
           </view>
           <text class="capture__text">{{ captureError || '原图加载中…' }}</text>
-          <view v-if="recordUncertain" class="capture__badge">待确认（低置信度）</view>
         </view>
         <view v-else class="capture">
           <view class="capture__box">
@@ -63,45 +62,42 @@
 
       <view v-if="canWrite" class="actions">
         <MbButton type="primary" block :loading="confirming" @click="openConfirm">
-          {{ recordUncertain ? '确认服药情况' : '补录 / 确认' }}
+          补录 / 确认
         </MbButton>
       </view>
     </template>
 
     <MbModal
       v-model="showConfirm"
-      :title="recordUncertain ? '确认服药情况' : '补录 / 确认'"
+      title="补录 / 确认"
       confirm-text="确认提交"
       :confirm-loading="confirming"
       :close-on-confirm="false"
       @confirm="onConfirm"
     >
       <view class="confirm-body">
-        <template v-if="recordUncertain">
-          <text class="confirm-body__text">该记录为低置信度待确认，请查看上方抓拍原图后裁定：</text>
-          <view class="confirm-body__seg">
-            <view
-              class="confirm-body__opt"
-              :class="{ 'confirm-body__opt--on': faceResult === 'TAKEN' }"
-              @click="faceResult = 'TAKEN'"
-            >
-              <text class="confirm-body__opt-text">确认已服</text>
-            </view>
-            <view
-              class="confirm-body__opt"
-              :class="{ 'confirm-body__opt--on': faceResult === 'ABSENT' }"
-              @click="faceResult = 'ABSENT'"
-            >
-              <text class="confirm-body__opt-text">确认未服</text>
-            </view>
+        <text class="confirm-body__text">请确认该记录的服药结论（监护人校准 / 补录，可同步备注）：</text>
+        <view class="confirm-body__seg">
+          <view
+            class="confirm-body__opt"
+            :class="{ 'confirm-body__opt--on': takenResult === 'TAKEN' }"
+            @click="takenResult = 'TAKEN'"
+          >
+            <text class="confirm-body__opt-text">已服</text>
           </view>
-        </template>
-        <text v-else class="confirm-body__text">确认本记录为实际服药情况（设备异常时可手工校准）。</text>
+          <view
+            class="confirm-body__opt"
+            :class="{ 'confirm-body__opt--on': takenResult === 'UNTAKEN' }"
+            @click="takenResult = 'UNTAKEN'"
+          >
+            <text class="confirm-body__opt-text">未服</text>
+          </view>
+        </view>
         <MbField
           v-model="note"
           label="备注（选填）"
           type="textarea"
-          :placeholder="recordUncertain ? '如：已核对原图，老人确实取药服用' : '如：老人实际于 21:10 服药，剂量无误'"
+          placeholder="如：老人实际于 21:10 服药，剂量无误"
         />
         <text v-if="confirmError" class="confirm-body__err">{{ confirmError }}</text>
       </view>
@@ -126,7 +122,6 @@ import { BASE_URL } from '@/config/index.js'
 import { CODE } from '@/api/request.js'
 import {
   canWriteRecord,
-  isUncertain,
   recordStatusTags,
   recordTitle,
   recordMedicineText,
@@ -165,17 +160,12 @@ export default {
       canWrite: false,
       showConfirm: false,
       note: '',
-      faceResult: 'TAKEN',
+      takenResult: 'TAKEN',
       confirming: false,
       confirmError: '',
       captureFileUrl: '',
       captureError: '',
     }
-  },
-  computed: {
-    recordUncertain() {
-      return isUncertain(this.record)
-    },
   },
   onLoad(options) {
     this.recordId = (options && options.recordId) || ''
@@ -239,7 +229,7 @@ export default {
     },
     openConfirm() {
       this.note = ''
-      this.faceResult = 'TAKEN'
+      this.takenResult = 'TAKEN'
       this.confirmError = ''
       this.showConfirm = true
     },
@@ -254,7 +244,7 @@ export default {
       this.confirming = true
       this.confirmError = ''
       const payload = buildConfirmPayload({
-        faceResult: this.recordUncertain ? this.faceResult : undefined,
+        takenResult: this.takenResult,
         note: this.note,
       })
       confirmRecord(this.recordId, payload, { silent: true })

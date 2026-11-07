@@ -1,163 +1,124 @@
-/**
- * 抓拍 / 待确认纯函数测试（`feat/mp-capture-event`，`src/utils/capture.js`）。
- *
- * <p>覆盖：待确认判定、fileToken 图片 URL 拼接、抓拍元数据容错解析、确认请求体组装。
- */
-
-import { describe, expect, it } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   buildCaptureFileUrl,
-  buildConfirmPayload,
-  isUncertain,
   parseCapture,
+  buildConfirmPayload,
   parseCapturesPage,
-  toCaptureView,
-  isExpired,
   REASON_LABEL,
-  FACE_RESULT_LABEL,
+  TAKEN_RESULT_LABEL,
+  isExpired,
+  toCaptureView,
 } from '@/utils/capture.js'
 
-describe('isUncertain', () => {
-  it('pendingConfirm=true → 待确认', () => {
-    expect(isUncertain({ pendingConfirm: true })).toBe(true)
-  })
-  it('faceResult=UNCERTAIN → 待确认', () => {
-    expect(isUncertain({ faceResult: 'UNCERTAIN' })).toBe(true)
-  })
-  it('正常已服 / 已确认 → 非待确认', () => {
-    expect(isUncertain({ faceResult: 'TAKEN', pendingConfirm: false })).toBe(false)
-    expect(isUncertain({ faceResult: 'ABSENT' })).toBe(false)
-  })
-  it('缺失字段兜底为 false', () => {
-    expect(isUncertain({})).toBe(false)
-    expect(isUncertain(null)).toBe(false)
-  })
-})
-
 describe('buildCaptureFileUrl', () => {
-  it('拼接 BASE_URL + 编码后的 captureId + token', () => {
-    expect(buildCaptureFileUrl('cap-1', 'tok x', 'http://h:8080/medbox/api/v1')).toBe(
-      'http://h:8080/medbox/api/v1/captures/cap-1/file?token=tok%20x',
-    )
+  it('拼接 fileToken 到 query', () => {
+    expect(buildCaptureFileUrl('cap-1', 'tk-9', 'http://h:8080/medbox/api/v1'))
+      .toBe('http://h:8080/medbox/api/v1/captures/cap-1/file?token=tk-9')
   })
-  it('默认空 baseUrl → 相对路径（便于单测）', () => {
-    expect(buildCaptureFileUrl('cap-1', 'tok')).toBe('/captures/cap-1/file?token=tok')
+  it('默认 baseUrl 空串返回相对路径', () => {
+    expect(buildCaptureFileUrl('cap-1', 'tk-9')).toBe('/captures/cap-1/file?token=tk-9')
+  })
+  it('空值兜底', () => {
+    expect(buildCaptureFileUrl('', '')).toBe('/captures//file?token=')
   })
 })
 
 describe('parseCapture', () => {
-  it('抽取字段，数字 confidence 原样保留', () => {
-    expect(
-      parseCapture({
-        captureId: 'cap-1',
-        fileToken: 't',
-        faceResult: 'UNCERTAIN',
-        confidence: 0.52,
-        expireAt: 'x',
-        mime: 'image/png',
-      }),
-    ).toEqual({
-      captureId: 'cap-1',
-      fileToken: 't',
-      faceResult: 'UNCERTAIN',
-      confidence: 0.52,
-      expireAt: 'x',
-      mime: 'image/png',
+  it('正常映射 takenResult / fileToken / expireAt / mime', () => {
+    const src = { captureId: 'cap-1', fileToken: 'tk', takenResult: 'TAKEN', expireAt: '2026-10-24T00:00:00Z', mime: 'image/jpeg' }
+    expect(parseCapture(src)).toMatchObject({
+      captureId: 'cap-1', fileToken: 'tk', takenResult: 'TAKEN', expireAt: '2026-10-24T00:00:00Z', mime: 'image/jpeg',
     })
   })
-  it('confidence 容错：字符串转数字 / 非法与空置 null', () => {
-    expect(parseCapture({ confidence: '0.6' }).confidence).toBe(0.6)
-    expect(parseCapture({}).confidence).toBe(null)
-    expect(parseCapture({ confidence: 'abc' }).confidence).toBe(null)
-  })
-  it('缺失兜底为空串 / null', () => {
-    const p = parseCapture(null)
-    expect(p.captureId).toBe('')
-    expect(p.fileToken).toBe('')
-    expect(p.faceResult).toBe('')
-    expect(p.confidence).toBe(null)
+  it('缺失字段兜底空串（不抛错）', () => {
+    expect(parseCapture(null)).toEqual({ captureId: '', fileToken: '', takenResult: '', expireAt: '', mime: '' })
+    expect(parseCapture({})).toEqual({ captureId: '', fileToken: '', takenResult: '', expireAt: '', mime: '' })
   })
 })
 
 describe('buildConfirmPayload', () => {
-  it('UNCERTAIN 确认：合法 faceResult + 非空 note 入参', () => {
-    expect(buildConfirmPayload({ faceResult: 'TAKEN', note: '已核对' })).toEqual({
-      faceResult: 'TAKEN',
-      note: '已核对',
-    })
-    // note 仅空白 → 不入参
-    expect(buildConfirmPayload({ faceResult: 'ABSENT', note: '   ' })).toEqual({ faceResult: 'ABSENT' })
+  it('二值 takenResult 入参，note 去空白', () => {
+    expect(buildConfirmPayload({ takenResult: 'TAKEN', note: ' 已核对原图 ' })).toEqual({ takenResult: 'TAKEN', note: '已核对原图' })
+    expect(buildConfirmPayload({ takenResult: 'UNTAKEN', note: '未服' })).toEqual({ takenResult: 'UNTAKEN', note: '未服' })
   })
-  it('非法 faceResult 不入参；note 去空白', () => {
-    expect(buildConfirmPayload({ faceResult: 'WEIRD', note: ' x ' })).toEqual({ note: 'x' })
+  it('空 takenResult 不入参，空 note 不传', () => {
+    expect(buildConfirmPayload({ note: '   ' })).toEqual({})
     expect(buildConfirmPayload({})).toEqual({})
+    expect(buildConfirmPayload({ takenResult: 'OTHER' })).toEqual({})
   })
 })
 
 describe('parseCapturesPage', () => {
-  it('裸数组 → list + total=length + 默认分页', () => {
-    const r = parseCapturesPage([{ captureId: 'a' }, { captureId: 'b' }])
-    expect(r).toEqual({ list: [{ captureId: 'a' }, { captureId: 'b' }], total: 2, page: 1, size: 2 })
+  it('裸数组兜底 list/total/page/size', () => {
+    const arr = [{ captureId: 'a' }, { captureId: 'b' }]
+    expect(parseCapturesPage(arr)).toEqual({ list: arr, total: 2, page: 1, size: 2 })
   })
-  it('标准 {list,total,page,size}', () => {
-    const r = parseCapturesPage({ list: [{ captureId: 'a' }], total: 9, page: 2, size: 1 })
-    expect(r).toEqual({ list: [{ captureId: 'a' }], total: 9, page: 2, size: 1 })
+  it('兼容 list/records/items 与 total', () => {
+    expect(parseCapturesPage({ list: [], total: 0 })).toEqual({ list: [], total: 0, page: 1, size: 0 })
+    expect(parseCapturesPage({ records: [{ captureId: 'a' }], total: 5, page: 2, size: 1 }))
+      .toEqual({ list: [{ captureId: 'a' }], total: 5, page: 2, size: 1 })
+    expect(parseCapturesPage({ items: [{ captureId: 'a' }], total: 1 })).toEqual({ list: [{ captureId: 'a' }], total: 1, page: 1, size: 1 })
   })
-  it('兼容 {records} / {items} 外壳', () => {
-    expect(parseCapturesPage({ records: [{ captureId: 'x' }] }).list.length).toBe(1)
-    expect(parseCapturesPage({ items: [{ captureId: 'y' }] }).list.length).toBe(1)
-  })
-  it('total 缺失 → 用 list.length 兜底', () => {
-    expect(parseCapturesPage({ list: [{ captureId: 'a' }] }).total).toBe(1)
+  it('null/undefined 兜底空列表', () => {
+    expect(parseCapturesPage(null)).toEqual({ list: [], total: 0, page: 1, size: 0 })
+    expect(parseCapturesPage(undefined)).toEqual({ list: [], total: 0, page: 1, size: 0 })
   })
 })
 
-describe('toCaptureView', () => {
-  it('字段兜底 + reason/faceResult 文案', () => {
-    const v = toCaptureView({ captureId: 'c1', reason: 'MANUAL', faceResult: 'TAKEN', expireAt: '2026-01-01T00:00:00Z' })
-    expect(v.captureId).toBe('c1')
-    expect(v.reasonLabel).toBe('主动留证')
-    expect(v.faceResultLabel).toBe('已服')
-    expect(v.uncertain).toBe(false)
-    expect(v.fileToken).toBe('')
+describe('REASON_LABEL', () => {
+  it('NORMAL/MANUAL 文案', () => {
+    expect(REASON_LABEL).toEqual({ NORMAL: '正常服药', MANUAL: '主动留证' })
   })
-  it('faceResult=UNCERTAIN → uncertain=true', () => {
-    const v = toCaptureView({ faceResult: 'UNCERTAIN' })
-    expect(v.uncertain).toBe(true)
-  })
-  it('reason 缺失 → 文案回退「未知」', () => {
-    expect(toCaptureView({}).reasonLabel).toBe('未知')
-  })
-  it('confidence 字符串转数字 / 缺失置 null', () => {
-    expect(toCaptureView({ confidence: '0.6' }).confidence).toBe(0.6)
-    expect(toCaptureView({}).confidence).toBe(null)
-  })
-  it('expireAt 缺失 → expired=false', () => {
-    expect(toCaptureView({}).expired).toBe(false)
+})
+
+describe('TAKEN_RESULT_LABEL', () => {
+  it('TAKEN/UNTAKEN 文案', () => {
+    expect(TAKEN_RESULT_LABEL).toEqual({ TAKEN: '已服', UNTAKEN: '未服' })
   })
 })
 
 describe('isExpired', () => {
-  const now = new Date('2026-01-01T00:00:00Z')
-  it('过去 → true', () => {
-    expect(isExpired('2020-01-01T00:00:00Z', now)).toBe(true)
+  it('expireAt 早于 now → true', () => {
+    expect(isExpired('2026-10-24T00:00:00Z', new Date('2026-10-25T00:00:00Z'))).toBe(true)
   })
-  it('未来 → false', () => {
-    expect(isExpired('2030-01-01T00:00:00Z', now)).toBe(false)
+  it('expireAt 晚于 now → false', () => {
+    expect(isExpired('2026-10-26T00:00:00Z', new Date('2026-10-25T00:00:00Z'))).toBe(false)
   })
-  it('缺失 → false', () => {
-    expect(isExpired('', now)).toBe(false)
+  it('缺省 expireAt → false（交给后端）', () => {
+    expect(isExpired('', new Date('2026-10-25T00:00:00Z'))).toBe(false)
+    expect(isExpired(undefined, new Date('2026-10-25T00:00:00Z'))).toBe(false)
   })
 })
 
-describe('REASON_LABEL / FACE_RESULT_LABEL', () => {
-  it('reason 文案', () => {
-    expect(REASON_LABEL.NORMAL).toBe('正常服药')
-    expect(REASON_LABEL.MANUAL).toBe('主动留证')
+describe('toCaptureView', () => {
+  it('归一化字段 + 文案 + 过期标记', () => {
+    const v = toCaptureView({
+      captureId: 'cap-1',
+      deviceId: 'dev-1',
+      reason: 'NORMAL',
+      takenResult: 'TAKEN',
+      mime: 'image/jpeg',
+      sizeBytes: 1024,
+      capturedAt: '2026-10-23T00:05:00Z',
+      expireAt: '2026-10-24T00:00:00Z',
+      fileToken: 'tk',
+    })
+    expect(v.captureId).toBe('cap-1')
+    expect(v.deviceId).toBe('dev-1')
+    expect(v.reasonLabel).toBe('正常服药')
+    expect(v.takenResult).toBe('TAKEN')
+    expect(v.takenResultLabel).toBe('已服')
+    expect(v.mime).toBe('image/jpeg')
+    expect(v.sizeBytes).toBe(1024)
+    expect(v.capturedAtText).toBeTruthy()
+    expect(v.expireAtText).toBeTruthy()
+    expect(v.expired).toBe(true)
   })
-  it('faceResult 三态文案', () => {
-    expect(FACE_RESULT_LABEL.TAKEN).toBe('已服')
-    expect(FACE_RESULT_LABEL.ABSENT).toBe('未服')
-    expect(FACE_RESULT_LABEL.UNCERTAIN).toBe('待确认')
+  it('缺省字段兜底（不抛错）', () => {
+    const v = toCaptureView(null)
+    expect(v.captureId).toBe('')
+    expect(v.reasonLabel).toBe('未知')
+    expect(v.takenResultLabel).toBe('')
+    expect(v.expired).toBe(false)
   })
 })

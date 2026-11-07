@@ -39,13 +39,12 @@
             <view v-else class="thumb__box">
               <text class="thumb__icon">📷</text>
             </view>
-            <view v-if="item.uncertain" class="thumb__badge">待确认</view>
             <view v-if="item.expired" class="thumb__badge thumb__badge--expired">已过期</view>
           </view>
           <view class="meta">
             <view class="meta__top">
               <text class="meta__reason">{{ item.reasonLabel }}</text>
-              <text v-if="item.faceResultLabel" class="meta__result">{{ item.faceResultLabel }}</text>
+              <text v-if="item.takenResultLabel" class="meta__result">{{ item.takenResultLabel }}</text>
             </view>
             <text class="meta__time">{{ item.capturedAtText }}</text>
             <text v-if="item.deviceId" class="meta__device">{{ item.deviceId }}</text>

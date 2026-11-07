@@ -22,17 +22,12 @@
           <text class="img-fallback__icon">📷</text>
           <text class="img-fallback__text">{{ captureError || '原图加载中…' }}</text>
         </view>
-        <view v-if="view.uncertain" class="badge">待确认（低置信度）</view>
       </MbCard>
 
       <MbCard title="抓拍信息">
         <MbCell title="设备" :value="view.deviceId || '-'" />
         <MbCell title="原因" :value="view.reasonLabel" />
-        <MbCell v-if="view.faceResultLabel" title="服药结论" :value="view.faceResultLabel" />
-        <MbCell
-          :title="view.confidence != null ? '置信度' : '置信度'"
-          :value="view.confidence != null ? view.confidence.toFixed(2) : '-'"
-        />
+        <MbCell v-if="view.takenResultLabel" title="服药结论" :value="view.takenResultLabel" />
         <MbCell title="抓拍时间" :value="view.capturedAtText" />
         <MbCell title="过期时间" :value="view.expireAtText || '-'" />
       </MbCard>

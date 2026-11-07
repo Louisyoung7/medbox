@@ -109,7 +109,7 @@ describe('buildSimPayload', () => {
     })
     expect(body.msgId).toMatch(/^BOXA1001-\d{10}$/)
     expect(typeof body.ts).toBe('number')
-    expect(body.confidence).toBeGreaterThan(0)
+    expect(body.source).toBe('CAMERA')
   })
 
 

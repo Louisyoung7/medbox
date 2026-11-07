@@ -138,7 +138,6 @@ export const SIM_EVENT_PRESETS = [
       actualDose: '1',
       unit: '片',
       onTime: true, // 仅作示意，入库值由后端用 ts 现算，见 wallClockTs 注释
-      confidence: 0.93,
       source: 'CAMERA',
       imageId: null,
     }),
@@ -160,7 +159,6 @@ export const SIM_EVENT_PRESETS = [
       actualDose: '1',
       unit: '片',
       onTime: false, // 仅作示意，入库值由后端用 ts 现算
-      confidence: 0.91,
       source: 'CAMERA',
       imageId: null,
     }),
