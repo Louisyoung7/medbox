@@ -1,0 +1,186 @@
+# medbox REST 公共组件（所有 openapi/*.yaml 跨文件 $ref 引用）
+# 口径来源：medbox-spec/02_REST接口设计.md §1（通用约定 / 错误码 / 权限）
+openapi: 3.0.3
+info:
+  title: medbox REST 公共组件
+  version: 1.0.0
+paths: {}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Authorization: Bearer {JWT}；设备端走 MQTT，不走此通道"
+
+  parameters:
+    ElderId:
+      name: elderId
+      in: path
+      required: true
+      description: 老人 userId
+      schema:
+        type: string
+        example: u-1001
+    RelationId:
+      name: relationId
+      in: path
+      required: true
+      description: 监护关系 ID
+      schema:
+        type: string
+        example: r-1001
+    Page:
+      name: page
+      in: query
+      required: false
+      description: 页码，从 1 起（<1 → 40001）
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Size:
+      name: size
+      in: query
+      required: false
+      description: 每页条数，默认 20，通用上限 100（抓拍列表上限 200）
+      schema:
+        type: integer
+        minimum: 1
+        default: 20
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: 32 位小写十六进制（无连字符）；写方法（POST/PUT/PATCH/DELETE）自动注入，幂等去重用；GET 不注入
+      schema:
+        type: string
+        example: 9f2c0f11a2b34c55d6e7f809a1b2c3d4
+
+  schemas:
+    R:
+      type: object
+      description: 统一响应包装（02 §1.1）。data 为 null 时受全局 non_null 配置影响不出现；客户端判失败只看 code != 0
+      required: [code]
+      properties:
+        code:
+          type: integer
+          description: 0=成功，非 0=业务错误码（封闭集合见 02 §1.2）
+          example: 0
+        message:
+          type: string
+          example: success
+        traceId:
+          type: string
+          description: 32 位十六进制、无连字符；响应同时经 X-Trace-Id 头回写
+          example: 9f2c0f11a2b34c55d6e7f809a1b2c3d4
+        timestamp:
+          type: integer
+          description: epoch 秒（不是毫秒）
+          example: 1759474487
+
+    PageResult:
+      type: object
+      description: 分页包装（02 §1 通用约定）
+      required: [list, total]
+      properties:
+        list:
+          type: array
+          items: {}
+        total:
+          type: integer
+          example: 42
+        page:
+          type: integer
+          example: 1
+        size:
+          type: integer
+          example: 20
+
+    Role:
+      type: string
+      enum: [ELDER, GUARDIAN]
+      description: 老人/监护人角色（06 §2.1）；ADMIN 见 02h
+
+  responses:
+    BadRequest:
+      description: 参数校验失败 / 请求体非法（40001）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 40001
+            message: 参数校验失败
+    Unauthorized:
+      description: 未登录 / Token 过期（40101）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 40101
+            message: 未登录或登录已过期
+    WrongCredentials:
+      description: 账号或密码错误（40102，不区分账号不存在/密码错误）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 40102
+            message: 账号或密码错误
+    Forbidden:
+      description: 无权限 / 越权（40301；不区分「资源不存在」，防枚举）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 40301
+            message: 无权限
+    GuardianPending:
+      description: 监护关系未生效（40302，关系仍为 PENDING）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 40302
+            message: 监护关系未生效
+    NotFound:
+      description: 资源不存在 / 未知路径（40401 + HTTP 404）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 40401
+            message: 资源不存在
+    Conflict:
+      description: 状态冲突（40901）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 40901
+            message: 状态冲突
+    TooManyRequests:
+      description: 触发限流（42901；登录每客户端 IP 每 60s 10 次）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 42901
+            message: 请求过于频繁，请稍后再试
+    InternalError:
+      description: 服务端内部错误（50000，堆栈只进日志）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 50000
+            message: 服务端内部错误

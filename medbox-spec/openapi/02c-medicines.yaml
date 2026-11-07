@@ -1,0 +1,363 @@
+openapi: 3.0.3
+info:
+  title: medbox · 药品与库存（02c OpenAPI 版）
+  description: |
+    `medbox-spec/02c_药品与库存.md` 的机器可读版。通用约定见 `common.yaml`。
+    后端**不建模格子**（格子是药箱本地物理概念、cell_id 不入库）；库存按「药箱 + 药品」管理（medicine_stock，06 §2.5）。
+  version: 1.0.0
+
+servers:
+  - url: http://{host}:8080/medbox/api/v1
+    variables:
+      host: { default: 192.168.1.10 }
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: medicines
+    description: 药品档案（公共字典 + 私有药品）
+  - name: stocks
+    description: 药箱库存（按药箱 + 药品）
+
+paths:
+  /medicines:
+    post:
+      operationId: upsertMedicine
+      tags: [medicines]
+      summary: 新建/更新药品档案【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
+      description: |
+        更新时请求体带 medicineId，创建不带（由后端生成）；ownerElderId **不传即公共字典**，传某老人 userId 即其私有药品。
+        可见范围 = 公共药品（ownerElderId 为空）+ 我监护老人的私有药品（服务端按 visibleElderIds() 行级过滤）。
+        含禁忌、储存条件等字段（详见 06 §2.4）。
+      parameters:
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicineUpsertRequest'
+      responses:
+        '200':
+          description: 新建/更新成功（code=0，data 为药品详情）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Medicine'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+    get:
+      operationId: listMedicines
+      tags: [medicines]
+      summary: 药品字典 / 我的药品列表（分页、搜索）【鉴权】
+      description: 可见范围 = 公共药品 + 我监护老人的私有药品（行级过滤）；分页按通用约定 page/size、返回 total。
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          description: 按名称/规格搜索
+          schema: { type: string }
+        - $ref: './common.yaml#/components/parameters/Page'
+        - $ref: './common.yaml#/components/parameters/Size'
+      responses:
+        '200':
+          description: 药品分页列表（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: './common.yaml#/components/schemas/PageResult'
+                          - type: object
+                            properties:
+                              list:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/Medicine'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+
+  /medicines/{medicineId}:
+    get:
+      operationId: getMedicine
+      tags: [medicines]
+      summary: 药品详情【鉴权】
+      parameters:
+        - $ref: '#/components/parameters/MedicineId'
+      responses:
+        '200':
+          description: 药品详情（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Medicine'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+    delete:
+      operationId: deleteMedicine
+      tags: [medicines]
+      summary: 删除药品档案【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
+      description: '无任何药箱库存引用时才允许（medicine_stock.medicine_id 存在记录 → 40901）。'
+      parameters:
+        - $ref: '#/components/parameters/MedicineId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: 删除成功（code=0）
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/R'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '409':
+          $ref: './common.yaml#/components/responses/Conflict'
+
+  /devices/{deviceId}/stocks:
+    get:
+      operationId: listStocks
+      tags: [stocks]
+      summary: 药箱库存清单（按药品）【鉴权·WRITE_MEDICINE 读侧走 READ_MEDICINE】
+      description: |
+        列表行级字段即 06 §2.5（stockId/medicineId/quantity/productionDate/expiryDate/updatedAt），
+        **不内嵌药品摘要**——名称/规格/单位由客户端拉药品字典按 medicineId join。
+        查询他人设备与设备不存在一律 40301（不返回 40401，与 02b 同口径）。
+      parameters:
+        - $ref: './02b-devices.yaml#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: 库存清单（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MedicineStock'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /devices/{deviceId}/stocks/{medicineId}:
+    put:
+      operationId: putStock
+      tags: [stocks]
+      summary: 录入 / 更新某药品库存【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
+      description: 'quantity 为绝对值（覆盖写）；两个日期均为 YYYY-MM-DD（DATE 列，选填，不传即不更新该列，无时区换算）。'
+      parameters:
+        - $ref: './02b-devices.yaml#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/MedicineId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockUpdateRequest'
+      responses:
+        '200':
+          description: 录入/更新成功（code=0，data 为库存行）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MedicineStock'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+    delete:
+      operationId: deleteStock
+      tags: [stocks]
+      summary: 移除该药品库存【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
+      parameters:
+        - $ref: './02b-devices.yaml#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/MedicineId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: 移除成功（code=0）
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/R'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /devices/{deviceId}/stocks/{medicineId}/in:
+    post:
+      operationId: stockIn
+      tags: [stocks]
+      summary: 补药入库（增加库存，可同时更新生产日期/有效期）【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
+      description: 'quantity 为增量（区别于 PUT 的覆盖写）；日期口径同 PUT（YYYY-MM-DD，选填）。'
+      parameters:
+        - $ref: './02b-devices.yaml#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/MedicineId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockUpdateRequest'
+      responses:
+        '200':
+          description: 入库成功（code=0，data 为库存行）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MedicineStock'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Authorization: Bearer {JWT}"
+  parameters:
+    MedicineId:
+      name: medicineId
+      in: path
+      required: true
+      schema:
+        type: string
+        example: m-205
+
+  schemas:
+    Medicine:
+      type: object
+      description: 字段以最终实现为准（06 §2.4）；含禁忌、储存条件等
+      properties:
+        medicineId:
+          type: string
+          example: m-205
+        name:
+          type: string
+          example: 阿莫西林胶囊
+        specification:
+          type: string
+          nullable: true
+          example: 0.25g*24粒
+        unit:
+          type: string
+          nullable: true
+          example: 粒
+        ownerElderId:
+          type: string
+          nullable: true
+          description: null=公共字典；非 null=该老人私有药品
+        createdAt:
+          type: string
+          format: date-time
+
+    MedicineUpsertRequest:
+      type: object
+      required: [name]
+      properties:
+        medicineId:
+          type: string
+          description: 更新时必带；创建不传（后端生成）
+        name:
+          type: string
+        specification:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        ownerElderId:
+          type: string
+          nullable: true
+          description: 不传即公共字典；传某老人 userId 即其私有药品
+        # 禁忌 / 储存条件等字段见 06 §2.4，随后端实现追加
+
+    MedicineStock:
+      type: object
+      properties:
+        stockId:
+          type: string
+          example: st-3001
+        medicineId:
+          type: string
+          example: m-205
+        quantity:
+          type: integer
+          example: 20
+        productionDate:
+          type: string
+          format: date
+          nullable: true
+          description: YYYY-MM-DD（DATE 列，无时区换算）
+        expiryDate:
+          type: string
+          format: date
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+
+    StockUpdateRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          description: PUT=绝对值（覆盖写）；POST /in=增量
+          example: 20
+        productionDate:
+          type: string
+          format: date
+          nullable: true
+          description: YYYY-MM-DD，选填，不传即不更新该列
+        expiryDate:
+          type: string
+          format: date
+          nullable: true

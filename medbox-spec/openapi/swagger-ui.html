@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>medbox API 调试（Swagger UI）</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; }
+    .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    SwaggerUIBundle({
+      // 默认加载 02a 试点契约；可通过 URL 参数切换模块：
+      //   swagger-ui.html?spec=02b-devices.yaml
+      url: new URLSearchParams(location.search).get('spec') || '02a-auth-users.yaml',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      tryItOutEnabled: true,
+      persistAuthorization: true, // 记住 Bearer token，刷新不丢
+      // 后端主机 IP 用 yaml servers 里 {host} 变量，页面上方可直接选/填
+    });
+  </script>
+</body>
+</html>

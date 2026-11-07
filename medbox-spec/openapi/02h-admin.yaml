@@ -1,0 +1,390 @@
+openapi: 3.0.3
+info:
+  title: medbox · 管理员接口（02h OpenAPI 版）
+  description: |
+    `medbox-spec/02h_管理员接口.md` 的机器可读版。通用约定见 `common.yaml`。
+    本期 medbox-admin/ 只做「测试数据清理」dev/QA 工具 + 竞赛演示驱动的**只读监控看板聚合**（其余管理功能待定，设计见 09）。
+
+    所有接口为 **ADMIN 角色门禁**（独立于 elder 中心的权限体系，01 §3）：需 `Authorization: Bearer <token>` **且 role == ADMIN**，否则 40301；未登录 40101。
+    角色建模与种子账号见 06 §2.1（UserRole 增加 ADMIN）。
+  version: 1.0.0
+
+servers:
+  - url: http://{host}:8080/medbox/api/v1
+    variables:
+      host: { default: 192.168.1.10 }
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: admin-users
+    description: 测试数据清理（列用户 / 硬删 + 级联）
+  - name: admin-dashboard
+    description: 监控看板只读聚合（feat/backend-admin-dashboard）
+
+paths:
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin-users]
+      summary: 列出用户（供挑测试号）【ADMIN】
+      description: |
+        软删（status=DELETED）账号的 phone/username 已置 NULL，挑选用 userId + status + createdAt。
+        keyword 仅对非空列生效（LIKE 匹配 phone 或 username）。非 ADMIN → 40301。
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: 缺省=全部
+          schema: { type: string, enum: [ACTIVE, DELETED] }
+        - name: keyword
+          in: query
+          required: false
+          schema: { type: string }
+        - name: role
+          in: query
+          required: false
+          schema: { type: string, enum: [GUARDIAN, ELDER, ADMIN] }
+        - $ref: './common.yaml#/components/parameters/Page'
+        - $ref: './common.yaml#/components/parameters/Size'
+      responses:
+        '200':
+          description: 用户分页（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: './common.yaml#/components/schemas/PageResult'
+                          - type: object
+                            properties:
+                              list:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/AdminUserRow'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /admin/users/{userId}:
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin-users]
+      summary: 清理测试账号（硬删 + 级联）【ADMIN】
+      description: |
+        **护栏**：目标 status == ACTIVE → **拒绝 40902**（活跃账号禁止经管理接口硬删）。
+        通过护栏后：**硬删该用户 + 级联清其孤儿数据**（应用层按依赖顺序删，不依赖物理外键）。
+        **为什么硬删而非软删**：测试痕迹要彻底清除（软删仍留行与孤儿数据，达不到清理目的）；正因如此才要 ADMIN + ACTIVE 护栏双重保护。
+
+        **级联清理范围（先删子表再删 user 头，实现须对照 06 复核所有 user_id/elder_id/guardian_id 列）**：
+        1. med_plan_item（按 elder 的 plan）
+        2. med_plan（elder_id）
+        3. med_record（elder_id）
+        4. medicine_stock（elder_id）
+        5. device（elder_id，及其传感器子设备）
+        6. guardian_relation（elder_id OR guardian_id）
+        7. alarm / alarm_setting（elder_id）
+        8. capture（elder_id）
+        9. user（最后删除）
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: 清理成功（code=0，R<Void>）
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/R'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+        '409':
+          description: 活跃账号禁止硬删（40902）
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/R'
+              example:
+                code: 40902
+                message: 活跃账号禁止经管理接口硬删
+
+  /admin/dashboard/overview:
+    get:
+      operationId: adminDashboardOverview
+      tags: [admin-dashboard]
+      summary: 看板总览【ADMIN】
+      description: |
+        - devices.total/online/offline：device 表按 online_state 计数；mqttConnected 取 online_state='ONLINE' 计数
+          （device 表无独立 mqtt_connected 列，连接态由 online_state 表示，与 online 同源）；
+        - todayDose：今日（按**各老人设备本地时区**）应服/已服/漏服/待服：
+          totalSlots = 遍历每个有启用计划（status='ENABLED' AND sync_state <> 'SYNC_FAILED'）的老人，
+          以其 MAIN 设备 timezone 取「本地今日 00:00 ~ 明日 00:00」转 UTC 窗口，用 PlanSlotResolver 展开其全部计划 times 累加槽数；
+          taken = med_record.on_time=true AND plan_time ∈ 今日窗口；missed = on_time=false（复用 miss-alarm 落库口径，不实时重算）；
+          pending = totalSlots - taken - missed；
+        - elderCount = user 表 role='ELDER' 计数；planCount = med_plan 表 status='ENABLED' 计数。
+      responses:
+        '200':
+          description: 总览聚合（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminDashboardOverview'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /admin/dashboard/devices:
+    get:
+      operationId: adminDashboardDevices
+      tags: [admin-dashboard]
+      summary: 设备网络状态【ADMIN】
+      description: 按 last_heartbeat 倒序取最近 limit 条（默认 20、上限 50）。
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: 设备行列表（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AdminDeviceRow'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /admin/dashboard/adherence:
+    get:
+      operationId: adminDashboardAdherence
+      tags: [admin-dashboard]
+      summary: 服药依从率【ADMIN】
+      description: |
+        granularity 默认 week，可选 week|month；非法 → 40001。
+
+        - trend：窗口 week=近 7 天 / month=近 30 天（按 UTC 日计）；
+          totalSlots 为「当前 med_plan.times 按各设备时区展开」近似（假设窗口内计划稳定，计划曾变动则历史日有偏差，演示可接受）；
+          taken/missed 由 med_record 按 plan_time 的 UTC 日分组统计；rate = taken / totalSlots；
+          bucket：week → yyyy-Www（ISO 周）、month → yyyy-MM（按日聚合后再归并）；
+        - missByHour：med_record.on_time=false 按 plan_time 的 UTC 小时分桶（演示近似，标注）；
+        - byElder：按老人维度 rate = taken/totalSlots，取 top10；totalSlots 同上近似；elderName 由 med_record.elder_id 左联 user.name。
+      parameters:
+        - name: granularity
+          in: query
+          required: false
+          schema: { type: string, enum: [week, month], default: week }
+      responses:
+        '200':
+          description: 依从率聚合（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminAdherenceDashboard'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /admin/dashboard/messages:
+    get:
+      operationId: adminDashboardMessages
+      tags: [admin-dashboard]
+      summary: MQTT 消息流【ADMIN】
+      description: |
+        - 上行：来自 mqtt_message（06 §2.15，**仅上行去重**）；upLastMinute = received_at >= now - 1min；
+        - 下行：来自 device_command（06 §2.17）；downLastMinute = created_at >= now - 1min；
+        - 注：mqtt_message 只记录上行，device_command 才是下行事实来源。
+      responses:
+        '200':
+          description: 消息流统计（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminMessageFlow'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Authorization: Bearer {JWT}"
+  parameters:
+    AdminUserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        example: u-9999
+
+  schemas:
+    AdminUserRow:
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [ELDER, GUARDIAN, ADMIN]
+        name:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+          description: 软删账号已置 NULL
+        username:
+          type: string
+          nullable: true
+          description: 软删账号已置 NULL
+        status:
+          type: string
+          enum: [ACTIVE, DELETED]
+        createdAt:
+          type: string
+          format: date-time
+
+    AdminDeviceRow:
+      type: object
+      properties:
+        deviceId:
+          type: string
+        elderId:
+          type: string
+        elderName:
+          type: string
+          nullable: true
+          description: device.elder_id 左联 user.name
+        status:
+          type: string
+          enum: [ONLINE, OFFLINE]
+          description: online_state 字符串
+        lastHeartbeat:
+          type: string
+          format: date-time
+
+    AdminDashboardOverview:
+      type: object
+      properties:
+        devices:
+          type: object
+          properties:
+            total: { type: integer }
+            online: { type: integer }
+            offline: { type: integer }
+            mqttConnected:
+              type: integer
+              description: 取 online_state='ONLINE' 计数（与 online 同源）
+        todayDose:
+          type: object
+          properties:
+            totalSlots: { type: integer }
+            taken: { type: integer }
+            missed: { type: integer }
+            pending:
+              type: integer
+              description: totalSlots - taken - missed
+        elderCount:
+          type: integer
+        planCount:
+          type: integer
+
+    AdherenceTrendPoint:
+      type: object
+      properties:
+        bucket:
+          type: string
+          description: week → yyyy-Www（ISO 周）；month → yyyy-MM
+        totalSlots:
+          type: integer
+        taken:
+          type: integer
+        missed:
+          type: integer
+        rate:
+          type: number
+          description: taken / totalSlots
+
+    AdminAdherenceDashboard:
+      type: object
+      properties:
+        trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdherenceTrendPoint'
+        missByHour:
+          type: array
+          description: on_time=false 按 plan_time 的 UTC 小时分桶（演示近似，标注）
+          items:
+            type: object
+            properties:
+              hour: { type: integer }
+              count: { type: integer }
+        byElder:
+          type: array
+          description: 老人维度 top10
+          items:
+            allOf:
+              - $ref: '#/components/schemas/AdherenceTrendPoint'
+              - type: object
+                properties:
+                  elderId: { type: string }
+                  elderName:
+                    type: string
+                    nullable: true
+
+    AdminMessageFlow:
+      type: object
+      properties:
+        upTotal:
+          type: integer
+          description: mqtt_message（仅上行去重）
+        upLastMinute:
+          type: integer
+        downTotal:
+          type: integer
+          description: device_command（下行事实来源）
+        downLastMinute:
+          type: integer
