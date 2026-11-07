@@ -228,16 +228,16 @@ function createSeed() {
       deviceId: 'BOXA1001', captureId: '', actualDose: '1',
       planTime: isoOffset(-3 * DAY - 8 * HOUR), actualTime: isoOffset(-3 * DAY - 8 * HOUR + 60 * MINUTE),
       onTime: false, confirmedBy: '', confirmedAt: '',
-      // 低置信度待确认（feat/mp-capture-event）：confidence 低于阈值 + faceResult=UNCERTAIN
-      faceResult: 'UNCERTAIN', confidence: 0.45, pendingConfirm: true,
+      // feat/mp-capture-taken-result：取药结论二值化，不再有"待确认"派生态
+      takenResult: 'UNTAKEN',
     },
     {
       recordId: 'rec-9005', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
       deviceId: 'BOXA1002', captureId: 'cap-5001', actualDose: '10',
       planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR),
       onTime: true, confirmedBy: '', confirmedAt: '',
-      // 带抓拍的低置信度待确认（feat/mp-capture-event）：详情页原图 + 人工确认
-      faceResult: 'UNCERTAIN', confidence: 0.52, pendingConfirm: true,
+      // feat/mp-capture-taken-result：二值结论，监护人可校准 takenResult
+      takenResult: 'UNTAKEN',
     },
     {
       recordId: 'rec-9006', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
@@ -249,32 +249,32 @@ function createSeed() {
 
   // 抓拍（02b_设备管理.md §1.1；capture-core 已落地，fileToken 由 /captures/{id} 端点签发）。
   // 只存元数据；fileToken 不在种子里（每次 GET 实时签发），原图二进制由 /file 端点返回占位图。
-  // 关联 rec-9005（u-1002，UNCERTAIN 待确认）的可视原图。
+  // 关联 rec-9005（u-1002）的可视原图。
   const captures = [
     {
       captureId: 'cap-5001', deviceId: 'BOXA1002-S-CAM01', elderId: 'u-1002',
       medicineId: 'm-205', planId: 'p-3303', reason: 'NORMAL',
-      mime: 'image/png', sizeBytes: 48213, confidence: 0.52, faceResult: 'UNCERTAIN',
+      mime: 'image/png', sizeBytes: 48213, takenResult: 'TAKEN',
       capturedAt: isoOffset(-1 * DAY - 8 * HOUR), viewedAt: null, expireAt: isoOffset(29 * DAY),
     },
     {
-      // 监护人主动留证（异常排查）：reason=MANUAL，无 faceResult / confidence（02 §4.1 允许）
+      // 监护人主动留证（异常排查）：reason=MANUAL（02 §4.1）
       captureId: 'cap-5002', deviceId: 'BOXA1002-S-CAM01', elderId: 'u-1002',
       medicineId: 'm-205', planId: '', reason: 'MANUAL',
-      mime: 'image/png', sizeBytes: 39120, confidence: null, faceResult: '',
+      mime: 'image/png', sizeBytes: 39120, takenResult: '',
       capturedAt: isoOffset(-3 * DAY), viewedAt: null, expireAt: isoOffset(27 * DAY),
     },
     {
       captureId: 'cap-5003', deviceId: 'BOXA1001-S-CAM01', elderId: 'u-1001',
       medicineId: 'm-201', planId: 'p-3301', reason: 'NORMAL',
-      mime: 'image/jpeg', sizeBytes: 51234, confidence: 0.91, faceResult: 'TAKEN',
+      mime: 'image/jpeg', sizeBytes: 51234, takenResult: 'TAKEN',
       capturedAt: isoOffset(-2 * DAY), viewedAt: null, expireAt: isoOffset(28 * DAY),
     },
     {
       // 已过期样例：expireAt 已在过去，/file 返回 404/401，前端提示"原图已过期"
       captureId: 'cap-5004', deviceId: 'BOXA1001-S-CAM01', elderId: 'u-1001',
       medicineId: '', planId: '', reason: 'MANUAL',
-      mime: 'image/png', sizeBytes: 12030, confidence: null, faceResult: '',
+      mime: 'image/png', sizeBytes: 12030, takenResult: '',
       capturedAt: isoOffset(-40 * DAY), viewedAt: null, expireAt: isoOffset(-10 * DAY),
     },
   ]

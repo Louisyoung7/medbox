@@ -11,7 +11,6 @@
 
 import { ROLE } from '@/store/user.js'
 import { formatDateTime } from '@/utils/datetime.js'
-import { isUncertain } from '@/utils/capture.js'
 
 /**
  * 记录列表分页响应容错解析。
@@ -47,22 +46,18 @@ export function canWriteRecord(role) {
 }
 
 /**
- * 按时 / 待确认 / 已确认 标签（直接映射后端字段，不做判定）。
+ * 按时 / 已确认 标签（直接映射后端字段，不做判定）。
  *
- * <p>优先级：`isUncertain` 命中（低置信度 `UNCERTAIN` / `pendingConfirm`）→ 待确认（pending），
- * 置顶高亮；`onTime=true` → 按时（ok）；否则 → 未按时（warn）。
- * `confirmedBy` 存在（监护人已补录 / 确认）→ 追加"已确认"（info）。
- * `level` 仅作 CSS 配色语义，页面自行映射到样式类（`tag--pending` 橙黄高亮）。
+ * <p>`onTime=true` → 按时（ok）；否则 → 未按时（warn）。
+ * `confirmedBy` 存在（监护人已补录 / 校准）→ 追加"已确认"（info）。
+ * `level` 仅作 CSS 配色语义，页面自行映射到样式类。
  *
  * @param {Object} [record]
- * @returns {Array<{text: string, level: 'ok'|'warn'|'info'|'pending'}>}
+ * @returns {Array<{text: string, level: 'ok'|'warn'|'info'}>}
  */
 export function recordStatusTags(record) {
   const r = record || {}
   const tags = []
-  if (isUncertain(r)) {
-    tags.push({ text: '待确认', level: 'pending' })
-  }
   if (r.onTime) {
     tags.push({ text: '按时', level: 'ok' })
   } else {
@@ -107,6 +102,3 @@ export function formatPlanTime(record) {
 export function formatActualTime(record) {
   return formatDateTime(record && record.actualTime)
 }
-
-// 待确认态判定统一从 capture 域复用，页面可直接从本模块引入，减少导入面。
-export { isUncertain } from '@/utils/capture.js'

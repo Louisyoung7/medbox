@@ -1310,11 +1310,8 @@ function buildRecordView(record) {
     onTime: !!record.onTime,
     confirmedBy: record.confirmedBy || undefined,
     confirmedAt: record.confirmedAt || undefined,
-    // 待确认态（feat/mp-capture-event）：后端为派生态，Mock 直接存派生标志；
-    // confidence / faceResult 一并回传供前端兜底展示。
-    pendingConfirm: !!record.pendingConfirm,
-    faceResult: record.faceResult || undefined,
-    confidence: typeof record.confidence === 'number' ? record.confidence : undefined,
+    // feat/mp-capture-taken-result：取药结论二值化，不再有"待确认"派生态
+    takenResult: record.takenResult || undefined,
     planName: (plan && plan.name) || '未命名计划',
     medicineName: (medicine && medicine.name) || record.medicineId || '未知药品',
     medicineDose: (item && item.dose) || (medicine && medicine.dosePerTime) || '',
@@ -1335,10 +1332,6 @@ async function handleListRecords(req, res, query) {
   let list = state.records.filter((r) => r.elderId === elderId)
   if (from && isValidDate(from)) list = list.filter((r) => dateOf(r.planTime) >= from)
   if (to && isValidDate(to)) list = list.filter((r) => dateOf(r.planTime) <= to)
-  // 待确认筛选（feat/mp-capture-event）：监护人"仅看待确认"
-  if (query.pendingConfirm === 'true' || query.pendingConfirm === true) {
-    list = list.filter((r) => r.pendingConfirm)
-  }
   const page = Math.max(1, Number(query.page) || 1)
   const size = Math.min(100, Math.max(1, Number(query.size) || 20))
   const total = list.length
@@ -1474,7 +1467,7 @@ async function handleExportRecords(req, res, query) {
   const rows = list.map((r) => {
     const v = buildRecordView(r)
     const onTimeText = r.onTime === true ? '是' : r.onTime === false ? '否' : '未判定'
-    const conclusion = r.pendingConfirm ? '待确认' : r.confirmedBy ? '已确认' : '正常'
+    const conclusion = r.confirmedBy ? '已确认' : '正常'
     const source = r.captureId ? '智能药箱抓拍' : '手动录入'
     const dose = [v.medicineDose, v.medicineUnit].filter(Boolean).join('')
     return [r.recordId, r.elderId, v.planName, v.medicineName, v.planTime, v.actualTime, onTimeText, conclusion, source, dose, r.captureId || '', r.deviceId]
@@ -1503,17 +1496,15 @@ async function handleConfirmRecord(req, res, recordId, body) {
   record.confirmedBy = user.userId
   record.confirmedAt = isoNow()
   if (body && body.note) record.note = String(body.note)
-  // 待确认人工确认（feat/mp-capture-event，02 §7.1）：监护人看图后改写 faceResult，
-  // confidence 置空、pendingConfirm 解除；确认 TAKEN 触发库存扣减（Mock 不落库存）。
-  if (body && (body.faceResult === 'TAKEN' || body.faceResult === 'ABSENT')) {
-    record.faceResult = body.faceResult
-    record.confidence = null
-    record.pendingConfirm = false
+  // 监护人校准服药结论（feat/mp-capture-taken-result，02 §7.1）：
+  // 仅接受二值 takenResult（TAKEN / UNTAKEN），确认 TAKEN 触发库存扣减（Mock 不落库存）。
+  if (body && (body.takenResult === 'TAKEN' || body.takenResult === 'UNTAKEN')) {
+    record.takenResult = body.takenResult
   }
   ok(res, buildRecordView(record))
 }
 
-// ---------------------------------------------------------------- 抓拍（02b_设备管理.md §1.1；feat/mp-capture-event）
+// ---------------------------------------------------------------- 抓拍（02b_设备管理.md §1.1；feat/mp-capture-taken-result 二值结论）
 
 /** 1x1 透明 PNG（占位原图；Mock 不存真图）。 */
 const PNG_1X1 = Buffer.from(
@@ -1539,8 +1530,7 @@ async function handleGetCapture(req, res, captureId) {
     reason: capture.reason || 'NORMAL',
     mime: capture.mime || 'image/png',
     sizeBytes: capture.sizeBytes || 0,
-    confidence: typeof capture.confidence === 'number' ? capture.confidence : undefined,
-    faceResult: capture.faceResult || undefined,
+    takenResult: capture.takenResult || undefined,
     capturedAt: capture.capturedAt,
     viewedAt: capture.viewedAt || undefined,
     expireAt: capture.expireAt || undefined,
@@ -1592,8 +1582,7 @@ async function handleListCaptures(req, res, query) {
     reason: c.reason || 'NORMAL',
     mime: c.mime || 'image/png',
     sizeBytes: c.sizeBytes || 0,
-    confidence: typeof c.confidence === 'number' ? c.confidence : undefined,
-    faceResult: c.faceResult || undefined,
+    takenResult: c.takenResult || undefined,
     capturedAt: c.capturedAt,
     viewedAt: c.viewedAt || undefined,
     expireAt: c.expireAt || undefined,

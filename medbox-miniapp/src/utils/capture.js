@@ -1,32 +1,18 @@
 /**
- * 抓拍 / 待确认态纯函数（`feat/mp-capture-event`，对应 medbox-spec/02b_设备管理.md §1.1、
+ * 抓拍 / 服药结论纯函数（`feat/mp-capture-taken-result`，对应 medbox-spec/02b_设备管理.md §1.1、
  * 02e_服药记录与依从性.md §1.1）。
  *
- * <p>只放与页面解耦、可单测的逻辑：待确认判定、fileToken 图片 URL 拼接、抓拍元数据容错解析、
- * 确认请求体组装。后端 `backend-capture-event` 未落地，字段对 `pendingConfirm` / `faceResult`
- * / `confidence` 缺失做容错；后端定稿后仅改本文件即可收紧。
+ * <p>只放与页面解耦、可单测的逻辑：fileToken 图片 URL 拼接、抓拍元数据容错解析、
+ * 确认请求体组装。后端契约（`feat/backend-capture-taken-result` 已落地）：取药结论二值化
+ * `takenResult`（`TAKEN` 已取药 / `UNTAKEN` 未取药），不再报 `confidence`、不再有
+ * `UNCERTAIN` 第三态、不再有"待确认"派生态（`pendingConfirm`）。
  *
  * <p>本文件为纯函数，**不引入 `@/config/index.js`**（`uni.getStorageSync` 在 Vitest 下不可用），
  * 故 {@link buildCaptureFileUrl} 的 `baseUrl` 由调用方（页面，已处于 uni 运行时）传入，
  * 默认空串返回相对路径。
  */
 
-/**
- * 记录是否处于"待确认"态。
- *
- * <p>口径（02 §7.1）：`pendingConfirm` 是 `med_record` 派生态
- * `(confidence IS NULL OR confidence < 阈值) OR faceResult = 'UNCERTAIN'`；
- * 后端未落地时为兼容契约，前端以 `pendingConfirm === true` 或 `faceResult === 'UNCERTAIN'`
- * 任一命中即判待确认。
- *
- * @param {Object} [record]
- * @returns {boolean}
- */
-export function isUncertain(record) {
-  const r = record || {}
-  if (r.pendingConfirm === true) return true
-  return r.faceResult === 'UNCERTAIN'
-}
+import { formatDateTime, parseUtc } from '@/utils/datetime.js'
 
 /**
  * 拼接抓拍原图访问 URL（fileToken 短时令牌，拼 query，不暴露长期 JWT）。
@@ -49,46 +35,36 @@ export function buildCaptureFileUrl(captureId, fileToken, baseUrl = '') {
 /**
  * 抓拍元数据容错解析（`GET /captures/{captureId}` → `CaptureResponse`，见 02 §4.1.2）。
  *
- * <p>只抽取页面需要的字段，缺省给空串 / undefined，避免空值视图崩溃。
+ * <p>只抽取页面需要的字段，缺省给空串，避免空值视图崩溃。
  *
  * @param {Object|null|undefined} data 请求层兑现的 `data`
- * @returns {{ captureId: string, fileToken: string, faceResult: string, confidence: (number|null), expireAt: string, mime: string }}
+ * @returns {{ captureId: string, fileToken: string, takenResult: string, expireAt: string, mime: string }}
  */
-
-import { formatDateTime, parseUtc } from '@/utils/datetime.js'
-
 export function parseCapture(data) {
   const d = data || {}
-  let confidence = null
-  if (typeof d.confidence === 'number') confidence = d.confidence
-  else if (typeof d.confidence === 'string' && d.confidence !== '') {
-    const n = Number(d.confidence)
-    if (!Number.isNaN(n)) confidence = n
-  }
   return {
     captureId: d.captureId || '',
     fileToken: d.fileToken || '',
-    faceResult: d.faceResult || '',
-    confidence,
+    takenResult: d.takenResult || '',
     expireAt: d.expireAt || '',
     mime: d.mime || '',
   }
 }
 
 /**
- * 组装人工确认请求体（`POST /records/{recordId}/confirm` 的 UNCERTAIN 分支）。
+ * 组装人工确认请求体（`POST /records/{recordId}/confirm`）。
  *
- * <p>02 §7.1：监护人看图后改写 `faceResult` 为 `TAKEN`（确认已服）/ `ABSENT`（确认未服），
- * `source` 恒置 `MANUAL`、`confidence` 可置空；仅非空的 `faceResult` 入参，
- * `note` 选填（去空白后空则不传）。普通补录（不带 faceResult）时 `payload` 为空对象。
+ * <p>02 §7.1：监护人校准 / 补录，改写 `takenResult`（`TAKEN` 已服 / `UNTAKEN` 未服），
+ * `source` 恒置 `MANUAL`（由后端强制写入）；仅非空的 `takenResult` 入参，
+ * `note` 选填（去空白后空则不传）。普通补录（不带 takenResult）时 `payload` 为空对象。
  *
- * @param {{ faceResult?: string, note?: string }} [opts]
+ * @param {{ takenResult?: string, note?: string }} [opts]
  * @returns {Object}
  */
 export function buildConfirmPayload(opts) {
-  const { faceResult, note } = opts || {}
+  const { takenResult, note } = opts || {}
   const payload = {}
-  if (faceResult === 'TAKEN' || faceResult === 'ABSENT') payload.faceResult = faceResult
+  if (takenResult === 'TAKEN' || takenResult === 'UNTAKEN') payload.takenResult = takenResult
   const trimmed = note && String(note).trim()
   if (trimmed) payload.note = trimmed
   return payload
@@ -122,11 +98,10 @@ export const REASON_LABEL = {
   MANUAL: '主动留证',
 }
 
-/** `faceResult` 三态文案（TAKEN 已服 / ABSENT 未服 / UNCERTAIN 待确认）。 */
-export const FACE_RESULT_LABEL = {
+/** `takenResult` 二值文案（`TAKEN` 已服 / `UNTAKEN` 未服）。 */
+export const TAKEN_RESULT_LABEL = {
   TAKEN: '已服',
-  ABSENT: '未服',
-  UNCERTAIN: '待确认',
+  UNTAKEN: '未服',
 }
 
 /**
@@ -147,26 +122,19 @@ export function isExpired(expireAt, now = new Date()) {
 }
 
 /**
- * 抓拍视图归一化（列表项 / 查看器共用）：字段兜底 + 文案 + 时间本地化 + 待确认 / 过期标记。
+ * 抓拍视图归一化（列表项 / 查看器共用）：字段兜底 + 文案 + 时间本地化 + 过期标记。
  *
- * <p>只抽取页面需要字段，缺省兜底空串 / null / false，避免空值视图崩溃。后端未落地时
- * 各字段已做容错；后端定稿后仅改本文件即可收紧。
+ * <p>只抽取页面需要字段，缺省兜底空串 / null / false，避免空值视图崩溃。
  *
  * @param {Object|null|undefined} data `CaptureResponse`（列表 item 或详情）
- * @returns {Object} 含 `captureId` / `fileToken` / `reason` / `reasonLabel` / `faceResultLabel` /
- *   `confidence` / `capturedAtText` / `expireAtText` / `uncertain` / `expired` / `thumbnailUrl`(需调用方补)
+ * @returns {Object} 含 `captureId` / `fileToken` / `reason` / `reasonLabel` / `takenResult` /
+ *   `takenResultLabel` / `mime` / `sizeBytes` / `capturedAtText` / `expireAtText` / `expired` /
+ *   `thumbnailUrl`(需调用方补)
  */
 export function toCaptureView(data) {
   const d = data || {}
-  let confidence = null
-  if (typeof d.confidence === 'number') confidence = d.confidence
-  else if (typeof d.confidence === 'string' && d.confidence !== '') {
-    const n = Number(d.confidence)
-    if (!Number.isNaN(n)) confidence = n
-  }
   const reason = d.reason || ''
-  const faceResult = d.faceResult || ''
-  const uncertain = faceResult === 'UNCERTAIN'
+  const takenResult = d.takenResult || ''
   return {
     captureId: d.captureId || '',
     deviceId: d.deviceId || '',
@@ -175,9 +143,8 @@ export function toCaptureView(data) {
     planId: d.planId || '',
     reason,
     reasonLabel: REASON_LABEL[reason] || reason || '未知',
-    faceResult,
-    faceResultLabel: FACE_RESULT_LABEL[faceResult] || '',
-    confidence,
+    takenResult,
+    takenResultLabel: TAKEN_RESULT_LABEL[takenResult] || '',
     mime: d.mime || '',
     sizeBytes: typeof d.sizeBytes === 'number' ? d.sizeBytes : 0,
     capturedAt: d.capturedAt || '',
@@ -186,7 +153,6 @@ export function toCaptureView(data) {
     expireAt: d.expireAt || '',
     expireAtText: formatDateTime(d.expireAt),
     fileToken: d.fileToken || '',
-    uncertain,
     expired: isExpired(d.expireAt),
   }
 }
