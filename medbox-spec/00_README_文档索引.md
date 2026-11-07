@@ -17,6 +17,7 @@
 | `05_AI大模型与RAG方案.md` | 大模型接入（洞察层）：分析 / 预测 / 建议接口、LLM 配置（BYOK，监护人代配 Key）；后端不托管大模型、不做 RAG | 后端 |
 | `06_数据库设计.md` | 数据库**表结构**：实体关系、PostgreSQL 关系表建表 DDL；**判定/生成类业务规则见 `11`** | 后端 |
 | `11_业务规则.md` | **判定与生成类业务规则**：med_record 服药判定、MISS/ENV 告警判定、REMINDER 提醒生成、漏服/时区/容忍公共口径（库表字段与 DDL 见 `06`） | 后端 |
+| `openapi/`（**本目录子目录**） | **REST 接口的 OpenAPI 机器可读版（已覆盖 02a~02h 全部模块）**：`common.yaml`（公共组件：统一响应 / 通用错误码响应 / 分页 / X-Request-Id，各分册跨文件 `$ref`）+ `02a-auth-users` `02b-devices` `02c-medicines` `02d-plans` `02e-records` `02f-alarms` `02g-env` `02h-admin` 共 8 份契约 yaml（经 redocly lint 零告警）+ `api-docs-<模块>.html`（`npx @redocly/cli build-docs` 生成的人类可读 WebUI，可离线分享）+ `swagger-ui.html`（浏览器调试页，`npx serve .` 后访问 `swagger-ui.html?spec=<模块>.yaml`，Try it out 直连真实后端）+ `redocly.yaml`（lint 配置）。**契约（端点 / 字段 / 响应示例 / 错误码）以 YAML 为准**；`02a`~`02h` 分册只保留判定规则表、边界用例与口径说明（已按此精简），两者不一致即视为缺陷 | 后端 / 小程序 / 全员 |
 | `07_特性分支清单_后端.md` | **Java 后端的特性分支清单**：按**实施顺序**组织 —— 地基 → P0 主干闭环 → P1 完善 → **P2 改造 + 原 P1 剩余** → **P3 锦上添花（原 P2）**（共 37 个分支）；跨端依赖以 `08` 各分支依赖列为准（`07` 不再维护反向索引，见本表说明） | 后端 |
 | `08_特性分支清单_小程序.md` | **uni-app 小程序的特性分支清单**：同样按实施顺序组织，跟随后端进度（23 个分支）；**每个分支的依赖列分「本端 / 后端」两段**，标明要等后端哪个分支落地 | 小程序 |
 | `09_管理后台设计_medbox-admin.md` | **Web 管理后台 `medbox-admin/` 的特性分支清单**（结构同 `07`/`08`）：本期只认领 `feat/admin-testdata-cleanup`（测试数据清理 dev/QA 工具），接口契约见 `02h_管理员接口.md` 第 1 章 / `06` 的 2.1 | 后端 / Web |

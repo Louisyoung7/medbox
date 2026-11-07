@@ -1,0 +1,301 @@
+openapi: 3.0.3
+info:
+  title: medbox · 告警（02f OpenAPI 版）
+  description: |
+    `medbox-spec/02f_告警.md` 的机器可读版。通用约定见 `common.yaml`。
+    列表/处理走 REST；实时推送走 WebSocket（ALARM 帧 → 全局弹窗 + 未读 +1；RESYNC → 列表全量拉取；REMINDER 帧是多药提醒、非告警、不进列表，见 04）。
+
+    **告警类型枚举**：
+    | type | 触发来源 | 说明 |
+    |---|---|---|
+    | MISS | 后端判定 | 计划时间+容忍时长内未收到该计划服药事件（定时判定生成并经 WS 推送） |
+    | ENV | 设备上报 | 温度/湿度/光照超出该老人统一配置的 envThreshold（不按药品细分，01 §5.4） |
+    | DEVICE_OFFLINE | 后端判定 | 心跳超时，设备离线超阈值（仅主控，传感器子设备离线不生成告警） |
+    | DEVICE_FAULT | 设备上报 | 设备侧异常（up/event/error）：门超时 / 识别失败 / 硬件故障 |
+
+    **权限**：列表/未读/已读/设置查询属 READ_ALARM（老人本人 + GUARDIAN）；handleAlarm 属 HANDLE_ALARM（仅 GUARDIAN）；PUT /alarm-settings 属 WRITE_ALARM_SETTINGS（仅 GUARDIAN，非 GUARDIAN 写 → 40301）。
+  version: 1.0.0
+
+servers:
+  - url: http://{host}:8080/medbox/api/v1
+    variables:
+      host: { default: 192.168.1.10 }
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: alarms
+    description: 告警列表 / 处理
+  - name: alarm-settings
+    description: 老人级告警规则与阈值
+
+paths:
+  /alarms:
+    get:
+      operationId: listAlarms
+      tags: [alarms]
+      summary: 告警分页（漏服/环境超标）【鉴权·READ_ALARM】
+      description: |
+        type / readState 传 ALL 视为不过滤。列表响应兼容 {list,total} / {records} / {items} / 裸数组（前端归一化容错）。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AlarmType'
+          description: ALL 不过滤
+        - name: readState
+          in: query
+          required: false
+          description: 已读/未读过滤；ALL 不过滤
+          schema: { type: string }
+        - $ref: './common.yaml#/components/parameters/Page'
+        - $ref: './common.yaml#/components/parameters/Size'
+      responses:
+        '200':
+          description: 告警分页（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: './common.yaml#/components/schemas/PageResult'
+                          - type: object
+                            properties:
+                              list:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/Alarm'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /alarms/unread-count:
+    get:
+      operationId: getUnreadCount
+      tags: [alarms]
+      summary: 未读告警数（小程序角标）【鉴权·READ_ALARM】
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 未读数（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          count:
+                            type: integer
+                            example: 3
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /alarms/{alarmId}/read:
+    patch:
+      operationId: markAlarmRead
+      tags: [alarms]
+      summary: 标记已读【鉴权·READ_ALARM】
+      parameters:
+        - $ref: '#/components/parameters/AlarmId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: 标记成功（code=0）
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/R'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /alarms/{alarmId}/handle:
+    patch:
+      operationId: handleAlarm
+      tags: [alarms]
+      summary: 处理/确认告警【鉴权·HANDLE_ALARM（仅 GUARDIAN）】
+      description: GUARDIAN 闭环；老人写 → 40301；PENDING → 40302。
+      parameters:
+        - $ref: '#/components/parameters/AlarmId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: 处理成功（code=0）
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/R'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /alarm-settings:
+    get:
+      operationId: getAlarmSettings
+      tags: [alarm-settings]
+      summary: 查询当前告警配置【鉴权·READ_ALARM】
+      description: alarm_setting 每老人一行（elder_id UNIQUE）。缺字段兜底默认值（提前期 10 / 漏服容忍 15 / 温湿光上下限）。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 当前配置（code=0）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlarmSettings'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+    put:
+      operationId: saveAlarmSettings
+      tags: [alarm-settings]
+      summary: 配置告警规则与阈值【鉴权·WRITE_ALARM_SETTINGS（仅 GUARDIAN）】
+      description: |
+        提前期 / 环境上下限 / 漏服容忍；非 GUARDIAN 写 → 40301。
+        每老人一行，无则插入、有则更新；**请求字段可选、仅提供项覆盖原值**（不传的字段保持原值）。
+        环境阈值按老人统一配置（不按药品细分）；判定口径见 01 §5.4。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmSettings'
+      responses:
+        '200':
+          description: 保存成功（code=0，data 为更新后的完整配置）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlarmSettings'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Authorization: Bearer {JWT}"
+  parameters:
+    AlarmId:
+      name: alarmId
+      in: path
+      required: true
+      schema:
+        type: string
+        example: al-5001
+
+  schemas:
+    AlarmType:
+      type: string
+      enum: [MISS, ENV, DEVICE_OFFLINE, DEVICE_FAULT]
+
+    Alarm:
+      type: object
+      properties:
+        alarmId:
+          type: string
+          example: al-5001
+        elderId:
+          type: string
+        type:
+          $ref: '#/components/schemas/AlarmType'
+        level:
+          type: string
+          description: 告警级别（以最终实现为准）
+        title:
+          type: string
+        detail:
+          type: string
+          nullable: true
+        readState:
+          type: string
+          description: 已读/未读
+        handledAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    EnvThreshold:
+      type: object
+      description: |
+        按老人统一配置（不按药品细分）。前端兼容两种形状：扁平 {tempMin,tempMax,humiMin,humiMax,luxMax}（06 §2.10）
+        与嵌套 {temp:{min,max},humidity:{min,max},light:{min,max}}（已落代码/Mock）——统一输出嵌套。
+      properties:
+        tempMin:
+          type: number
+          nullable: true
+        tempMax:
+          type: number
+          nullable: true
+        humiMin:
+          type: number
+          nullable: true
+        humiMax:
+          type: number
+          nullable: true
+        luxMax:
+          type: number
+          nullable: true
+
+    AlarmSettings:
+      type: object
+      description: alarm_setting 每老人一行；请求字段可选、仅提供项覆盖原值
+      properties:
+        elderId:
+          type: string
+        remindAheadMin:
+          type: integer
+          nullable: true
+          description: 提醒提前期（分钟），缺省兜底 10
+        missTolerateMin:
+          type: integer
+          nullable: true
+          description: 漏服容忍（分钟），缺省兜底 15；低于计划级 missAlarmAfterMin
+        envThreshold:
+          $ref: '#/components/schemas/EnvThreshold'

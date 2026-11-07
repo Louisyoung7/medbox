@@ -1,0 +1,381 @@
+openapi: 3.0.3
+info:
+  title: medbox · 服药记录与依从性（02e OpenAPI 版）
+  description: |
+    `medbox-spec/02e_服药记录与依从性.md` 的机器可读版。通用约定见 `common.yaml`。
+    设备上报已二值化（takenResult = TAKEN/UNTAKEN，见 02b §1.1 / 11 §1）：UNTAKEN 记录**为终态、不再要求监护人复核**，
+    抓拍原图仅作留证回看。本系统**不再有「待确认」派生态**，列表不提供 pendingConfirm 过滤。
+  version: 1.0.0
+
+servers:
+  - url: http://{host}:8080/medbox/api/v1
+    variables:
+      host: { default: 192.168.1.10 }
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: records
+    description: 服药记录查询 / 手动补录纠错
+  - name: adherence
+    description: 依从性统计 / 报告导出
+
+paths:
+  /records:
+    get:
+      operationId: listRecords
+      tags: [records]
+      summary: 服药记录分页【鉴权·READ_RECORD】
+      description: |
+        分页按通用约定（page/size/total）；详情由后端 join 计划名/药品名返回；列表/详情不暴露文件流，只回传 captureId（取文件归抓拍接口）；列表项带 hasCapture（仅 UNTAKEN 带图记录为 true）。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - $ref: './common.yaml#/components/parameters/Page'
+        - $ref: './common.yaml#/components/parameters/Size'
+      responses:
+        '200':
+          description: 记录分页（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: './common.yaml#/components/schemas/PageResult'
+                          - type: object
+                            properties:
+                              list:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/MedRecord'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /records/export:
+    get:
+      operationId: exportRecords
+      tags: [adherence]
+      summary: 导出服药报告 CSV【鉴权·EXPORT_RECORD（仅 GUARDIAN）】
+      description: |
+        越权 / PENDING → 40301 / 40302。
+        响应为 **CSV 文件流**（Content-Type: text/csv; charset=utf-8，Content-Disposition: attachment; filename="medication-records-{elderId}-{from}-{to}.csv"，带 UTF-8 BOM 便于 Excel），**不走 R<T> 包装**。
+        from/to 可选（ISO-8601）：都不传 → 默认最近 30 天；仅传其一 → 另一边界按 30 天窗口推导；格式非法 → 40001。
+        CSV 列：`记录ID,老人ID,计划名,药品名称,计划时间,实际时间,是否按时,结论,来源,剂量,抓拍ID,设备ID`（RFC 4180 转义；时间列 ISO-8601）。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: CSV 文件流（不走统一响应体）
+          content:
+            text/csv:
+              schema: { type: string }
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+  /records/{recordId}:
+    get:
+      operationId: getRecord
+      tags: [records]
+      summary: 记录详情（关联计划与抓拍留证）【鉴权·READ_RECORD】
+      parameters:
+        - $ref: '#/components/parameters/RecordId'
+      responses:
+        '200':
+          description: 记录详情（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MedRecord'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /records/{recordId}/confirm:
+    post:
+      operationId: confirmRecord
+      tags: [records]
+      summary: 监护人手动补录 / 纠错（单接口双语义）【鉴权·WRITE_RECORD（仅 GUARDIAN）】
+      description: |
+        老人写 40301、监护 PENDING 40302。先按 {recordId} 查库：
+
+        ① **命中已有记录 → 纠错**：仅覆盖请求体里**非空**的 actualTime/actualDose/onTime/takenResult（设备误判时监护人改写 TAKEN/UNTAKEN），source 恒置 MANUAL；
+        ② **记录不存在 → 新建（补录）**：路径 {recordId} **被忽略**，服务端生成新 mr- 号并在响应返回；请求体须带 elderId/planId/planItemId/medicineId（缺任一带 40001，计划/药品查不到带 40401），source=MANUAL，planTime 经就近槽重算（无 planId/算不出则 NULL）。
+
+        **库存联动（11 §1 口径）**：补录 TAKEN 触发库存扣减（同一条记录仅扣一次）；纠错改写为 TAKEN 会事后补扣；UNTAKEN 不扣。
+        **MISS 不受影响**：漏服仅由「规定时间内无上报」触发，超时未补录仍判 MISS。
+      parameters:
+        - $ref: '#/components/parameters/RecordId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordConfirmRequest'
+      responses:
+        '200':
+          description: 补录/纠错成功（code=0，data 为记录；补录时 recordId 为服务端生成的新号）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MedRecord'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /adherence:
+    get:
+      operationId: getAdherence
+      tags: [adherence]
+      summary: 依从性统计【鉴权·READ_ADHERENCE（全角色，老人仅本人）】
+      description: |
+        period 为**滚动窗口**（终点恒为当前时刻，窗口边界取 UTC 瞬时）：day=最近 24h、week=最近 7 天、month=最近 30 天；period 非法（含空）→ 40001。
+
+        **统计口径（分源）**：
+        - onTimeRate = 周期内 on_time=true 记录数 ÷ totalDoses（含 on_time 三态，即所有有 actual_time 的记录）；
+        - missCount = 周期内 alarm.type='MISS' 条数；**迟到（on_time=false 但有记录）不计入漏服**（11 §2/§5）；
+        - lateCount（on_time=false）、unjudgedCount（on_time=null，无匹配槽/无 plan_time）。
+        - dailyBreakdown：按老人 MAIN 设备时区（缺省 Asia/Shanghai）做**本地日分桶**趋势（含无数据日，totalDoses=0 时 onTimeRate=0.0），便于画连续折线。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        '200':
+          description: 依从性统计（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdherenceResponse'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Authorization: Bearer {JWT}"
+  parameters:
+    RecordId:
+      name: recordId
+      in: path
+      required: true
+      schema:
+        type: string
+        example: mr-1001
+
+  schemas:
+    MedRecordSource:
+      type: string
+      enum: [DEVICE, MANUAL]
+
+    MedRecord:
+      type: object
+      properties:
+        recordId:
+          type: string
+          example: mr-1001
+        elderId:
+          type: string
+        planId:
+          type: string
+          nullable: true
+        planItemId:
+          type: string
+          nullable: true
+        medicineId:
+          type: string
+          nullable: true
+        planName:
+          type: string
+          nullable: true
+          description: 后端 join 计划名返回
+        medicineName:
+          type: string
+          nullable: true
+          description: 后端 join 药品名返回
+        planTime:
+          type: string
+          format: date-time
+          nullable: true
+        actualTime:
+          type: string
+          format: date-time
+          nullable: true
+        onTime:
+          type: boolean
+          nullable: true
+          description: 三态：true 按时 / false 迟到 / null 未判定（无匹配槽/无 plan_time）
+        takenResult:
+          description: 可空
+          allOf:
+            - $ref: './02b-devices.yaml#/components/schemas/TakenResult'
+        actualDose:
+          type: string
+          nullable: true
+        source:
+          $ref: '#/components/schemas/MedRecordSource'
+        captureId:
+          type: string
+          nullable: true
+          description: 只回传 captureId，取文件归抓拍接口（02b §1.1）
+        hasCapture:
+          type: boolean
+          nullable: true
+          description: 列表项缩略图占位，仅 UNTAKEN 带图记录为 true
+
+    RecordConfirmRequest:
+      type: object
+      description: |
+        纠错（记录已存在）：全部字段可选，仅非空项覆盖。
+        补录（记录不存在）：elderId/planId/planItemId/medicineId 必带。
+      properties:
+        elderId:
+          type: string
+          nullable: true
+          description: 补录时必带
+        planId:
+          type: string
+          nullable: true
+          description: 补录时必带
+        planItemId:
+          type: string
+          nullable: true
+          description: 补录时必带
+        medicineId:
+          type: string
+          nullable: true
+          description: 补录时必带
+        actualTime:
+          type: string
+          format: date-time
+          nullable: true
+        actualDose:
+          type: string
+          nullable: true
+        onTime:
+          type: boolean
+          nullable: true
+        takenResult:
+          description: 可空；纠错改写 TAKEN/UNTAKEN，改 TAKEN 事后补扣库存
+          allOf:
+            - $ref: './02b-devices.yaml#/components/schemas/TakenResult'
+
+    AdherenceResponse:
+      type: object
+      properties:
+        elderId:
+          type: string
+        period:
+          type: string
+          enum: [day, week, month]
+        windowStart:
+          type: string
+          format: date-time
+          description: UTC 瞬时
+        windowEnd:
+          type: string
+          format: date-time
+        totalDoses:
+          type: integer
+        onTimeCount:
+          type: integer
+        lateCount:
+          type: integer
+          description: on_time=false
+        unjudgedCount:
+          type: integer
+          description: on_time=null
+        onTimeRate:
+          type: number
+          minimum: 0
+          maximum: 1
+        missCount:
+          type: integer
+          description: 周期内 alarm.type='MISS' 条数；迟到不计入
+        dailyBreakdown:
+          type: array
+          description: 按老人 MAIN 设备时区本地日分桶，含无数据日
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                description: yyyy-MM-dd（本地日）
+              onTimeRate:
+                type: number
+                description: totalDoses=0 时为 0.0
+              totalDoses:
+                type: integer
+              onTimeCount:
+                type: integer
+              missCount:
+                type: integer
