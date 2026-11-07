@@ -1,0 +1,11 @@
+# redocly 配置：medbox-spec/openapi/
+# - 本仓库为内部文档集（非开源），不开 info-license-strict
+# - /users/{elderId}/profile 与 /users/guardians/{relationId} 的「歧义」是既有 API 路径设计
+#   （Spring 实际运行无歧义：固定段 guardians 优先匹配），属已知口径，不告警
+extends:
+  - recommended
+
+rules:
+  info-license: off
+  info-license-strict: off
+  no-ambiguous-paths: off
