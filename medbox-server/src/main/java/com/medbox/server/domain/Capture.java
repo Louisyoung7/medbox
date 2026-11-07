@@ -11,11 +11,12 @@ import lombok.Data;
  * 服药抓拍图片，对应 {@code capture} 表（见文档 06 的 2.12，由 V1 建）。
  *
  * <p><b>本分支最小可用</b>：仅用到 {@code capture_id} / {@code reason} 两列
- * （低置信度时把 {@code reason} 从 NORMAL 标记为 LOW_CONFIDENCE）；其余列按 V1 .schema 一并声明，
+ * （{@code reason} 仅 NORMAL / MANUAL，{@code LOW_CONFIDENCE} 已废弃）；其余列按 V1 .schema 一并声明，
  * 供后续 {@code feat/capture-core} 复用 / 扩展，避免重复定义实体（合并点已记入 CHANGELOG）。
  *
- * <p><b>字段口径</b>：{@code reason} 取值 NORMAL / LOW_CONFIDENCE / MANUAL；
- * {@code confidence} 为 NUMERIC(4,3)，用 {@link BigDecimal} 承载。
+ * <p><b>字段口径</b>：{@code reason} 取值 NORMAL / MANUAL（{@code LOW_CONFIDENCE} 已废弃）；
+ * {@code takenResult} 取值 TAKEN / UNTAKEN（取药结论，不再做人脸识别、不上报置信度）；
+ * {@code confidence} 列已废弃、不再写入（保留列仅兼容）。
  */
 @Data
 @TableName("capture")
@@ -39,7 +40,7 @@ public class Capture {
     /** 关联计划（可空）。 */
     private String planId;
 
-    /** 抓拍原因：NORMAL / LOW_CONFIDENCE / MANUAL。 */
+    /** 抓拍原因：NORMAL / MANUAL（LOW_CONFIDENCE 已废弃）。 */
     private String reason;
 
     /** 服务端本地存储路径，不对外暴露。 */
@@ -54,8 +55,8 @@ public class Capture {
     /** 识别置信度（可空）。 */
     private BigDecimal confidence;
 
-    /** 摄像头三态结论：TAKEN / ABSENT / UNCERTAIN（可空，留证用）。 */
-    private String faceResult;
+    /** 取药结论：TAKEN / UNTAKEN（可空，留证用）。 */
+    private String takenResult;
 
     /** 抓拍时刻（UTC）。 */
     private OffsetDateTime capturedAt;

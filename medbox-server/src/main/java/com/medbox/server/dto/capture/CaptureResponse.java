@@ -1,6 +1,5 @@
 package com.medbox.server.dto.capture;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import lombok.Data;
 
@@ -19,18 +18,17 @@ public class CaptureResponse {
     private final String medicineId;
     private final String planId;
     private final String reason;
-    private final String faceResult;
+    private final String takenResult;
     private final String mime;
     private final Integer sizeBytes;
-    private final BigDecimal confidence;
     private final OffsetDateTime capturedAt;
     private final OffsetDateTime viewedAt;
     private final OffsetDateTime expireAt;
     private final String fileToken;
 
     public CaptureResponse(String captureId, String deviceId, String elderId, String medicineId,
-                           String planId, String reason, String faceResult, String mime, Integer sizeBytes,
-                           BigDecimal confidence, OffsetDateTime capturedAt, OffsetDateTime viewedAt,
+                           String planId, String reason, String takenResult, String mime, Integer sizeBytes,
+                           OffsetDateTime capturedAt, OffsetDateTime viewedAt,
                            OffsetDateTime expireAt, String fileToken) {
         this.captureId = captureId;
         this.deviceId = deviceId;
@@ -38,10 +36,9 @@ public class CaptureResponse {
         this.medicineId = medicineId;
         this.planId = planId;
         this.reason = reason;
-        this.faceResult = faceResult;
+        this.takenResult = takenResult;
         this.mime = mime;
         this.sizeBytes = sizeBytes;
-        this.confidence = confidence;
         this.capturedAt = capturedAt;
         this.viewedAt = viewedAt;
         this.expireAt = expireAt;

@@ -17,7 +17,6 @@ import com.medbox.server.dto.capture.CaptureResponse;
 import com.medbox.server.dto.capture.CaptureUploadResponse;
 import com.medbox.server.mapper.CaptureMapper;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -62,7 +61,7 @@ public class CaptureService {
     static final int DEDUP_WINDOW_SECONDS = 60;
 
     private static final Set<String> ALLOWED_REASONS =
-            Set.of("NORMAL", "LOW_CONFIDENCE", "MANUAL");
+            Set.of("NORMAL", "MANUAL");
 
     private static final Set<String> EXT_WHITELIST = Set.of("jpg", "jpeg", "png", "webp");
 
@@ -111,14 +110,13 @@ public class CaptureService {
     public CaptureUploadResponse upload(String deviceId, MultipartFile file, String reason,
                                        String medicineId, String planId, String planItemId,
                                        String actualDose, String unit,
-                                       String faceResult, BigDecimal confidence,
-                                       OffsetDateTime capturedAt) {
+                                       String takenResult, OffsetDateTime capturedAt) {
         String elderId = deviceOwnerResolver.resolveElderId(deviceId);
         BizAssert.forbiddenIf(elderId == null, "设备归属老人解析失败（设备未注册或父设备缺失）");
 
-        BizAssert.isTrue(file != null && !file.isEmpty(), ErrorCode.BAD_REQUEST, "上传文件不能为空");
-
         String reasonNorm = (reason == null || reason.isBlank()) ? "NORMAL" : reason.trim().toUpperCase(Locale.ROOT);
+        String takenNorm = (takenResult == null || takenResult.isBlank()) ? "UNTAKEN"
+                : ("TAKEN".equalsIgnoreCase(takenResult.trim()) ? "TAKEN" : "UNTAKEN");
         BizAssert.isTrue(ALLOWED_REASONS.contains(reasonNorm), ErrorCode.BAD_REQUEST, "非法的 reason：" + reason);
 
         OffsetDateTime capAt = (capturedAt == null) ? clock.instant().atOffset(ZoneOffset.UTC) : capturedAt;
@@ -134,32 +132,38 @@ public class CaptureService {
         String captureId = captureMapper.nextCaptureId();
         OffsetDateTime expireAt = capAt.plusDays(captureProperties.getRetentionDaysUnread());
 
-        String ext = resolveExtension(file);
-        Path dir = Paths.get(captureProperties.getDir(), capAt.toLocalDate().toString()); // YYYY-MM-DD
-        try {
-            Files.createDirectories(dir);
-            Path target = dir.resolve(captureId + "." + ext);
-            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-            String filePath = target.toAbsolutePath().toString();
-
-            Capture entity = new Capture();
-            entity.setCaptureId(captureId);
-            entity.setDeviceId(deviceId);
-            entity.setElderId(elderId);
-            entity.setMedicineId(medicineId);
-            entity.setPlanId(planId);
-            entity.setReason(reasonNorm);
-            entity.setFilePath(filePath);
-            entity.setMime(file.getContentType() != null ? file.getContentType() : "image/jpeg");
-            entity.setSizeBytes((int) file.getSize());
-            entity.setConfidence(confidence);
-            entity.setFaceResult(faceResult);
-            entity.setCapturedAt(capAt);
-            entity.setExpireAt(expireAt);
-            captureMapper.insert(entity);
-        } catch (IOException e) {
-            throw BizException.of(ErrorCode.INTERNAL_ERROR, "抓拍文件落盘失败：" + e.getMessage());
+        String filePath = null;
+        String mime = null;
+        Integer sizeBytes = null;
+        if (file != null && !file.isEmpty()) {
+            String ext = resolveExtension(file);
+            Path dir = Paths.get(captureProperties.getDir(), capAt.toLocalDate().toString()); // YYYY-MM-DD
+            try {
+                Files.createDirectories(dir);
+                Path target = dir.resolve(captureId + "." + ext);
+                Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+                filePath = target.toAbsolutePath().toString();
+                mime = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+                sizeBytes = (int) file.getSize();
+            } catch (IOException e) {
+                throw BizException.of(ErrorCode.INTERNAL_ERROR, "抓拍文件落盘失败：" + e.getMessage());
+            }
         }
+
+        Capture entity = new Capture();
+        entity.setCaptureId(captureId);
+        entity.setDeviceId(deviceId);
+        entity.setElderId(elderId);
+        entity.setMedicineId(medicineId);
+        entity.setPlanId(planId);
+        entity.setReason(reasonNorm);
+        entity.setFilePath(filePath);
+        entity.setMime(mime);
+        entity.setSizeBytes(sizeBytes);
+        entity.setTakenResult(takenNorm);
+        entity.setCapturedAt(capAt);
+        entity.setExpireAt(expireAt);
+        captureMapper.insert(entity);
 
         // planId 非空 → 调判定核心生成 med_record（与 capture 同事务）
         String recordId = null;
@@ -172,8 +176,7 @@ public class CaptureService {
             input.setMedicineId(medicineId);
             input.setActualDose(actualDose);
             input.setUnit(unit);
-            input.setFaceResult(faceResult);
-            input.setConfidence(confidence);
+            input.setTakenResult(takenNorm);
             input.setCapturedAt(capAt);
             input.setSource("CAMERA");
             recordId = dispenseConsumeService.consume(input)
@@ -285,14 +288,13 @@ public class CaptureService {
                 c.getMedicineId(),
                 c.getPlanId(),
                 c.getReason(),
-                c.getFaceResult(),
+                c.getTakenResult(),
                 c.getMime(),
                 c.getSizeBytes(),
-                c.getConfidence(),
                 c.getCapturedAt(),
                 c.getViewedAt(),
                 c.getExpireAt(),
-                fileTokenService.issue(c.getCaptureId()));
+                c.getFilePath() != null ? fileTokenService.issue(c.getCaptureId()) : null);
     }
 
     /**

@@ -13,7 +13,7 @@ import org.apache.ibatis.annotations.Delete;
 /**
  * {@code capture} 表的 Mapper（见文档 06 的 2.12）。
  *
- * <p><b>演进</b>：{@code feat/wrong-drug-alarm} 只加了 {@link #markLowConfidence}（低置信度标 {@code reason}）；
+ * <p><b>演进</b>：{@code feat/wrong-drug-alarm} 只加了 {@link #markLowConfidence}（标记 {@code reason}）；
  * 本分支（{@code feat/capture-core}）补齐其余读写：业务号取号、去重查询、分页、详情、首读标记、删除。
  * 合并点已记入 CHANGELOG。
  */
@@ -74,7 +74,7 @@ public interface CaptureMapper extends BaseMapper<Capture> {
     boolean existsByCaptureId(@Param("captureId") String captureId);
 
     /**
-     * 低置信度标记（交人工复核）：把指定抓拍的 {@code reason} 改成给定值（如 {@code LOW_CONFIDENCE}）。
+     * 标记指定抓拍的 {@code reason} 为给定值（供人工复核结论写入）。
      *
      * @return 受影响行数（抓拍不存在时为 0，调用方据此判断是否需要告警，安全）
      */

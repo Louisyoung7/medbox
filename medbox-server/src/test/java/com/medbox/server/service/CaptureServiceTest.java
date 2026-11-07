@@ -92,7 +92,7 @@ class CaptureServiceTest {
         when(captureMapper.insert(any(Capture.class))).thenReturn(1);
 
         CaptureUploadResponse r = service.upload("CAM01", jpeg("shot.jpg"), "NORMAL",
-                "m-1", "p-1", null, null, null, null, new java.math.BigDecimal("0.9"), CAP);
+                "m-1", "p-1", null, null, null, null, CAP);
 
         assertEquals("cap-1001", r.getCaptureId());
         assertEquals(CAP.plusDays(30), r.getExpireAt());
@@ -101,8 +101,8 @@ class CaptureServiceTest {
     }
 
     @Test
-    @DisplayName("上传带 faceResult + planId：capture.faceResult 落库；planId 非空触发判定核心并回带 recordId")
-    void 上传带FaceResult与Record() {
+    @DisplayName("上传带 takenResult + planId：capture.takenResult 落库；planId 非空触发判定核心并回带 recordId")
+    void 上传带TakenResult与Record() {
         when(deviceOwnerResolver.resolveElderId("CAM01")).thenReturn("u-1001");
         when(captureMapper.selectByPlanWithinWindow(any(), any(), anyInt())).thenReturn(null);
         when(captureMapper.nextCaptureId()).thenReturn("cap-1001");
@@ -112,13 +112,13 @@ class CaptureServiceTest {
         when(dispenseConsumeService.consume(any())).thenReturn(Optional.of(rec));
 
         CaptureUploadResponse r = service.upload("CAM01", jpeg("shot.jpg"), "NORMAL",
-                "m-1", "p-1", "pi-1", "1", "片", "TAKEN", new java.math.BigDecimal("0.9"), CAP);
+                "m-1", "p-1", "pi-1", "1", "片", "TAKEN", CAP);
 
         assertEquals("cap-1001", r.getCaptureId());
         assertEquals("mr-1", r.getRecordId());
         ArgumentCaptor<Capture> cap = ArgumentCaptor.forClass(Capture.class);
         verify(captureMapper).insert(cap.capture());
-        assertEquals("TAKEN", cap.getValue().getFaceResult());
+        assertEquals("TAKEN", cap.getValue().getTakenResult());
         verify(dispenseConsumeService).consume(any());
     }
 
@@ -132,7 +132,7 @@ class CaptureServiceTest {
         when(captureMapper.selectByPlanWithinWindow(any(), any(), anyInt())).thenReturn(existing);
 
         CaptureUploadResponse r = service.upload("CAM01", jpeg("shot.jpg"), "NORMAL",
-                "m-1", "p-1", null, null, null, null, null, CAP);
+                "m-1", "p-1", null, null, null, null, CAP);
 
         assertEquals("cap-9001", r.getCaptureId());
         verify(captureMapper, never()).insert(any(Capture.class));
@@ -146,7 +146,7 @@ class CaptureServiceTest {
         when(captureMapper.nextCaptureId()).thenReturn("cap-1001");
         when(captureMapper.insert(any(Capture.class))).thenReturn(1);
 
-        service.upload("CAM01", jpeg("shot.jpg"), null, null, null, null, null, null, null, null, CAP);
+        service.upload("CAM01", jpeg("shot.jpg"), null, null, null, null, null, null, null, CAP);
         verify(captureMapper).nextCaptureId();
         verify(captureMapper).insert(any(Capture.class));
     }
@@ -160,12 +160,12 @@ class CaptureServiceTest {
         when(captureMapper.insert(any(Capture.class))).thenReturn(1);
 
         MultipartFile png = new MockMultipartFile("file", "x.png", "image/png", "p".getBytes());
-        service.upload("CAM01", png, "NORMAL", null, "p-1", null, null, null, null, null, CAP);
+        service.upload("CAM01", png, "NORMAL", null, "p-1", null, null, null, null, CAP);
         assertTrue(Files.exists(tempDir.resolve("2026-10-04").resolve("cap-1001.png")));
 
         when(captureMapper.nextCaptureId()).thenReturn("cap-1002");
         MultipartFile webp = new MockMultipartFile("file", "x.webp", "image/webp", "w".getBytes());
-        service.upload("CAM01", webp, "NORMAL", null, "p-1", null, null, null, null, null, CAP);
+        service.upload("CAM01", webp, "NORMAL", null, "p-1", null, null, null, null, CAP);
         assertTrue(Files.exists(tempDir.resolve("2026-10-04").resolve("cap-1002.webp")));
     }
 

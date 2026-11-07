@@ -21,12 +21,12 @@ Authorization: Bearer {{login.response.body.$.data.token}}
 GET {{baseUrl}}/adherence?elderId=e-1001&period=week
 Authorization: Bearer {{login.response.body.$.data.token}}
 
-### 监护人补录 / 确认（校准已有记录：改写 faceResult 为 TAKEN/ABSENT）
+### 监护人补录 / 确认（校准已有记录：改写 takenResult 为 TAKEN/UNTAKEN）
 POST {{baseUrl}}/records/mr-1001/confirm
 Authorization: Bearer {{login.response.body.$.data.token}}
 Content-Type: application/json
 
-{ "faceResult": "TAKEN", "onTime": true, "source": "MANUAL" }
+{ "takenResult": "TAKEN", "onTime": true, "source": "MANUAL" }
 
 ### 导出服药报告（CSV 流，监护人 EXPORT_RECORD；本请求不在 R<T> 内）
 GET {{baseUrl}}/records/export?elderId=e-1001&from=2026-10-01T00:00:00Z&to=2026-10-31T23:59:59Z

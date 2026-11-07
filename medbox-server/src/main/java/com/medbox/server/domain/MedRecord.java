@@ -56,10 +56,10 @@ public class MedRecord {
     /** 来源：CAMERA / MANUAL。 */
     private String source;
 
-    /** 服药结论：TAKEN / ABSENT / UNCERTAIN（可空，监护人复核后改写）。 */
-    private String faceResult;
+    /** 取药结论：TAKEN / UNTAKEN（可空，监护人校准 / 补录后改写）。 */
+    private String takenResult;
 
-    /** 摄像头识别置信度 0~1（可空，仅 CAMERA 来源有值）。 */
+    /** 摄像头识别置信度 0~1（可空，已废弃：不再上报 / 不再写入，保留列仅兼容）。 */
     private BigDecimal confidence;
 
     /** 上报设备（药箱主控）的 {@code device_id}。 */
