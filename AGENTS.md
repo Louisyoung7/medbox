@@ -33,7 +33,7 @@
 
 1. **绝不在主分支开发**：一切改动都在 `feat/xxx` 特性分支上做。分支名取自 `medbox-spec/07`（`feat/backend-xxx`）、`medbox-spec/08`（`feat/mp-xxx`）或 `medbox-spec/09`（`feat/admin-xxx`）。
 2. **每次开工前先拉最新**：`git switch main && git pull`，代码与文档一起更新；再看 `git log --oneline -5 -- medbox-spec/` 判断文档有没有变、有没有影响自己这一端（变更历史以 git 为准，不再维护 CHANGELOG）。
-3. **完成特性分支、合并前必须更新文档**：勾选 07/08 待办、修正与实现不一致的接口/字段；**文档只写当前最新口径，不留旧痕迹**（变更历史看 `git log`，不写进文档正文，也不再维护 `CHANGELOG.md`；现有 `CHANGELOG.md` 保留作历史归档、不再追加）。
+3. **完成特性分支、合并前必须更新文档**：勾选 07/08 待办、修正与实现不一致的接口/字段；**文档只写当前最新口径，不留旧痕迹**（变更历史看 `git log`，不写进文档正文，也不再维护 CHANGELOG；原 `CHANGELOG.md` 已移至 `medbox-spec/archive/CHANGELOG.md` 冻结归档）。
    - **文档可与代码分分支**：文档改动可单独提交到 `docs/<对应特性名>` 分支（基于 `main`），与代码分支 `feat/xxx` 分别评审、分别合并；但**代码分支合入 `main` 前，对应文档分支必须已合入**（否则 `main` 上会出现「文档已说删除、代码尚未删除」的短暂不一致）。
    - 传统「文档与代码同 PR」做法仍允许（历史提交多为此方式，保留兼容）。
 4. **远程有更新时用 rebase，不要 merge**：切回主分支 fetch/pull，再回特性分支 `git rebase main`（冲突处理见第 4 节）。
