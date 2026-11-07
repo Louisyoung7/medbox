@@ -16,8 +16,10 @@
 ## 二、怎么开工（三步）
 
 1. **同步**：`git switch main && git pull && git switch -`
-2. **认领**：在 `07`（后端）或 `08`（小程序）找没勾的 `- [ ]`，按清单给的分支名开工（一切改动都在 `feat/xxx` 分支，绝不碰 main）
-3. **收尾**：勾掉待办 + 修正文档 → 与代码同一 PR 提交
+2. **开工**：从 main 切特性分支（后端 `feat/backend-xxx` / 小程序 `feat/mp-xxx` / Web `feat/admin-xxx` / 文档 `docs/xxx`），一切改动都在特性分支上，绝不碰 main
+3. **收尾**：修正受影响的 spec 文档 → 与代码同一 PR 提交
+
+> 首轮开发的分支清单已归档（`archive/07` / `08` / `09`），查历史分支与依赖关系去归档；后续新增分支不再建清单文件，实现口径直接沉淀到对应 spec 文档。
 
 细节规则（集成测试、rebase、Flyway 编号等）在仓库根 `AGENTS.md`，AI 自动加载，**人不用看**。
 
@@ -32,7 +34,7 @@
 | WebSocket 推送格式 | `04_实时推送协议_WebSocket.md` |
 | AI 大模型怎么接 | `05_AI大模型与RAG方案.md` |
 | 全局口径（时区 / 权限 / 部署） | `01_系统架构与产品定义.md` |
-| 项目进展到哪了 | `07` / `08` 里勾选状态 |
+| 项目进展到哪了 | `git log --oneline` 与历史分支清单（归档 `archive/07` / `08` / `09`） |
 | 架构图 | `diagrams/` 下 HTML |
 | 历史变更 | `git log -- medbox-spec/`（变更归档在 `archive/CHANGELOG.md`，已冻结） |
 

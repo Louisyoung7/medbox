@@ -151,9 +151,9 @@ POST /ai/insight
 
 ### 2.5 小程序侧落地（feat/mp-ai-insight；后端 `ai-insight` 未落地，Mock 先行）
 
-`08` 的 `feat/mp-ai-insight`（P3）已按本章契约实现（`api/ai.js` + `utils/ai.js` + `pages/ai/insight.vue` / `config.vue`，实现细节看代码与 08 清单）；后端 `feat/ai-insight`（07）本期未落地，期间走 `tools/mock`（契约同本章），字段做容错、后端定稿后收紧。**边界严守（FP-9/FP-10）**：前端只展示洞察文本 + citations + disclaimer，**不提供任何「采纳并落库 / 改计划 / 发指令」动作按钮**；`disclaimer` 缺失时前端补本地兜底文案；不改 `medbox-server/`。
+`feat/mp-ai-insight`（首轮清单见归档 `archive/08`）已按本章契约实现（`api/ai.js` + `utils/ai.js` + `pages/ai/insight.vue` / `config.vue`，实现细节看代码）；后端 `feat/ai-insight` 本期未落地，期间走 `tools/mock`（契约同本章），字段做容错、后端定稿后收紧。**边界严守（FP-9/FP-10）**：前端只展示洞察文本 + citations + disclaimer，**不提供任何「采纳并落库 / 改计划 / 发指令」动作按钮**；`disclaimer` 缺失时前端补本地兜底文案；不改 `medbox-server/`。
 
 ---
 
-> **重定位清理**：由「AI 问答 + RAG」重定位为「洞察层」涉及的全部文档 / 架构图 / 代码 / Flyway（`V18__drop_ai_rag.sql`）清理已完成，现状见 06 §3 与 07 `refactor/ai-insight-layer`；历史过程看 `git log`。
+> **重定位清理**：由「AI 问答 + RAG」重定位为「洞察层」涉及的全部文档 / 架构图 / 代码 / Flyway（`V18__drop_ai_rag.sql`）清理已完成，现状见 06 §3（落地分支见归档 `archive/07`）；历史过程看 `git log`。
 
