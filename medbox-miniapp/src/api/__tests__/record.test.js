@@ -94,14 +94,15 @@ describe('record —— 请求层', () => {
 
   it('confirmRecord：POST /records/{id}/confirm，请求体透传，写操作注入 X-Request-Id', async () => {
     const { record } = await loadRecordApi()
-    scripts = [{ body: { code: 0, data: { recordId: 'rec-9001', confirmedBy: 'u-2001' } } }]
+    scripts = [{ body: { code: 0, data: { recordId: 'rec-9001', cellNo: 1, source: 'MANUAL' } } }]
 
-    const data = await record.confirmRecord('rec-9001', { note: '已核对' })
+    const data = await record.confirmRecord('rec-9001', { takenResult: 'TAKEN' })
 
-    expect(data.confirmedBy).toBe('u-2001')
+    expect(data.cellNo).toBe(1)
+    expect(data.source).toBe('MANUAL')
     expect(sent[0].method).toBe('POST')
     expect(sent[0].url).toContain('/medbox/api/v1/records/rec-9001/confirm')
-    expect(sent[0].data).toEqual({ note: '已核对' })
+    expect(sent[0].data).toEqual({ takenResult: 'TAKEN' })
     expect(sent[0].header['X-Request-Id']).toMatch(/^[0-9a-f]{32}$/)
   })
 

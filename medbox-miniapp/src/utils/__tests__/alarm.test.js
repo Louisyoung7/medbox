@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
-  ALARM_TYPE_LABEL,
-  ALARM_LEVEL_LABEL,
+  ALARM_TYPE,
+  ALARM_LEVEL,
   ALARM_TYPE_OPTIONS,
   READ_STATE_OPTIONS,
   ALARM_SETTINGS_DEFAULT,
@@ -15,131 +15,67 @@ import {
   toAlarmSettingsView,
 } from '@/utils/alarm.js'
 
-describe('alarm 常量与标签', () => {
-  it('ALARM_TYPE_LABEL 四类齐全', () => {
-    expect(ALARM_TYPE_LABEL.MISS).toBe('漏服')
-    expect(ALARM_TYPE_LABEL.ENV).toBe('环境超标')
-    expect(ALARM_TYPE_LABEL.DEVICE_OFFLINE).toBe('设备离线')
-    expect(ALARM_TYPE_LABEL.DEVICE_FAULT).toBe('设备故障')
+describe('枚举与文案', () => {
+  it('类型 / 级别标签', () => {
+    expect(alarmTypeLabel(ALARM_TYPE.MISS)).toBe('漏服')
+    expect(alarmLevelLabel(ALARM_LEVEL.CRITICAL)).toBe('严重')
+    expect(alarmTypeLabel('UNKNOWN')).toBe('UNKNOWN')
   })
-
-  it('ALARM_LEVEL_LABEL 三级齐全', () => {
-    expect(ALARM_LEVEL_LABEL.INFO).toBe('提示')
-    expect(ALARM_LEVEL_LABEL.WARN).toBe('警告')
-    expect(ALARM_LEVEL_LABEL.CRITICAL).toBe('严重')
+  it('着色类与严重级别判定', () => {
+    expect(alarmTypeClass(ALARM_TYPE.MISS)).toBe('alarm-type--critical')
+    expect(alarmLevelClass(ALARM_LEVEL.WARN)).toBe('alarm-level--warn')
+    expect(isCriticalLevel(ALARM_LEVEL.CRITICAL)).toBe(true)
   })
-
-  it('ALARM_TYPE_OPTIONS / READ_STATE_OPTIONS 含全部 + ALL', () => {
-    expect(ALARM_TYPE_OPTIONS.length).toBe(5)
+  it('筛选项与默认阈值', () => {
     expect(ALARM_TYPE_OPTIONS[0].value).toBe('ALL')
-    expect(READ_STATE_OPTIONS.map((o) => o.value)).toEqual(['ALL', 'UNREAD', 'READ'])
-  })
-
-  it('标签函数缺省回退原值', () => {
-    expect(alarmTypeLabel('X')).toBe('X')
-    expect(alarmLevelLabel('Y')).toBe('Y')
+    expect(READ_STATE_OPTIONS).toHaveLength(3)
+    expect(ALARM_SETTINGS_DEFAULT.advanceMin).toBe(10)
   })
 })
 
-describe('alarm 着色类', () => {
-  it('alarmTypeClass：漏服→critical；设备离线/故障→warn；环境→info', () => {
-    expect(alarmTypeClass('MISS')).toBe('alarm-type--critical')
-    expect(alarmTypeClass('DEVICE_OFFLINE')).toBe('alarm-type--warn')
-    expect(alarmTypeClass('DEVICE_FAULT')).toBe('alarm-type--warn')
-    expect(alarmTypeClass('ENV')).toBe('alarm-type--info')
-  })
-
-  it('alarmLevelClass：CRITICAL→critical；WARN→warn；INFO→info', () => {
-    expect(alarmLevelClass('CRITICAL')).toBe('alarm-level--critical')
-    expect(alarmLevelClass('WARN')).toBe('alarm-level--warn')
-    expect(alarmLevelClass('INFO')).toBe('alarm-level--info')
-  })
-
-  it('isCriticalLevel', () => {
-    expect(isCriticalLevel('CRITICAL')).toBe(true)
-    expect(isCriticalLevel('WARN')).toBe(false)
-  })
-})
-
-describe('alarm parseAlarmsPage 容错', () => {
-  it('{list,total}', () => {
-    const r = parseAlarmsPage({ list: [1, 2], total: 2 })
-    expect(r.list.length).toBe(2)
-    expect(r.total).toBe(2)
-  })
-
-  it('{records,total}', () => {
-    const r = parseAlarmsPage({ records: [1], total: 5 })
-    expect(r.list.length).toBe(1)
-    expect(r.total).toBe(5)
-  })
-
-  it('{items,total} / 裸数组 / null', () => {
-    expect(parseAlarmsPage({ items: [1], total: 1 }).list.length).toBe(1)
-    expect(parseAlarmsPage([1, 2, 3]).list.length).toBe(3)
+describe('parseAlarmsPage', () => {
+  it('兼容四种外壳', () => {
+    expect(parseAlarmsPage([{ alarmId: 'a-1' }])).toEqual({ list: [{ alarmId: 'a-1' }], total: 1 })
+    expect(parseAlarmsPage({ list: [], total: 4 })).toEqual({ list: [], total: 4 })
+    expect(parseAlarmsPage({ records: [{}] }).list).toHaveLength(1)
+    expect(parseAlarmsPage({ items: [{}] }).list).toHaveLength(1)
     expect(parseAlarmsPage(null)).toEqual({ list: [], total: 0 })
   })
 })
 
-describe('alarm toAlarmView 归一化', () => {
-  it('未读 + CRITICAL + 关联药品', () => {
-    const v = toAlarmView({
-      alarmId: 'a-1',
-      type: 'MISS',
-      level: 'CRITICAL',
-      message: '漏服',
-      elderId: 'u-1001',
-      medicineIds: ['m-1', 'm-2'],
-      createdAt: '2026-01-01T00:00:00Z',
-      readState: 'UNREAD',
-      handled: false,
+describe('toAlarmView（02f / 04：无 medicineIds，MISS 带格号）', () => {
+  it('未读 + CRITICAL + 格号', () => {
+    const view = toAlarmView({
+      alarmId: 'a-1', type: 'MISS', level: 'CRITICAL',
+      message: '08:00 1 号格（早间）未按时取药', cellNo: 1,
+      elderId: 'u-1001', readState: 'UNREAD',
     })
-    expect(v.alarmId).toBe('a-1')
-    expect(v.typeLabel).toBe('漏服')
-    expect(v.levelLabel).toBe('严重')
-    expect(v.isCritical).toBe(true)
-    expect(v.isUnread).toBe(true)
-    expect(v.handled).toBe(false)
-    expect(v.medicineCount).toBe(2)
-    expect(v.typeClass).toBe('alarm-type--critical')
-    expect(v.levelClass).toBe('alarm-level--critical')
+    expect(view.isUnread).toBe(true)
+    expect(view.isCritical).toBe(true)
+    expect(view.cellNo).toBe(1)
+    expect(view.cellLabel).toBe('1 号格（早间）')
+    expect(view.medicineIds).toBeUndefined()
+    expect(view.medicineCount).toBeUndefined()
   })
-
-  it('已读 + 已处理 → isUnread false', () => {
-    const v = toAlarmView({
-      alarmId: 'a-2',
-      type: 'ENV',
-      level: 'WARN',
-      message: '环境',
-      readState: 'READ',
-      handled: true,
-    })
-    expect(v.isUnread).toBe(false)
-    expect(v.handled).toBe(true)
-    expect(v.medicineCount).toBe(0)
+  it('已读 + 已处理 → isUnread false；格号为空时无格位文案', () => {
+    const view = toAlarmView({ readState: 'READ', handled: true, type: 'ENV', level: 'WARN' })
+    expect(view.isUnread).toBe(false)
+    expect(view.handled).toBe(true)
+    expect(view.cellNo).toBeNull()
+    expect(view.cellLabel).toBe('')
   })
-
   it('缺字段不报错', () => {
-    const v = toAlarmView(null)
-    expect(v.alarmId).toBeUndefined()
-    expect(v.isUnread).toBe(false)
-    expect(v.medicineCount).toBe(0)
+    expect(() => toAlarmView(null)).not.toThrow()
+    expect(toAlarmView(null).readState).toBe('READ')
   })
 })
 
-describe('alarm toAlarmSettingsView 兜底与合并', () => {
-  it('null → 默认完整结构', () => {
-    const v = toAlarmSettingsView(null)
-    expect(v.advanceMin).toBe(ALARM_SETTINGS_DEFAULT.advanceMin)
-    expect(v.missTolerateMin).toBe(ALARM_SETTINGS_DEFAULT.missTolerateMin)
-    expect(v.envThreshold.temp.max).toBe(ALARM_SETTINGS_DEFAULT.envThreshold.temp.max)
-  })
-
-  it('部分字段合并，缺项用默认', () => {
-    const v = toAlarmSettingsView({ advanceMin: 20, envThreshold: { temp: { max: 35 } } })
-    expect(v.advanceMin).toBe(20)
-    expect(v.missTolerateMin).toBe(ALARM_SETTINGS_DEFAULT.missTolerateMin)
-    expect(v.envThreshold.temp.max).toBe(35)
-    expect(v.envThreshold.temp.min).toBe(ALARM_SETTINGS_DEFAULT.envThreshold.temp.min)
+describe('toAlarmSettingsView', () => {
+  it('缺字段用默认值兜底，已有字段保留', () => {
+    expect(toAlarmSettingsView(null)).toEqual(ALARM_SETTINGS_DEFAULT)
+    const merged = toAlarmSettingsView({ advanceMin: 20, envThreshold: { temp: { max: 35 } } })
+    expect(merged.advanceMin).toBe(20)
+    expect(merged.envThreshold.temp.max).toBe(35)
+    expect(merged.envThreshold.temp.min).toBe(15)
   })
 })

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 /**
  * 计划时间槽计数器（`takeNextSlotOffset` / `readSlotSeq`）。
  *
- * <p>存在的理由：后端 `med_record` 有 `(plan_item_id, plan_time)` 部分唯一索引，
+ * <p>存在的理由：后端 `med_record` 有 `(plan_id, cell_no, plan_time)` 部分唯一索引，
  * 同槽只落一条，而 devtools 种子只有 1 个计划项 × 每日 08:00 —— 槽位有限。
  * 计数器每次发送前移一天并**持久化**，否则刷新小程序后归零又会撞已占用的槽。
  */
