@@ -261,7 +261,7 @@ export default {
 
   &__title {
     font-size: 28rpx;
-    color: $mb-text-1;
+    color: $mb-text;
     font-weight: 500;
   }
 
