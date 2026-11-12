@@ -99,10 +99,10 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），内含 **WebSocket
    - Payload（示例，详见 `medbox-spec/03` §3 下行·同步计划）：
      ```json
      { "msgId":"d-001", "planId":"p-3301", "op":"UPSERT",
-       "times":["08:00","20:00"], "repeat":"DAILY",
+       "slots":[ {"cellNo":1,"time":"08:00"},
+                 {"cellNo":2,"time":"12:30"},
+                 {"cellNo":3,"time":"18:00"} ], "repeat":"DAILY",
        "alarm":{"missAfterMin":15},
-       "items":[ {"itemId":"pi-9001","medicineId":"m-205","dose":"1","unit":"片"},
-                 {"itemId":"pi-9002","medicineId":"m-388","dose":"2","unit":"粒"} ],
        "needAck":true }
      ```
 6. 也可订阅 `medbox/+/+/down/#` **反向观测后端实际下发了什么**（验证 REST 写操作是否触发正确的下行帧）；
@@ -120,7 +120,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），内含 **WebSocket
   # 发布下行（模拟云端下发计划）
   mosquitto_pub -h {内网IP} -p 1883 -q 1 \
     -t 'medbox/{productKey}/{deviceId}/down/schedule' \
-    -m '{"msgId":"d-001","planId":"p-3301","op":"UPSERT","times":["08:00"],"repeat":"DAILY","items":[{"itemId":"pi-9001","medicineId":"m-205","dose":"1","unit":"片"}],"needAck":true}'
+    -m '{"msgId":"d-001","planId":"p-3301","op":"UPSERT","slots":[{"cellNo":1,"time":"08:00"}],"repeat":"DAILY","needAck":true}'
   ```
 - **mqtt.js 脚本**（可写断言、适合回归）：
   ```js
@@ -129,7 +129,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），内含 **WebSocket
   c.on('connect', () => {
     c.subscribe('medbox/+/+/up/#');
     c.publish('medbox/{productKey}/{deviceId}/down/schedule',
-      JSON.stringify({ msgId:'d-001', planId:'p-3301', op:'UPSERT', times:['08:00'], repeat:'DAILY', items:[], needAck:true }),
+      JSON.stringify({ msgId:'d-001', planId:'p-3301', op:'UPSERT', slots:[{cellNo:1,time:'08:00'}], repeat:'DAILY', needAck:true }),
       { qos: 1 });
   });
   c.on('message', (t, p) => console.log(t, p.toString()));
