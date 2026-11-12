@@ -1,15 +1,13 @@
 /**
- * 计划域纯函数（`feat/mp-plan`，规则表 A/B/C 的可单测落地，对应 medbox-spec/02 第 6 章、
- * 06 的 2.6 / 2.6.1）。
+ * 计划域纯函数（固定 3 药格模型，对应 medbox-spec/02d、02 第 6 章、06 的 2.6）。
  *
- * 规则表（用户确认后同步沉淀进 02 第 6 章）：
- * - **A 时间**：`times` 为**设备本地墙钟**（02/06/01 三处一致，时区取 `device.timezone`，
- *   默认 `Asia/Shanghai`），**不是 UTC**——本模块只做字符串校验 / 去重 / 排序，绝不换算；
- *   跨天 / 修改当日生效等边界由服务端处理。
- * - **B items**：一次提醒 = 一个计划可含多种药；`medicineId` 必填，`dose`/`unit`/`note` 选填
- *   （空串省略，后端按 06"计划明细未指定时取药品默认剂量"兜底）；同一计划内药品不重复。
- * - **C 库存校验**：06 的 2.6.1 约束②——计划中的药品必须在药箱有库存（否则后端 40901）；
- *   前端按是否有库存预判置灰，**库存数据缺失时不拦截**（后端兜底）。
+ * 规则表（已按 AGENTS.md 3.1.2 确认）：
+ * - **A 格位**：药箱上层固定 1 / 2 / 3 号带锁药格（固件固定对应早 / 中 / 晚）；
+ *   计划只用 `slots` 描述「几点开几号格」，不描述、不关联任何药品。
+ * - **B 归一化**：`slots` 长度 1~3，`cellNo` ∈ 1/2/3 且不重复，`time` 为 `HH:mm`
+ *   设备本地墙钟（**不是 UTC，前端绝不换算**），回显按 `cellNo` 升序；缺失格号 = 该格不排程。
+ * - **C 一老人一计划**：列表返回 0 或 1 条；重复创建由后端返回 40901，计划与库存无关联，
+ *   前端不再做药品/库存预判。
  */
 
 import { ROLE } from '@/store/user.js'
@@ -17,77 +15,64 @@ import { ROLE } from '@/store/user.js'
 /** `HH:mm` 24 小时制（picker mode="time" 的输出格式）。 */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 
-/**
- * 归一化提醒时间（规则 A）：格式校验 + 计划内去重 + 升序排序。
- *
- * <p>零填充的 `HH:mm` 字典序即时间序（"08:00" < "20:00"），与 02 示例一致；
- * 非法项（"25:00" / "8:0" / 空）直接剔除，由页面在保存前提示"至少添加一个有效时间"。
- *
- * @param {Array<string>} [times] 原始输入（picker 值或后端回显）
- * @returns {Array<string>} 合法、去重、升序的时间数组
- */
-export function normalizeTimes(times) {
-  if (!Array.isArray(times)) return []
-  const seen = new Set()
-  const valid = []
-  times.forEach((item) => {
-    const value = String(item || '').trim()
-    if (!TIME_PATTERN.test(value) || seen.has(value)) return
-    seen.add(value)
-    valid.push(value)
-  })
-  return valid.sort()
+/** 固定格位中文标签（1 早间 / 2 午间 / 3 晚间）。 */
+export function cellLabel(cellNo) {
+  const no = Number(cellNo)
+  if (no === 1) return '1 号格（早间）'
+  if (no === 2) return '2 号格（午间）'
+  if (no === 3) return '3 号格（晚间）'
+  return '未识别格位'
 }
 
 /**
- * 表单 → `POST /plans` / `PUT /plans/{id}` 请求体（规则 B）。
+ * 归一化格位排程（规则 B）：格号合法校验 + 计划内去重 + 按格号升序。
  *
- * 规则：`name` trim；`times` 走 {@link normalizeTimes}；`repeatRule` 空串省略（不传即后端默认）；
- * `items` 逐项组装——`medicineId` 必填（缺失的项整体剔除），`dose`/`unit`/`note` trim 后空串省略；
- * **不传** `missAlarmAfterMin` / `alarmRule`（本期范围决策：走后端默认与老人级 `alarm_setting`，
- * 归 P1 `mp-alarm`）；`sortOrder` 由后端按 items 数组序生成，前端不传。
+ * 非法项（越界格号 / 重复格号 / "25:00" / 空时间）直接剔除，由页面在保存前提示
+ * 「至少设置一个有效格位」。
  *
- * @param {Object} form 页面表单
- * @param {string} form.name 方案名（如"早餐后"）
- * @param {Array<string>} [form.times] 提醒时间（设备本地墙钟）
- * @param {string} [form.repeatRule] DAILY / WEEKLY（枚举文档未列全，见 02 口径）
- * @param {Array<Object>} [form.items] `[{medicineId, dose?, unit?, note?}]`
+ * @param {Array<Object>} [slots] 原始输入（`[{cellNo, time}]`，可来自 picker 或后端回显）
+ * @returns {Array<{cellNo: number, time: string}>} 合法、去重、升序的格位数组
+ */
+export function normalizeSlots(slots) {
+  if (!Array.isArray(slots)) return []
+  const seen = new Set()
+  const valid = []
+  slots.forEach((slot) => {
+    const no = Number(slot && slot.cellNo)
+    const time = String((slot && slot.time) || '').trim()
+    if (!Number.isInteger(no) || no < 1 || no > 3) return
+    if (!TIME_PATTERN.test(time) || seen.has(no)) return
+    seen.add(no)
+    valid.push({ cellNo: no, time })
+  })
+  return valid.sort((a, b) => a.cellNo - b.cellNo)
+}
+
+/**
+ * 表单 → `POST /plans` / `PUT /plans/{planId}` 请求体。
+ *
+ * 只提交 `slots`（不含药品、剂量）；`repeatRule` 空串省略（不传即后端默认 DAILY）；
+ * 不传 `missAlarmAfterMin` / `alarmRule`（走后端默认与老人级 `alarm_setting`）。
+ *
+ * @param {Object} form 页面表单：`{name, slots, repeatRule}`
  * @param {string} elderId 归属老人 `userId`
  * @returns {Object} 请求体
  */
 export function buildPlanPayload(form, elderId) {
   const src = form || {}
-  const payload = {
-    elderId: String(elderId || '').trim(),
-    name: String(src.name || '').trim(),
-  }
-  const times = normalizeTimes(src.times)
-  if (times.length) payload.times = times
+  const payload = { elderId: String(elderId || '').trim() }
+  const name = String(src.name || '').trim()
+  if (name) payload.name = name
+  payload.slots = normalizeSlots(src.slots)
   const repeatRule = String(src.repeatRule || '').trim()
   if (repeatRule) payload.repeatRule = repeatRule
-  payload.items = (Array.isArray(src.items) ? src.items : [])
-    .map((item) => {
-      const entry = {}
-      const medicineId = String((item && item.medicineId) || '').trim()
-      if (!medicineId) return null
-      entry.medicineId = medicineId
-      const dose = String((item && item.dose) || '').trim()
-      if (dose) entry.dose = dose
-      const unit = String((item && item.unit) || '').trim()
-      if (unit) entry.unit = unit
-      const note = String((item && item.note) || '').trim()
-      if (note) entry.note = note
-      return entry
-    })
-    .filter(Boolean)
   return payload
 }
 
 /**
- * 计划列表分页响应容错解析。
+ * 计划列表分页响应容错解析（一老人一计划，返回 0 或 1 条）。
  *
- * <p>⚠️ 后端 `plan-core` 未落地，`GET /plans` 的响应形状未定：兼容 `{list}` / `{records}` /
- * `{items}` + `total` 与裸数组四种形状，后端定稿后只改这一处。
+ * 兼容 `{list}` / `{records}` / `{items}` + `total` 与裸数组四种形状。
  *
  * @param {Object|Array|null} data 请求层兑现的 `data`
  * @returns {{list: Array<Object>, total: number}}
@@ -103,90 +88,31 @@ export function parsePlansPage(data) {
   return { list, total }
 }
 
-/**
- * 计划可选药品拆分（规则 C）：按老人在其可见设备上的**全部库存行**聚合判定。
- *
- * 同一药品可能出现在多台药箱：**任一设备有库存（quantity>0）即可加入**；没有任何库存行
- * 判 `no-stock`。库存数据拉取失败（空数组）时调用方按规则"数据缺失不拦截"处理——本函数
- * 照实返回（全部 no-stock），由页面决定是否降级放行。
- *
- * @param {Array<Object>} medicines 药品字典（`listMedicines` 的 `list`）
- * @param {Array<Object>} [stockRows] 该老人在可见设备上的库存行（可跨设备，`parseStocks` 结果拼接）
- * @returns {{selectable: Array<{medicine: Object}>, blocked: Array<{medicine: Object, reason: 'no-stock'}>}}
- */
-export function pickableMedicines(medicines, stockRows) {
-  // 药品 → 是否有库存（quantity>0）
-  const hasStock = {}
-  ;(Array.isArray(stockRows) ? stockRows : []).forEach((row) => {
-    if (!row || !row.medicineId) return
-    if (row.quantity != null && row.quantity > 0) hasStock[row.medicineId] = true
-  })
-  const selectable = []
-  const blocked = []
-  ;(Array.isArray(medicines) ? medicines : []).forEach((medicine) => {
-    if (!medicine || !medicine.medicineId) return
-    if (hasStock[medicine.medicineId]) {
-      selectable.push({ medicine })
-    } else {
-      blocked.push({ medicine, reason: 'no-stock' })
-    }
-  })
-  return { selectable, blocked }
-}
-
-/**
- * 提醒时间展示文案（规则 A 回显：原样拼接，不格式化）。
- *
- * @param {Array<string>} [times]
- * @returns {string} 如 `08:00、20:00`；空则"未设置时间"
- */
-export function planTimesText(times) {
-  const list = normalizeTimes(times)
-  return list.length ? list.join('、') : '未设置时间'
-}
-
-/**
- * 药品概览文案（02 第 6 章"列表项含药品概览"的前端兜底：后端未内嵌时用药品字典 join）。
- *
- * @param {Array<Object>} [items] 计划明细（`{medicineId, dose?, unit?}`）
- * @param {Object} [medicineMap] `medicineId -> medicine`（`toMedicineMap` 结果）
- * @returns {string} 如 `阿莫西林 1粒 + 布洛芬 10ml`；空则"未添加药品"
- */
-export function planItemsText(items, medicineMap) {
-  const list = Array.isArray(items) ? items : []
-  if (!list.length) return '未添加药品'
-  return list
-    .map((item) => {
-      const medicine = (medicineMap && medicineMap[item.medicineId]) || null
-      const name = (medicine && medicine.name) || item.medicineId || '未知药品'
-      const dose = [item.dose, item.unit].filter(Boolean).join('')
-      return dose ? `${name} ${dose}` : name
-    })
-    .join(' + ')
+/** 格位排程展示文案（原样拼接，不格式化时间）：`1 号格 08:00、2 号格 12:30`。 */
+export function planSlotsText(slots) {
+  const list = normalizeSlots(slots)
+  return list.length
+    ? list.map((slot) => `${slot.cellNo} 号格 ${slot.time}`).join('、')
+    : '未设置格位'
 }
 
 /**
  * 当前角色是否可见计划写入口（创建 / 编辑 / 启停 / 删除）。
- *
- * <p>02 的 1.3 权限矩阵：`WRITE_PLAN` 仅 GUARDIAN ✅，老人只读。注册角色只有
- * ELDER / GUARDIAN，这里用 GUARDIAN 代理；**服务端仍按矩阵强校验**，前端只决定显不显示。
- *
- * @param {string} role `store/user.js` 的角色
- * @returns {boolean}
+ * `WRITE_PLAN` 仅 GUARDIAN；服务端仍按矩阵强校验，前端只决定显不显示。
  */
 export function canWritePlan(role) {
   return role === ROLE.GUARDIAN
 }
 
-/** 重复周期文案（06 的 2.6 注释"DAILY / WEEKLY ..."枚举未列全，未知值原样返回）。 */
+/** 重复周期文案（本期仅 DAILY，未知值原样返回）。 */
 export function repeatRuleLabel(rule) {
-  const labels = { DAILY: '每天', WEEKLY: '每周' }
+  const labels = { DAILY: '每天' }
   const value = String(rule || '').trim()
   if (!value) return '未设置周期'
   return labels[value] || value
 }
 
-/** 计划状态文案（06 的 2.6 `status` 默认 `ENABLED`；`DISABLED` 为前端启停契约取值）。 */
+/** 计划状态文案。 */
 export function planStatusLabel(status) {
   const labels = { ENABLED: '启用中', DISABLED: '已停用' }
   const value = String(status || '').trim()
@@ -194,20 +120,23 @@ export function planStatusLabel(status) {
   return labels[value] || value
 }
 
-/** 同步设备状态文案（02 第 6 章响应 `syncState`；已知值映射，未知原样返回）。 */
+/** 同步设备状态文案；`PENDING` 展示为「待同步」，未知值原样返回。 */
 export function syncStateLabel(syncState) {
-  const labels = { SYNCED_TO_DEVICE: '已同步设备' }
+  const labels = {
+    PENDING: '待同步',
+    SYNCED_TO_DEVICE: '已同步设备',
+    SYNC_FAILED: '同步失败',
+  }
   const value = String(syncState || '').trim()
+  if (!value) return ''
   return labels[value] || value
 }
 
 /**
- * 未来待服药时间线响应容错解析（feat/mp-plan-timeline；02 第 6 章 `next-doses`）。
- *
- * <p>⚠️ 后端 `next-doses` 响应外壳未定稿示例：兼容 `{doses:[...]}` 与裸数组两种，后端定稿后只改这一处。
+ * 未来待服时间线响应容错解析：兼容 `{doses:[...]}` 与裸数组。
  *
  * @param {Object|Array|null} data 请求层兑现的 `data`
- * @returns {Array<Object>} 服药点数组（每项原样保留 `scheduledTimeUtc` / `scheduledTimeLocal` / `items` 等字段）
+ * @returns {Array<Object>} 服药点数组（每项含 `cellNo` / `scheduledTimeUtc` / `scheduledTimeLocal`）
  */
 export function parseNextDoses(data) {
   if (Array.isArray(data)) return data
@@ -217,47 +146,28 @@ export function parseNextDoses(data) {
 }
 
 /**
- * 服药点 → 展示视图（feat/mp-plan-timeline）。
+ * 服药点 → 展示视图。
  *
- * <p>规则：直接展示后端 `scheduledTimeLocal`（设备本地墙钟，**前端不换算**），拆出本地日期
- * `YYYY-MM-DD` 与 `HH:mm` 供分组/排序；`items` 映射为药品+剂量明细（缺字段兜底）。
+ * 直接展示后端 `scheduledTimeLocal`（设备本地墙钟，**前端不换算**），拆出本地日期与
+ * `HH:mm` 供分组/排序；每条带格号与格位文案，不含药品信息。
  *
- * @param {Object} dose 后端服药点（含 `scheduledTimeLocal` / `items`）
- * @returns {Object} `{day, time, scheduledTimeLocal, items}`，缺 `scheduledTimeLocal` 时 day/time 为空串
+ * @param {Object} dose 后端服药点
+ * @returns {{day: string, time: string, scheduledTimeLocal: string, cellNo: ?number, cellLabel: string}}
  */
 export function toDoseView(dose) {
   const src = dose || {}
   const local = String(src.scheduledTimeLocal || '').trim()
-  // "2026-10-27T08:00:00" → day="2026-10-27"、time="08:00"
   const day = local.length >= 10 ? local.slice(0, 10) : ''
   const time = local.length >= 16 ? local.slice(11, 16) : ''
-  const items = Array.isArray(src.items) ? src.items.map(toDoseItemView) : []
-  return { day, time, scheduledTimeLocal: local, items }
-}
-
-/** 服药点明细 → 展示视图（药品+剂量文案，缺字段兜底）。 */
-function toDoseItemView(item) {
-  const src = item || {}
-  const medicineId = String(src.medicineId || '').trim()
-  const name = String(src.medicineName || src.name || '').trim() || (medicineId || '未知药品')
-  const dose = String(src.dose || '').trim()
-  const unit = String(src.unit || '').trim()
-  const text = [dose, unit].filter(Boolean).join('')
-  return {
-    medicineId,
-    name,
-    dose,
-    unit,
-    text: text ? `${name} ${text}` : name,
-  }
+  const no = Number(src.cellNo)
+  const cellNo = Number.isInteger(no) && no >= 1 && no <= 3 ? no : null
+  return { day, time, scheduledTimeLocal: local, cellNo, cellLabel: cellLabel(cellNo) }
 }
 
 /**
- * 服药点按本地日期分组（feat/mp-plan-timeline）。
+ * 服药点按本地日期分组（按 day 升序，组内按 time 升序）。
  *
- * <p>返回按 `day` 升序的分组数组，组内服药点按 `time` 升序，便于时间线渲染；空输入返回空数组。
- *
- * @param {Array<Object>} doses `parseNextDoses` + `toDoseView` 后的视图数组（每项含 `day` / `time`）
+ * @param {Array<Object>} doses `parseNextDoses` + `toDoseView` 后的视图数组
  * @returns {Array<{day: string, doses: Array<Object>}>}
  */
 export function groupDosesByDay(doses) {

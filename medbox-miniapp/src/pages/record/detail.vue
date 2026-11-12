@@ -7,15 +7,11 @@
     <template v-else-if="record">
       <MbCard title="计划信息">
         <MbCell title="计划" :value="recordTitle(record)" />
-        <MbCell title="药品" :value="recordMedicineText(record)" />
+        <MbCell title="格位" :value="recordCellText(record)" />
         <MbCell v-if="record.deviceId" title="药箱设备" :value="record.deviceId" />
         <MbCell title="计划时间" :value="formatPlanTime(record)" />
         <MbCell title="实际时间" :value="formatActualTime(record)" />
-        <MbCell
-          v-if="record.actualDose !== undefined && record.actualDose !== null && record.actualDose !== ''"
-          title="实际剂量"
-          :value="actualDoseText(record)"
-        >
+        <MbCell title="取药结论" :value="record.takenResult === 'TAKEN' ? '已取药' : '未取药'">
           <template #extra>
             <view class="tags">
               <text
@@ -69,36 +65,65 @@
 
     <MbModal
       v-model="showConfirm"
-      title="补录 / 确认"
+      title="纠错 / 补录"
       confirm-text="确认提交"
       :confirm-loading="confirming"
       :close-on-confirm="false"
       @confirm="onConfirm"
     >
       <view class="confirm-body">
-        <text class="confirm-body__text">请确认该记录的服药结论（监护人校准 / 补录，可同步备注）：</text>
+        <view class="confirm-body__seg">
+          <view
+            class="confirm-body__opt"
+            :class="{ 'confirm-body__opt--on': confirmMode === 'edit' }"
+            @click="confirmMode = 'edit'"
+          >
+            <text class="confirm-body__opt-text">纠错现有记录</text>
+          </view>
+          <view
+            class="confirm-body__opt"
+            :class="{ 'confirm-body__opt--on': confirmMode === 'create' }"
+            @click="confirmMode = 'create'"
+          >
+            <text class="confirm-body__opt-text">补录新记录</text>
+          </view>
+        </view>
+
+        <text v-if="confirmMode === 'edit'" class="confirm-body__text">
+          仅纠正该记录的取药结论；不改计划时间，也不改库存。
+        </text>
+        <template v-else>
+          <text class="confirm-body__text">补录一条按格记录（路径记录号由后端忽略）：</text>
+          <MbField v-model="planIdInput" label="计划 ID" placeholder="如：p-3301" />
+          <view class="confirm-body__seg">
+            <view
+              v-for="no in [1, 2, 3]"
+              :key="no"
+              class="confirm-body__opt"
+              :class="{ 'confirm-body__opt--on': cellNo === no }"
+              @click="cellNo = no"
+            >
+              <text class="confirm-body__opt-text">{{ no }} 号格</text>
+            </view>
+          </view>
+        </template>
+
         <view class="confirm-body__seg">
           <view
             class="confirm-body__opt"
             :class="{ 'confirm-body__opt--on': takenResult === 'TAKEN' }"
             @click="takenResult = 'TAKEN'"
           >
-            <text class="confirm-body__opt-text">已服</text>
+            <text class="confirm-body__opt-text">已取药</text>
           </view>
           <view
             class="confirm-body__opt"
             :class="{ 'confirm-body__opt--on': takenResult === 'UNTAKEN' }"
             @click="takenResult = 'UNTAKEN'"
           >
-            <text class="confirm-body__opt-text">未服</text>
+            <text class="confirm-body__opt-text">未取药</text>
           </view>
         </view>
-        <MbField
-          v-model="note"
-          label="备注（选填）"
-          type="textarea"
-          placeholder="如：老人实际于 21:10 服药，剂量无误"
-        />
         <text v-if="confirmError" class="confirm-body__err">{{ confirmError }}</text>
       </view>
     </MbModal>
@@ -124,7 +149,7 @@ import {
   canWriteRecord,
   recordStatusTags,
   recordTitle,
-  recordMedicineText,
+  recordCellText,
   formatPlanTime,
   formatActualTime,
 } from '@/utils/record.js'
@@ -159,7 +184,9 @@ export default {
       error: '',
       canWrite: false,
       showConfirm: false,
-      note: '',
+      confirmMode: 'edit',
+      planIdInput: '',
+      cellNo: 1,
       takenResult: 'TAKEN',
       confirming: false,
       confirmError: '',
@@ -179,14 +206,9 @@ export default {
   },
   methods: {
     recordTitle,
-    recordMedicineText,
+    recordCellText,
     formatPlanTime,
     formatActualTime,
-    actualDoseText(record) {
-      const r = record || {}
-      const unit = r.medicineUnit || ''
-      return [r.actualDose, unit].filter(Boolean).join(' ') || '-'
-    },
     async load() {
       if (!this.recordId) {
         this.error = '缺少记录编号'
@@ -228,7 +250,9 @@ export default {
       this.captureError = '原图加载失败，请重试'
     },
     openConfirm() {
-      this.note = ''
+      this.confirmMode = 'edit'
+      this.planIdInput = (this.record && this.record.planId) || ''
+      this.cellNo = (this.record && this.record.cellNo) || 1
       this.takenResult = 'TAKEN'
       this.confirmError = ''
       this.showConfirm = true
@@ -241,16 +265,25 @@ export default {
     },
     onConfirm() {
       if (this.confirming) return
-      this.confirming = true
       this.confirmError = ''
-      const payload = buildConfirmPayload({
-        takenResult: this.takenResult,
-        note: this.note,
-      })
-      confirmRecord(this.recordId, payload, { silent: true })
+      const isCreate = this.confirmMode === 'create'
+      const payload = isCreate
+        ? buildConfirmPayload({
+            elderId: (this.record && this.record.elderId) || this.elderId,
+            planId: this.planIdInput,
+            cellNo: this.cellNo,
+            takenResult: this.takenResult,
+          })
+        : buildConfirmPayload({ takenResult: this.takenResult })
+      // 补录（记录不存在分支）：请求体必带 elderId / planId / cellNo，路径记录号由后端忽略
+      if (isCreate && (!payload.elderId || !payload.planId || !payload.cellNo)) {
+        this.confirmError = '补录需填写老人、计划 ID 与格号（1/2/3）'
+        return
+      }
+      this.confirming = true
+      confirmRecord(isCreate ? 'new' : this.recordId, payload, { silent: true })
         .then(() => {
           this.showConfirm = false
-          this.note = ''
           uni.showToast({ title: '已提交', icon: 'success' })
           this.load()
         })

@@ -171,79 +171,77 @@ function createSeed() {
     { stockId: 'st-7', deviceId: 'BOXA1002', elderId: 'u-1002', medicineId: 'm-201', quantity: 12, productionDate: dateOffset(-15), expiryDate: dateOffset(30), updatedAt: isoOffset(-3 * DAY) },
   ]
 
-  // 服药计划（06 的 2.6 / 2.6.1）：times 为设备本地墙钟；覆盖 ENABLED / DISABLED、
-  // 单药 / 多药 / 带备注 / 多时间 / 两位老人 / DAILY / WEEKLY
+  // 服药计划（02d / 06 的 2.6）：只描述「几点开几号格」，格号 1/2/3 固定对应早/中/晚；
+  // slots[].time 为设备本地墙钟；不关联药品、剂量。缺失的格号 = 该格不排程。
   const plans = [
     {
-      planId: 'p-3301', elderId: 'u-1001', name: '早餐后',
-      times: ['08:00'], repeatRule: 'DAILY',
+      planId: 'p-3301', elderId: 'u-1001', name: '日常服药',
+      slots: [
+        { cellNo: 1, time: '08:00' },
+        { cellNo: 2, time: '12:30' },
+        { cellNo: 3, time: '18:00' },
+      ],
+      repeatRule: 'DAILY',
       status: 'ENABLED', syncState: 'SYNCED_TO_DEVICE',
       createdAt: isoOffset(-10 * DAY),
     },
     {
       planId: 'p-3302', elderId: 'u-1001', name: '睡前',
-      times: ['21:30'], repeatRule: 'DAILY',
+      slots: [{ cellNo: 3, time: '21:30' }],
+      repeatRule: 'DAILY',
       status: 'DISABLED', syncState: 'SYNCED_TO_DEVICE',
       createdAt: isoOffset(-10 * DAY),
     },
     {
       planId: 'p-3303', elderId: 'u-1002', name: '早晚各一次',
-      times: ['08:00', '20:00'], repeatRule: 'WEEKLY',
+      slots: [
+        { cellNo: 1, time: '08:00' },
+        { cellNo: 2, time: '20:00' },
+      ],
+      repeatRule: 'DAILY',
       status: 'ENABLED', syncState: 'SYNCED_TO_DEVICE',
       createdAt: isoOffset(-6 * DAY),
     },
   ]
 
-  // 计划明细：一次提醒可含多种药；sortOrder 即展示顺序
-  const planItems = [
-    { itemId: 'pi-9001', planId: 'p-3301', medicineId: 'm-201', dose: '1', unit: '粒', note: '', sortOrder: 0 },
-    { itemId: 'pi-9002', planId: 'p-3301', medicineId: 'm-202', dose: '1', unit: '片', note: '', sortOrder: 1 },
-    { itemId: 'pi-9003', planId: 'p-3302', medicineId: 'm-204', dose: '1', unit: '片', note: '嚼服', sortOrder: 0 },
-    { itemId: 'pi-9004', planId: 'p-3303', medicineId: 'm-205', dose: '10', unit: 'ml', note: '摇匀后服', sortOrder: 0 },
-  ]
-
-  // 服药记录（06 的 2.7）：planTime / actualTime 一律 UTC；覆盖按时 / 未按时 / 已确认 / 两位老人。
-  // captureId 部分有值，但 capture-core 属 P1，Mock 只存 id，缩略图由前端留空占位（feat/mp-capture 接入）。
+  // 服药记录（02e / 06 的 2.7）：一条 = 某计划某号格某次时间窗内的一次取药事实；
+  // 只带 cellNo / takenResult / source，不关联药品、剂量，记录新增与纠错都不改库存。
   const records = [
     {
-      recordId: 'rec-9001', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9001', medicineId: 'm-201',
-      deviceId: 'BOXA1001', captureId: '', actualDose: '1',
+      recordId: 'rec-9001', elderId: 'u-1001', planId: 'p-3301', cellNo: 1,
+      deviceId: 'BOXA1001', captureId: '',
       planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR + 5 * MINUTE),
-      onTime: true, confirmedBy: '', confirmedAt: '',
+      onTime: true, takenResult: 'TAKEN', source: 'CAMERA',
     },
     {
-      recordId: 'rec-9002', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9002', medicineId: 'm-202',
-      deviceId: 'BOXA1001', captureId: '', actualDose: '1',
+      recordId: 'rec-9002', elderId: 'u-1001', planId: 'p-3301', cellNo: 2,
+      deviceId: 'BOXA1001', captureId: '',
       planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR + 20 * MINUTE),
-      onTime: true, confirmedBy: '', confirmedAt: '',
+      onTime: true, takenResult: 'TAKEN', source: 'CAMERA',
     },
     {
-      recordId: 'rec-9003', elderId: 'u-1001', planId: 'p-3302', planItemId: 'pi-9003', medicineId: 'm-204',
-      deviceId: 'BOXA1001', captureId: '', actualDose: '1',
+      recordId: 'rec-9003', elderId: 'u-1001', planId: 'p-3302', cellNo: 3,
+      deviceId: 'BOXA1001', captureId: '',
       planTime: isoOffset(-2 * DAY - 3 * HOUR), actualTime: isoOffset(-2 * DAY - 3 * HOUR + 45 * MINUTE),
-      onTime: false, confirmedBy: 'u-2001', confirmedAt: isoOffset(-2 * DAY),
+      onTime: false, takenResult: 'UNTAKEN', source: 'CAMERA',
     },
     {
-      recordId: 'rec-9004', elderId: 'u-1001', planId: 'p-3301', planItemId: 'pi-9001', medicineId: 'm-201',
-      deviceId: 'BOXA1001', captureId: '', actualDose: '1',
+      recordId: 'rec-9004', elderId: 'u-1001', planId: 'p-3301', cellNo: 1,
+      deviceId: 'BOXA1001', captureId: '',
       planTime: isoOffset(-3 * DAY - 8 * HOUR), actualTime: isoOffset(-3 * DAY - 8 * HOUR + 60 * MINUTE),
-      onTime: false, confirmedBy: '', confirmedAt: '',
-      // feat/mp-capture-taken-result：取药结论二值化，不再有"待确认"派生态
-      takenResult: 'UNTAKEN',
+      onTime: false, takenResult: 'UNTAKEN', source: 'MANUAL',
     },
     {
-      recordId: 'rec-9005', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
-      deviceId: 'BOXA1002', captureId: 'cap-5001', actualDose: '10',
+      recordId: 'rec-9005', elderId: 'u-1002', planId: 'p-3303', cellNo: 1,
+      deviceId: 'BOXA1002', captureId: 'cap-5001',
       planTime: isoOffset(-1 * DAY - 8 * HOUR), actualTime: isoOffset(-1 * DAY - 8 * HOUR),
-      onTime: true, confirmedBy: '', confirmedAt: '',
-      // feat/mp-capture-taken-result：二值结论，监护人可校准 takenResult
-      takenResult: 'UNTAKEN',
+      onTime: true, takenResult: 'UNTAKEN', source: 'CAMERA',
     },
     {
-      recordId: 'rec-9006', elderId: 'u-1002', planId: 'p-3303', planItemId: 'pi-9004', medicineId: 'm-205',
-      deviceId: 'BOXA1002', captureId: '', actualDose: '10',
+      recordId: 'rec-9006', elderId: 'u-1002', planId: 'p-3303', cellNo: 2,
+      deviceId: 'BOXA1002', captureId: '',
       planTime: isoOffset(-2 * DAY - 4 * HOUR), actualTime: isoOffset(-2 * DAY - 4 * HOUR),
-      onTime: true, confirmedBy: '', confirmedAt: '',
+      onTime: true, takenResult: 'TAKEN', source: 'CAMERA',
     },
   ]
 
@@ -253,27 +251,27 @@ function createSeed() {
   const captures = [
     {
       captureId: 'cap-5001', deviceId: 'BOXA1002-S-CAM01', elderId: 'u-1002',
-      medicineId: 'm-205', planId: 'p-3303', reason: 'NORMAL',
-      mime: 'image/png', sizeBytes: 48213, takenResult: 'TAKEN',
+      cellNo: 1, planId: 'p-3303', reason: 'NORMAL',
+      mime: 'image/png', sizeBytes: 48213, takenResult: 'UNTAKEN',
       capturedAt: isoOffset(-1 * DAY - 8 * HOUR), viewedAt: null, expireAt: isoOffset(29 * DAY),
     },
     {
-      // 监护人主动留证（异常排查）：reason=MANUAL（02 §4.1）
+      // 监护人主动留证（异常排查）：reason=MANUAL，可不带格号
       captureId: 'cap-5002', deviceId: 'BOXA1002-S-CAM01', elderId: 'u-1002',
-      medicineId: 'm-205', planId: '', reason: 'MANUAL',
+      cellNo: null, planId: '', reason: 'MANUAL',
       mime: 'image/png', sizeBytes: 39120, takenResult: '',
       capturedAt: isoOffset(-3 * DAY), viewedAt: null, expireAt: isoOffset(27 * DAY),
     },
     {
       captureId: 'cap-5003', deviceId: 'BOXA1001-S-CAM01', elderId: 'u-1001',
-      medicineId: 'm-201', planId: 'p-3301', reason: 'NORMAL',
-      mime: 'image/jpeg', sizeBytes: 51234, takenResult: 'TAKEN',
+      cellNo: 2, planId: 'p-3301', reason: 'NORMAL',
+      mime: 'image/jpeg', sizeBytes: 51234, takenResult: 'UNTAKEN',
       capturedAt: isoOffset(-2 * DAY), viewedAt: null, expireAt: isoOffset(28 * DAY),
     },
     {
       // 已过期样例：expireAt 已在过去，/file 返回 404/401，前端提示"原图已过期"
       captureId: 'cap-5004', deviceId: 'BOXA1001-S-CAM01', elderId: 'u-1001',
-      medicineId: '', planId: '', reason: 'MANUAL',
+      cellNo: null, planId: '', reason: 'MANUAL',
       mime: 'image/png', sizeBytes: 12030, takenResult: '',
       capturedAt: isoOffset(-40 * DAY), viewedAt: null, expireAt: isoOffset(-10 * DAY),
     },
@@ -285,27 +283,27 @@ function createSeed() {
   // readState: UNREAD / READ；handled: 是否已处理闭环。
   const alarms = [
     {
-      alarmId: 'a-1001-miss-1', elderId: 'u-1001', type: 'MISS', level: 'WARN',
-      message: '08:00 计划服药未按时服用：缺 阿莫西林胶囊、阿托伐他汀钙片',
-      medicineIds: ['m-201', 'm-202'], readState: 'UNREAD', handled: false,
+      alarmId: 'a-1001-miss-1', elderId: 'u-1001', planId: 'p-3301', type: 'MISS', level: 'WARN',
+      message: '08:00 1 号格（早间）未按时取药',
+      cellNo: 1, readState: 'UNREAD', handled: false,
       createdAt: isoOffset(-3 * HOUR),
     },
     {
       alarmId: 'a-1001-env-1', elderId: 'u-1001', type: 'ENV', level: 'WARN',
       message: '客厅药箱温度偏高：31℃ 超过上限 30℃',
-      medicineIds: [], readState: 'READ', handled: false,
+      cellNo: null, readState: 'READ', handled: false,
       createdAt: isoOffset(-2 * DAY),
     },
     {
-      alarmId: 'a-1001-miss-2', elderId: 'u-1001', type: 'MISS', level: 'WARN',
-      message: '21:30 计划服药未按时服用',
-      medicineIds: [], readState: 'UNREAD', handled: false,
+      alarmId: 'a-1001-miss-2', elderId: 'u-1001', planId: 'p-3302', type: 'MISS', level: 'WARN',
+      message: '21:30 3 号格（晚间）未按时取药',
+      cellNo: 3, readState: 'UNREAD', handled: false,
       createdAt: isoOffset(-5 * HOUR),
     },
     {
-      alarmId: 'a-1002-miss-1', elderId: 'u-1002', type: 'MISS', level: 'WARN',
-      message: '08:00 计划服药未按时服用：缺 布洛芬混悬液',
-      medicineIds: ['m-205'], readState: 'UNREAD', handled: false,
+      alarmId: 'a-1002-miss-1', elderId: 'u-1002', planId: 'p-3303', type: 'MISS', level: 'WARN',
+      message: '08:00 1 号格（早间）未按时取药',
+      cellNo: 1, readState: 'UNREAD', handled: false,
       createdAt: isoOffset(-4 * HOUR),
     },
   ]
@@ -330,7 +328,7 @@ function createSeed() {
     },
   }
 
-  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, planItems, records, captures, envSamples: seedEnvSamples(), llmConfigs: seedLlmConfigs(), aiSchedules: [], refreshTokens: new Set() }
+  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, records, captures, envSamples: seedEnvSamples(), llmConfigs: seedLlmConfigs(), aiSchedules: [], refreshTokens: new Set() }
 }
 
 /**

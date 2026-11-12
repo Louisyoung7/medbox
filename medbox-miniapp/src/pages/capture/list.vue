@@ -47,6 +47,7 @@
               <text v-if="item.takenResultLabel" class="meta__result">{{ item.takenResultLabel }}</text>
             </view>
             <text class="meta__time">{{ item.capturedAtText }}</text>
+            <text v-if="item.cellLabel" class="meta__device">{{ item.cellLabel }}</text>
             <text v-if="item.deviceId" class="meta__device">{{ item.deviceId }}</text>
           </view>
           <text class="arrow">›</text>

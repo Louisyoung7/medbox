@@ -76,7 +76,7 @@
 
       <MbCell
         title="一键播种数据"
-        label="监护人 / 老人 / 药箱 / 药品 / 库存 / 计划"
+        label="监护人 / 老人 / 药箱 / 药品 / 库存 / 按格计划"
         value="POST /_debug/seed"
         arrow
         clickable
@@ -120,8 +120,8 @@
         clickable
         @click="onSendSim(item)"
       >
-        <!-- 发之前就标清楚会不会落库：目前只有 dispense 有专属处理器，
-              其余四个 topic 的后端分支未落地，发了也不改数据 -->
+        <!-- 发之前就标清楚会不会落库：服药事件已改走 HTTP captures，
+              这些 MQTT 预设当前都只记日志、不改数据 -->
         <template #extra>
           <text class="tag" :class="item.effect === 'record' ? 'tag--live' : 'tag--log'">
             {{ item.effect === 'record' ? '落库' : '仅日志' }}
@@ -141,7 +141,7 @@
         </view>
         <view v-if="lastSim.slotDate" class="sim-result__row">
           <text class="sim-result__key">计划槽</text>
-          <text class="sim-result__val">{{ lastSim.slotDate }} 08:00</text>
+          <text class="sim-result__val">{{ lastSim.slotDate }} 1 号格 08:00</text>
         </view>
         <view class="sim-result__row">
           <text class="sim-result__key">msgId</text>
@@ -162,9 +162,9 @@
         msgId 可在后端日志里 grep 核对。
       </text>
       <text class="ref ref--foot">
-        服药类每次点击都会换一个**新的计划时间槽**（后端 `uk_med_record_item_plan_time` 要求同槽只落一条，
-        而种子只有 1 个计划项 × 每日 08:00，槽位有限），计数器记在本地、刷新不归零。
-        <text v-if="nextSlotDate">下一个槽：{{ nextSlotDate }} 08:00。</text>
+        服药类每次点击都会换一个**新的计划时间槽**（后端 `uk_med_record_cell_plan_time` 要求同格同槽只落一条，
+        而种子只排 1 号格 × 每日 08:00，槽位有限），计数器记在本地、刷新不归零。
+        <text v-if="nextSlotDate">下一个槽：{{ nextSlotDate }} 1 号格 08:00。</text>
       </text>
     </MbCard>
 

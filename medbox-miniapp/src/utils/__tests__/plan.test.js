@@ -1,212 +1,123 @@
-/**
- * 计划域纯函数测试（`feat/mp-plan`，规则表 A/B/C 的可单测落地，对应 medbox-spec/02 第 6 章、
- * 06 的 2.6 / 2.6.1）。
- *
- * 规则表索引（确认后同步沉淀进 02 第 6 章）：
- * - A 时间：`normalizeTimes`（格式校验 + 去重 + 升序；**设备本地墙钟，不换 UTC**）
- * - B items：`buildPlanPayload`（medicineId 必填、dose/unit/note 空串省略、按序组装）
- * - C 库存校验：`pickableMedicines`（无库存置灰，跨设备聚合）
- * - D 启停 / E 权限 / 文案：`canWritePlan` / `planTimesText` / `planItemsText`
- */
-
-import { describe, expect, it } from 'vitest'
-import { ROLE } from '@/store/user.js'
+import { describe, it, expect } from 'vitest'
 import {
+  normalizeSlots,
   buildPlanPayload,
-  canWritePlan,
-  normalizeTimes,
+  cellLabel,
+  planSlotsText,
   parsePlansPage,
   parseNextDoses,
-  pickableMedicines,
-  planItemsText,
-  planStatusLabel,
-  planTimesText,
-  repeatRuleLabel,
-  syncStateLabel,
   toDoseView,
   groupDosesByDay,
+  syncStateLabel,
+  canWritePlan,
+  repeatRuleLabel,
+  planStatusLabel,
 } from '@/utils/plan.js'
+import { ROLE } from '@/store/user.js'
 
-describe('normalizeTimes（规则 A：设备本地墙钟，校验 + 去重 + 升序）', () => {
-  it('合法时间：去重后按 HH:mm 升序', () => {
-    expect(normalizeTimes(['20:00', '08:00', '08:00', '12:30'])).toEqual(['08:00', '12:30', '20:00'])
+const slot = (cellNo, time) => ({ cellNo, time })
+
+describe('normalizeSlots（02d 规则 B：格位归一化）', () => {
+  it('合法项去重并按格号升序', () => {
+    expect(normalizeSlots([slot(2, '12:30'), slot(1, '08:00'), slot(3, '18:00')]))
+      .toEqual([slot(1, '08:00'), slot(2, '12:30'), slot(3, '18:00')])
   })
-
-  it('非法格式剔除（25:00 / 8:00 / 08:0 / 空 / null）', () => {
-    expect(normalizeTimes(['25:00', '8:00', '08:0', '', null, '09:15'])).toEqual(['09:15'])
+  it('越界格号 / 重复格号 / 非法时间剔除', () => {
+    expect(normalizeSlots([
+      slot(4, '08:00'), slot(0, '09:00'), slot(1, '25:00'),
+      slot(1, '8:00'), slot(1, '08:00'), slot(1, '09:00'), slot(2, '12:30'),
+    ])).toEqual([slot(1, '08:00'), slot(2, '12:30')])
   })
-
-  it('边界值：00:00 与 23:59 合法；非数组按空处理', () => {
-    expect(normalizeTimes(['23:59', '00:00'])).toEqual(['00:00', '23:59'])
-    expect(normalizeTimes(undefined)).toEqual([])
-    expect(normalizeTimes(null)).toEqual([])
-    expect(normalizeTimes('08:00')).toEqual([])
+  it('非数组 / 空数组 → 空', () => {
+    expect(normalizeSlots(null)).toEqual([])
+    expect(normalizeSlots([])).toEqual([])
   })
 })
 
-describe('buildPlanPayload（规则 B：items 组装，空值省略）', () => {
-  const form = {
-    name: '  早餐后 ',
-    times: ['20:00', '08:00'],
-    repeatRule: 'DAILY',
-    items: [
-      { medicineId: 'm-201', dose: '1', unit: '粒', note: '' },
-      { medicineId: 'm-205', dose: '', unit: '', note: '餐后' },
-      { medicineId: '', dose: '1' },
-    ],
-  }
-
-  it('name trim、times 归一、dose/unit/note 空串省略、无 medicineId 项剔除', () => {
-    const payload = buildPlanPayload(form, 'u-1001')
+describe('buildPlanPayload', () => {
+  it('只提交 slots，name trim、格号升序，不含药品字段', () => {
+    const payload = buildPlanPayload({
+      name: '  日常服药  ',
+      slots: [slot(3, '18:00'), slot(1, '08:00'), slot(4, '09:00')],
+      repeatRule: 'DAILY',
+    }, 'u-1001')
     expect(payload).toEqual({
       elderId: 'u-1001',
-      name: '早餐后',
-      times: ['08:00', '20:00'],
+      name: '日常服药',
+      slots: [slot(1, '08:00'), slot(3, '18:00')],
       repeatRule: 'DAILY',
-      items: [
-        { medicineId: 'm-201', dose: '1', unit: '粒' },
-        { medicineId: 'm-205', note: '餐后' },
-      ],
     })
+    expect(payload.items).toBeUndefined()
+    expect(payload.times).toBeUndefined()
   })
-
-  it('不传 missAlarmAfterMin / alarmRule（本期范围决策：走后端默认与老人级配置）', () => {
-    const payload = buildPlanPayload(form, 'u-1001')
-    expect('missAlarmAfterMin' in payload).toBe(false)
-    expect('alarmRule' in payload).toBe(false)
-  })
-
-  it('repeatRule 为空则省略；items 非数组按空处理', () => {
-    const payload = buildPlanPayload({ name: 'x', times: ['08:00'], repeatRule: '', items: null }, 'u-1001')
-    expect('repeatRule' in payload).toBe(false)
-    expect(payload.items).toEqual([])
-  })
-})
-
-describe('parsePlansPage（后端未定稿，字段名容错）', () => {
-  it('{list,total} 标准形状', () => {
-    expect(parsePlansPage({ list: [{ planId: 'p-1' }], total: 3 })).toEqual({ list: [{ planId: 'p-1' }], total: 3 })
-  })
-
-  it('容错 records / items / 裸数组；缺失按空页', () => {
-    expect(parsePlansPage({ records: [1], total: 1 }).list).toEqual([1])
-    expect(parsePlansPage({ items: [1], total: 1 }).list).toEqual([1])
-    expect(parsePlansPage([1, 2])).toEqual({ list: [1, 2], total: 2 })
-    expect(parsePlansPage(null)).toEqual({ list: [], total: 0 })
-    expect(parsePlansPage({ foo: 1 })).toEqual({ list: [], total: 0 })
-  })
-})
-
-describe('pickableMedicines（规则 C：无库存拦截，跨设备聚合）', () => {
-  const medicines = [
-    { medicineId: 'm-ok', name: '正常药' },
-    { medicineId: 'm-nostock', name: '无库存药' },
-    { medicineId: 'm-none', name: '无库存药' },
-    { medicineId: 'm-mixed', name: '一有库存一无库存' },
-  ]
-  const stocks = [
-    { medicineId: 'm-ok', quantity: 5 },
-    { medicineId: 'm-mixed', quantity: 3 },
-  ]
-
-  it('有库存 → 可选；无库存 → 拦截(no-stock)', () => {
-    const { selectable, blocked } = pickableMedicines(medicines, stocks)
-    expect(selectable.map((s) => s.medicine.medicineId)).toEqual(['m-ok', 'm-mixed'])
-    expect(blocked).toEqual([
-      { medicine: medicines[1], reason: 'no-stock' },
-      { medicine: medicines[2], reason: 'no-stock' },
-    ])
-  })
-
-  it('库存数据缺失（空数组）→ 全部 no-stock，页面按规则不硬拦截', () => {
-    const { selectable, blocked } = pickableMedicines(medicines, [])
-    expect(selectable).toHaveLength(0)
-    expect(blocked.every((b) => b.reason === 'no-stock')).toBe(true)
+  it('name / repeatRule 为空则省略；slots 始终存在', () => {
+    const payload = buildPlanPayload({ name: '', slots: [] }, 'u-1001')
+    expect(payload).toEqual({ elderId: 'u-1001', slots: [] })
   })
 })
 
 describe('文案与权限', () => {
-  it('planTimesText', () => {
-    expect(planTimesText(['20:00', '08:00'])).toBe('08:00、20:00')
-    expect(planTimesText([])).toBe('未设置时间')
+  it('cellLabel：1/2/3 对应早/午/晚，未知回退', () => {
+    expect(cellLabel(1)).toBe('1 号格（早间）')
+    expect(cellLabel(2)).toBe('2 号格（午间）')
+    expect(cellLabel(3)).toBe('3 号格（晚间）')
+    expect(cellLabel(4)).toBe('未识别格位')
+    expect(cellLabel(null)).toBe('未识别格位')
   })
-
-  it('planItemsText：join 药品名 + 剂量，缺省回退 medicineId', () => {
-    const map = { 'm-201': { name: '阿莫西林' }, 'm-205': { name: '布洛芬' } }
-    const text = planItemsText(
-      [
-        { medicineId: 'm-201', dose: '1', unit: '粒' },
-        { medicineId: 'm-205' },
-        { medicineId: 'm-999', dose: '2', unit: '片' },
-      ],
-      map,
-    )
-    expect(text).toBe('阿莫西林 1粒 + 布洛芬 + m-999 2片')
-    expect(planItemsText([], map)).toBe('未添加药品')
+  it('planSlotsText：按格拼接，空则未设置', () => {
+    expect(planSlotsText([slot(2, '12:30'), slot(1, '08:00')]))
+      .toBe('1 号格 08:00、2 号格 12:30')
+    expect(planSlotsText([])).toBe('未设置格位')
   })
-
-  it('canWritePlan：仅监护人（WRITE_PLAN 仅 GUARDIAN）', () => {
-    expect(canWritePlan(ROLE.GUARDIAN)).toBe(true)
-    expect(canWritePlan(ROLE.ELDER)).toBe(false)
-    expect(canWritePlan('')).toBe(false)
-  })
-
-  it('repeatRuleLabel / planStatusLabel / syncStateLabel：已知值映射，未知原样', () => {
-    expect(repeatRuleLabel('DAILY')).toBe('每天')
-    expect(repeatRuleLabel('WEEKLY')).toBe('每周')
-    expect(repeatRuleLabel('MONTHLY')).toBe('MONTHLY')
-    expect(repeatRuleLabel('')).toBe('未设置周期')
-    expect(planStatusLabel('ENABLED')).toBe('启用中')
-    expect(planStatusLabel('DISABLED')).toBe('已停用')
+  it('syncStateLabel：PENDING 待同步、未知原样、空不渲染文案', () => {
+    expect(syncStateLabel('PENDING')).toBe('待同步')
     expect(syncStateLabel('SYNCED_TO_DEVICE')).toBe('已同步设备')
-    expect(syncStateLabel('SYNCING')).toBe('SYNCING')
+    expect(syncStateLabel('SYNC_FAILED')).toBe('同步失败')
+    expect(syncStateLabel('CUSTOM')).toBe('CUSTOM')
     expect(syncStateLabel('')).toBe('')
   })
-
+  it('repeatRuleLabel / planStatusLabel 已知值映射', () => {
+    expect(repeatRuleLabel('DAILY')).toBe('每天')
+    expect(planStatusLabel('DISABLED')).toBe('已停用')
+  })
+  it('canWritePlan 仅 GUARDIAN 可写', () => {
+    expect(canWritePlan(ROLE.GUARDIAN)).toBe(true)
+    expect(canWritePlan('ELDER')).toBe(false)
+  })
 })
 
-describe('next-doses 解析（feat/mp-plan-timeline）', () => {
-  it('parseNextDoses：兼容 {doses} / 裸数组 / 空', () => {
-    expect(parseNextDoses({ doses: [{ a: 1 }] })).toEqual([{ a: 1 }])
-    expect(parseNextDoses([{ a: 1 }, { a: 2 }])).toEqual([{ a: 1 }, { a: 2 }])
+describe('响应容错与视图', () => {
+  it('parsePlansPage 兼容四种外壳', () => {
+    expect(parsePlansPage([{ planId: 'p-1' }])).toEqual({ list: [{ planId: 'p-1' }], total: 1 })
+    expect(parsePlansPage({ list: [], total: 3 })).toEqual({ list: [], total: 3 })
+    expect(parsePlansPage({ records: [{}] }).list).toHaveLength(1)
+    expect(parsePlansPage({ items: [{}] }).list).toHaveLength(1)
+  })
+  it('parseNextDoses 兼容 {doses} 与裸数组', () => {
+    expect(parseNextDoses({ doses: [{ cellNo: 1 }] })).toEqual([{ cellNo: 1 }])
+    expect(parseNextDoses([{ cellNo: 2 }])).toEqual([{ cellNo: 2 }])
     expect(parseNextDoses(null)).toEqual([])
-    expect(parseNextDoses({})).toEqual([])
-    expect(parseNextDoses({ list: [] })).toEqual([])
   })
-
-  it('toDoseView：拆本地日期与 HH:mm，items 缺字段兜底', () => {
+  it('toDoseView 带格号与格位文案，拆出 day/time，不含药品', () => {
     const view = toDoseView({
-      scheduledTimeLocal: '2026-10-27T08:00:00',
-      items: [
-        { medicineId: 'm-201', medicineName: '阿莫西林', dose: '1', unit: '粒' },
-        { medicineId: 'm-205' },
-      ],
+      cellNo: 2,
+      scheduledTimeLocal: '2026-11-12T12:30',
+      scheduledTimeUtc: '2026-11-12T04:30:00Z',
     })
-    expect(view.day).toBe('2026-10-27')
-    expect(view.time).toBe('08:00')
-    expect(view.items[0].text).toBe('阿莫西林 1粒')
-    expect(view.items[1].text).toBe('m-205')
+    expect(view).toMatchObject({ day: '2026-11-12', time: '12:30', cellNo: 2, cellLabel: '2 号格（午间）' })
+    expect(view.items).toBeUndefined()
   })
-
-  it('toDoseView：缺 scheduledTimeLocal 时 day/time 为空串', () => {
-    const view = toDoseView({ items: [] })
-    expect(view.day).toBe('')
-    expect(view.time).toBe('')
-    expect(view.items).toEqual([])
+  it('toDoseView 缺格号兜底', () => {
+    expect(toDoseView({}).cellNo).toBeNull()
+    expect(toDoseView({}).cellLabel).toBe('未识别格位')
   })
-
-  it('groupDosesByDay：按本地日期升序分组，组内按时间升序', () => {
+  it('groupDosesByDay 按日期升序、组内按时间升序', () => {
     const groups = groupDosesByDay([
-      toDoseView({ scheduledTimeLocal: '2026-10-27T20:00:00' }),
-      toDoseView({ scheduledTimeLocal: '2026-10-27T08:00:00' }),
-      toDoseView({ scheduledTimeLocal: '2026-10-26T09:00:00' }),
+      { day: '2026-11-13', time: '08:00' },
+      { day: '2026-11-12', time: '18:00' },
+      { day: '2026-11-12', time: '08:00' },
     ])
-    expect(groups.map((g) => g.day)).toEqual(['2026-10-26', '2026-10-27'])
-    expect(groups[1].doses.map((d) => d.time)).toEqual(['08:00', '20:00'])
-  })
-
-  it('groupDosesByDay：空输入返回空数组', () => {
-    expect(groupDosesByDay([])).toEqual([])
-    expect(groupDosesByDay(null)).toEqual([])
+    expect(groups.map((g) => g.day)).toEqual(['2026-11-12', '2026-11-13'])
+    expect(groups[0].doses.map((d) => d.time)).toEqual(['08:00', '18:00'])
   })
 })

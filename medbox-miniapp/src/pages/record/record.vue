@@ -107,7 +107,7 @@ import {
   parseRecordsPage,
   recordStatusTags,
   recordTitle,
-  recordMedicineText,
+  recordCellText,
   formatPlanTime,
   formatActualTime,
 } from '@/utils/record.js'
@@ -163,11 +163,11 @@ export default {
   },
   methods: {
     recordTitle,
-    recordMedicineText,
+    recordCellText,
     formatPlanTime,
     formatActualTime,
     recordLabel(record) {
-      return recordMedicineText(record)
+      return recordCellText(record)
     },
     async reload() {
       this.page = 1

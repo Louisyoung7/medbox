@@ -1,11 +1,11 @@
 /**
- * 计划接口的**请求层链路**测试（`feat/mp-plan`，对应 medbox-spec/02 第 6 章）。
+ * 计划接口的**请求层链路**测试（固定 3 药格模型，对应 medbox-spec/02d）。
  *
  * <p>与 `stock.test.js` / `medicine.test.js` 同一套打桩方式：stub `uni.request`，
  * URL / 方法 / Bearer / 请求体 / 错误码分流走 `src/api/request.js` 真实实现。
  *
- * <p>⚠️ 后端 `plan-core` 未落地：这里断言的是**前端契约**（02 第 6 章的路径与方法、
- * PATCH status 的请求体 `{status}`、40901 药品无库存兑现），真机联调后如有偏差改契约处即可。
+ * <p>请求体只含 `slots`（格号 → 开格时间）；40901 = 该老人已有计划，
+ * 40001 = slots 为空 / 格号越界或重复 / 时间格式非法。
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,10 +56,13 @@ async function loadPlanApi({ token = 'TOKEN' } = {}) {
 
 const PLAN_PAYLOAD = {
   elderId: 'u-1001',
-  name: '早餐后',
-  times: ['08:00', '20:00'],
+  name: '日常服药',
+  slots: [
+    { cellNo: 1, time: '08:00' },
+    { cellNo: 2, time: '12:30' },
+    { cellNo: 3, time: '18:00' },
+  ],
   repeatRule: 'DAILY',
-  items: [{ medicineId: 'm-201', dose: '1', unit: '粒' }],
 }
 
 describe('plan —— 请求层', () => {
@@ -76,23 +79,25 @@ describe('plan —— 请求层', () => {
     expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
   })
 
-  it('getPlan：URL 拼入 planId，兑现详情（含 items）', async () => {
+  it('getPlan：URL 拼入 planId，兑现详情（含 slots，不含 items）', async () => {
     const { plan } = await loadPlanApi()
-    scripts = [{ body: { code: 0, data: { planId: 'p-3301', items: [{ itemId: 'pi-1' }] } } }]
+    scripts = [{ body: { code: 0, data: { planId: 'p-3301', slots: [{ cellNo: 1, time: '08:00' }] } } }]
 
     const data = await plan.getPlan('p-3301')
 
     expect(data.planId).toBe('p-3301')
+    expect(data.slots[0].cellNo).toBe(1)
+    expect(data.items).toBeUndefined()
     expect(sent[0].url).toContain('/medbox/api/v1/plans/p-3301')
   })
 
-  it('createPlan：POST /plans，请求体透传，写操作注入 X-Request-Id', async () => {
+  it('createPlan：POST /plans，请求体透传 slots，写操作注入 X-Request-Id', async () => {
     const { plan } = await loadPlanApi()
-    scripts = [{ body: { code: 0, data: { planId: 'p-3301', syncState: 'SYNCED_TO_DEVICE', items: [] } } }]
+    scripts = [{ body: { code: 0, data: { planId: 'p-3301', syncState: 'PENDING', slots: PLAN_PAYLOAD.slots } } }]
 
     const data = await plan.createPlan(PLAN_PAYLOAD)
 
-    expect(data.syncState).toBe('SYNCED_TO_DEVICE')
+    expect(data.syncState).toBe('PENDING')
     expect(sent[0].method).toBe('POST')
     expect(sent[0].url).toContain('/medbox/api/v1/plans')
     expect(sent[0].data).toEqual(PLAN_PAYLOAD)
@@ -132,9 +137,9 @@ describe('plan —— 请求层', () => {
     expect(sent[0].url).toContain('/medbox/api/v1/plans/p-3301')
   })
 
-  it('createPlan：40901（药品无库存，06 的 2.6.1）兑现 ApiError', async () => {
+  it('createPlan：40901（该老人已有计划）兑现 ApiError', async () => {
     const { plan, CODE } = await loadPlanApi()
-    scripts = [{ body: { code: 40901, message: '药品无库存，不能加入计划' } }]
+    scripts = [{ body: { code: 40901, message: '该老人已有服药计划' } }]
 
     const error = await plan.createPlan(PLAN_PAYLOAD).catch((err) => err)
 
@@ -152,24 +157,25 @@ describe('plan —— 请求层', () => {
     expect(storage.accessToken).toBe('TOKEN')
   })
 
-  it('createPlan：40001（times 非法 / items 为空）兑现 ApiError', async () => {
+  it('createPlan：40001（格号越界 / slots 为空）兑现 ApiError', async () => {
     const { plan, CODE } = await loadPlanApi()
-    scripts = [{ body: { code: 40001, message: 'times 格式不正确' } }]
+    scripts = [{ body: { code: 40001, message: 'cellNo 只能为 1/2/3' } }]
 
-    const error = await plan.createPlan({ ...PLAN_PAYLOAD, times: ['25:00'] }).catch((err) => err)
+    const error = await plan.createPlan({ ...PLAN_PAYLOAD, slots: [{ cellNo: 4, time: '08:00' }] }).catch((err) => err)
 
     expect(error.code).toBe(CODE.BAD_REQUEST)
   })
 })
 
-describe('plan —— getNextDoses 请求层（feat/mp-plan-timeline）', () => {
-  it('GET /plans/{id}/next-doses 带 days(默认 7) 与 Bearer，无 X-Request-Id', async () => {
+describe('plan —— getNextDoses 请求层（按格时间线）', () => {
+  it('GET /plans/{id}/next-doses 带 days(默认 7) 与 Bearer，回带 cellNo', async () => {
     const { plan } = await loadPlanApi()
-    scripts = [{ body: { code: 0, data: { doses: [{ scheduledTimeLocal: '2026-10-27T08:00:00' }] } } }]
+    scripts = [{ body: { code: 0, data: { doses: [{ cellNo: 1, scheduledTimeLocal: '2026-10-27T08:00:00', scheduledTimeUtc: '2026-10-27T00:00:00Z' }] } } }]
 
     const data = await plan.getNextDoses('p-3301', { days: 7 })
 
-    expect(data.doses[0].scheduledTimeLocal).toBe('2026-10-27T08:00:00')
+    expect(data.doses[0].cellNo).toBe(1)
+    expect(data.doses[0].items).toBeUndefined()
     expect(sent[0].method).toBe('GET')
     expect(sent[0].url).toContain('/medbox/api/v1/plans/p-3301/next-doses')
     expect(sent[0].url).toContain('days=7')

@@ -200,61 +200,59 @@ async function waitReady() {
     check('旧 refresh 失效 40101', (await call('POST', '/auth/refresh', { body: { refreshToken: fresh.refreshToken } })).code === 40101)
     check('新 token 可用', (await call('GET', '/users/me', { token: refreshed.data.token })).code === 0)
 
-    console.log('== 计划（02 第 6 章） ==')
+    console.log('== 计划（02d 固定药格） ==')
     const plans = await call('GET', '/plans?elderId=u-1001', { token: gw.token })
     check('u-1001 计划列表 2 个', plans.code === 0 && plans.data.total === 2 && plans.data.list.length === 2)
     const planDetail = await call('GET', '/plans/p-3301', { token: gw.token })
-    check('计划详情含 2 种药（times 墙钟原样）', planDetail.code === 0 && planDetail.data.items.length === 2 && planDetail.data.times[0] === '08:00')
+    check('计划详情含 slots（格号→开格时间，墙钟原样）', planDetail.code === 0 && planDetail.data.slots.length === 3 && planDetail.data.slots[0].cellNo === 1 && planDetail.data.slots[0].time === '08:00' && !('items' in planDetail.data) && !('times' in planDetail.data))
     check('老人读计划列表', (await call('GET', '/plans?elderId=u-1001', { token: elder.token })).code === 0)
     check('PENDING 读计划 40302', (await call('GET', '/plans?elderId=u-1001', { token: pending.token })).code === 40302)
 
-    // 创建：两种药（在 u-1001 药箱均有未过期库存）
+    // 一老人一计划：已有计划的老人重复创建 → 40901
+    check('同一老人重复创建 40901', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', slots: [{ cellNo: 1, time: '08:00' }] } })).code === 40901)
+    // 清空 u-1002 的计划，便于覆盖创建 / 修改 / 删除完整流程
+    check('删除 u-1002 原计划', (await call('DELETE', '/plans/p-3303', { token: gw.token })).code === 0)
     const created = await call('POST', '/plans', {
       token: gw.token,
       body: {
-        elderId: 'u-1001',
-        name: '测试计划',
-        times: ['20:00', '08:00'],
+        elderId: 'u-1002',
+        name: '按格测试',
+        slots: [{ cellNo: 2, time: '12:30' }, { cellNo: 1, time: '08:00' }],
         repeatRule: 'DAILY',
-        items: [
-          { medicineId: 'm-201', dose: '1', unit: '粒' },
-          { medicineId: 'm-202', dose: '2', unit: '片', note: '餐后' },
-        ],
       },
     })
-    check('创建计划（一次两种药）', created.code === 0 && created.data.items.length === 2 && created.data.syncState === 'SYNCED_TO_DEVICE')
-    // 排序由前端 normalizeTimes 负责（utils 单测覆盖），mock 原样存取
-    check('times 墙钟原样存取', JSON.stringify(created.data.times) === JSON.stringify(['20:00', '08:00']))
+    check('创建按格计划（slots 按格号升序 / syncState=PENDING）', created.code === 0 && created.data.slots.length === 2 && created.data.slots[0].cellNo === 1 && created.data.syncState === 'PENDING' && !('items' in created.data))
     const newPlanId = created.data.planId
+    check('创建后重复 elderId 仍 40901', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1002', name: 'x', slots: [{ cellNo: 1, time: '08:00' }] } })).code === 40901)
 
-    // 06 的 2.6.1 约束与参数校验
-    check('过期药品仍有库存不再拦截 → 200', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-203' }] } })).code === 0)
-    check('无库存药品加入 40901', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-206' }] } })).code === 40901)
-    check('同计划药品重复 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-201' }, { medicineId: 'm-201' }] } })).code === 40001)
-    check('times 格式错 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['25:00'], items: [{ medicineId: 'm-201' }] } })).code === 40001)
-    check('items 为空 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [] } })).code === 40001)
-    check('老人创建 40301', (await call('POST', '/plans', { token: elder.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-201' }] } })).code === 40301)
-    check('PENDING 创建 40302', (await call('POST', '/plans', { token: pending.token, body: { elderId: 'u-1001', name: 'x', times: ['08:00'], items: [{ medicineId: 'm-201' }] } })).code === 40302)
+    // slots 参数校验（02d：1~3 项、cellNo 1/2/3 不重复、time HH:mm）
+    check('slots 为空 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', slots: [] } })).code === 40001)
+    check('cellNo 越界 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', slots: [{ cellNo: 4, time: '08:00' }] } })).code === 40001)
+    check('cellNo 重复 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', slots: [{ cellNo: 1, time: '08:00' }, { cellNo: 1, time: '09:00' }] } })).code === 40001)
+    check('slots 超过 3 项 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', slots: [{ cellNo: 1, time: '08:00' }, { cellNo: 2, time: '09:00' }, { cellNo: 3, time: '10:00' }, { cellNo: 1, time: '11:00' }] } })).code === 40001)
+    check('slot.time 格式错 40001', (await call('POST', '/plans', { token: gw.token, body: { elderId: 'u-1001', name: 'x', slots: [{ cellNo: 1, time: '25:00' }] } })).code === 40001)
+    check('老人创建 40301', (await call('POST', '/plans', { token: elder.token, body: { elderId: 'u-1001', name: 'x', slots: [{ cellNo: 1, time: '08:00' }] } })).code === 40301)
+    check('PENDING 创建 40302', (await call('POST', '/plans', { token: pending.token, body: { elderId: 'u-1001', name: 'x', slots: [{ cellNo: 1, time: '08:00' }] } })).code === 40302)
 
-    // 整体覆盖更新 + 启停 + 删除（级联）
+    // 整体覆盖更新 + 启停 + 删除（PUT 未提交的格号即停用）
     const updated = await call('PUT', `/plans/${newPlanId}`, {
       token: gw.token,
-      body: { elderId: 'u-1001', name: '测试计划-改', times: ['09:00'], repeatRule: 'WEEKLY', items: [{ medicineId: 'm-201', dose: '3' }] },
+      body: { elderId: 'u-1002', name: '按格测试-改', slots: [{ cellNo: 3, time: '18:00' }], repeatRule: 'DAILY' },
     })
-    check('PUT 整体覆盖（1 种药 / 09:00 / WEEKLY）', updated.code === 0 && updated.data.items.length === 1 && updated.data.times[0] === '09:00' && updated.data.repeatRule === 'WEEKLY')
+    check('PUT 整体覆盖（只排 3 号格）', updated.code === 0 && updated.data.slots.length === 1 && updated.data.slots[0].cellNo === 3 && updated.data.slots[0].time === '18:00')
     const disabled = await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'DISABLED' } })
     check('PATCH 停用（契约 {status}）', disabled.code === 0 && disabled.data.status === 'DISABLED')
     check('PATCH 非法状态 40001', (await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'ON' } })).code === 40001)
     check('DELETE 删除计划', (await call('DELETE', `/plans/${newPlanId}`, { token: gw.token })).code === 0)
-    check('删除后详情 40401（级联生效）', (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).code === 40401)
+    check('删除后详情 40401', (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).code === 40401)
 
-    console.log('== 未来待服药时间线（02 第 6 章；feat/mp-plan-timeline；next-doses） ==')
+    console.log('== 未来待服药时间线（02d；next-doses 按格展开） ==')
     const nd7 = await call('GET', '/plans/p-3301/next-doses?days=7', { token: gw.token })
-    check('GET next-doses 200 且 7天×1次=7 条', nd7.code === 0 && Array.isArray(nd7.data.doses) && nd7.data.doses.length === 7)
-    check('next-doses 含 scheduledTimeLocal 与 items(2 种药)', nd7.data.doses.every((d) => d.scheduledTimeLocal && Array.isArray(d.items) && d.items.length === 2))
-    check('next-doses item 含药品名/剂量/单位', nd7.data.doses[0].items.every((it) => it.medicineId && it.medicineName && it.dose && it.unit))
+    check('GET next-doses 200 且 7天×3格=21 条', nd7.code === 0 && Array.isArray(nd7.data.doses) && nd7.data.doses.length === 21)
+    check('next-doses 每条含 cellNo 与墙钟本地时间', nd7.data.doses.every((d) => d.cellNo >= 1 && d.cellNo <= 3 && d.scheduledTimeLocal && d.scheduledTimeUtc))
+    check('next-doses 不含药品信息', nd7.data.doses.every((d) => !('items' in d) && !('medicineName' in d)))
     const nd15 = await call('GET', '/plans/p-3301/next-doses?days=15', { token: gw.token })
-    check('days=15 → 15 条', nd15.code === 0 && nd15.data.doses.length === 15)
+    check('days=15 → 45 条', nd15.code === 0 && nd15.data.doses.length === 45)
     // 停用计划 p-3302 → 空（空态之一）
     const ndDisabled = await call('GET', '/plans/p-3302/next-doses?days=7', { token: gw.token })
     check('停用计划 next-doses 空', ndDisabled.code === 0 && Array.isArray(ndDisabled.data.doses) && ndDisabled.data.doses.length === 0)
@@ -389,22 +387,22 @@ async function waitReady() {
     console.log('== 记录（02 第 7 章） ==')
     const records = await call('GET', '/records?elderId=u-1001', { token: gw.token })
     check('u-1001 记录列表 4 条', records.code === 0 && records.data.total === 4 && records.data.list.length === 4)
-    check('列表 join 计划名/药品名', records.data.list.every((r) => r.planName && r.medicineName))
+    check('列表按格：join 计划名 + cellNo，不含药品字段', records.data.list.every((r) => r.planName && [1, 2, 3].includes(r.cellNo) && !('medicineName' in r) && !('medicineId' in r) && !('actualDose' in r)))
     check('列表含按时布尔', records.data.list.every((r) => typeof r.onTime === 'boolean'))
     const recDetail = await call('GET', '/records/rec-9001', { token: gw.token })
-    check('记录详情（关联计划）', recDetail.code === 0 && recDetail.data.recordId === 'rec-9001' && recDetail.data.planName === '早餐后')
+    check('记录详情（关联计划 + 格号）', recDetail.code === 0 && recDetail.data.recordId === 'rec-9001' && recDetail.data.planName === '日常服药' && recDetail.data.cellNo === 1)
     check('老人读他人记录 40301', (await call('GET', '/records/rec-9005', { token: elder.token })).code === 40301)
     check('PENDING 读记录 40302', (await call('GET', '/records/rec-9001', { token: pending.token })).code === 40302)
     const future = await call('GET', '/records?elderId=u-1001&from=2999-01-01', { token: gw.token })
     check('未来 from 过滤为空', future.code === 0 && future.data.total === 0)
     const wide = await call('GET', '/records?elderId=u-1001&from=2000-01-01&to=2999-12-31', { token: gw.token })
     check('宽区间仍 4 条', wide.code === 0 && wide.data.total === 4)
-    const confirm = await call('POST', '/records/rec-9002/confirm', { token: gw.token, body: { note: '已核对' } })
-    check('监护人补录/确认成功', confirm.code === 0 && confirm.data.confirmedBy === 'u-2001')
+    const confirm = await call('POST', '/records/rec-9002/confirm', { token: gw.token, body: { takenResult: 'TAKEN' } })
+    check('监护人纠错成功（source=MANUAL，格号不变）', confirm.code === 0 && confirm.data.source === 'MANUAL' && confirm.data.cellNo === 2 && confirm.data.takenResult === 'TAKEN')
     check('老人补录 40301', (await call('POST', '/records/rec-9002/confirm', { token: elder.token, body: {} })).code === 40301)
     check('PENDING 补录 40302', (await call('POST', '/records/rec-9002/confirm', { token: pending.token, body: {} })).code === 40302)
     const confirmDetail = await call('GET', '/records/rec-9002', { token: gw.token })
-    check('确认后详情带 confirmedAt', confirmDetail.code === 0 && confirmDetail.data.confirmedAt)
+    check('纠错后详情 source=MANUAL 且结论为 TAKEN', confirmDetail.code === 0 && confirmDetail.data.source === 'MANUAL' && confirmDetail.data.takenResult === 'TAKEN' && !('confirmedAt' in confirmDetail.data))
     check('记录不存在 40401', (await call('GET', '/records/rec-9999', { token: gw.token })).code === 40401)
 
     console.log('== 抓拍 / 服药结论（02 §4.1 / §7.1；feat/mp-capture-taken-result） ==')
@@ -413,7 +411,7 @@ async function waitReady() {
     const recListBinary = await call('GET', '/records?elderId=u-1001', { token: gw.token })
     check('记录列表每项 takenResult 为二值或空、不含旧字段', recListBinary.code === 0 && recListBinary.data.list.every((r) => (r.takenResult == null || r.takenResult === 'TAKEN' || r.takenResult === 'UNTAKEN') && !('faceResult' in r) && !('pendingConfirm' in r)))
     const cap = await call('GET', '/captures/cap-5001', { token: gw.token })
-    check('抓拍详情 200 + fileToken + takenResult=TAKEN 且不含 confidence', cap.code === 0 && cap.data.captureId === 'cap-5001' && typeof cap.data.fileToken === 'string' && cap.data.fileToken.length > 0 && cap.data.takenResult === 'TAKEN' && !('confidence' in cap.data) && !('faceResult' in cap.data))
+    check('抓拍详情 200 + fileToken + cellNo 且不含药品 / 置信度', cap.code === 0 && cap.data.captureId === 'cap-5001' && typeof cap.data.fileToken === 'string' && cap.data.fileToken.length > 0 && cap.data.cellNo === 1 && cap.data.takenResult === 'UNTAKEN' && !('medicineId' in cap.data) && !('confidence' in cap.data) && !('faceResult' in cap.data))
     check('老人读他人抓拍 40301', (await call('GET', '/captures/cap-5001', { token: elder.token })).code === 40301)
     check('抓拍不存在 40401', (await call('GET', '/captures/cap-9999', { token: gw.token })).code === 40401)
     const fileRes = await fetch(BASE + `/captures/cap-5001/file?token=${encodeURIComponent(cap.data.fileToken)}`)
@@ -421,7 +419,7 @@ async function waitReady() {
     check('原图流无统一响应体（非 JSON）', (await fileRes.json().catch(() => null)) === null)
     check('错误令牌 401', (await fetch(BASE + '/captures/cap-5001/file?token=bad')).status === 401)
     const conf = await call('POST', '/records/rec-9005/confirm', { token: gw.token, body: { takenResult: 'TAKEN', note: '已核对原图' } })
-    check('监护人校准后 takenResult=TAKEN + confirmedBy', conf.code === 0 && conf.data.takenResult === 'TAKEN' && conf.data.confirmedBy === gw.userId)
+    check('监护人校准后 takenResult=TAKEN + source=MANUAL', conf.code === 0 && conf.data.takenResult === 'TAKEN' && conf.data.source === 'MANUAL' && conf.data.cellNo === 1)
     const recAfter = await call('GET', '/records/rec-9005', { token: gw.token })
     check('详情刷新后 takenResult 仍为 TAKEN', recAfter.code === 0 && recAfter.data.takenResult === 'TAKEN')
     check('老人校准他人记录 40301', (await call('POST', '/records/rec-9005/confirm', { token: elder.token, body: { takenResult: 'TAKEN' } })).code === 40301)
@@ -447,13 +445,18 @@ async function waitReady() {
     const hasBom = exportBuf[0] === 0xef && exportBuf[1] === 0xbb && exportBuf[2] === 0xbf
     check('导出 200 + text/csv', exportRes.status === 200 && (exportRes.headers.get('content-type') || '').includes('text/csv'))
     check('导出带 UTF-8 BOM (EF BB BF)', hasBom)
-    check('导出表头含 记录ID/是否按时/结论', exportText.includes('记录ID') && exportText.includes('是否按时') && exportText.includes('结论'))
+    check('导出表头含格口号且不含药品名称/剂量', exportText.includes('记录ID') && exportText.includes('格口号') && exportText.includes('是否按时') && !exportText.includes('药品名称') && !exportText.includes(',剂量,'))
     check('导出含 u-1001 记录（rec-9001）', exportText.includes('rec-9001'))
     check('导出 Content-Disposition 含文件名', (exportRes.headers.get('content-disposition') || '').includes('medication-records-u-1001'))
     const elderExport = await fetch(BASE + '/records/export?elderId=u-1001', { headers: { Authorization: `Bearer ${elder.token}` } })
     check('老人导出 40301', elderExport.status === 403 && (await elderExport.json()).code === 40301)
     const pendExport = await fetch(BASE + '/records/export?elderId=u-1001', { headers: { Authorization: `Bearer ${pending.token}` } })
     check('PENDING 监护人导出 40302', pendExport.status === 403 && (await pendExport.json()).code === 40302)
+
+    // 补录（记录不存在分支）：路径 recordId 被忽略，请求体必带 elderId / planId / cellNo
+    const manual = await call('POST', '/records/new/confirm', { token: gw.token, body: { elderId: 'u-1001', planId: 'p-3301', cellNo: 3, takenResult: 'TAKEN' } })
+    check('补录新建（路径 recordId 忽略、按格号落记录）', manual.code === 0 && manual.data.recordId !== 'new' && manual.data.cellNo === 3 && manual.data.source === 'MANUAL')
+    check('补录缺 cellNo 40001', (await call('POST', '/records/new/confirm', { token: gw.token, body: { elderId: 'u-1001', planId: 'p-3301' } })).code === 40001)
 
     console.log('== 抓拍列表 / 删除（02 §4.1；feat/mp-capture） ==')
     const listU1002 = await call('GET', '/captures?elderId=u-1002', { token: gw.token })

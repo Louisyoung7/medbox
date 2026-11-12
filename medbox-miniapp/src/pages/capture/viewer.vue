@@ -26,6 +26,7 @@
 
       <MbCard title="抓拍信息">
         <MbCell title="设备" :value="view.deviceId || '-'" />
+        <MbCell v-if="view.cellLabel" title="格位" :value="view.cellLabel" />
         <MbCell title="原因" :value="view.reasonLabel" />
         <MbCell v-if="view.takenResultLabel" title="服药结论" :value="view.takenResultLabel" />
         <MbCell title="抓拍时间" :value="view.capturedAtText" />
