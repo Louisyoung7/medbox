@@ -19,7 +19,8 @@ import { get, del } from '@/api/request.js'
  *
  * @param {string} captureId 抓拍编号
  * @param {Object} [options] 透传给 `@/api/request` 的 `silent` 等
- * @returns {Promise<Object>} `CaptureResponse`（`captureId` / `fileToken` / `takenResult` / `reason` / `expireAt` / `mime` 等）
+ * @returns {Promise<Object>} `CaptureResponse`（`captureId` / `planId` / `cellNo` /
+ *   `fileToken` / `takenResult` / `reason` / `expireAt` / `mime` 等；不含药品 ID）
  * @throws {ApiError} 40101 / 40301 / 40302 / 40401 / -1
  */
 export function getCapture(captureId, options) {
