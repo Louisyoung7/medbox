@@ -37,15 +37,10 @@
         >
           <text class="dose__time">{{ dose.time }}</text>
           <view class="dose__body">
-            <view
-              v-for="(item, i) in dose.items"
-              :key="item.medicineId || i"
-              class="item"
-            >
+            <view class="item">
               <text class="item__dot" />
-              <text class="item__text">{{ item.text }}</text>
+              <text class="item__text">{{ dose.cellLabel }}</text>
             </view>
-            <text v-if="!dose.items.length" class="item__empty">未配置药品</text>
           </view>
         </view>
       </MbCard>

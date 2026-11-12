@@ -19,7 +19,7 @@
     </view>
   </view>
 
-  <!-- 服药提醒（REMINDER 帧，非告警）：多药列表 -->
+  <!-- 服药提醒（REMINDER 帧，非告警）：只提格号与时间，不含药品信息 -->
   <view v-if="reminderVisible" class="popup">
     <view class="popup__mask" @click="closeReminder" />
     <view class="popup__card popup__card--reminder">
@@ -27,17 +27,7 @@
         <text class="popup__title">服药提醒</text>
         <text class="popup__close" @click="closeReminder">×</text>
       </view>
-      <view class="reminder-meds">
-        <view
-          v-for="(m, i) in reminderMeds"
-          :key="m.itemId || m.medicineId || i"
-          class="reminder-med"
-        >
-          <text class="reminder-med__name">{{ m.medicineName || m.medicineId || '药品' }}</text>
-          <text class="reminder-med__dose">{{ m.dose }}{{ m.unit }}</text>
-        </view>
-        <text v-if="!reminderMeds.length" class="reminder-empty">该提醒暂无药品明细</text>
-      </view>
+      <text class="popup__msg">{{ reminderText }}</text>
       <view class="popup__actions">
         <view class="popup__btn popup__btn--primary" @click="closeReminder">
           <text>知道了</text>
@@ -50,7 +40,7 @@
 <script>
 import { WS_EVENT, onEvent } from '@/store/ws.js'
 import { bumpUnreadCount } from '@/store/alarm.js'
-import { alarmTypeLabel, alarmLevelLabel } from '@/utils/alarm.js'
+import { alarmTypeLabel, alarmLevelLabel, cellLabel } from '@/utils/alarm.js'
 
 export default {
   name: 'AlarmRealtime',
@@ -61,7 +51,7 @@ export default {
       alarmMessage: '',
       alarmLevel: '',
       reminderVisible: false,
-      reminderMeds: [],
+      reminderText: '',
       offAlarm: null,
       offReminder: null,
     }
@@ -80,6 +70,7 @@ export default {
       const p = (frame && frame.payload) || {}
       this.alarmTitle = alarmTypeLabel(p.type) || '告警'
       if (p.level) this.alarmTitle += ' · ' + alarmLevelLabel(p.level)
+      // MISS 文案由后端生成，只提格号与时间，不再有 medicineIds
       this.alarmMessage = p.message || '收到一条告警'
       this.alarmLevel = p.level || ''
       this.alarmVisible = true
@@ -87,7 +78,8 @@ export default {
     },
     onReminder(frame) {
       const p = (frame && frame.payload) || {}
-      this.reminderMeds = Array.isArray(p.medicines) ? p.medicines : []
+      const label = cellLabel(p.cellNo)
+      this.reminderText = label ? `${label} 将在开格时间解锁，请按时取药` : '请按时取药'
       this.reminderVisible = true
     },
     levelClass(level) {
@@ -202,34 +194,5 @@ export default {
       color: #fff;
     }
   }
-}
-
-.reminder-meds {
-  margin-bottom: 24rpx;
-}
-
-.reminder-med {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12rpx 0;
-  border-bottom: 1rpx solid #eef0f3;
-
-  &__name {
-    font-size: 28rpx;
-    color: #1f2329;
-  }
-
-  &__dose {
-    font-size: 26rpx;
-    color: #1a73e8;
-  }
-}
-
-.reminder-empty {
-  display: block;
-  font-size: 26rpx;
-  color: #6b7280;
-  padding: 12rpx 0;
 }
 </style>

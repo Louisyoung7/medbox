@@ -20,11 +20,9 @@
       <view class="msg">
         <text class="msg__text">{{ alarm.message }}</text>
       </view>
-      <view v-if="alarm.medicineCount" class="meds">
-        <text class="meds__label">关联药品（{{ alarm.medicineCount }}）</text>
-        <view class="meds__chips">
-          <text v-for="m in alarm.medicineIds" :key="m" class="meds__chip">{{ m }}</text>
-        </view>
+      <view v-if="alarm.cellLabel" class="row">
+        <text class="row__label">格位</text>
+        <text class="row__value">{{ alarm.cellLabel }}</text>
       </view>
     </MbCard>
 

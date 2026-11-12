@@ -2,7 +2,7 @@
   <view class="page">
     <view class="head">
       <text class="head__title">服药计划</text>
-      <text class="head__sub">提醒时间、药品、剂量与备注</text>
+      <text class="head__sub">固定药格 · 开格时间</text>
     </view>
 
     <!-- 老人选择器：监护人可见；候选来自可见设备的 elderId（P1 mp-guardian 前无老人列表接口，同 mp-stock 模式）。
@@ -59,7 +59,8 @@
       </MbCard>
     </template>
 
-    <view v-if="canWrite" class="create">
+    <!-- 一老人一计划：已有计划时隐藏「新建」，直接点卡片编辑 -->
+    <view v-if="canWrite && plans.length === 0" class="create">
       <MbButton type="primary" block @click="goCreate">新建计划</MbButton>
     </view>
 
@@ -80,7 +81,7 @@ import { CODE } from '@/api/request.js'
 import {
   canWritePlan,
   parsePlansPage,
-  planTimesText,
+  planSlotsText,
   repeatRuleLabel,
   syncStateLabel,
 } from '@/utils/plan.js'
@@ -122,7 +123,7 @@ export default {
     this.load()
   },
   onShow() {
-    // 从新建 / 编辑页返回时刷新（启停与明细都可能已变）
+    // 从新建 / 编辑页返回时刷新（启停与格位排程都可能已变）
     if (this.loaded) this.load()
   },
   methods: {
@@ -168,12 +169,9 @@ export default {
       this.elderId = elder
       this.load()
     },
+    /** 一老人一计划：只展示格位排程与周期，不再拼接药品概览。 */
     planLabel(plan) {
-      const parts = [planTimesText(plan.times), repeatRuleLabel(plan.repeatRule)]
-      // 列表响应已返回药品概览 medicineNames（字符串数组），直接拼接；空则"未添加药品"
-      const names = Array.isArray(plan.medicineNames) ? plan.medicineNames : []
-      parts.push(names.length ? names.join(' + ') : '未添加药品')
-      return parts.join(' · ')
+      return [planSlotsText(plan.slots), repeatRuleLabel(plan.repeatRule)].join(' · ')
     },
     async onToggle(plan, e) {
       const checked = !!(e && e.detail && e.detail.value)

@@ -1,7 +1,6 @@
 <template>
   <view class="page">
     <MbLoading v-if="loading" fullscreen text="加载中" />
-
     <MbEmpty v-else-if="error" :text="error" />
 
     <template v-else>
@@ -9,63 +8,44 @@
         <MbField
           v-model="form.name"
           label="方案名称"
-          placeholder="如：早餐后、睡前"
-          :error="nameError"
+          placeholder="选填，如：日常服药"
           @input="nameError = ''"
         />
       </MbCard>
 
-      <MbCard title="提醒时间">
-        <view v-if="form.times.length" class="times">
-          <view v-for="(time, index) in form.times" :key="time" class="times__chip">
-            <text class="times__text">{{ time }}</text>
-            <text class="times__del" @click="removeTime(index)">×</text>
+      <MbCard title="固定药格排程">
+        <view v-for="cell in form.cells" :key="cell.cellNo" class="cell-row">
+          <view class="cell-row__head">
+            <text class="cell-row__title">{{ cellLabel(cell.cellNo) }}</text>
+            <switch
+              :checked="cell.enabled"
+              color="$mb-primary"
+              @change="onCellToggle(cell.cellNo, $event)"
+            />
           </view>
+          <picker
+            v-if="cell.enabled"
+            mode="time"
+            :value="cell.time"
+            @change="onCellTimePicked(cell.cellNo, $event)"
+          >
+            <view class="cell-row__time">
+              <text>{{ cell.time || '选择开格时间' }}</text>
+              <text class="cell-row__arrow">›</text>
+            </view>
+          </picker>
+          <text v-else class="hint">未排程（该格不提醒、不解锁）</text>
+          <text v-if="cell.enabled && cellError[cell.cellNo]" class="cell-row__err">
+            {{ cellError[cell.cellNo] }}
+          </text>
         </view>
-        <picker mode="time" @change="onTimePicked">
-          <view class="times__add">
-            <text class="times__add-text">＋ 添加时间</text>
-          </view>
-        </picker>
-        <text class="hint">时间为药箱本地时间（默认北京时间），保存后按时间升序下发</text>
+        <text class="hint">格号 1 / 2 / 3 由药箱固件固定对应早 / 中 / 晚；时间为药箱本地墙钟，格内放什么药由监护人自行布置，系统不记录。</text>
       </MbCard>
 
       <MbCard title="重复周期">
         <view class="segment">
-          <view
-            class="segment__item"
-            :class="{ 'segment__item--on': form.repeatRule === 'DAILY' }"
-            @click="form.repeatRule = 'DAILY'"
-          >
-            每天
-          </view>
-          <view
-            class="segment__item"
-            :class="{ 'segment__item--on': form.repeatRule === 'WEEKLY' }"
-            @click="form.repeatRule = 'WEEKLY'"
-          >
-            每周
-          </view>
+          <view class="segment__item segment__item--on">每天</view>
         </view>
-      </MbCard>
-
-      <MbCard title="药品明细">
-        <PlanItemRow
-          v-for="(item, index) in form.items"
-          :key="item.medicineId"
-          :item="item"
-          :name="medicineName(item.medicineId)"
-          :spec="medicineSpec(item.medicineId)"
-          :index="index"
-          :count="form.items.length"
-          @field="onItemField"
-          @move="onItemMove"
-          @remove="removeItem"
-        />
-        <view class="items__add">
-          <MbButton type="ghost" block @click="showPicker = true">＋ 添加药品</MbButton>
-        </view>
-        <text v-if="!form.items.length" class="hint">一次提醒可添加多种药，至少添加一种</text>
       </MbCard>
 
       <view class="save">
@@ -77,29 +57,6 @@
       </view>
     </template>
 
-    <MbModal v-model="showPicker" title="选择药品" confirm-text="关闭" :show-cancel="false">
-      <view class="picker-list">
-        <MbEmpty v-if="!medicines.length" text="暂无可用药品，请先在药品管理中新建" />
-        <MbCell
-          v-for="medicine in medicines"
-          :key="medicine.medicineId"
-          :title="medicine.name"
-          :label="medicine.spec || ''"
-          :clickable="!isBlocked(medicine.medicineId) && !isSelected(medicine.medicineId)"
-          @click="pickMedicine(medicine)"
-        >
-          <template #extra>
-            <view v-if="isBlocked(medicine.medicineId)" class="tag tag--blocked">
-              <text class="tag__text">{{ blockedReasonText(medicine.medicineId) }}</text>
-            </view>
-            <view v-else-if="isSelected(medicine.medicineId)" class="tag tag--picked">
-              <text class="tag__text">已添加</text>
-            </view>
-          </template>
-        </MbCell>
-      </view>
-    </MbModal>
-
     <MbModal
       v-model="showDelete"
       title="删除计划"
@@ -110,7 +67,7 @@
       @confirm="onDeleteConfirm"
     >
       <view class="delete-body">
-        <text class="delete-body__text">删除后该计划的提醒与明细将一并移除，确定删除吗？</text>
+        <text class="delete-body__text">删除后该老人的格位排程将一并移除，确定删除吗？</text>
         <text v-if="deleteError" class="delete-body__err">{{ deleteError }}</text>
       </view>
     </MbModal>
@@ -120,33 +77,35 @@
 <script>
 import MbButton from '@/components/MbButton.vue'
 import MbCard from '@/components/MbCard.vue'
-import MbCell from '@/components/MbCell.vue'
 import MbEmpty from '@/components/MbEmpty.vue'
 import MbField from '@/components/MbField.vue'
 import MbLoading from '@/components/MbLoading.vue'
 import MbModal from '@/components/MbModal.vue'
-import PlanItemRow from '@/components/PlanItemRow.vue'
-import { listDevices } from '@/api/device.js'
-import { listMedicines } from '@/api/medicine.js'
 import { createPlan, deletePlan, getPlan, updatePlan } from '@/api/plan.js'
-import { listStocks } from '@/api/stock.js'
 import { CODE } from '@/api/request.js'
-import { parseMedicinePage } from '@/utils/medicine.js'
-import { parseStocks, toMedicineMap } from '@/utils/stock.js'
-import { buildPlanPayload, canWritePlan, normalizeTimes, pickableMedicines } from '@/utils/plan.js'
+import { buildPlanPayload, canWritePlan, cellLabel, normalizeSlots } from '@/utils/plan.js'
 import { getRole } from '@/store/user.js'
 
 /** 保存 / 删除失败文案按 code 细分（请求已 silent，统一自绘）。 */
 function actionErrorText(err, fallback) {
-  if (err && err.code === CODE.CONFLICT) return '药品无库存，不能加入计划'
+  if (err && err.code === CODE.CONFLICT) return '该老人已有计划，请直接编辑'
+  if (err && err.code === CODE.BAD_REQUEST) return '格位排程不合法，请检查格号与时间'
   if (err && err.code === CODE.FORBIDDEN) return '无权操作该计划'
   if (err && err.code === CODE.GUARDIAN_PENDING) return '监护关系未生效，请等待老人确认'
   return (err && err.message) || fallback
 }
 
+function defaultCells() {
+  return [
+    { cellNo: 1, enabled: true, time: '08:00' },
+    { cellNo: 2, enabled: false, time: '12:30' },
+    { cellNo: 3, enabled: false, time: '18:00' },
+  ]
+}
+
 export default {
   name: 'PlanEditPage',
-  components: { MbButton, MbCard, MbCell, MbEmpty, MbField, MbLoading, MbModal, PlanItemRow },
+  components: { MbButton, MbCard, MbEmpty, MbField, MbLoading, MbModal },
   data() {
     return {
       planId: '',
@@ -158,30 +117,23 @@ export default {
       deleting: false,
       showDelete: false,
       deleteError: '',
-      showPicker: false,
       nameError: '',
+      cellError: {},
       form: {
         name: '',
-        times: [],
         repeatRule: 'DAILY',
-        items: [],
+        cells: defaultCells(),
       },
-      medicines: [],
-      medicineMap: {},
-      stockRows: [],
-      stocksLoaded: false,
     }
   },
   computed: {
-    /** 药品 -> 拦截原因（'no-stock'）；库存没拉到时不拦截（规则 C 兜底）。 */
-    blockedMap() {
-      if (!this.stocksLoaded) return {}
-      const { blocked } = pickableMedicines(this.medicines, this.stockRows)
-      const map = {}
-      blocked.forEach((entry) => {
-        map[entry.medicine.medicineId] = entry.reason
-      })
-      return map
+    /** 已启用格位 → `slots`（统一归一化：格号合法、时间 HH:mm、按格号升序）。 */
+    slots() {
+      return normalizeSlots(
+        this.form.cells
+          .filter((cell) => cell.enabled)
+          .map((cell) => ({ cellNo: cell.cellNo, time: cell.time })),
+      )
     },
   },
   onLoad(options) {
@@ -197,21 +149,18 @@ export default {
     this.load()
   },
   methods: {
+    cellLabel,
     async load() {
       if (!this.elderId) {
         this.error = '缺少老人信息'
         return
       }
+      if (!this.isEdit) return
       this.loading = true
       this.error = ''
       try {
-        this.medicines = await this.loadMedicines()
-        this.medicineMap = toMedicineMap(this.medicines)
-        await this.loadStocks()
-        if (this.isEdit) {
-          const plan = await getPlan(this.planId, { silent: true })
-          this.prefill(plan)
-        }
+        const plan = await getPlan(this.planId, { silent: true })
+        this.prefill(plan)
       } catch (err) {
         this.error =
           err && err.code === CODE.FORBIDDEN
@@ -221,128 +170,43 @@ export default {
         this.loading = false
       }
     },
-    async loadMedicines() {
-      try {
-        const page = parseMedicinePage(await listMedicines({ page: 1, size: 100 }, { silent: true }))
-        return page.list
-      } catch (err) {
-        return []
-      }
-    },
-    /** 拉该老人在其可见设备上的全部库存行（规则 C 判定依据）；失败 = stocksLoaded=false 不拦截。 */
-    async loadStocks() {
-      try {
-        const devices = await listDevices(undefined, { silent: true })
-        const mains = (devices || []).filter(
-          (device) => device.deviceType === 'MAIN' && device.elderId === this.elderId,
-        )
-        const rows = []
-        for (let i = 0; i < mains.length; i += 1) {
-          const stocks = await listStocks(mains[i].deviceId, { silent: true })
-          rows.push(...parseStocks(stocks))
-        }
-        this.stockRows = rows
-        this.stocksLoaded = true
-      } catch (err) {
-        this.stockRows = []
-        this.stocksLoaded = false
-      }
-    },
+    /** 后端 `slots` 回填：缺失的格号 = 该格不排程。 */
     prefill(plan) {
       this.form.name = plan.name || ''
-      this.form.times = Array.isArray(plan.times) ? plan.times.slice() : []
       this.form.repeatRule = plan.repeatRule || 'DAILY'
-      this.form.items = (Array.isArray(plan.items) ? plan.items : [])
-        .slice()
-        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-        .map((item) => ({
-          medicineId: item.medicineId || '',
-          dose: item.dose || '',
-          unit: item.unit || '',
-          note: item.note || '',
-        }))
-    },
-    medicineName(medicineId) {
-      const medicine = this.medicineMap[medicineId]
-      return (medicine && medicine.name) || medicineId
-    },
-    medicineSpec(medicineId) {
-      const medicine = this.medicineMap[medicineId]
-      return (medicine && medicine.spec) || ''
-    },
-    isBlocked(medicineId) {
-      return !!this.blockedMap[medicineId]
-    },
-    isSelected(medicineId) {
-      return this.form.items.some((item) => item.medicineId === medicineId)
-    },
-    blockedReasonText(medicineId) {
-      return '无库存'
-    },
-    onTimePicked(e) {
-      const value = (e && e.detail && e.detail.value) || ''
-      if (!normalizeTimes([value]).length) {
-        uni.showToast({ title: '时间格式不正确', icon: 'none' })
-        return
-      }
-      if (this.form.times.indexOf(value) !== -1) {
-        uni.showToast({ title: '该时间已添加', icon: 'none' })
-        return
-      }
-      this.form.times.push(value)
-      // 规则 A：提交时统一去重 + 升序，这里即时排序保持展示一致
-      this.form.times = normalizeTimes(this.form.times)
-    },
-    removeTime(index) {
-      this.form.times.splice(index, 1)
-    },
-    pickMedicine(medicine) {
-      if (this.isBlocked(medicine.medicineId)) {
-        uni.showToast({
-          title: '药箱暂无该药品库存',
-          icon: 'none',
-        })
-        return
-      }
-      if (this.isSelected(medicine.medicineId)) {
-        uni.showToast({ title: '该药品已在计划中', icon: 'none' })
-        return
-      }
-      // 规则 B：dose/unit 预填药品档案默认值（06：计划明细未指定时取此值），用户可改
-      this.form.items.push({
-        medicineId: medicine.medicineId,
-        dose: medicine.dosePerTime || '',
-        unit: medicine.unit || '',
-        note: '',
+      const slots = normalizeSlots(plan.slots)
+      this.form.cells = defaultCells().map((cell) => {
+        const hit = slots.find((slot) => slot.cellNo === cell.cellNo)
+        return hit
+          ? { cellNo: cell.cellNo, enabled: true, time: hit.time }
+          : { ...cell, enabled: false }
       })
-      this.showPicker = false
     },
-    onItemField({ index, field, value }) {
-      this.form.items[index][field] = value
+    onCellToggle(cellNo, event) {
+      const cell = this.form.cells.find((item) => item.cellNo === cellNo)
+      if (cell) cell.enabled = !!(event && event.detail && event.detail.value)
     },
-    onItemMove({ index, dir }) {
-      const target = index + dir
-      if (target < 0 || target >= this.form.items.length) return
-      const items = this.form.items.slice()
-      const [moved] = items.splice(index, 1)
-      items.splice(target, 0, moved)
-      this.form.items = items
-    },
-    removeItem(index) {
-      this.form.items.splice(index, 1)
+    onCellTimePicked(cellNo, event) {
+      const value = (event && event.detail && event.detail.value) || ''
+      const cell = this.form.cells.find((item) => item.cellNo === cellNo)
+      if (!cell) return
+      if (!normalizeSlots([{ cellNo, time: value }]).length) {
+        this.cellError = { ...this.cellError, [cellNo]: '时间格式应为 HH:mm' }
+        return
+      }
+      cell.time = value
+      this.cellError = { ...this.cellError, [cellNo]: '' }
     },
     async save() {
-      this.nameError = this.form.name.trim() ? '' : '请输入方案名称'
-      if (this.nameError) return
-      if (!normalizeTimes(this.form.times).length) {
-        uni.showToast({ title: '请至少添加一个提醒时间', icon: 'none' })
+      this.nameError = ''
+      if (!this.slots.length) {
+        uni.showToast({ title: '请至少启用一个格位并设置有效时间', icon: 'none' })
         return
       }
-      if (!this.form.items.length) {
-        uni.showToast({ title: '请至少添加一种药品', icon: 'none' })
-        return
-      }
-      const payload = buildPlanPayload(this.form, this.elderId)
+      const payload = buildPlanPayload(
+        { name: this.form.name, slots: this.slots, repeatRule: this.form.repeatRule },
+        this.elderId,
+      )
       this.saving = true
       try {
         if (this.isEdit) {
@@ -368,7 +232,6 @@ export default {
           uni.navigateBack()
         })
         .catch((err) => {
-          // 弹窗开着（closeOnConfirm=false），让用户看清失败原因后重试或取消
           this.deleteError = actionErrorText(err, '删除失败，请稍后再试')
         })
         .finally(() => {
@@ -386,49 +249,44 @@ export default {
   box-sizing: border-box;
 }
 
-.times {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
-  margin-bottom: 16rpx;
+.cell-row {
+  padding: 16rpx 0;
+  border-bottom: 2rpx solid $mb-border;
 
-  &__chip {
-    display: inline-flex;
+  &__head {
+    display: flex;
     align-items: center;
-    height: 56rpx;
-    padding: 0 12rpx 0 20rpx;
-    border-radius: $mb-radius-pill;
-    background: $mb-primary-bg;
+    justify-content: space-between;
   }
 
-  &__text {
-    font-size: 26rpx;
-    color: $mb-primary;
+  &__title {
+    font-size: 28rpx;
+    color: $mb-text-1;
     font-weight: 500;
   }
 
-  &__del {
-    margin-left: 8rpx;
-    width: 36rpx;
-    height: 36rpx;
-    line-height: 36rpx;
-    text-align: center;
-    font-size: 26rpx;
+  &__time {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12rpx;
+    padding: 12rpx 20rpx;
+    border-radius: $mb-radius-pill;
+    background: $mb-primary-bg;
+    font-size: 28rpx;
     color: $mb-primary;
   }
 
-  &__add {
-    display: inline-flex;
-    align-items: center;
-    height: 56rpx;
-    padding: 0 24rpx;
-    border: 2rpx dashed $mb-primary;
-    border-radius: $mb-radius-pill;
+  &__arrow {
+    font-size: 32rpx;
+    color: $mb-primary;
+  }
 
-    &-text {
-      font-size: 26rpx;
-      color: $mb-primary;
-    }
+  &__err {
+    display: block;
+    margin-top: 8rpx;
+    font-size: 24rpx;
+    color: $mb-danger;
   }
 }
 
@@ -456,48 +314,12 @@ export default {
   }
 }
 
-.items__add {
-  margin-top: 16rpx;
-}
-
 .hint {
   display: block;
   margin-top: 12rpx;
   font-size: 24rpx;
   color: $mb-text-3;
-}
-
-.tag {
-  display: inline-flex;
-  align-items: center;
-  height: 40rpx;
-  padding: 0 16rpx;
-  border-radius: $mb-radius-pill;
-
-  &__text {
-    font-size: 22rpx;
-  }
-
-  &--blocked {
-    background: #fdecec;
-
-    .tag__text {
-      color: $mb-danger;
-    }
-  }
-
-  &--picked {
-    background: $mb-border;
-
-    .tag__text {
-      color: $mb-text-3;
-    }
-  }
-}
-
-.picker-list {
-  max-height: 600rpx;
-  overflow-y: auto;
+  line-height: 1.6;
 }
 
 .save {
