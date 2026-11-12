@@ -1,6 +1,6 @@
 # 03 · 设备接入协议（MQTT，Broker = EMQX）
 
-> 链路：设备 ⇄ EMQX ⇄ 后端　|　局域网内网部署　|　变更历史看 `git log -- medbox-spec/`
+> 链路：设备 ⇄ EMQX ⇄ 后端　|　局域网内网部署
 
 ## 1. 连接与鉴权
 
@@ -23,15 +23,15 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 统一前缀 **`medbox/{productKey}/{deviceId}/…`**（MQTT 规范不推荐以 `/` 开头，会产生空层级，故去掉前导斜杠），区分上行 up（设备发布）与下行 down（后端发布）。
 
-| 方向 | Topic | QoS | 说明 |
-|------|-------|-----|------|
-| 设备→云 | `.../up/telemetry` | 0/1 | 环境遥测（**每个传感器各发一条**，只带自己负责的字段，见第 3 章） |
-| 设备→云 | `.../up/event/error` | 1 | **设备侧异常**：门超时、识别失败、硬件故障等 |
-| 设备→云 | `.../up/sensor/heartbeat` | 0 | 主控周期性上报各传感器子设备在线状态（子设备无遗嘱，判离线靠它，见第 3 章） |
-| 设备→云 | **`.../up/ack`** | 1 | **下行消息回执**（计划 / 命令的 `msgId` 处理结果） |
-| 设备→云 | `.../status (LWT)` | 0 | 在线/离线状态（retained） |
-| 云→设备 | `.../down/schedule` | 1 | 下发/同步服药计划与提醒任务 |
-| 云→设备 | `.../down/command` | 1 | 控制命令（重启/校准；**蜂鸣/解锁由设备本地或小程序本地触发，后端不下发**） |
+| 方向     | Topic                       | QoS | 说明                                                                             |
+| -------- | --------------------------- | --- | -------------------------------------------------------------------------------- |
+| 设备→云 | `.../up/telemetry`        | 0/1 | 环境遥测（**每个传感器各发一条**，只带自己负责的字段，见第 3 章）          |
+| 设备→云 | `.../up/event/error`      | 1   | **设备侧异常**：门超时、识别失败、硬件故障等                               |
+| 设备→云 | `.../up/sensor/heartbeat` | 0   | 主控周期性上报各传感器子设备在线状态（子设备无遗嘱，判离线靠它，见第 3 章）      |
+| 设备→云 | **`.../up/ack`**    | 1   | **下行消息回执**（计划 / 命令的 `msgId` 处理结果）                       |
+| 设备→云 | `.../status (LWT)`        | 0   | 在线/离线状态（retained）                                                        |
+| 云→设备 | `.../down/schedule`       | 1   | 下发/同步服药计划与提醒任务                                                      |
+| 云→设备 | `.../down/command`        | 1   | 控制命令（重启/校准；**蜂鸣/解锁由设备本地或小程序本地触发，后端不下发**） |
 
 ## 3. Payload 示例
 
@@ -56,29 +56,36 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 上行·服药事件：**不走 MQTT**，由摄像头经 HTTP multipart 上报（端点与字段见 `02b_设备管理.md` §1.1）。`takenResult` 二值（`TAKEN` 已取药 / `UNTAKEN` 未取药）+ **格号 `cellNo`（1/2/3）**；**仅 `UNTAKEN` 附抓拍原图作留证，`TAKEN` 不上图**。后端据 `cellNo` + 就近时间槽落记录，不做人脸识别、无置信度、无第三态。
 
 上行·设备异常 `.../up/event/error`（**仅设备侧异常**）：
+
 ```json
 { "msgId":"BOXA-DEBUG-01-000125", "ts":1759474512000, "type":"DOOR_TIMEOUT",
   "detail":"仓门开启超过 60s 未关闭" }
 ```
+
 `type` 取值：`DOOR_TIMEOUT` 门超时 / `CAMERA_FAILED` 识别失败 / `HW_FAULT` 硬件故障。后端收到后**记入设备事件流水**（`GET /devices/{id}/events`）**并生成 `DEVICE_FAULT` 告警**（见文档 02f_告警.md 第 1 章）。
 
 上行·传感器心跳 `.../up/sensor/heartbeat`（主控周期性汇总子设备状态）：
+
 ```json
 { "msgId":"BOXA-DEBUG-01-000128", "ts":1759474540000,
   "sensors":[ { "sensorId":"BOXA-DEBUG-01-S-TH01","online":true },
               { "sensorId":"BOXA-DEBUG-01-S-LX01","online":true },
               { "sensorId":"BOXA-DEBUG-01-S-CAM01","online":false } ] }
 ```
+
 因为**只有主控有 MQTT 连接**，子设备没有自己的遗嘱消息，故由主控每 **60s** 汇总上报一次；后端据此更新各子设备的 `last_heartbeat` 与 `online_state`。**离线判定：连续 3 个周期（180s）未上报即判该传感器离线**，**不生成 DEVICE_OFFLINE 告警**，仅在设备详情与 `DEVICE_STATUS` 推送中标注。
 
 上行·下行回执 `.../up/ack`（对应下行消息中的 `msgId`）：
+
 ```json
 { "msgId":"BOXA-DEBUG-01-000126", "ts":1759474520000,
   "ackFor":"d-001", "result":"OK", "reason":null }
 ```
-`result`：`OK` / `FAILED`；`reason` 失败时给出简要原因（如 `"schedule_parse_error"`）。服务端发出 `needAck:true` 的下行消息后，**5s 未收到回执则重发，最多 3 次**；仍无回执则标记下发失败并告警。
 
-下行·同步计划 `.../down/schedule`（**只下发"几点开几号格"，不含任何药品信息**）：
+`result`：`OK` / `FAILED`；`reason` 失败时给出简要原因（如 `"medicine_not_found"`）。服务端发出 `needAck:true` 的下行消息后，**5s 未收到回执则重发，最多 3 次**；仍无回执则标记下发失败并告警。
+
+下行·同步计划 `.../down/schedule`（**一次提醒可含多种药，用 `items` 数组下发**）：
+
 ```json
 { "msgId":"d-001", "planId":"p-3301", "op":"UPSERT",
   "slots":[ { "cellNo":1, "time":"08:00" },
@@ -94,9 +101,11 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 > `op` 取值：`UPSERT`（新增 / 修改 / 启用，覆盖写该计划，载荷含完整 `slots` / `repeat` / `alarm`）与 `DELETE`（删除 / 停用，设备按 `planId` 停该计划全部提醒，其余字段可空）。服务端在计划写事务提交后下发，设备回执 `up/ack` 成功 → 后端把 `med_plan.sync_state` 翻成 `SYNCED_TO_DEVICE`；回执 `FAILED` 或 5s 超时（重发 3 次仍无回执） → `SYNC_FAILED`。
 
 下行·控制命令 `.../down/command`（REST 受理后转发，QoS1 + `needAck:true`）：
+
 ```json
 { "msgId":"d-102", "cmd":"REBOOT", "params":{}, "needAck":true }
 ```
+
 `cmd` 取值：`REBOOT` 重启 / `CALIBRATE` 校准（白名单见文档 02b_设备管理.md §1.0.1，非法值 REST 层 40001 拦截、不会到这里）。**蜂鸣（`BUZZ`）/ 解锁（`UNLOCK`）由设备本地或小程序本地触发，后端不下发这两类指令**（见 01 §2.3）。设备处理后经 `up/ack` 回执 `ackFor=msgId`：回执 OK → `device_command.state=SUCCESS`；回执 FAILED 或 5s 超时重发 3 次仍无回执 → `FAILED`（见文档 06 的 2.17）。
 
 ## 4. 摄像头识别与上报链路（摄像头 → 后端 HTTP）
