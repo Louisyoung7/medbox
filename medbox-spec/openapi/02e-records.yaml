@@ -3,7 +3,8 @@ info:
   title: medbox · 服药记录与依从性（02e OpenAPI 版）
   description: |
     `medbox-spec/02e_服药记录与依从性.md` 的机器可读版。通用约定见 `common.yaml`。
-    设备上报已二值化（takenResult = TAKEN/UNTAKEN，见 02b §1.1 / 11 §1）：UNTAKEN 记录**为终态、不再要求监护人复核**，
+    一条 med_record = 某计划的某号格（cellNo 1/2/3）在某次计划时间窗内的一次取药事实；记录不带药品、剂量。
+    设备上报已二值化（takenResult = TAKEN/UNTAKEN，见 02b §1.1 / 07 §1）：UNTAKEN 记录**为终态、不再要求监护人复核**，
     抓拍原图仅作留证回看。本系统**不再有「待确认」派生态**，列表不提供 pendingConfirm 过滤。
   version: 1.0.0
 
@@ -28,7 +29,7 @@ paths:
       tags: [records]
       summary: 服药记录分页【鉴权·READ_RECORD】
       description: |
-        分页按通用约定（page/size/total）；详情由后端 join 计划名/药品名返回；列表/详情不暴露文件流，只回传 captureId（取文件归抓拍接口）；列表项带 hasCapture（仅 UNTAKEN 带图记录为 true）。
+        分页按通用约定（page/size/total）；详情由后端 join 计划名返回；列表/详情不暴露文件流，只回传 captureId（取文件归抓拍接口）；列表项带 hasCapture（仅 UNTAKEN 带图记录为 true）。
       parameters:
         - name: elderId
           in: query
@@ -77,7 +78,7 @@ paths:
         越权 / PENDING → 40301 / 40302。
         响应为 **CSV 文件流**（Content-Type: text/csv; charset=utf-8，Content-Disposition: attachment; filename="medication-records-{elderId}-{from}-{to}.csv"，带 UTF-8 BOM 便于 Excel），**不走 R<T> 包装**。
         from/to 可选（ISO-8601）：都不传 → 默认最近 30 天；仅传其一 → 另一边界按 30 天窗口推导；格式非法 → 40001。
-        CSV 列：`记录ID,老人ID,计划名,药品名称,计划时间,实际时间,是否按时,结论,来源,剂量,抓拍ID,设备ID`（RFC 4180 转义；时间列 ISO-8601）。
+        CSV 列：`记录ID,老人ID,计划名,格口号,计划时间,实际时间,是否按时,结论,来源,抓拍ID,设备ID`（RFC 4180 转义；时间列 ISO-8601）。
       parameters:
         - name: elderId
           in: query
@@ -138,11 +139,11 @@ paths:
       description: |
         老人写 40301、监护 PENDING 40302。先按 {recordId} 查库：
 
-        ① **命中已有记录 → 纠错**：仅覆盖请求体里**非空**的 actualTime/actualDose/onTime/takenResult（设备误判时监护人改写 TAKEN/UNTAKEN），source 恒置 MANUAL；
-        ② **记录不存在 → 新建（补录）**：路径 {recordId} **被忽略**，服务端生成新 mr- 号并在响应返回；请求体须带 elderId/planId/planItemId/medicineId（缺任一带 40001，计划/药品查不到带 40401），source=MANUAL，planTime 经就近槽重算（无 planId/算不出则 NULL）。
+        ① **命中已有记录 → 纠错**：仅覆盖请求体里**非空**的 actualTime/onTime/takenResult（设备误判时监护人改写 TAKEN/UNTAKEN），source 恒置 MANUAL；
+        ② **记录不存在 → 新建（补录）**：路径 {recordId} **被忽略**，服务端生成新 mr- 号并在响应返回；请求体须带 elderId/planId/cellNo（缺任一带 40001，计划查不到带 40401），source=MANUAL，planTime 按该格就近槽重算（无 planId / 该格无排程 / 算不出则 NULL）。
 
-        **库存联动（11 §1 口径）**：补录 TAKEN 触发库存扣减（同一条记录仅扣一次）；纠错改写为 TAKEN 会事后补扣；UNTAKEN 不扣。
-        **MISS 不受影响**：漏服仅由「规定时间内无上报」触发，超时未补录仍判 MISS。
+        **库存不联动**：补录 / 纠错均不改库存；库存为独立手工台账（02c）。
+        **MISS 不受影响**：漏服仅由「规定时间内该格无上报」触发，超时未补录仍判 MISS。
       parameters:
         - $ref: '#/components/parameters/RecordId'
         - $ref: './common.yaml#/components/parameters/XRequestId'
@@ -183,7 +184,7 @@ paths:
 
         **统计口径（分源）**：
         - onTimeRate = 周期内 on_time=true 记录数 ÷ totalDoses（含 on_time 三态，即所有有 actual_time 的记录）；
-        - missCount = 周期内 alarm.type='MISS' 条数；**迟到（on_time=false 但有记录）不计入漏服**（11 §2/§5）；
+        - missCount = 周期内 alarm.type='MISS' 条数；**迟到（on_time=false 但有记录）不计入漏服**（07 §2/§5）；
         - lateCount（on_time=false）、unjudgedCount（on_time=null，无匹配槽/无 plan_time）。
         - dailyBreakdown：按老人 MAIN 设备时区（缺省 Asia/Shanghai）做**本地日分桶**趋势（含无数据日，totalDoses=0 时 onTimeRate=0.0），便于画连续折线。
       parameters:
@@ -235,7 +236,7 @@ components:
   schemas:
     MedRecordSource:
       type: string
-      enum: [DEVICE, MANUAL]
+      enum: [CAMERA, MANUAL]
 
     MedRecord:
       type: object
@@ -248,20 +249,15 @@ components:
         planId:
           type: string
           nullable: true
-        planItemId:
-          type: string
+        cellNo:
+          type: integer
           nullable: true
-        medicineId:
-          type: string
-          nullable: true
+          enum: [1, 2, 3]
+          description: 格号 1/2/3（固件固定对应早/中/晚）；缺失表示未识别
         planName:
           type: string
           nullable: true
           description: 后端 join 计划名返回
-        medicineName:
-          type: string
-          nullable: true
-          description: 后端 join 药品名返回
         planTime:
           type: string
           format: date-time
@@ -273,14 +269,11 @@ components:
         onTime:
           type: boolean
           nullable: true
-          description: 三态：true 按时 / false 迟到 / null 未判定（无匹配槽/无 plan_time）
+          description: 三态：true 按时 / false 迟到 / null 未判定（该格无排程/无 plan_time）
         takenResult:
           description: 可空
           allOf:
             - $ref: './02b-devices.yaml#/components/schemas/TakenResult'
-        actualDose:
-          type: string
-          nullable: true
         source:
           $ref: '#/components/schemas/MedRecordSource'
         captureId:
@@ -296,7 +289,7 @@ components:
       type: object
       description: |
         纠错（记录已存在）：全部字段可选，仅非空项覆盖。
-        补录（记录不存在）：elderId/planId/planItemId/medicineId 必带。
+        补录（记录不存在）：elderId/planId/cellNo 必带。
       properties:
         elderId:
           type: string
@@ -306,26 +299,20 @@ components:
           type: string
           nullable: true
           description: 补录时必带
-        planItemId:
-          type: string
+        cellNo:
+          type: integer
           nullable: true
-          description: 补录时必带
-        medicineId:
-          type: string
-          nullable: true
-          description: 补录时必带
+          enum: [1, 2, 3]
+          description: 补录时必带；格号 1/2/3
         actualTime:
           type: string
           format: date-time
-          nullable: true
-        actualDose:
-          type: string
           nullable: true
         onTime:
           type: boolean
           nullable: true
         takenResult:
-          description: 可空；纠错改写 TAKEN/UNTAKEN，改 TAKEN 事后补扣库存
+          description: 可空；纠错改写 TAKEN/UNTAKEN
           allOf:
             - $ref: './02b-devices.yaml#/components/schemas/TakenResult'
 

@@ -37,7 +37,7 @@ LLM 洞察层只消费本项目已有的结构化数据（`med_record` / `med_pl
 | 编号 | 功能点 | 消费的结构化数据 | LLM 输出（洞察 / 建议，非结构化文本） |
 |------|--------|------------------|--------------------------------------|
 | FP-1 | 漏服情况分析 | `med_record` + `plan_reminder` + `alarm(MISS)` | 按日 / 按时段统计漏服，指出漏服集中的时段与星期，附提醒加强建议 |
-| FP-2 | 库存耗尽预测 | `medicine_stock`（数量 / 有效期）+ 近 N 日消耗 | 预计耗尽时间、异常消耗提示、补配建议 |
+| FP-2 | 库存盘点建议 | `medicine_stock`（手工台账：数量 / 有效期） | 库存偏低 / 临近有效期的盘点提醒与补配建议（**不推算消耗**，库存为监护人手工维护） |
 | FP-3 | 环境-用药关联分析 | `env_sample`（温湿度超标）+ 对应时段 `med_record` | 环境异常与取药依从 / 药效风险的关联与处置建议 |
 | FP-4 | 周期趋势预测与预警 | 历史 `med_record` / `alarm` 趋势 | 漏服 / 异常的趋势外推与提前介入建议 |
 
@@ -110,7 +110,7 @@ POST /ai/insight
 | type | 对应 FP | 消费的结构化数据 |
 |------|---------|------------------|
 | `ADHERENCE` | FP-1 | `med_record` + `plan_reminder` + `alarm(MISS)` |
-| `STOCK` | FP-2 | `medicine_stock` + 近 N 日消耗 |
+| `STOCK` | FP-2 | `medicine_stock`（手工台账，不推算消耗） |
 | `ENV_CORRELATION` | FP-3 | `env_sample` + 对应时段 `med_record` |
 | `TREND` | FP-4 | 历史 `med_record` / `alarm` |
 | `COMPREHENSIVE` | FP-1~4 | 以上全部 |
@@ -121,7 +121,7 @@ POST /ai/insight
 { "code":0, "data":{
     "elderId":"e-1001","type":"COMPREHENSIVE",
     "range":{ "from":"2026-10-15T00:00:00Z","to":"2026-10-29T00:00:00Z" },
-    "content":"近14天晚饭后漏服率较上旬上升18个百分点，且与周末强相关……（仅作假设，建议核查作息）；二甲双胍按当前消耗约6天后耗尽，建议本周补配。",
+    "content":"近14天晚饭后漏服率较上旬上升18个百分点，且与周末强相关……（仅作假设，建议核查作息）；库存记录显示二甲双胍剩余 10 片，建议核对实际余量后补配。",
     "citations":["med_record#rec-123","alarm#MISS:...","medicine_stock#m-205","env_sample#..."],
     "disclaimer":"本分析仅供参考，用药与设备调整请由监护人 / 医生决策。" } }
 ```

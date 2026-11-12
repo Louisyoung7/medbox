@@ -83,15 +83,14 @@ paths:
         **为什么硬删而非软删**：测试痕迹要彻底清除（软删仍留行与孤儿数据，达不到清理目的）；正因如此才要 ADMIN + ACTIVE 护栏双重保护。
 
         **级联清理范围（先删子表再删 user 头，实现须对照 06 复核所有 user_id/elder_id/guardian_id 列）**：
-        1. med_plan_item（按 elder 的 plan）
-        2. med_plan（elder_id）
-        3. med_record（elder_id）
-        4. medicine_stock（elder_id）
-        5. device（elder_id，及其传感器子设备）
-        6. guardian_relation（elder_id OR guardian_id）
-        7. alarm / alarm_setting（elder_id）
-        8. capture（elder_id）
-        9. user（最后删除）
+        1. med_plan（elder_id）
+        2. med_record（elder_id）
+        3. medicine_stock（elder_id）
+        4. device（elder_id，及其传感器子设备）
+        5. guardian_relation（elder_id OR guardian_id）
+        6. alarm / alarm_setting（elder_id）
+        7. capture（elder_id）
+        8. user（最后删除）
       parameters:
         - $ref: '#/components/parameters/AdminUserId'
         - $ref: './common.yaml#/components/parameters/XRequestId'
@@ -128,7 +127,7 @@ paths:
           （device 表无独立 mqtt_connected 列，连接态由 online_state 表示，与 online 同源）；
         - todayDose：今日（按**各老人设备本地时区**）应服/已服/漏服/待服：
           totalSlots = 遍历每个有启用计划（status='ENABLED' AND sync_state <> 'SYNC_FAILED'）的老人，
-          以其 MAIN 设备 timezone 取「本地今日 00:00 ~ 明日 00:00」转 UTC 窗口，用 PlanSlotResolver 展开其全部计划 times 累加槽数；
+          以其 MAIN 设备 timezone 取「本地今日 00:00 ~ 明日 00:00」转 UTC 窗口，用 PlanSlotResolver 展开其全部 slots 累加槽数；
           taken = med_record.on_time=true AND plan_time ∈ 今日窗口；missed = on_time=false（复用 miss-alarm 落库口径，不实时重算）；
           pending = totalSlots - taken - missed；
         - elderCount = user 表 role='ELDER' 计数；planCount = med_plan 表 status='ENABLED' 计数。
@@ -188,7 +187,7 @@ paths:
         granularity 默认 week，可选 week|month；非法 → 40001。
 
         - trend：窗口 week=近 7 天 / month=近 30 天（按 UTC 日计）；
-          totalSlots 为「当前 med_plan.times 按各设备时区展开」近似（假设窗口内计划稳定，计划曾变动则历史日有偏差，演示可接受）；
+          totalSlots 为「当前 med_plan.slots 按各设备时区展开」近似（假设窗口内计划稳定，计划曾变动则历史日有偏差，演示可接受）；
           taken/missed 由 med_record 按 plan_time 的 UTC 日分组统计；rate = taken / totalSlots；
           bucket：week → yyyy-Www（ISO 周）、month → yyyy-MM（按日聚合后再归并）；
         - missByHour：med_record.on_time=false 按 plan_time 的 UTC 小时分桶（演示近似，标注）；

@@ -3,7 +3,7 @@ info:
   title: medbox · 药品与库存（02c OpenAPI 版）
   description: |
     `medbox-spec/02c_药品与库存.md` 的机器可读版。通用约定见 `common.yaml`。
-    后端**不建模格子**（格子是药箱本地物理概念、cell_id 不入库）；库存按「药箱 + 药品」管理（medicine_stock，06 §2.5）。
+    库存是**独立手工台账**，与 1/2/3 号格无绑定、**不按服药事件自动扣减**；按「药箱 + 药品」管理（medicine_stock，06 §2.5）。
   version: 1.0.0
 
 servers:

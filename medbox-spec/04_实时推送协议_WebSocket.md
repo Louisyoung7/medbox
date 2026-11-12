@@ -33,9 +33,9 @@
 
 | type | 触发时机 | payload 要点 |
 |------|----------|--------------|
-| ALARM | 后端生成漏服/环境告警 | alarmId, type, level(`INFO`/`WARN`/`CRITICAL`), message, elderId, medicineIds |
+| ALARM | 后端生成漏服/环境告警 | alarmId, type, level(`INFO`/`WARN`/`CRITICAL`), message, elderId |
 | DEVICE_STATUS | 设备在线/离线（订阅 retained status） | deviceId, deviceType(`MAIN`/`TEMP_HUMI`/`LIGHT`/`CAMERA`), online, parentDeviceId（子设备时） |
-| REMINDER | 临近服药计划提醒（可选，监护端提醒） | planId, planTime, **`medicines[]`**（一次提醒可含多种药） |
+| REMINDER | 临近服药计划提醒（可选，监护端提醒） | planId, planTime, **cellNo**（格号 1/2/3，不含药品信息） |
 | AI_STREAM | AI 流式回答分片（**本期不使用**：按需洞察的流式统一走 HTTP SSE，见文档 05 第 2.2 章） | sessionId, delta |
 | AI_INSIGHT | 周期洞察推送（系统定时生成的 COMPREHENSIVE 洞察，详见文档 05 第 2.3 章） | insightId, elderId, type, content, citations, disclaimer |
 | RESYNC | 补推窗口已过期，客户端应改走 REST 拉全量 | `reason=WINDOW_EXPIRED`、`latestEventId` |
@@ -47,19 +47,16 @@
 { "type":"ALARM","id":"evt-9a1c","topic":"elder:e-1001",
   "ts":1759474520000,
   "payload":{ "alarmId":"a-5001","type":"MISS","level":"WARN",
-    "message":"08:00 计划服药未按时服用：缺 阿莫西林、维生素D",
-    "medicineIds":["m-205","m-388"] } }
+    "message":"08:00 1 号格（早间）未按时取药" } }
 ```
 
-**示例：推送服药提醒（多种药）**
+**示例：推送服药提醒（按格）**
 ```json
 { "type":"REMINDER","id":"evt-9a1d","topic":"elder:e-1001",
   "ts":1759474500000,
-  "payload":{ "planId":"p-3301","planTime":"2026-10-04T00:00:00Z",
-    "medicines":[ { "itemId":"pi-9001","medicineId":"m-205","medicineName":"阿莫西林","dose":"1","unit":"片" },
-                  { "itemId":"pi-9002","medicineId":"m-388","medicineName":"维生素D","dose":"2","unit":"粒" } ] } }
+  "payload":{ "planId":"p-3301","planTime":"2026-10-04T00:00:00Z","cellNo":1 } }
 ```
 
-**REMINDER 生成规则**：后端定时扫描（默认 60s）取 `status='ENABLED' AND sync_state <> 'SYNC_FAILED'` 的计划，按设备本地时区在 `[now, now + lead-time-minutes]`（默认 10min）窗口展开"未来"服药槽，推 `REMINDER` 帧到 `elder:{elderId}`。设备本地声光提醒为主、云端 WS 为监护端兜底（默认不要求设备在线）。两道拦截：① 该槽已有 `med_record`（已服）跳过；② 去重表 `plan_reminder`（`dedup_key = REMINDER:{planId}:{slotUTC}`）已存在则跳过。`REMINDER` 不是告警，不进 `alarm` 列表。
+**REMINDER 生成规则**：后端定时扫描（默认 60s）取 `status='ENABLED' AND sync_state <> 'SYNC_FAILED'` 的计划，按设备本地时区在 `[now, now + lead-time-minutes]`（默认 10min）窗口展开"未来"服药槽，推 `REMINDER` 帧到 `elder:{elderId}`。设备本地声光提醒为主、云端 WS 为监护端兜底（默认不要求设备在线）。两道拦截：① 该槽已有 `med_record`（已服）跳过；② 去重表 `plan_reminder`（`dedup_key = REMINDER:{planId}:{cellNo}:{slotUTC}`）已存在则跳过。`REMINDER` 不是告警，不进 `alarm` 列表。
 
 **DEVICE_STATUS 推送规则**：触发点是 MQTT 侧的在线状态跃变（status / 遗嘱），推到 `elder:{elderId}` 主题（归属老人从 `device.elder_id` 取），不扩展 `device:` 主题。只在状态真的变了才推（主控每 60s 有心跳，每次上行都推会把小程序刷爆）；设备未登记（无归属老人）时无主题可推，静默跳过；`medbox.ws.enabled=false` 时推送静默跳过，不影响上行链路。

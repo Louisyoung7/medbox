@@ -13,7 +13,7 @@
 | QoS | 遥测 QoS0/1；命令/事件 QoS1；关键下行命令 QoS1 且带 ack |
 | Retained | status（在线状态）retained=true，订阅即得最新态 |
 | 后端接入方式 | 后端以订阅方身份连到 EMQX，订阅 `.../up/#` 消费上报、向 `.../down/#` 发布下行 |
-| 连接主体 | **一个药箱只有主设备（`MAIN`）建立 MQTT 连接**，clientId = 药箱 deviceId。温湿度 / 光照传感器是其**子设备**，不各自建 MQTT 连接，由主控在消息里带 `sensorId` 标明来源；**摄像头独立经 HTTP 直连后端上报服药事件（原图 + 自报置信度 + 结论字段，见第 4 章），不走 MQTT** |
+| 连接主体 | **一个药箱只有主设备（`MAIN`）建立 MQTT 连接**，clientId = 药箱 deviceId。温湿度 / 光照传感器是其**子设备**，不各自建 MQTT 连接，由主控在消息里带 `sensorId` 标明来源；**摄像头独立经 HTTP 直连后端上报服药事件（取药结论 + 格号 + 仅未取药时附原图，见第 4 章），不走 MQTT** |
 | 消息幂等 | **所有上行消息必须带 `msgId`**，格式固定为 **`{deviceId}-{10位递增序号}`**（如 `BOXA-DEBUG-01-0000000124`，序号持久化、重启不归零）。断线重连重发时服务端按 `msgId` 去重，避免重复写入服药记录 / 告警 |
 | 下行确认 | 下行消息带 `msgId` 与 `needAck`；设备处理后向 `.../up/ack` 回执。**重发策略：超时 5s 未回执则重发，最多 3 次**；3 次仍无回执则标记该下发失败并生成告警（见第 2 章） |
 
@@ -53,7 +53,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 `sensorId` = 该传感器子设备的 `device_id`（见文档 06 的 2.3）；主控转发时原样带上，后端据此区分来源、只更新对应列。
 
-上行·服药事件：**不走 MQTT**，由摄像头经 HTTP multipart 上报（端点与字段见 `02b_设备管理.md` §1.1）。`takenResult` 二值（`TAKEN` 已取药 / `UNTAKEN` 未取药）+ `source`（`CAMERA` / `MANUAL`）；**仅 `UNTAKEN` 附抓拍原图作留证，`TAKEN` 不上图**。后端不建模格子（无 `slotNo`）、不做人脸识别、无置信度、无第三态。
+上行·服药事件：**不走 MQTT**，由摄像头经 HTTP multipart 上报（端点与字段见 `02b_设备管理.md` §1.1）。`takenResult` 二值（`TAKEN` 已取药 / `UNTAKEN` 未取药）+ **格号 `cellNo`（1/2/3）**；**仅 `UNTAKEN` 附抓拍原图作留证，`TAKEN` 不上图**。后端据 `cellNo` + 就近时间槽落记录，不做人脸识别、无置信度、无第三态。
 
 上行·设备异常 `.../up/event/error`（**仅设备侧异常**）：
 ```json
@@ -76,21 +76,22 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 { "msgId":"BOXA-DEBUG-01-000126", "ts":1759474520000,
   "ackFor":"d-001", "result":"OK", "reason":null }
 ```
-`result`：`OK` / `FAILED`；`reason` 失败时给出简要原因（如 `"medicine_not_found"`）。服务端发出 `needAck:true` 的下行消息后，**5s 未收到回执则重发，最多 3 次**；仍无回执则标记下发失败并告警。
+`result`：`OK` / `FAILED`；`reason` 失败时给出简要原因（如 `"schedule_parse_error"`）。服务端发出 `needAck:true` 的下行消息后，**5s 未收到回执则重发，最多 3 次**；仍无回执则标记下发失败并告警。
 
-下行·同步计划 `.../down/schedule`（**一次提醒可含多种药，用 `items` 数组下发**）：
+下行·同步计划 `.../down/schedule`（**只下发"几点开几号格"，不含任何药品信息**）：
 ```json
 { "msgId":"d-001", "planId":"p-3301", "op":"UPSERT",
-  "times":["08:00","20:00"], "repeat":"DAILY",
+  "slots":[ { "cellNo":1, "time":"08:00" },
+            { "cellNo":2, "time":"12:30" },
+            { "cellNo":3, "time":"18:00" } ],
+  "repeat":"DAILY",
   "alarm":{"missAfterMin":15},
-  "items":[ { "itemId":"pi-9001","medicineId":"m-205","dose":"1","unit":"片" },
-            { "itemId":"pi-9002","medicineId":"m-388","dose":"2","unit":"粒" } ],
   "needAck":true }
 ```
 
-> 设备按 `items` 逐种取药并**逐条上报**；本次提醒下所有 item 都上报才算完成，缺任一种药由后端判 MISS（见文档 06 的 2.6.1）。
+> **格号即合同**：`cellNo` 1/2/3 由固件固定对应早 / 中 / 晚三个物理药格，后端不理解、也不下发格内放什么药。设备到点对 `slot.cellNo` 对应的格做本地声光 + 解锁；**数组里没有的格号 = 该格不提醒、不解锁**。
 
-> `op` 取值：`UPSERT`（新增 / 修改 / 启用，覆盖写该计划，载荷含完整 `times` / `repeat` / `alarm` / `items`）与 `DELETE`（删除 / 停用，设备按 `planId` 停该计划提醒，其余字段可空）。服务端在计划写事务提交后下发，设备回执 `up/ack` 成功 → 后端把 `med_plan.sync_state` 翻成 `SYNCED_TO_DEVICE`；回执 `FAILED` 或 5s 超时（重发 3 次仍无回执） → `SYNC_FAILED`。
+> `op` 取值：`UPSERT`（新增 / 修改 / 启用，覆盖写该计划，载荷含完整 `slots` / `repeat` / `alarm`）与 `DELETE`（删除 / 停用，设备按 `planId` 停该计划全部提醒，其余字段可空）。服务端在计划写事务提交后下发，设备回执 `up/ack` 成功 → 后端把 `med_plan.sync_state` 翻成 `SYNCED_TO_DEVICE`；回执 `FAILED` 或 5s 超时（重发 3 次仍无回执） → `SYNC_FAILED`。
 
 下行·控制命令 `.../down/command`（REST 受理后转发，QoS1 + `needAck:true`）：
 ```json
@@ -100,14 +101,14 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 ## 4. 摄像头识别与上报链路（摄像头 → 后端 HTTP）
 
-摄像头端侧判定「服药槽格子是否被取走」，直接经 HTTP 把取药结论上报后端（复用 `02b_设备管理.md` §1.1 的 captures 端点）。单片机与摄像头之间的协同（谁触发判定、如何取流）是设备固件内部实现，协议只约束「摄像头 → 后端」这一跳 HTTP。
+摄像头端侧判定「对应格位的药格是否被取走」，直接经 HTTP 把取药结论 + **格号 `cellNo`** 上报后端（复用 `02b_设备管理.md` §1.1 的 captures 端点）。单片机与摄像头之间的协同（谁触发判定、如何取流）是设备固件内部实现，协议只约束「摄像头 → 后端」这一跳 HTTP。
 
 ```
-摄像头(端侧判定格子是否取走) --HTTP multipart(takenResult + 仅UNTAKEN附file)--> 后端(据结论判已服/未服, 不跑识别)
+摄像头(端侧判定格位是否取走) --HTTP multipart(cellNo + takenResult + 仅UNTAKEN附file)--> 后端(据格号+时间落记录, 不跑识别)
 ```
 
 **职责划分**：
 
-- **摄像头**：端侧判定并经 HTTP 上报 `takenResult`（仅 `UNTAKEN` 附原图留证，可同时本地留证）；
+- **摄像头**：端侧判定并经 HTTP 上报 `cellNo` + `takenResult`（仅 `UNTAKEN` 附原图留证，可同时本地留证）；
 - **单片机**：本地时钟基准与提醒触发（到点本地声光 + 解锁对应格，见 01 §2.3），不参与服药事件上报；环境遥测仍经 MQTT 上报；
-- **后端**：只接收取药结论、不运行图像识别；据「规定时间内是否收到上报」判漏服（`MISS`）；`onTime` 由后端按「就近槽 + 三级最小容忍时长（计划级 > 老人级 > 15 分钟，见 07 §5）」重算，单侧窗口只判迟到，**改阈值无需重烧固件**。完整判定规则表见 `07_业务规则.md`。
+- **后端**：只接收格号与取药结论、不运行图像识别；据「该格在规定时间内是否收到上报」判漏服（`MISS`）；`onTime` 由后端按「该格就近槽 + 三级最小容忍时长（计划级 > 老人级 > 15 分钟，见 07 §5）」重算，单侧窗口只判迟到，**改阈值无需重烧固件**。完整判定规则表见 `07_业务规则.md`。

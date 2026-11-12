@@ -6,10 +6,10 @@ info:
     计划保存后，后端将提醒规则转成设备可执行的定时任务并经 MQTT 下行同步；提醒触发以设备本地为准，云端做兜底与统计。
 
     **两处口径**：
-    1. `times` 为**设备本地墙钟时间**（时区取 device.timezone，默认 Asia/Shanghai），**不是 UTC**——是 02 §1 通用 UTC 口径的例外；
+    1. `slots[].time` 为**设备本地墙钟时间**（时区取 device.timezone，默认 Asia/Shanghai），**不是 UTC**——是 02 §1 通用 UTC 口径的例外；
     2. 漏服容忍时长优先级：`missAlarmAfterMin`（计划级）> `alarm_setting.missTolerateMin`（老人级）> 系统默认 15 分钟，计划级留空即沿用上一级。
 
-    **一次提醒 = 一个计划，可含多种药**：times/repeatRule/报警规则在计划头统一配置，药品与剂量放 items 明细（无仓位字段，06 §2.6）。漏服判定以「本次所有 item 都有服药记录」为准，缺任一种药即判 MISS。
+    **一老人一计划、三个固定格位**：药箱格号 1/2/3 由固件固定对应早/中/晚，计划只用 `slots` 描述「几点开几号格」，**不含药品信息**；同一 `elderId` 至多一个计划（重复创建 40901）。漏服判定以「该格该槽是否有服药记录」为准。
   version: 1.0.0
 
 servers:
@@ -31,11 +31,11 @@ paths:
       tags: [plans]
       summary: 创建服药计划【鉴权·WRITE_PLAN（仅 GUARDIAN）】
       description: |
-        - times：`HH:mm`（计划内去重、至少 1 个），提交与回显均为原样字符串、不做时区换算，提交时按 HH:mm 升序；
-        - items：medicineId 必填；dose/unit/note 选填（空则省略）；同一计划内 medicineId 不重复；数组序即展示顺序；
-        - **无库存药品禁止加入**：后端返回 40901 兜底（库存数据拉取失败时仍允许提交，由后端拦截）；
+        - slots：1~3 项，每项 `{cellNo, time}`；`cellNo` 取 1/2/3 且不重复；`time` 为 `HH:mm`（设备本地墙钟，不做时区换算）；回显按 cellNo 升序；
+        - **计划不含药品**：不校验药品 / 库存；
+        - **一老人一计划**：同一 elderId 已存在计划 → 40901；
         - syncState 创建后初始值恒为 **PENDING**，真正的 SYNCED_TO_DEVICE / SYNC_FAILED 由设备同步写入（前端须兼容 PENDING 展示为「待同步」）；
-        - 设备同步映射：创建/修改/启用 → down/schedule op=UPSERT；删除/停用 → op=DELETE；回执 ack 后翻 SYNCED_TO_DEVICE，FAILED/超时 3 次翻 SYNC_FAILED；无 MAIN 设备 / MQTT 禁用安全降级保持 PENDING。
+        - 设备同步映射：创建/修改/启用 → down/schedule op=UPSERT（载荷为 slots）；删除/停用 → op=DELETE；回执 ack 后翻 SYNCED_TO_DEVICE，FAILED/超时 3 次翻 SYNC_FAILED；无 MAIN 设备 / MQTT 禁用安全降级保持 PENDING。
       parameters:
         - $ref: './common.yaml#/components/parameters/XRequestId'
       requestBody:
@@ -46,14 +46,14 @@ paths:
               $ref: '#/components/schemas/PlanUpsertRequest'
             example:
               elderId: u-1001
-              name: 早餐后
-              times: ["08:00", "20:00"]
+              name: 日常服药
+              slots:
+                - { cellNo: 1, time: "08:00" }
+                - { cellNo: 2, time: "12:30" }
+                - { cellNo: 3, time: "18:00" }
               repeatRule: DAILY
               missAlarmAfterMin: 15
               alarmRule: { miss: true, env: true }
-              items:
-                - { medicineId: m-205, dose: "1", unit: 片 }
-                - { medicineId: m-388, dose: "2", unit: 粒, note: 餐后 }
       responses:
         '200':
           description: 创建成功（code=0）
@@ -79,7 +79,7 @@ paths:
       operationId: listPlans
       tags: [plans]
       summary: 按老人查询计划列表【鉴权·READ_PLAN（全角色）】
-      description: 列表项含药品概览；elderId：老人端取自身、监护人端从可见设备归纳。
+      description: 一老人一计划，返回 0 或 1 条；elderId：老人端取自身、监护人端从可见设备归纳。
       parameters:
         - name: elderId
           in: query
@@ -109,7 +109,7 @@ paths:
     get:
       operationId: getPlan
       tags: [plans]
-      summary: 计划详情（含 items 明细）【鉴权·READ_PLAN（全角色）】
+      summary: 计划详情（含 slots）【鉴权·READ_PLAN（全角色）】
       parameters:
         - $ref: '#/components/parameters/PlanId'
       responses:
@@ -135,7 +135,7 @@ paths:
       operationId: updatePlan
       tags: [plans]
       summary: 修改计划【鉴权·WRITE_PLAN（仅 GUARDIAN）】
-      description: '整体覆盖：时间/周期/报警规则与 items 明细一并全量提交。'
+      description: '整体覆盖：slots / 周期 / 报警规则全量提交；未提交的格号即停用。'
       parameters:
         - $ref: '#/components/parameters/PlanId'
         - $ref: './common.yaml#/components/parameters/XRequestId'
@@ -169,7 +169,7 @@ paths:
     delete:
       operationId: deletePlan
       tags: [plans]
-      summary: 删除计划（级联删除明细）【鉴权·WRITE_PLAN（仅 GUARDIAN）】
+      summary: 删除计划【鉴权·WRITE_PLAN（仅 GUARDIAN）】
       description: 删除 → down/schedule op=DELETE。
       parameters:
         - $ref: '#/components/parameters/PlanId'
@@ -233,7 +233,7 @@ paths:
     get:
       operationId: getNextDoses
       tags: [plans]
-      summary: 未来待服药时间线（按次展开，每次列出所需药品）【鉴权·READ_PLAN（全角色）】
+      summary: 未来待服药时间线（按槽展开，含格号）【鉴权·READ_PLAN（全角色）】
       description: |
         **后端接口已落地**，前端只消费 scheduledTimeLocal（不自行换算时区、不做按次展开）。
         - `days` 默认 7、上限 60（越界由后端 40001）；本期仅 `DAILY`；
@@ -294,49 +294,40 @@ components:
       enum: [PENDING, SYNCED_TO_DEVICE, SYNC_FAILED]
       description: 仅回显；创建后恒 PENDING，前端须兼容展示为「待同步」，未知值原样展示、无字段不渲染
 
-    PlanItem:
+    PlanSlot:
       type: object
-      required: [medicineId]
+      required: [cellNo, time]
       properties:
-        itemId:
+        cellNo:
+          type: integer
+          enum: [1, 2, 3]
+          description: 格号；固件固定对应早 / 中 / 晚，后端不关心格内药品
+          example: 1
+        time:
           type: string
-          description: 创建后由后端生成
-          example: pi-9001
-        medicineId:
-          type: string
-          example: m-205
-        dose:
-          type: string
-          nullable: true
-          description: 选填，空则省略
-          example: "1"
-        unit:
-          type: string
-          nullable: true
-          example: 片
-        note:
-          type: string
-          nullable: true
-          example: 餐后
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: 设备本地墙钟 HH:mm（非 UTC）
+          example: "08:00"
 
     PlanUpsertRequest:
       type: object
-      required: [elderId, name, times, items]
+      required: [elderId, slots]
       properties:
         elderId:
           type: string
           example: u-1001
         name:
           type: string
-          example: 早餐后
-        times:
+          nullable: true
+          description: 方案名（选填）
+          example: 日常服药
+        slots:
           type: array
           minItems: 1
+          maxItems: 3
+          description: 格号 → 开格时间；cellNo 不重复；缺失格号表示该格不排程；PUT 整体覆盖
           items:
-            type: string
-            pattern: '^([01]\d|2[0-3]):[0-5]\d$'
-          description: 设备本地墙钟 HH:mm（非 UTC）；计划内去重；提交时按升序
-          example: ["08:00", "20:00"]
+            $ref: '#/components/schemas/PlanSlot'
         repeatRule:
           $ref: '#/components/schemas/RepeatRule'
         missAlarmAfterMin:
@@ -350,11 +341,6 @@ components:
           properties:
             miss: { type: boolean, example: true }
             env: { type: boolean, example: true }
-        items:
-          type: array
-          description: 一次提醒多种药；同计划内 medicineId 不重复；数组序即展示顺序；PUT 整体覆盖
-          items:
-            $ref: '#/components/schemas/PlanItem'
 
     Plan:
       type: object
@@ -366,10 +352,11 @@ components:
           type: string
         name:
           type: string
-        times:
+          nullable: true
+        slots:
           type: array
-          items: { type: string }
-          example: ["08:00", "20:00"]
+          items:
+            $ref: '#/components/schemas/PlanSlot'
         repeatRule:
           $ref: '#/components/schemas/RepeatRule'
         missAlarmAfterMin:
@@ -386,14 +373,14 @@ components:
           enum: [ENABLED, DISABLED]
         syncState:
           $ref: '#/components/schemas/PlanSyncState'
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/PlanItem'
 
     NextDose:
       type: object
       properties:
+        cellNo:
+          type: integer
+          enum: [1, 2, 3]
+          description: 格号（1/2/3）
         scheduledTimeUtc:
           type: string
           format: date-time
@@ -402,11 +389,6 @@ components:
           type: string
           description: 设备本地墙钟（前端直接消费，不自行换算时区）
           example: "2026-11-08 08:00"
-        items:
-          type: array
-          description: 药品 + 剂量文案
-          items:
-            $ref: '#/components/schemas/PlanItem'
 
     NextDosesResponse:
       type: object
