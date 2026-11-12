@@ -4,20 +4,17 @@ import com.medbox.server.domain.MedRecord;
 import java.time.OffsetDateTime;
 
 /**
- * 服药记录回显（列表项 / 详情共用，见文档 02 第 7 章）。
+ * 服药记录回显（列表项 / 详情共用，见文档 02e）。
  *
- * <p><b>关联字段</b>：{@code planName}/{@code medicineName} 由后端 join 计划名 / 药名返回；
- * {@code captureId} 回传抓拍留证业务 ID（文件流取用归 P1 {@code capture-core}，本期只给 ID），
- * {@code hasCapture} 供小程序缩略图占位判断。
+ * <p>一条记录 = 某计划的某号格在某次计划时间窗内的一次取药事实，只带 {@code cellNo}，
+ * 不带药品、剂量；{@code planName} 由后端 join 计划名返回，{@code hasCapture} 供缩略图占位。
  *
  * @param recordId     记录业务 ID（{@code mr-} 前缀）
  * @param elderId      归属老人业务 ID
  * @param planId       所属计划业务 ID
+ * @param cellNo       药格格号 1 / 2 / 3（缺失表示未识别）
  * @param planName     计划名（join {@code med_plan.name}）
- * @param medicineId   药品业务 ID
- * @param medicineName 药品名称（join {@code medicine.name}）
- * @param actualDose   实际服用剂量
- * @param planTime     计划服药时间（UTC），无匹配槽时为 null
+ * @param planTime     该格计划服药时间（UTC），该格无排程时为 null
  * @param actualTime   实际服药时间（UTC）
  * @param onTime       是否按时
  * @param takenResult  取药结论：TAKEN / UNTAKEN（可空）
@@ -31,10 +28,8 @@ public record RecordResponse(
         String recordId,
         String elderId,
         String planId,
+        Integer cellNo,
         String planName,
-        String medicineId,
-        String medicineName,
-        String actualDose,
         OffsetDateTime planTime,
         OffsetDateTime actualTime,
         Boolean onTime,
@@ -45,15 +40,13 @@ public record RecordResponse(
         String deviceId,
         OffsetDateTime createdAt) {
 
-    public static RecordResponse from(MedRecord r, String planName, String medicineName) {
+    public static RecordResponse from(MedRecord r, String planName) {
         return new RecordResponse(
                 r.getRecordId(),
                 r.getElderId(),
                 r.getPlanId(),
+                r.getCellNo(),
                 planName,
-                r.getMedicineId(),
-                medicineName,
-                r.getActualDose(),
                 r.getPlanTime(),
                 r.getActualTime(),
                 r.getOnTime(),

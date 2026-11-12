@@ -3,20 +3,16 @@ package com.medbox.server.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import lombok.Data;
 
 /**
- * 服药抓拍图片，对应 {@code capture} 表（见文档 06 的 2.12，由 V1 建）。
+ * 服药抓拍图片，对应 {@code capture} 表（见文档 06 的 2.12）。
  *
- * <p><b>本分支最小可用</b>：仅用到 {@code capture_id} / {@code reason} 两列
- * （{@code reason} 仅 NORMAL / MANUAL，{@code LOW_CONFIDENCE} 已废弃）；其余列按 V1 .schema 一并声明，
- * 供后续 {@code feat/capture-core} 复用 / 扩展，避免重复定义实体（合并点已记入 CHANGELOG）。
- *
- * <p><b>字段口径</b>：{@code reason} 取值 NORMAL / MANUAL（{@code LOW_CONFIDENCE} 已废弃）；
- * {@code takenResult} 取值 TAKEN / UNTAKEN（取药结论，不再做人脸识别、不上报置信度）；
- * {@code confidence} 列已废弃、不再写入（保留列仅兼容）。
+ * <p><b>字段口径</b>：{@code reason} 取值 NORMAL / MANUAL；{@code takenResult} 取值
+ * TAKEN / UNTAKEN（设备端侧二值取药结论，不做人脸识别、不报置信度）；
+ * 仅 {@code UNTAKEN} 上报携带原图，{@code TAKEN} 不上传图片。
+ * 服药上报必带 {@code cellNo}，MANUAL 主动留证可空。
  */
 @Data
 @TableName("capture")
@@ -34,13 +30,13 @@ public class Capture {
     /** 归属老人（{@code user.user_id}，ELDER）。 */
     private String elderId;
 
-    /** 抓拍涉及的药品（可空）。 */
-    private String medicineId;
-
-    /** 关联计划（可空）。 */
+    /** 关联计划（可空；非空触发去重与落记录）。 */
     private String planId;
 
-    /** 抓拍原因：NORMAL / MANUAL（LOW_CONFIDENCE 已废弃）。 */
+    /** 药格格号 1 / 2 / 3（服药上报必带，MANUAL 留证可空）。 */
+    private Integer cellNo;
+
+    /** 抓拍原因：NORMAL / MANUAL。 */
     private String reason;
 
     /** 服务端本地存储路径，不对外暴露。 */
@@ -51,9 +47,6 @@ public class Capture {
 
     /** 字节大小。 */
     private Integer sizeBytes;
-
-    /** 识别置信度（可空）。 */
-    private BigDecimal confidence;
 
     /** 取药结论：TAKEN / UNTAKEN（可空，留证用）。 */
     private String takenResult;

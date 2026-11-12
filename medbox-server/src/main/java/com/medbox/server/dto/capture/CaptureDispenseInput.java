@@ -4,11 +4,10 @@ import java.time.OffsetDateTime;
 import lombok.Data;
 
 /**
- * 摄像头 HTTP 上报纸机参数 → 判定核心统一入口（feat/backend-capture-event）。
+ * 设备 HTTP 上报参数 → 判定核心统一入口（见 07 §1）。
  *
- * <p>由 {@code CaptureService.upload} 组装后转发给 {@code DispenseConsumeService}，
- * 使摄像头 HTTP 抓拍上报与旧 MQTT {@code up/event/dispense} 共用同一判定核心
- * （就近槽 / 三级容忍 / 库存扣减口径一致）。
+ * <p>由 {@code CaptureService.upload} 组装后转发给 {@code DispenseConsumeService}：
+ * 格号是事件与计划槽的唯一对应依据，后端不接收、不记录格内药品与剂量。
  */
 @Data
 public class CaptureDispenseInput {
@@ -21,17 +20,10 @@ public class CaptureDispenseInput {
 
     private String planId;
 
-    private String planItemId;
+    /** 药格格号 1 / 2 / 3（planId 非空时必带）。 */
+    private Integer cellNo;
 
-    private String medicineId;
-
-    /** 实际服用剂量，原样落库。 */
-    private String actualDose;
-
-    /** 剂量单位（如 片/粒），本期仅接收、不持久化（med_record 无该列，与旧 MQTT 行为一致）。 */
-    private String unit;
-
-    /** 设备端侧取药结论 TAKEN/UNTAKEN（可空）。 */
+    /** 设备端侧取药结论 TAKEN / UNTAKEN（可空，缺失兜底 UNTAKEN）。 */
     private String takenResult;
 
     /** 抓拍时刻（UTC）。 */
