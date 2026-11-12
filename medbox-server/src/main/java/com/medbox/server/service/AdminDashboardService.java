@@ -86,7 +86,7 @@ public class AdminDashboardService {
             Instant from = localToday.atStartOfDay(zone).toInstant();
             Instant to = localToday.plusDays(1).atStartOfDay(zone).toInstant();
             for (MedPlan plan : e.getValue()) {
-                totalSlots += planSlotResolver.expandSlots(from, to, zone, plan.getTimes()).size();
+                totalSlots += planSlotResolver.expandSlots(from, to, zone, plan.getSlots()).size();
             }
             taken += dashboardMapper.countRecordsByElderWindow(elderId, from, to, true);
             missed += dashboardMapper.countRecordsByElderWindow(elderId, from, to, false);
@@ -187,7 +187,7 @@ public class AdminDashboardService {
             for (Map.Entry<String, List<MedPlan>> e : byElder.entrySet()) {
                 ZoneId zone = timezoneResolver.resolve(e.getKey());
                 for (MedPlan p : e.getValue()) {
-                    slots += planSlotResolver.expandSlots(from, to, zone, p.getTimes()).size();
+                    slots += planSlotResolver.expandSlots(from, to, zone, p.getSlots()).size();
                 }
             }
             map.put(d, slots);
@@ -207,7 +207,7 @@ public class AdminDashboardService {
                 Instant from = d.atStartOfDay(ZoneOffset.UTC).toInstant();
                 Instant to = d.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
                 for (MedPlan p : e.getValue()) {
-                    slots += planSlotResolver.expandSlots(from, to, zone, p.getTimes()).size();
+                    slots += planSlotResolver.expandSlots(from, to, zone, p.getSlots()).size();
                 }
             }
             map.put(elderId, slots);

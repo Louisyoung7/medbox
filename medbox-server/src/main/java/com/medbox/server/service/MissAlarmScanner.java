@@ -1,36 +1,28 @@
 package com.medbox.server.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.medbox.server.config.AlarmProperties;
 import com.medbox.server.domain.Alarm;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.MedPlan;
-import com.medbox.server.domain.MedPlanItem;
 import com.medbox.server.domain.MedRecord;
-import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.mapper.AlarmMapper;
 import com.medbox.server.mapper.DeviceMapper;
-import com.medbox.server.mapper.MedPlanItemMapper;
-import com.medbox.server.mapper.MedRecordMapper;
 import com.medbox.server.mapper.MedPlanMapper;
-import com.medbox.server.mapper.MedicineMapper;
+import com.medbox.server.mapper.MedRecordMapper;
 import com.medbox.server.ws.WsFrameType;
 import com.medbox.server.ws.WsPushService;
 import com.medbox.server.ws.WsTopic;
-import com.baomidou.mybatisplus.core.toolkit.StringUtils;
+import com.medbox.server.ws.payload.AlarmPayload;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -39,61 +31,47 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 漏服判定与 MISS 告警（feat/miss-alarm，07 清单 P0 第 10 步）。
+ * 漏服判定与 MISS 告警（见 07 §2）。
  *
- * <p><b>触发</b>：仅定时扫描（文档 01 §5.1 口径），每 {@code medbox.alarm.miss.scan-interval-ms}
- * 毫秒跑一次；不消费 {@code DispenseRecordedEvent} 做事件驱动即时判定（该事件仅预留）。
+ * <p><b>触发</b>：仅定时扫描（每 {@code medbox.alarm.miss.scan-interval-ms} 一次），
+ * 窗口 {@code [now - lookback, now - tolerance]}；不消费服药记录事件做即时判定。
  *
- * <p><b>判定流程（单条计划）</b>：
- * <ol>
- *   <li>取窗口 {@code [now - lookback, now - tolerance]} 内、按设备本地墙钟展开的候选槽（{@link PlanSlotResolver}）；</li>
- *   <li>一次拉取该计划在窗口内的全部 {@code med_record}，按槽瞬时分组，得到每个槽已有的 {@code plan_item_id}；</li>
- *   <li>任一 item 不在集合内即判 MISS（CAMERA / MANUAL 来源都算），生成 <b>1 条</b>告警，{@code message} 列出全部缺失药；</li>
- *   <li>按 {@code dedup_key = MISS:{planId}:{slotUTC}} 落库，唯一索引冲突即跳过（不重复告警、不重复推 WS）。</li>
- * </ol>
+ * <p><b>判定流程（单条计划）</b>：按 {@code slots} 展开带格号的候选槽 → 一次拉取窗口内全部
+ * {@code med_record}，按 {@code (cell_no, plan_time)} 瞬时分组 → 某槽无任何记录即判 MISS，
+ * 生成 1 条告警（message 只提格号与时间），按
+ * {@code dedup_key = MISS:{planId}:{cellNo}:{slotUTC}} 去重。该格无排程不参与判定。
  *
- * <p><b>跳过规则（用户确认）</b>：{@code sync_state = SYNC_FAILED} 的计划不判（设备没收到计划不会提醒）；
- * {@code status != ENABLED} 不判（由 {@code MedPlanMapper.selectDueForMissScan} 过滤）；
- * 主控设备 {@code online_state != ONLINE} 跳过（避免"上报不了 = 漏服"误判，由 {@code skipWhenDeviceOffline} 开关）。
- *
- * <p><b>推送</b>：走 {@link WsPushService} 这一个出口（同 {@code DeviceStatusEventBridge} 套路）——用
- * {@link ObjectProvider} 注入，{@code medbox.ws.enabled=false} 时取不到实例则静默跳过；推送失败只记日志，
- * 不阻断扫描。全程兜异常，单条计划出错不影响其余计划。
- *
- * <p>规则表细节沉淀在文档 06 §2.9。
+ * <p><b>跳过规则</b>：{@code SYNC_FAILED} / 非 ENABLED 计划不判；主控离线时按开关跳过。
+ * 单条计划出错只记日志，不影响其余。
  */
 @Component
 public class MissAlarmScanner {
 
     private static final Logger log = LoggerFactory.getLogger(MissAlarmScanner.class);
+    private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
 
     static final String TYPE_MISS = "MISS";
     static final String LEVEL_WARN = "WARN";
 
     private final MedPlanMapper medPlanMapper;
-    private final MedPlanItemMapper medPlanItemMapper;
     private final MedRecordMapper medRecordMapper;
     private final AlarmMapper alarmMapper;
     private final DeviceMapper deviceMapper;
-    private final MedicineMapper medicineMapper;
     private final MissToleranceResolver toleranceResolver;
     private final DeviceTimezoneResolver timezoneResolver;
     private final PlanSlotResolver planSlotResolver;
     private final AlarmProperties alarmProperties;
     private final ObjectProvider<WsPushService> wsPushService;
 
-    public MissAlarmScanner(MedPlanMapper medPlanMapper, MedPlanItemMapper medPlanItemMapper,
-                            MedRecordMapper medRecordMapper, AlarmMapper alarmMapper,
-                            DeviceMapper deviceMapper, MedicineMapper medicineMapper,
+    public MissAlarmScanner(MedPlanMapper medPlanMapper, MedRecordMapper medRecordMapper,
+                            AlarmMapper alarmMapper, DeviceMapper deviceMapper,
                             MissToleranceResolver toleranceResolver, DeviceTimezoneResolver timezoneResolver,
                             PlanSlotResolver planSlotResolver, AlarmProperties alarmProperties,
                             ObjectProvider<WsPushService> wsPushService) {
         this.medPlanMapper = medPlanMapper;
-        this.medPlanItemMapper = medPlanItemMapper;
         this.medRecordMapper = medRecordMapper;
         this.alarmMapper = alarmMapper;
         this.deviceMapper = deviceMapper;
-        this.medicineMapper = medicineMapper;
         this.toleranceResolver = toleranceResolver;
         this.timezoneResolver = timezoneResolver;
         this.planSlotResolver = planSlotResolver;
@@ -107,11 +85,7 @@ public class MissAlarmScanner {
         scan(Clock.systemUTC());
     }
 
-    /**
-     * 核心扫描（可注入时钟便于测试）。
-     *
-     * @param clock 时钟（测试用固定时钟）
-     */
+    /** 核心扫描（可注入时钟便于测试）。 */
     public void scan(Clock clock) {
         if (!alarmProperties.isEnabled()) {
             return;
@@ -127,7 +101,6 @@ public class MissAlarmScanner {
             try {
                 scanPlan(plan, now, lookback);
             } catch (RuntimeException ex) {
-                // 单条计划出错不影响其余计划（旁路任务，失败只记日志）
                 log.warn("漏服扫描单条计划失败 planId={}：{}", plan.getPlanId(), ex.getMessage());
             }
         }
@@ -137,12 +110,10 @@ public class MissAlarmScanner {
         String elderId = plan.getElderId();
         ZoneId zone = timezoneResolver.resolve(elderId);
 
-        // 容忍窗口：槽必须早于 now - tolerance 才算"过了容忍期"
         int toleranceMin = toleranceResolver.resolveMinutes(plan, elderId);
         Instant windowEnd = now.minus(toleranceMin, ChronoUnit.MINUTES);
-        Instant windowStart = lookback;
-        if (windowStart.isAfter(windowEnd)) {
-            return; // 容忍大于回看，无候选槽
+        if (lookback.isAfter(windowEnd)) {
+            return;
         }
 
         if (alarmProperties.isSkipWhenDeviceOffline()) {
@@ -154,60 +125,49 @@ public class MissAlarmScanner {
             }
         }
 
-        // 候选槽
-        List<OffsetDateTime> slots = planSlotResolver.expandSlots(windowStart, windowEnd, zone, plan.getTimes());
+        List<PlanSlotResolver.SlotInstant> slots =
+                planSlotResolver.expandSlots(lookback, windowEnd, zone, plan.getSlots());
         if (slots.isEmpty()) {
             return;
         }
 
-        // 窗口内全部记录，按槽瞬时分组
         List<MedRecord> records = medRecordMapper.selectByPlanAndTimeRange(
-                plan.getPlanId(), OffsetDateTime.ofInstant(windowStart, zone), OffsetDateTime.ofInstant(windowEnd, zone));
-        Map<Instant, Set<String>> presentItemsBySlot = new LinkedHashMap<>();
+                plan.getPlanId(), OffsetDateTime.ofInstant(lookback, zone), OffsetDateTime.ofInstant(windowEnd, zone));
+        Set<String> presentSlots = new HashSet<>();
         for (MedRecord r : records) {
-            if (r.getPlanTime() == null || r.getPlanItemId() == null) {
+            if (r.getPlanTime() == null || !PlanSlotResolver.isValidCellNo(r.getCellNo())) {
                 continue;
             }
-            presentItemsBySlot.computeIfAbsent(r.getPlanTime().toInstant(), k -> new HashSet<>())
-                    .add(r.getPlanItemId());
+            presentSlots.add(slotKey(r.getCellNo(), r.getPlanTime().toInstant()));
         }
 
-        // 该计划全部 item（不重复）
-        List<MedPlanItem> items = medPlanItemMapper.selectList(
-                new LambdaQueryWrapper<MedPlanItem>().eq(MedPlanItem::getPlanId, plan.getPlanId()));
-        if (items.isEmpty()) {
-            return;
-        }
-
-        for (OffsetDateTime slot : slots) {
-            Set<String> present = presentItemsBySlot.getOrDefault(slot.toInstant(), Set.of());
-            List<MedPlanItem> missing = items.stream()
-                    .filter(it -> !present.contains(it.getItemId()))
-                    .collect(Collectors.toList());
-            if (missing.isEmpty()) {
+        for (PlanSlotResolver.SlotInstant slot : slots) {
+            if (presentSlots.contains(slotKey(slot.cellNo(), slot.slotTime().toInstant()))) {
                 continue;
             }
-            raiseMissAlarm(plan, slot, items, missing);
+            raiseMissAlarm(plan, slot);
         }
     }
 
-    private void raiseMissAlarm(MedPlan plan, OffsetDateTime slot, List<MedPlanItem> allItems, List<MedPlanItem> missing) {
-        String elderId = plan.getElderId();
-        List<String> missingMedicineIds = missing.stream()
-                .map(MedPlanItem::getMedicineId).filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
+    private static String slotKey(Integer cellNo, Instant planTime) {
+        return cellNo + ":" + planTime;
+    }
 
-        String message = buildMessage(slot, missingMedicineIds);
-        String dedupKey = TYPE_MISS + ":" + plan.getPlanId() + ":" + slot.toInstant().toString();
+    private void raiseMissAlarm(MedPlan plan, PlanSlotResolver.SlotInstant slot) {
+        String elderId = plan.getElderId();
+        Integer cellNo = slot.cellNo();
+        Instant slotInstant = slot.slotTime().toInstant();
+        String dedupKey = TYPE_MISS + ":" + plan.getPlanId() + ":" + cellNo + ":" + slotInstant;
 
         Alarm alarm = new Alarm();
         alarm.setAlarmId(alarmMapper.nextAlarmId());
         alarm.setElderId(elderId);
         alarm.setPlanId(plan.getPlanId());
         alarm.setDeviceId(deviceIdOf(elderId));
-        alarm.setMedicineId(missingMedicineIds.isEmpty() ? null : missingMedicineIds.get(0));
+        alarm.setCellNo(cellNo);
         alarm.setType(TYPE_MISS);
         alarm.setLevel(LEVEL_WARN);
-        alarm.setMessage(message);
+        alarm.setMessage(buildMessage(slot));
         alarm.setReadState(false);
         alarm.setHandleState("OPEN");
         alarm.setDedupKey(dedupKey);
@@ -216,29 +176,22 @@ public class MissAlarmScanner {
         try {
             alarmMapper.insert(alarm);
         } catch (DuplicateKeyException ex) {
-            // 该槽已经告警过（重启/重扫同窗口），跳过，不重复告警、不重复推
-            log.debug("漏服告警去重命中：跳过 planId={} slot={}", plan.getPlanId(), slot.toInstant());
+            log.debug("漏服告警去重命中：跳过 planId={} cellNo={} slot={}",
+                    plan.getPlanId(), cellNo, slotInstant);
             return;
         }
-
-        pushWs(alarm, elderId, missingMedicineIds);
+        pushWs(alarm, elderId);
     }
 
-    private String buildMessage(OffsetDateTime slot, List<String> missingMedicineIds) {
-        String timeLabel = slot.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
-        String drugs = missingMedicineIds.stream()
-                .map(this::medicineName)
-                .collect(Collectors.joining("、"));
-        return timeLabel + " 计划服药未按时服用：缺 " + drugs;
-    }
-
-    private String medicineName(String medicineId) {
-        if (medicineId == null) {
-            return "未知药品";
-        }
-        Medicine medicine = medicineMapper.selectById(medicineId);
-        return (medicine != null && StringUtils.isNotBlank(medicine.getName()))
-                ? medicine.getName() : medicineId;
+    /** message 只提格号与时间，不提药品名（07 §2.5）。 */
+    private String buildMessage(PlanSlotResolver.SlotInstant slot) {
+        String timeLabel = slot.slotTime().toLocalTime().format(HH_MM);
+        String period = switch (slot.cellNo()) {
+            case 1 -> "早间";
+            case 2 -> "午间";
+            default -> "晚间";
+        };
+        return timeLabel + " " + slot.cellNo() + " 号格（" + period + "）未按时取药";
     }
 
     private String deviceIdOf(String elderId) {
@@ -246,7 +199,7 @@ public class MissAlarmScanner {
         return main == null ? null : main.getDeviceId();
     }
 
-    private void pushWs(Alarm alarm, String elderId, List<String> medicineIds) {
+    private void pushWs(Alarm alarm, String elderId) {
         WsPushService pusher = wsPushService.getIfAvailable();
         if (pusher == null) {
             log.debug("WS 未启用，跳过 MISS 告警推送 alarmId={}", alarm.getAlarmId());
@@ -254,9 +207,8 @@ public class MissAlarmScanner {
         }
         try {
             pusher.publish(WsTopic.elder(elderId), WsFrameType.ALARM,
-                    new com.medbox.server.ws.payload.AlarmPayload(
-                            alarm.getAlarmId(), alarm.getType(), alarm.getLevel(),
-                            alarm.getMessage(), elderId, new ArrayList<>(medicineIds)));
+                    new AlarmPayload(alarm.getAlarmId(), alarm.getType(), alarm.getLevel(),
+                            alarm.getMessage(), elderId));
         } catch (RuntimeException ex) {
             log.warn("MISS 告警 WS 推送失败 alarmId={}：{}", alarm.getAlarmId(), ex.getMessage());
         }

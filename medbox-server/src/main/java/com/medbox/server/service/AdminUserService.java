@@ -54,7 +54,7 @@ public class AdminUserService {
     }
 
     /**
-     * 硬删 + 级联清理（见文档 02 第 10.2 / 10.3）。
+     * 硬删 + 级联清理（见文档 02h §1.3）。
      *
      * <p>护栏：目标不存在 → 40401；目标 {@code ACTIVE} → 40902。通过后在单事务内按依赖顺序（先子后父）级联硬删其孤儿数据。
      */
@@ -72,19 +72,20 @@ public class AdminUserService {
         log.info("ADMIN purge test-data: operator={}, target={}, role={}", operator, userId,
                 user.getRole() == null ? null : user.getRole().name());
 
-        cleanupMapper.deleteMedPlanItems(userId);
-        cleanupMapper.deleteMedPlans(userId);
-        cleanupMapper.deleteGuardianRelations(userId);
-        cleanupMapper.deleteDeviceEvents(userId);
-        cleanupMapper.deleteDevices(userId);
-        cleanupMapper.deleteMedicineStocks(userId);
+        // 02h §1.3 的级联清理顺序（先子表后 user 头；应用层删除，不依赖物理外键）。
+        // 清单外的孤儿表（device_event / medicine / env_sample / refresh_token）按归属插在对应位置一并清理。
+        cleanupMapper.deleteMedPlans(userId);            // 1
+        cleanupMapper.deleteMedRecords(userId);          // 2
+        cleanupMapper.deleteMedicineStocks(userId);      // 3
         cleanupMapper.deleteMedicines(userId);
-        cleanupMapper.deleteMedRecords(userId);
-        cleanupMapper.deleteCaptures(userId);
+        cleanupMapper.deleteDeviceEvents(userId);        // 4（设备事件先于设备）
+        cleanupMapper.deleteDevices(userId);
         cleanupMapper.deleteEnvSamples(userId);
-        cleanupMapper.deleteAlarms(userId);
+        cleanupMapper.deleteGuardianRelations(userId);   // 5
+        cleanupMapper.deleteAlarms(userId);              // 6
         cleanupMapper.deleteAlarmSettings(userId);
+        cleanupMapper.deleteCaptures(userId);            // 7
         cleanupMapper.deleteRefreshTokens(userId);
-        cleanupMapper.deleteUser(userId);
+        cleanupMapper.deleteUser(userId);                // 8
     }
 }

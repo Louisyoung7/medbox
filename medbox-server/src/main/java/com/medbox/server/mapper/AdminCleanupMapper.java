@@ -5,16 +5,13 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * 测试数据硬删的级联清理（见文档 02 第 10.2 / 10.3）。
+ * 测试数据硬删的级联清理（见文档 02h §1.3）。
  *
  * <p>应用层按依赖顺序调用各方法（先子后父），不依赖物理外键；每个方法只删「与某 userId 关联」的行。
  * 与用户无关的表（llm_config / mqtt_message / idempotency_record）不在范围。
  */
 @Mapper
 public interface AdminCleanupMapper {
-
-    @Delete("DELETE FROM med_plan_item WHERE plan_id IN (SELECT plan_id FROM med_plan WHERE elder_id = #{userId})")
-    int deleteMedPlanItems(@Param("userId") String userId);
 
     @Delete("DELETE FROM med_plan WHERE elder_id = #{userId}")
     int deleteMedPlans(@Param("userId") String userId);
@@ -34,7 +31,7 @@ public interface AdminCleanupMapper {
     @Delete("DELETE FROM medicine WHERE owner_elder_id = #{userId}")
     int deleteMedicines(@Param("userId") String userId);
 
-    @Delete("DELETE FROM med_record WHERE elder_id = #{userId} OR guardian_id = #{userId}")
+    @Delete("DELETE FROM med_record WHERE elder_id = #{userId}")
     int deleteMedRecords(@Param("userId") String userId);
 
     @Delete("DELETE FROM capture WHERE elder_id = #{userId}")

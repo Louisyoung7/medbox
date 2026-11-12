@@ -57,7 +57,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class CaptureService {
 
-    /** 去重时间窗（秒）：同一 planId 内 60 秒只留一张。 */
+    /** 去重时间窗（秒）：同一 planId + cellNo 分组内 60 秒只留一张。 */
     static final int DEDUP_WINDOW_SECONDS = 60;
 
     private static final Set<String> ALLOWED_REASONS =
@@ -108,8 +108,7 @@ public class CaptureService {
      */
     @Transactional
     public CaptureUploadResponse upload(String deviceId, MultipartFile file, String reason,
-                                       String medicineId, String planId, String planItemId,
-                                       String actualDose, String unit,
+                                       String planId, Integer cellNo,
                                        String takenResult, OffsetDateTime capturedAt) {
         String elderId = deviceOwnerResolver.resolveElderId(deviceId);
         BizAssert.forbiddenIf(elderId == null, "设备归属老人解析失败（设备未注册或父设备缺失）");
@@ -119,11 +118,18 @@ public class CaptureService {
                 : ("TAKEN".equalsIgnoreCase(takenResult.trim()) ? "TAKEN" : "UNTAKEN");
         BizAssert.isTrue(ALLOWED_REASONS.contains(reasonNorm), ErrorCode.BAD_REQUEST, "非法的 reason：" + reason);
 
+        boolean dispense = planId != null && !planId.isBlank();
+        // planId 非空（服药事件上报）时 cellNo 必带且只能为 1/2/3；MANUAL 主动留证可空
+        if (dispense) {
+            BizAssert.badRequestIf(!PlanSlotResolver.isValidCellNo(cellNo), "cellNo 必填且只能为 1/2/3");
+        }
+
         OffsetDateTime capAt = (capturedAt == null) ? clock.instant().atOffset(ZoneOffset.UTC) : capturedAt;
 
-        // 去重：planId 非空时才查窗口
-        if (planId != null && !planId.isBlank()) {
-            Capture duplicate = captureMapper.selectByPlanWithinWindow(planId, capAt, DEDUP_WINDOW_SECONDS);
+        // 去重：planId 非空时按 planId + cellNo 分组查 60s 窗口
+        if (dispense) {
+            Capture duplicate = captureMapper.selectByPlanWithinWindow(
+                    planId, cellNo, capAt, DEDUP_WINDOW_SECONDS);
             if (duplicate != null) {
                 return new CaptureUploadResponse(duplicate.getCaptureId(), duplicate.getExpireAt());
             }
@@ -154,8 +160,8 @@ public class CaptureService {
         entity.setCaptureId(captureId);
         entity.setDeviceId(deviceId);
         entity.setElderId(elderId);
-        entity.setMedicineId(medicineId);
         entity.setPlanId(planId);
+        entity.setCellNo(cellNo);
         entity.setReason(reasonNorm);
         entity.setFilePath(filePath);
         entity.setMime(mime);
@@ -167,15 +173,12 @@ public class CaptureService {
 
         // planId 非空 → 调判定核心生成 med_record（与 capture 同事务）
         String recordId = null;
-        if (planId != null && !planId.isBlank()) {
+        if (dispense) {
             CaptureDispenseInput input = new CaptureDispenseInput();
             input.setCameraDeviceId(deviceId);
             input.setCaptureId(captureId);
             input.setPlanId(planId);
-            input.setPlanItemId(planItemId);
-            input.setMedicineId(medicineId);
-            input.setActualDose(actualDose);
-            input.setUnit(unit);
+            input.setCellNo(cellNo);
             input.setTakenResult(takenNorm);
             input.setCapturedAt(capAt);
             input.setSource("CAMERA");
@@ -285,8 +288,8 @@ public class CaptureService {
                 c.getCaptureId(),
                 c.getDeviceId(),
                 c.getElderId(),
-                c.getMedicineId(),
                 c.getPlanId(),
+                c.getCellNo(),
                 c.getReason(),
                 c.getTakenResult(),
                 c.getMime(),

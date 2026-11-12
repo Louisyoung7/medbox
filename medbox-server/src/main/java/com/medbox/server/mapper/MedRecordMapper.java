@@ -23,21 +23,23 @@ public interface MedRecordMapper extends BaseMapper<MedRecord> {
     /**
      * 取某计划在时间窗内的全部服药记录（feat/miss-alarm 判定槽是否缺服）。
      *
-     * <p>用 {@code idx_med_record_plan_time (plan_id, plan_time)} 索引（V10 建）；
-     * 返回后由 Service 按 {@code plan_time} 的瞬时（{@code toInstant()}）归一分组，
-     * 与扫描槽比对（注意落库后 PG 会把 {@code TIMESTAMPTZ} 归一为 UTC 瞬时，必须比瞬时而非 OffsetDateTime）。
+     * <p>用 {@code idx_med_record_plan_cell_time (plan_id, cell_no, plan_time)} 索引（V22 建）；
+     * 返回后由 Service 按 {@code (cell_no, plan_time.toInstant())} 归一分组，与扫描槽比对
+     * （注意落库后 PG 会把 {@code TIMESTAMPTZ} 归一为 UTC 瞬时，必须比瞬时而非 OffsetDateTime）。
      */
     @Select("SELECT * FROM med_record WHERE plan_id = #{planId} "
             + "AND plan_time >= #{from} AND plan_time <= #{to}")
     List<MedRecord> selectByPlanAndTimeRange(String planId, java.time.OffsetDateTime from, java.time.OffsetDateTime to);
 
     /**
-     * 判某计划某槽是否已服药（feat/plan-reminder 的"已服跳过"拦截）。
+     * 判某计划某格某槽是否已服药（feat/plan-reminder 的"已服跳过"拦截）。
      *
-     * <p>按 {@code plan_time} 的<b>瞬时</b>等值计数（落库后 PG 已归一为 UTC，传参统一用 UTC 偏移）。
-     * 该 slot 有任何服药记录（哪怕只服了其中一种药）即算"已服"，不再提醒。走
-     * {@code idx_med_record_plan_time (plan_id, plan_time)} 索引。
+     * <p>按 {@code cell_no} + {@code plan_time} 的<b>瞬时</b>等值计数（落库后 PG 已归一为 UTC，
+     * 传参统一用 UTC 偏移）。该槽有任一服药记录（无论 TAKEN / UNTAKEN）即算"已服"，不再提醒。
+     * 走 {@code idx_med_record_plan_cell_time (plan_id, cell_no, plan_time)} 索引。
      */
-    @Select("SELECT COUNT(*) FROM med_record WHERE plan_id = #{planId} AND plan_time = #{planTime}")
-    int countTaken(@Param("planId") String planId, @Param("planTime") OffsetDateTime planTime);
+    @Select("SELECT COUNT(*) FROM med_record WHERE plan_id = #{planId} AND cell_no = #{cellNo} "
+            + "AND plan_time = #{planTime}")
+    int countTaken(@Param("planId") String planId, @Param("cellNo") Integer cellNo,
+                   @Param("planTime") OffsetDateTime planTime);
 }

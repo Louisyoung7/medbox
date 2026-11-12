@@ -79,6 +79,6 @@ public class WsDebugController {
             return new DeviceStatusPayload("BOXA1001", "MAIN", true, null);
         }
         return new AlarmPayload("a-debug-0001", "MISS", "WARN",
-                "调试：08:00 计划服药未按时服用", elderId, List.of("m-205"));
+                "调试：08:00 1 号格（早间）未按时取药", elderId);
     }
 }

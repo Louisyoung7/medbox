@@ -270,8 +270,8 @@ echo "$TOKEN"
 curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
   -H 'Content-Type: application/json' -d '{
     "deviceId":"BOXA-DEBUG-01",
-    "subTopic":"event/dispense",
-    "payload":"{\"msgId\":\"BOXA-DEBUG-01-000123\",\"ts\":1759474487000,\"userId\":\"e-1001\",\"planId\":\"p-3301\",\"planItemId\":\"pi-9001\",\"medicineId\":\"m-205\"}" }'
+    "subTopic":"telemetry/temperature",
+    "payload":"{\"msgId\":\"BOXA-DEBUG-01-000123\",\"ts\":1759474487000,\"sensorId\":\"BOXA-DEBUG-01-S-TH01\",\"temperature\":26.5}" }'
 ```
 
 > **⚠️ 别预注册保留号**：`13800001234`（监护人）与 `13800008888`（老人）是 seed 写死的保留号。若你先按第 7 节用手动注册占了其中某个手机号，再跑 seed 会因手机号唯一约束冲突而失败——直接空库跑 seed 即可，或换别的手机号做 auth 自测。
@@ -291,15 +291,14 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
 | 传感器子设备 | `BOXA-DEBUG-01-S-TH01`（温湿度）/ `BOXA-DEBUG-01-S-LX01`（光照）/ `BOXA-DEBUG-01-S-CAM01`（摄像头） | |
 | 药品 | `m-205`（阿司匹林，公共）+ `m-206`（甲硝唑，老人私有） | |
 | 库存 | `s-debug-001` | 有效期未过期 |
-| 计划 | `p-3301`（含计划项 `pi-9001`，每日 `08:00`） | |
+| 计划 | `p-3301`（仅 1 号格，开格时间 = 播种时设备本地时刻 +2 分钟） | |
 
-> **为什么只有部分 ID 带 `debug` 段**：业务号由 `user_biz_id_seq` / `medicine_stock_biz_id_seq` 等从 **1001** 起生成 —— 清库后首个注册用户必是 `u-1001`、首个库存必是 `s-1001`，种子若占用它们会与真实数据撞唯一约束，`?reset=true` 的清理更会按固定 ID **误删真实账号 / 库存**；设备号用 `BOXA-DEBUG-01` 是为了不与真机序列号重名（`clearSeed` 会按它删设备）。而 `e-1001` / `m-205` / `p-3301` / `pi-9001` 不在业务序列生成值域内（业务号恒为前缀 + 数字、且从 1001 起），永远不会与真实数据相撞，故保留短 ID。
+> **为什么只有部分 ID 带 `debug` 段**：业务号由 `user_biz_id_seq` / `medicine_stock_biz_id_seq` 等从 **1001** 起生成 —— 清库后首个注册用户必是 `u-1001`、首个库存必是 `s-1001`，种子若占用它们会与真实数据撞唯一约束，`?reset=true` 的清理更会按固定 ID **误删真实账号 / 库存**；设备号用 `BOXA-DEBUG-01` 是为了不与真机序列号重名（`clearSeed` 会按它删设备）。而 `e-1001` / `m-205` / `p-3301` 不在业务序列生成值域内（业务号恒为前缀 + 数字、且从 1001 起），永远不会与真实数据相撞，故保留短 ID。
 >
 > **从旧版本升级（历史库里有 `u-1001` / `BOXA1001` / `s-1001` 老种子）**：新种子改用上面的 debug ID，旧数据不会自动清。**为什么不直接用管理后台（medbox-admin 测试数据清理）删？** 后台的硬删护栏对**任何 `ACTIVE` 账号一律拒绝**（`AdminUserService.purge()` 抛 `40902`），而种子账号写入时状态恒为 `ACTIVE`，所以后台那条「清理」按钮对种子是**禁用**的——后台删不了种子。另外旧数据也不适合无条件自动清（有误删占用 `u-1001` 的真实账号的风险）。确认要清时**先 `SELECT` 核对，再按下述条件删除**（手机号条件用于兜底，避免误删占用了 `u-1001` 的真实账号）：
 >
 > ```sql
 > DELETE FROM med_record WHERE plan_id = 'p-3301';
-> DELETE FROM med_plan_item WHERE plan_id = 'p-3301';
 > DELETE FROM med_plan WHERE plan_id = 'p-3301';
 > DELETE FROM medicine_stock WHERE device_id = 'BOXA1001';
 > DELETE FROM device WHERE device_id = 'BOXA1001' OR device_id LIKE 'BOXA1001-S-%';

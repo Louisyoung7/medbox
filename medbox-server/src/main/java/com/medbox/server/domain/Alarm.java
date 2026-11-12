@@ -7,18 +7,12 @@ import java.time.OffsetDateTime;
 import lombok.Data;
 
 /**
- * 告警，对应 {@code alarm} 表（见文档 06 的 2.9，表由 V1 建；V12 补 {@code alarm_biz_id_seq} 序列与 {@code dedup_key} 列）。
+ * 告警，对应 {@code alarm} 表（见文档 06 的 2.9 / 07 §2、§3）。
  *
- * <p>本实体由 {@code feat/miss-alarm} 首次写入（MISS 漏服告警）；后续 {@code env-alarm} /
- * {@code alarm-device-offline} 复用同一张表与 {@code dedup_key} 去重列。
- * {@code type} / {@code level} / {@code handleState} 是 VARCHAR：允许值由文档 06 §2.9 / 02 第 8 章定义，
- * 取值校验放 Service 层（{@code BizAssert}），不引枚举以免超出 06 schema。
+ * <p>{@code type} / {@code level} / {@code handleState} 是 VARCHAR，取值校验放 Service 层。
+ * MISS 告警带 {@code cellNo} 与 {@code planId}，message 只提格号与时间；其它类型 {@code cellNo} 为空。
  *
- * <p><b>业务 ID {@code alarmId}</b> 走 {@code alarm_biz_id_seq} 序列（V12 建），前缀 {@code a-}，
- * 取号方法见 {@link com.medbox.server.mapper.AlarmMapper#nextAlarmId()}。
- *
- * <p><b>命名</b>：{@code readState} / {@code handleState} 自动映射到 {@code read_state} / {@code handle_state}
- * （与 {@link AlarmSetting#missTolerateMin} → {@code miss_tolerate_min} 同一套 MP 下划线命名策略）。
+ * <p><b>业务 ID {@code alarmId}</b> 走 {@code alarm_biz_id_seq} 序列，前缀 {@code a-}。
  */
 @Data
 @TableName("alarm")
@@ -39,8 +33,8 @@ public class Alarm {
     /** 关联计划（MISS 必带，ENV / DEVICE_OFFLINE 等可空）。 */
     private String planId;
 
-    /** 关联药品（MISS 记第一个缺失药；多药时取其一，全量见 WS 的 medicineIds）。 */
-    private String medicineId;
+    /** MISS 关联格号 1 / 2 / 3；其它类型为空。 */
+    private Integer cellNo;
 
     /** 告警类型：MISS / ENV / DEVICE_OFFLINE / DEVICE_FAULT。 */
     private String type;
@@ -48,7 +42,7 @@ public class Alarm {
     /** 严重程度：INFO / WARN / CRITICAL。 */
     private String level;
 
-    /** 可直接展示的文案，如"08:00 计划服药未按时服用：缺 阿莫西林、维生素D"。 */
+    /** 可直接展示的文案，如「08:00 1 号格（早间）未按时取药」。 */
     private String message;
 
     /** 是否已读，默认 false。 */
@@ -57,7 +51,7 @@ public class Alarm {
     /** 处理状态：OPEN / HANDLED，默认 OPEN。 */
     private String handleState;
 
-    /** 去重键（V12 新增）：MISS=MISS:{planId}:{slotUTC}；唯一索引冲突即跳过，避免重复告警。 */
+    /** 去重键：MISS=MISS:{planId}:{cellNo}:{slotUTC}；唯一索引冲突即跳过。 */
     private String dedupKey;
 
     private OffsetDateTime createdAt;
