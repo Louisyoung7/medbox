@@ -24,6 +24,16 @@ describe('utils/ai —— 维度与范围', () => {
     expect(AI_TYPES.map((t) => t.value)).toContain('ENV_CORRELATION')
   })
 
+  it('库存维度按手工台账展示，不出现按服药推算消耗的旧口径', () => {
+    const stock = AI_TYPES.find((t) => t.value === 'STOCK')
+    expect(stock.label).toBe('库存盘点')
+    expect(stock.desc).toContain('手工台账')
+    expect(stock.desc).toContain('不推算消耗')
+    expect(stock.desc).not.toMatch(/近 N 日消耗|预测/)
+    const env = AI_TYPES.find((t) => t.value === 'ENV_CORRELATION')
+    expect(env.desc).toContain('服药记录')
+  })
+
   it('buildInsightRange 封顶 30 天，输出 ISO-8601 UTC', () => {
     const now = new Date('2026-11-01T00:00:00Z')
     const r = buildInsightRange(7, now)
