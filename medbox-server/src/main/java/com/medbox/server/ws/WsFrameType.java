@@ -7,7 +7,7 @@ package com.medbox.server.ws;
  * <ul>
  *   <li>{@link #AI_STREAM} <b>不实现</b>：文档 04 第 3 章明确"本期不使用"，AI 流式统一走 HTTP SSE（文档 05）；</li>
  *   <li>{@link #REMINDER} <b>只登记枚举、本分支不发</b>：触发逻辑在 {@code feat/plan-reminder}，
- *       payload 形态（{@code medicines[]}）已定，先留位免得后续分支改枚举；</li>
+ *       payload 形态（{@code {planId, planTime, cellNo}}）已定，先留位免得后续分支改枚举；</li>
  *   <li>{@link #ALARM} / {@link #DEVICE_STATUS} <b>本分支落地</b>（07 清单要求）；</li>
  *   <li>{@link #RESYNC} 是本分支新增：补推窗口过期时告诉客户端"改走 REST 拉全量"，
  *       否则客户端无法区分"没有新事件"与"事件已被淘汰"（已同步补进文档 04）。</li>

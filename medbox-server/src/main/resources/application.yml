@@ -13,7 +13,7 @@ spring:
   application:
     name: medbox-server
   jackson:
-    time-zone: UTC                  # 除服药计划 times（设备本地墙钟）外，时间一律 UTC（见文档 01）
+    time-zone: UTC                  # 除服药计划 slots[].time（设备本地墙钟）外，时间一律 UTC（见文档 01）
     default-property-inclusion: non_null   # 值为 null 的字段不输出（如失败响应的 data）
   mvc:
     throw-exception-if-no-handler-found: true  # 无匹配路径抛 NoHandlerFoundException → 全局异常处理返回 40401

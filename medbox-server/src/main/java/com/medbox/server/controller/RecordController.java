@@ -99,20 +99,24 @@ public class RecordController {
         DateTimeFormatter iso = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
         try (Writer writer = response.getWriter()) {
             writer.write("﻿"); // UTF-8 BOM，便于 Excel 正确识别中文
-            CsvUtil.writeRow(writer, "记录ID", "老人ID", "计划名", "药品名称", "计划时间",
-                    "实际时间", "是否按时", "结论", "来源", "剂量", "抓拍ID", "设备ID");
+            CsvUtil.writeRow(writer, "记录ID", "老人ID", "计划名", "格口号", "计划时间",
+                    "实际时间", "是否按时", "结论", "来源", "抓拍ID", "设备ID");
             for (RecordResponse r : records) {
                 CsvUtil.writeRow(writer,
-                        str(r.recordId()), str(r.elderId()), str(r.planName()), str(r.medicineName()),
+                        str(r.recordId()), str(r.elderId()), str(r.planName()), str(r.cellNo()),
                         fmt(r.planTime(), iso), fmt(r.actualTime(), iso),
                         bool(r.onTime()), str(r.takenResult()), str(r.source()),
-                        str(r.actualDose()), str(r.captureId()), str(r.deviceId()));
+                        str(r.captureId()), str(r.deviceId()));
             }
         }
     }
 
     private static String str(String value) {
         return value == null ? "" : value;
+    }
+
+    private static String str(Integer value) {
+        return value == null ? "" : value.toString();
     }
 
     private static String fmt(OffsetDateTime value, DateTimeFormatter formatter) {

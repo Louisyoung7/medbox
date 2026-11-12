@@ -121,7 +121,7 @@ public class EnvAlarmService {
         alarm.setElderId(elderId);
         alarm.setDeviceId(sensorId);
         alarm.setPlanId(null);
-        alarm.setMedicineId(null);
+        alarm.setCellNo(null);
         alarm.setType(TYPE_ENV);
         alarm.setLevel(LEVEL_WARN);
         alarm.setMessage(message);
@@ -159,7 +159,7 @@ public class EnvAlarmService {
             pusher.publish(WsTopic.elder(elderId), WsFrameType.ALARM,
                     new com.medbox.server.ws.payload.AlarmPayload(
                             alarm.getAlarmId(), alarm.getType(), alarm.getLevel(),
-                            alarm.getMessage(), elderId, List.of()));
+                            alarm.getMessage(), elderId));
         } catch (RuntimeException ex) {
             log.warn("ENV 告警 WS 推送失败 alarmId={}：{}", alarm.getAlarmId(), ex.getMessage());
         }

@@ -8,7 +8,6 @@ import com.medbox.server.dto.capture.CaptureResponse;
 import com.medbox.server.dto.capture.CaptureUploadResponse;
 import com.medbox.server.service.CaptureService;
 import jakarta.servlet.http.HttpServletRequest;
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -57,21 +56,16 @@ public class CaptureController {
                                           HttpServletRequest request,
                                           @RequestParam(value = "file", required = false) MultipartFile file,
                                           @RequestParam(value = "reason", required = false) String reason,
-                                          @RequestParam(value = "medicineId", required = false) String medicineId,
                                           @RequestParam(value = "planId", required = false) String planId,
-                                          @RequestParam(value = "planItemId", required = false) String planItemId,
-                                          @RequestParam(value = "actualDose", required = false) String actualDose,
-                                          @RequestParam(value = "unit", required = false) String unit,
+                                          @RequestParam(value = "cellNo", required = false) Integer cellNo,
                                           @RequestParam(value = "takenResult", required = false) String takenResult,
-                                          @RequestParam(value = "confidence", required = false) BigDecimal confidence,
                                           @RequestParam(value = "capturedAt", required = false)
                                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime capturedAt) {
         String headerDeviceId = request.getHeader("X-Device-Id");
         BizAssert.badRequestIf(headerDeviceId == null || !headerDeviceId.equals(deviceId),
                 "X-Device-Id 与路径 deviceId 不一致");
         deviceCaptureAuth.verify(deviceId, request.getHeader("X-Device-Sign"), request.getHeader("X-Timestamp"));
-        return R.ok(captureService.upload(deviceId, file, reason, medicineId, planId, planItemId,
-                actualDose, unit, takenResult, capturedAt));
+        return R.ok(captureService.upload(deviceId, file, reason, planId, cellNo, takenResult, capturedAt));
     }
 
     @GetMapping("/captures")
