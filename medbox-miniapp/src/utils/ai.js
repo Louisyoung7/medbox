@@ -25,8 +25,8 @@ export const AI_TYPE = {
  */
 export const AI_TYPES = [
   { value: 'ADHERENCE', label: '漏服分析', desc: '服药记录 + 计划提醒 + 漏服告警' },
-  { value: 'STOCK', label: '库存预测', desc: '库存数量 / 有效期 + 近 N 日消耗' },
-  { value: 'ENV_CORRELATION', label: '环境关联', desc: '温湿光遥测 + 对应时段用药' },
+  { value: 'STOCK', label: '库存盘点', desc: '监护人手工台账：库存数量 / 有效期（不推算消耗）' },
+  { value: 'ENV_CORRELATION', label: '环境关联', desc: '温湿光遥测 + 对应时段服药记录' },
   { value: 'TREND', label: '趋势预警', desc: '历史服药 / 告警趋势外推' },
   { value: 'COMPREHENSIVE', label: '综合洞察', desc: '以上全部维度（默认）' },
 ]
