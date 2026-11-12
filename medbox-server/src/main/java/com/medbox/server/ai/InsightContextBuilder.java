@@ -106,24 +106,12 @@ public class InsightContextBuilder {
         Map<String, String> names = medicineMapper.selectList(
                         new LambdaQueryWrapper<Medicine>().in(Medicine::getMedicineId, ids))
                 .stream().collect(Collectors.toMap(Medicine::getMedicineId, Medicine::getName));
-        List<MedRecord> records = recordMapper.selectList(new LambdaQueryWrapper<MedRecord>()
-                .eq(MedRecord::getElderId, elderId)
-                .ge(MedRecord::getActualTime, from).le(MedRecord::getActualTime, to));
-        long days = Math.max(Duration.between(from, to).toDays(), 1);
-
-        sb.append("【库存】\n");
+        sb.append("【库存（监护人手工台账，系统不按服药事件推算消耗）】\n");
         for (MedicineStock s : stocks) {
-            long consumed = records.stream()
-                    .filter(r -> s.getMedicineId().equals(r.getMedicineId()))
-                    .mapToLong(r -> doseOf(r.getActualDose())).sum();
-            double perDay = (double) consumed / days;
-            String remain = perDay > 0
-                    ? String.format(Locale.ROOT, "约 %.1f 天耗尽", (s.getQuantity() == null ? 0 : s.getQuantity()) / perDay)
-                    : "区间内无消耗";
             sb.append("- ").append(names.getOrDefault(s.getMedicineId(), s.getMedicineId()))
-              .append("：库存 ").append(s.getQuantity())
+              .append("：记录库存 ").append(s.getQuantity())
               .append("，有效期 ").append(s.getExpiryDate())
-              .append("，区间消耗 ").append(consumed).append("，").append(remain).append("\n");
+              .append("，建议核对实际余量后补配\n");
             cit.add("medicine_stock#" + s.getMedicineId());
         }
         return stocks.size();
@@ -175,15 +163,6 @@ public class InsightContextBuilder {
           .append("- 迟到占比: ").append(records.isEmpty() ? 0 : late * 100 / records.size()).append("%\n");
         records.stream().limit(5).forEach(r -> cit.add("med_record#" + r.getRecordId()));
         return records.size();
-    }
-
-    private long doseOf(String actualDose) {
-        try {
-            long v = Long.parseLong(String.valueOf(actualDose).trim());
-            return v > 0 ? v : 1;
-        } catch (RuntimeException ex) {
-            return 1;
-        }
     }
 
     /** 拼好的上下文；empty=true 表示区间内没有任何可用数据。 */

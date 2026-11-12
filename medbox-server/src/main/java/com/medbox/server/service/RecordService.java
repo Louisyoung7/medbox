@@ -7,89 +7,72 @@ import com.medbox.server.common.security.Permission;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.MedRecord;
-import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.dto.PageResult;
 import com.medbox.server.dto.record.RecordConfirmRequest;
 import com.medbox.server.dto.record.RecordResponse;
+import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.MedPlanMapper;
 import com.medbox.server.mapper.MedRecordMapper;
-import com.medbox.server.mapper.MedicineMapper;
-import com.medbox.server.mapper.DeviceMapper;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 服药记录查询与手工补录（{@code feat/record-core}，见文档 02 第 7 章、07）。
+ * 服药记录查询与手工补录（见文档 02e / 07 §1）。
  *
- * <p><b>权限</b>：读（列表 / 详情）= {@code READ_RECORD}（全角色，老人仅本人），写（补录 / 校准）=
- * {@code WRITE_RECORD}（仅 FAMILY）；越权 / PENDING / 老人写一律 40301 / 40302，全部走
- * {@link AccessService#require(String, Permission)}。
+ * <p><b>权限</b>：读（列表 / 详情）= {@code READ_RECORD}；写（补录 / 纠错）= {@code WRITE_RECORD}。
  *
- * <p><b>单接口双语义</b>：{@code confirm(recordId, req)} 先按 {@code recordId} 查库，命中则校准（覆盖非空
- * 字段 + {@code source=MANUAL}），未命中则新建（补录=创建，必填 {@code elderId}/{@code planId}/
- * {@code planItemId}/{@code medicineId}）。新建时路径 {@code {recordId}} 被忽略，由
- * {@code med_record_biz_id_seq} 服务端生成新 {@code mr-} 号并在响应返回，避免破坏序列约定。
+ * <p><b>单接口双语义</b>：{@code confirm(recordId, req)} 命中已有记录 → 纠错（仅覆盖非空字段 +
+ * {@code source=MANUAL}）；未命中 → 新建（补录，必填 {@code elderId}/{@code planId}/{@code cellNo}）。
+ * 新建时路径 {@code {recordId}} 被忽略，由 {@code med_record_biz_id_seq} 生成新 {@code mr-} 号。
  *
- * <p><b>planTime 重算</b>：新建补录时优先用 {@link DeviceTimezoneResolver} + {@link PlanSlotResolver}
- * 由 {@code planId} 的 {@code times} + {@code actualTime} 在老人 MAIN 设备时区就近槽重算 {@code planTime}，
- * 使漏服判定（{@code miss-alarm}）不被误触发；无 {@code planId} / 算不出槽则置 NULL。
+ * <p><b>planTime 重算</b>：新建补录按该格 {@code slots} + {@code actualTime} 在老人 MAIN 设备时区
+ * 就近槽重算；该格无排程 / 算不出槽则置 NULL。<b>记录新增与纠错都不改库存</b>（独立手工台账）。
  */
 @Service
 public class RecordService {
 
-    private static final Logger log = LoggerFactory.getLogger(RecordService.class);
     private static final String SOURCE_MANUAL = "MANUAL";
 
     private final MedRecordMapper medRecordMapper;
     private final MedPlanMapper medPlanMapper;
-    private final MedicineMapper medicineMapper;
     private final DeviceMapper deviceMapper;
     private final DeviceTimezoneResolver timezoneResolver;
     private final PlanSlotResolver slotResolver;
     private final AccessService accessService;
-    private final MedicineStockService medicineStockService;
     private final Clock clock;
 
     /** 测试 / 非 Spring 场景：可注入 {@link Clock} 以固定时间。 */
     public RecordService(MedRecordMapper medRecordMapper, MedPlanMapper medPlanMapper,
-                         MedicineMapper medicineMapper, DeviceMapper deviceMapper,
-                         DeviceTimezoneResolver timezoneResolver, PlanSlotResolver slotResolver,
-                         AccessService accessService, MedicineStockService medicineStockService,
-                         Clock clock) {
+                         DeviceMapper deviceMapper, DeviceTimezoneResolver timezoneResolver,
+                         PlanSlotResolver slotResolver, AccessService accessService, Clock clock) {
         this.medRecordMapper = medRecordMapper;
         this.medPlanMapper = medPlanMapper;
-        this.medicineMapper = medicineMapper;
         this.deviceMapper = deviceMapper;
         this.timezoneResolver = timezoneResolver;
         this.slotResolver = slotResolver;
         this.accessService = accessService;
-        this.medicineStockService = medicineStockService;
         this.clock = clock;
     }
 
-    /** Spring 入口：{@code Clock} 无 Bean，默认 {@code systemUTC()}（与 {@code PlanService} 同约定）。 */
+    /** Spring 入口：{@code Clock} 无 Bean，默认 {@code systemUTC()}。 */
     @Autowired
     public RecordService(MedRecordMapper medRecordMapper, MedPlanMapper medPlanMapper,
-                         MedicineMapper medicineMapper, DeviceMapper deviceMapper,
-                         DeviceTimezoneResolver timezoneResolver, PlanSlotResolver slotResolver,
-                         AccessService accessService, MedicineStockService medicineStockService) {
-        this(medRecordMapper, medPlanMapper, medicineMapper, deviceMapper,
-                timezoneResolver, slotResolver, accessService, medicineStockService, Clock.systemUTC());
+                         DeviceMapper deviceMapper, DeviceTimezoneResolver timezoneResolver,
+                         PlanSlotResolver slotResolver, AccessService accessService) {
+        this(medRecordMapper, medPlanMapper, deviceMapper, timezoneResolver,
+                slotResolver, accessService, Clock.systemUTC());
     }
 
     // ———————————————— 列表 ————————————————
@@ -115,24 +98,17 @@ public class RecordService {
             wrapper.le(MedRecord::getActualTime, to);
         }
 
-        Page<MedRecord> result = medRecordMapper.selectPage(
-                new Page<>((long) safePage, safeSize), wrapper);
+        Page<MedRecord> result = medRecordMapper.selectPage(new Page<>((long) safePage, safeSize), wrapper);
         List<MedRecord> records = result.getRecords();
         if (records.isEmpty()) {
             return PageResult.empty(safePage, safeSize);
         }
-
         return PageResult.of(toResponses(records), result.getTotal(), safePage, safeSize);
     }
 
     // ———————————————— 导出 ————————————————
 
-    /**
-     * GET /records/export：按老人 + 时间窗导出全部服药记录（不翻页），join 计划名 / 药名后返回。
-     *
-     * <p>权限 {@code EXPORT_RECORD}（监护人可导出、老人不可）；越权 / PENDING 由 {@link AccessService} 转 40301 / 40302。
-     * {@code from}/{@code to} 为空则由 Controller 侧补默认窗口（最近 30 天），此处直接用传入边界查询。
-     */
+    /** GET /records/export：按老人 + 时间窗导出全部服药记录（不翻页），join 计划名后返回。 */
     public List<RecordResponse> exportRecords(String elderId, OffsetDateTime from, OffsetDateTime to) {
         accessService.require(elderId, Permission.EXPORT_RECORD);
 
@@ -148,43 +124,34 @@ public class RecordService {
         return toResponses(medRecordMapper.selectList(wrapper));
     }
 
-    /** 批量把 {@link MedRecord} 转 {@link RecordResponse} 并 join 计划名 / 药名（避免 N+1）。 */
+    /** 批量把 {@link MedRecord} 转 {@link RecordResponse} 并 join 计划名（避免 N+1）；不再 join 药品。 */
     private List<RecordResponse> toResponses(List<MedRecord> records) {
         if (records.isEmpty()) {
             return List.of();
         }
         Set<String> planIds = records.stream().map(MedRecord::getPlanId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
-        Set<String> medicineIds = records.stream().map(MedRecord::getMedicineId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<String, String> planNames = planNames(planIds);
-        Map<String, String> medicineNames = medicineNames(medicineIds);
         return records.stream()
-                .map(r -> RecordResponse.from(r, planNames.get(r.getPlanId()),
-                        medicineNames.get(r.getMedicineId())))
+                .map(r -> RecordResponse.from(r, planNames.get(r.getPlanId())))
                 .toList();
     }
 
     // ———————————————— 详情 ————————————————
 
-    /** GET /records/{recordId}：返回单条记录全字段，关联计划名 / 药名 / 抓拍 ID。 */
+    /** GET /records/{recordId}：返回单条记录全字段（含格号），关联计划名。 */
     public RecordResponse detail(String recordId) {
         MedRecord record = medRecordMapper.selectOne(
                 new LambdaQueryWrapper<MedRecord>().eq(MedRecord::getRecordId, recordId));
         BizAssert.notFound(record, "记录不存在");
         accessService.require(record.getElderId(), Permission.READ_RECORD);
         return RecordResponse.from(record,
-                planNames(Set.of(record.getPlanId())).get(record.getPlanId()),
-                medicineNames(Set.of(record.getMedicineId())).get(record.getMedicineId()));
+                planNames(Set.of(record.getPlanId())).get(record.getPlanId()));
     }
 
-    // ———————————————— 补录 / 校准 ————————————————
+    // ———————————————— 补录 / 纠错 ————————————————
 
-    /**
-     * POST /records/{recordId}/confirm：命中已有记录 → 校准；未命中 → 新建（补录=创建）。
-     *
-     * <p>无论哪条分支，{@code source} 恒为 {@code MANUAL}；校准仅覆盖请求体中非空字段。
-     */
+    /** POST /records/{recordId}/confirm：命中已有记录 → 纠错；未命中 → 新建（补录）。 */
     @Transactional
     public RecordResponse confirm(String recordId, RecordConfirmRequest request) {
         MedRecord existing = medRecordMapper.selectOne(
@@ -194,12 +161,8 @@ public class RecordService {
         }
 
         accessService.require(existing.getElderId(), Permission.WRITE_RECORD);
-        String oldTaken = existing.getTakenResult();
         if (request.actualTime() != null) {
             existing.setActualTime(request.actualTime());
-        }
-        if (request.actualDose() != null) {
-            existing.setActualDose(request.actualDose());
         }
         if (request.onTime() != null) {
             existing.setOnTime(request.onTime());
@@ -209,84 +172,48 @@ public class RecordService {
         }
         existing.setSource(SOURCE_MANUAL);
         medRecordMapper.updateById(existing);
-
-        // 规则5 step②：改写 / 补录为 TAKEN（且此前非 TAKEN）时事后补扣库存（幂等）
-        if (isTaken(existing.getTakenResult()) && !isTaken(oldTaken)) {
-            deductForRecord(existing);
-        }
         return detail(existing.getRecordId());
     }
 
-    /** 补录新建：必填四项，校验计划与药品存在，source=MANUAL，就近槽重算 planTime。 */
+    /** 补录新建：必填 elderId / planId / cellNo；source=MANUAL，按该格就近槽重算 planTime。 */
     private RecordResponse createManual(RecordConfirmRequest request) {
         BizAssert.notBlank(request.elderId(), "elderId 不能为空（补录必填）");
         BizAssert.notBlank(request.planId(), "planId 不能为空（补录必填）");
-        BizAssert.notBlank(request.planItemId(), "planItemId 不能为空（补录必填）");
-        BizAssert.notBlank(request.medicineId(), "medicineId 不能为空（补录必填）");
+        BizAssert.isTrue(PlanSlotResolver.isValidCellNo(request.cellNo()),
+                com.medbox.server.common.exception.ErrorCode.BAD_REQUEST, "cellNo 必填且只能为 1/2/3");
 
         accessService.require(request.elderId(), Permission.WRITE_RECORD);
 
         MedPlan plan = medPlanMapper.selectOne(
                 new LambdaQueryWrapper<MedPlan>().eq(MedPlan::getPlanId, request.planId()));
         BizAssert.notFound(plan, "计划不存在: " + request.planId());
-        Medicine medicine = medicineMapper.selectOne(
-                new LambdaQueryWrapper<Medicine>().eq(Medicine::getMedicineId, request.medicineId()));
-        BizAssert.notFound(medicine, "药品不存在: " + request.medicineId());
 
         MedRecord record = new MedRecord();
         record.setRecordId(medRecordMapper.nextRecordId());
         record.setElderId(request.elderId());
         record.setPlanId(request.planId());
-        record.setPlanItemId(request.planItemId());
-        record.setMedicineId(request.medicineId());
+        record.setCellNo(request.cellNo());
         record.setActualTime(request.actualTime());
-        record.setActualDose(request.actualDose());
         record.setOnTime(request.onTime());
         record.setTakenResult(normalizeTaken(request.takenResult()));
         record.setSource(SOURCE_MANUAL);
-        record.setPlanTime(recomputePlanTime(request.elderId(), request.planId(), request.actualTime()));
+        record.setPlanTime(recomputePlanTime(request.elderId(), plan, request.actualTime(), request.cellNo()));
         record.setDeviceId(resolveMainDeviceId(request.elderId()));
         record.setCreatedAt(OffsetDateTime.now(clock));
         medRecordMapper.insert(record);
-
-        // 规则5 step②：新建补录为 TAKEN 时事后补扣库存（新建无历史扣减，直接扣）
-        if (isTaken(record.getTakenResult())) {
-            deductForRecord(record);
-        }
         return detail(record.getRecordId());
     }
 
-    // ———————————————— 内部：planTime 就近槽重算 ————————————————
+    // ———————————————— 内部：planTime 按格就近槽重算 ————————————————
 
-    /** 由 planId 的 times + actualTime 在老人设备时区就近槽重算 planTime；缺参数或算不出则 NULL。 */
-    private OffsetDateTime recomputePlanTime(String elderId, String planId, OffsetDateTime actualTime) {
-        if (planId == null || actualTime == null) {
-            return null;
-        }
-        MedPlan plan = medPlanMapper.selectOne(
-                new LambdaQueryWrapper<MedPlan>().eq(MedPlan::getPlanId, planId));
-        if (plan == null || plan.getTimes() == null || plan.getTimes().isEmpty()) {
+    /** 该格无排程 / 无实际时间 → NULL，避免漏服判定因补录记录被误触发。 */
+    private OffsetDateTime recomputePlanTime(String elderId, MedPlan plan,
+                                             OffsetDateTime actualTime, Integer cellNo) {
+        if (plan == null || actualTime == null || !PlanSlotResolver.isValidCellNo(cellNo)) {
             return null;
         }
         ZoneId zone = timezoneResolver.resolve(elderId);
-        List<OffsetDateTime> slots = slotResolver.expandSlots(
-                actualTime.minusDays(1).toInstant(),
-                actualTime.plusDays(1).toInstant(),
-                zone, plan.getTimes());
-        if (slots.isEmpty()) {
-            return null;
-        }
-        Instant target = actualTime.toInstant();
-        OffsetDateTime best = null;
-        long bestAbs = Long.MAX_VALUE;
-        for (OffsetDateTime slot : slots) {
-            long distance = Math.abs(slot.toInstant().toEpochMilli() - target.toEpochMilli());
-            if (distance < bestAbs) {
-                bestAbs = distance;
-                best = slot;
-            }
-        }
-        return best;
+        return slotResolver.nearestSlot(actualTime.toInstant(), zone, plan.getSlots(), cellNo);
     }
 
     private String resolveMainDeviceId(String elderId) {
@@ -296,28 +223,6 @@ public class RecordService {
         return device == null ? null : device.getDeviceId();
     }
 
-    // ———————————————— 内部：confirm 补扣（规则5 step②） ————————————————
-
-    /** 仅 {@code TAKEN} 才扣库存；设备取记录归属药箱（缺则按老人反查 MAIN）。 */
-    private void deductForRecord(MedRecord record) {
-        if (isBlank(record.getMedicineId())) {
-            log.warn("confirm 补扣未执行：medicineId 为空 recordId={}", record.getRecordId());
-            return;
-        }
-        String deviceId = firstNonBlank(record.getDeviceId(), resolveMainDeviceId(record.getElderId()));
-        if (deviceId == null) {
-            log.warn("confirm 补扣未执行：无法解析归属药箱 recordId={} elderId={}",
-                    record.getRecordId(), record.getElderId());
-            return;
-        }
-        int delta = parseDose(record.getActualDose());
-        medicineStockService.deduct(deviceId, record.getMedicineId(), delta);
-    }
-
-    private static boolean isTaken(String takenResult) {
-        return "TAKEN".equals(takenResult);
-    }
-
     private static String normalizeTaken(String taken) {
         if (taken == null || taken.isBlank()) {
             return "UNTAKEN";
@@ -325,45 +230,14 @@ public class RecordService {
         return "TAKEN".equals(taken.trim().toUpperCase(Locale.ROOT)) ? "TAKEN" : "UNTAKEN";
     }
 
-    private int parseDose(String actualDose) {
-        if (isBlank(actualDose)) {
-            return 1;
-        }
-        try {
-            int v = (int) Math.floor(Double.parseDouble(actualDose.trim()));
-            return v > 0 ? v : 1;
-        } catch (NumberFormatException e) {
-            return 1;
-        }
-    }
-
-    private static boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
-
-    private static String firstNonBlank(String s, String fallback) {
-        return isBlank(s) ? fallback : s;
-    }
-
-    // ———————————————— 内部：批量查名（避免 N+1） ————————————————
+    // ———————————————— 内部：批量查计划名（避免 N+1） ————————————————
 
     private Map<String, String> planNames(Collection<String> planIds) {
-        if (planIds == null || planIds.isEmpty()
-                || planIds.stream().allMatch(Objects::isNull)) {
+        if (planIds == null || planIds.isEmpty() || planIds.stream().allMatch(Objects::isNull)) {
             return Map.of();
         }
         return medPlanMapper.selectList(new LambdaQueryWrapper<MedPlan>()
                         .in(MedPlan::getPlanId, planIds)).stream()
                 .collect(Collectors.toMap(MedPlan::getPlanId, MedPlan::getName));
-    }
-
-    private Map<String, String> medicineNames(Collection<String> medicineIds) {
-        if (medicineIds == null || medicineIds.isEmpty()
-                || medicineIds.stream().allMatch(Objects::isNull)) {
-            return Map.of();
-        }
-        return medicineMapper.selectList(new LambdaQueryWrapper<Medicine>()
-                        .in(Medicine::getMedicineId, medicineIds)).stream()
-                .collect(Collectors.toMap(Medicine::getMedicineId, Medicine::getName));
     }
 }

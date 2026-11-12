@@ -118,24 +118,6 @@ public class MedicineStockService {
         medicineStockMapper.deleteById(stock.getId());
     }
 
-    /**
-     * 服药后扣减库存（feat/backend-capture-event 抽出公共方法，供 {@code DispenseConsumeService}
-     * 与 {@code RecordService.confirm} 补扣共用）：按识别到的药品扣，不足扣到 0 不阻断，无对应行记 warn。
-     *
-     * @return 受影响行数（0 = 该药箱无此药品库存行）
-     */
-    @Transactional
-    public int deduct(String deviceId, String medicineId, int delta) {
-        if (delta <= 0) {
-            return 1;
-        }
-        int affected = medicineStockMapper.deduct(deviceId, medicineId, delta);
-        if (affected == 0) {
-            log.warn("扣库存无对应库存行（识别到的药品可能不在该药箱）：deviceId={} medicineId={}", deviceId, medicineId);
-        }
-        return affected;
-    }
-
     private MedicineStock findStock(String deviceId,String medicineId){
         return medicineStockMapper.selectOne(new LambdaQueryWrapper<MedicineStock>().eq(MedicineStock::getDeviceId,deviceId).eq(MedicineStock::getMedicineId,medicineId));
 }

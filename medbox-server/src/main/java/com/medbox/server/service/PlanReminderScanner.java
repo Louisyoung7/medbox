@@ -1,19 +1,13 @@
 package com.medbox.server.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.medbox.server.config.PlanReminderProperties;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.MedPlan;
-import com.medbox.server.domain.MedPlanItem;
-import com.medbox.server.domain.Medicine;
 import com.medbox.server.domain.PlanReminder;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.mapper.DeviceMapper;
-import com.medbox.server.mapper.MedPlanItemMapper;
 import com.medbox.server.mapper.MedPlanMapper;
 import com.medbox.server.mapper.MedRecordMapper;
-import com.medbox.server.mapper.MedicineMapper;
 import com.medbox.server.mapper.PlanReminderMapper;
 import com.medbox.server.ws.WsFrameType;
 import com.medbox.server.ws.WsPushService;
@@ -26,7 +20,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -35,22 +28,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 服药提醒推送（feat/plan-reminder，07 清单）。
+ * 服药提醒推送（见 07 §4）。
  *
- * <p><b>触发</b>：仅定时扫描，每 {@code medbox.plan-reminder.scan-interval-ms} 毫秒跑一次；
- * 在计划服药时间<b>临近</b>时（{@code [now, now + leadTimeMinutes]} 窗口内、按设备本地时区展开的未来 slot）
- * 经 {@link WsPushService} 向 {@code elder:{elderId}} 推 {@code REMINDER} 帧。
+ * <p><b>触发</b>：仅定时扫描，窗口 {@code [now, now + leadTimeMinutes]}；按设备本地时区把
+ * {@code slots} 展开为带格号的未来槽，经 {@link WsPushService} 推 {@code REMINDER} 帧
+ * {@code {planId, planTime, cellNo}}（不含药品信息）。设备本地声光提醒为主，云端 WS 为兜底。
  *
- * <p><b>两台语义</b>：设备本地声光提醒为主（设备按 plan-sync 下发的计划自己响），云端 WS 提醒是
- * <b>监护端 / 老人 App 兜底</b>——故默认<b>不要求设备在线</b>（{@code skip-when-device-offline} 默认 false）；
- * 已过的槽归 {@code feat/miss-alarm}，本分支只管"未来"槽。
- *
- * <p><b>两道拦截</b>：① 该 slot 已有 {@code med_record}（已服）→ 跳过；② 去重表
- * {@code plan_reminder} 已有 {@code REMINDER:{planId}:{slotUTC}} → 跳过（唯一索引冲突即跳过）。
- * 扫描间隔 < 提前量时靠去重保证每个 slot 只推一次。
- *
- * <p><b>推送</b>：走 {@link WsPushService} 唯一出口（同 miss-alarm 套路），{@code ws.enabled=false}
- * 或推送异常静默跳过、不阻断扫描；全程兜异常，单条计划出错不影响其余。
+ * <p><b>两道拦截</b>：① 该槽已有 {@code med_record}（按 {@code cell_no + plan_time}）→ 跳过；
+ * ② 去重表 {@code plan_reminder} 的 {@code REMINDER:{planId}:{cellNo}:{slotUTC}} 冲突 → 跳过。
  */
 @Component
 public class PlanReminderScanner {
@@ -59,27 +44,22 @@ public class PlanReminderScanner {
     private static final String DEDUP_PREFIX = "REMINDER";
 
     private final MedPlanMapper medPlanMapper;
-    private final MedPlanItemMapper medPlanItemMapper;
     private final MedRecordMapper medRecordMapper;
     private final PlanReminderMapper planReminderMapper;
     private final DeviceMapper deviceMapper;
-    private final MedicineMapper medicineMapper;
     private final DeviceTimezoneResolver timezoneResolver;
     private final PlanSlotResolver planSlotResolver;
     private final PlanReminderProperties properties;
     private final ObjectProvider<WsPushService> wsPushService;
 
-    public PlanReminderScanner(MedPlanMapper medPlanMapper, MedPlanItemMapper medPlanItemMapper,
-                               MedRecordMapper medRecordMapper, PlanReminderMapper planReminderMapper,
-                               DeviceMapper deviceMapper, MedicineMapper medicineMapper,
+    public PlanReminderScanner(MedPlanMapper medPlanMapper, MedRecordMapper medRecordMapper,
+                               PlanReminderMapper planReminderMapper, DeviceMapper deviceMapper,
                                DeviceTimezoneResolver timezoneResolver, PlanSlotResolver planSlotResolver,
                                PlanReminderProperties properties, ObjectProvider<WsPushService> wsPushService) {
         this.medPlanMapper = medPlanMapper;
-        this.medPlanItemMapper = medPlanItemMapper;
         this.medRecordMapper = medRecordMapper;
         this.planReminderMapper = planReminderMapper;
         this.deviceMapper = deviceMapper;
-        this.medicineMapper = medicineMapper;
         this.timezoneResolver = timezoneResolver;
         this.planSlotResolver = planSlotResolver;
         this.properties = properties;
@@ -92,12 +72,7 @@ public class PlanReminderScanner {
         return scan(Clock.systemUTC());
     }
 
-    /**
-     * 核心扫描（可注入时钟便于测试 / 手动触发）。
-     *
-     * @param clock 时钟（测试或调试触发用固定时钟）
-     * @return 本次扫描汇总（扫描计划数 / 各类拦截与推送计数），便于排障与调试端点返回
-     */
+    /** 核心扫描（可注入时钟便于测试 / 手动触发）。 */
     public ScanSummary scan(Clock clock) {
         if (!properties.isEnabled()) {
             log.debug("提醒扫描跳过：plan-reminder.enabled=false");
@@ -115,7 +90,6 @@ public class PlanReminderScanner {
             try {
                 scanPlan(plan, now, windowEnd, c);
             } catch (RuntimeException ex) {
-                // 单条计划出错不影响其余计划（旁路任务，失败只记日志）
                 log.warn("提醒扫描单条计划失败 planId={}：{}", plan.getPlanId(), ex.getMessage());
             }
         }
@@ -138,75 +112,63 @@ public class PlanReminderScanner {
             }
         }
 
-        // 仅对未来 slot 提醒（含边界）：now <= slot <= now + leadTime
-        List<OffsetDateTime> slots = planSlotResolver.expandSlots(now, windowEnd, zone, plan.getTimes());
+        List<PlanSlotResolver.SlotInstant> slots =
+                planSlotResolver.expandSlots(now, windowEnd, zone, plan.getSlots());
         if (slots.isEmpty()) {
             c.skippedNoFutureSlot++;
             return;
         }
-        for (OffsetDateTime slot : slots) {
+        for (PlanSlotResolver.SlotInstant slot : slots) {
             remindSlot(plan, slot, c);
         }
     }
 
-    private void remindSlot(MedPlan plan, OffsetDateTime slot, Counters c) {
+    private void remindSlot(MedPlan plan, PlanSlotResolver.SlotInstant slot, Counters c) {
         String elderId = plan.getElderId();
-        Instant slotInstant = slot.toInstant();
+        Integer cellNo = slot.cellNo();
+        Instant slotInstant = slot.slotTime().toInstant();
         OffsetDateTime slotUtc = OffsetDateTime.ofInstant(slotInstant, ZoneOffset.UTC);
 
-        // ① 已服跳过：该 slot 已有服药记录则不再提醒
-        int taken = medRecordMapper.countTaken(plan.getPlanId(), slotUtc);
+        // ① 已服跳过：该格该槽已有服药记录（CAMERA / MANUAL 都算）
+        int taken = medRecordMapper.countTaken(plan.getPlanId(), cellNo, slotUtc);
         if (taken > 0) {
-            log.debug("提醒跳过：该槽已服药 planId={} slot={}", plan.getPlanId(), slotInstant);
+            log.debug("提醒跳过：该格该槽已服药 planId={} cellNo={} slot={}",
+                    plan.getPlanId(), cellNo, slotInstant);
             c.skippedTaken++;
             return;
         }
 
         // ② 去重：插入冲突即表示已提醒过
-        String dedupKey = DEDUP_PREFIX + ":" + plan.getPlanId() + ":" + slotInstant.toString();
+        String dedupKey = DEDUP_PREFIX + ":" + plan.getPlanId() + ":" + cellNo + ":" + slotInstant;
         PlanReminder rec = new PlanReminder();
         rec.setDedupKey(dedupKey);
         rec.setPlanId(plan.getPlanId());
         rec.setElderId(elderId);
+        rec.setCellNo(cellNo);
         rec.setSlotUtc(slotUtc);
         rec.setCreatedAt(OffsetDateTime.now());
         try {
             planReminderMapper.insert(rec);
         } catch (DuplicateKeyException ex) {
-            log.debug("提醒去重命中：跳过 planId={} slot={}", plan.getPlanId(), slotInstant);
+            log.debug("提醒去重命中：跳过 planId={} cellNo={} slot={}", plan.getPlanId(), cellNo, slotInstant);
             c.skippedDedup++;
             return;
         }
 
-        if (pushWs(plan, slot)) {
+        if (pushWs(plan, cellNo, slotInstant)) {
             c.pushed++;
         }
     }
 
-    /**
-     * 经 {@link WsPushService} 推 {@code REMINDER} 帧；推送成功返回 true（计入汇总）。
-     */
-    private boolean pushWs(MedPlan plan, OffsetDateTime slot) {
+    private boolean pushWs(MedPlan plan, Integer cellNo, Instant slotInstant) {
         WsPushService pusher = wsPushService.getIfAvailable();
         if (pusher == null) {
             log.debug("WS 未启用，跳过 REMINDER 推送 planId={}", plan.getPlanId());
             return false;
         }
         try {
-            List<MedPlanItem> items = medPlanItemMapper.selectList(
-                    new LambdaQueryWrapper<MedPlanItem>().eq(MedPlanItem::getPlanId, plan.getPlanId()));
-            List<ReminderPayload.ReminderMedicine> medicines = items.stream()
-                    .map(it -> {
-                        Medicine m = medicineMapper.selectById(it.getMedicineId());
-                        String name = (m != null && StringUtils.isNotBlank(m.getName()))
-                                ? m.getName() : it.getMedicineId();
-                        return new ReminderPayload.ReminderMedicine(
-                                it.getItemId(), it.getMedicineId(), name, it.getDose(), it.getUnit());
-                    })
-                    .collect(Collectors.toList());
-            ReminderPayload payload = new ReminderPayload(
-                    plan.getPlanId(), slot.toInstant().toString(), medicines);
-            pusher.publish(WsTopic.elder(plan.getElderId()), WsFrameType.REMINDER, payload);
+            pusher.publish(WsTopic.elder(plan.getElderId()), WsFrameType.REMINDER,
+                    new ReminderPayload(plan.getPlanId(), slotInstant.toString(), cellNo));
             return true;
         } catch (RuntimeException ex) {
             log.warn("REMINDER WS 推送失败 planId={}：{}", plan.getPlanId(), ex.getMessage());
@@ -214,7 +176,7 @@ public class PlanReminderScanner {
         }
     }
 
-    /** 本次扫描的各类计数（扫描过程中累加，扫描结束转成不可变汇总）。 */
+    /** 本次扫描的各类计数。 */
     private static final class Counters {
         private long skippedOffline;
         private long skippedNoFutureSlot;
@@ -228,16 +190,7 @@ public class PlanReminderScanner {
         }
     }
 
-    /**
-     * 一次扫描的汇总（调试触发端点返回 / 日志排障用）。
-     *
-     * @param scannedPlans        参与扫描的候选计划数
-     * @param pushed              实际推送 REMINDER 帧的计划数
-     * @param skippedTaken        因该槽已服药而跳过的槽数
-     * @param skippedDedup        因去重表已存在而跳过的槽数
-     * @param skippedOffline      因主控离线（且开启离线跳过）而跳过的计划数
-     * @param skippedNoFutureSlot 窗口内无未来 slot 而跳过的计划数
-     */
+    /** 一次扫描的汇总（调试触发端点返回 / 日志排障用）。 */
     public record ScanSummary(long scannedPlans, long pushed, long skippedTaken,
                               long skippedDedup, long skippedOffline, long skippedNoFutureSlot) {
         public static ScanSummary empty() {
