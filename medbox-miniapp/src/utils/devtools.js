@@ -42,8 +42,8 @@ export function resetServerHost() {
 /**
  * 服药类预设的"计划时间槽"计数器 key。
  *
- * <p>**为什么必须持久化**：后端 `med_record` 有 `(plan_item_id, plan_time)` 部分唯一索引，
- * 同槽只落一条（06 的 2.7 规则 6），而 devtools 种子只有 1 个计划项 × 每日 08:00 ——
+ * <p>**为什么必须持久化**：后端 `med_record` 有 `(plan_id, cell_no, plan_time)` 部分唯一索引，
+ * 同格同槽只落一条（07 §1.5），而 devtools 种子只排 1 号格 × 每日 08:00 ——
  * 槽位是有限资源。计数器每次发送前移一天，刷新小程序后若归零，又会从今天开始撞已占用的槽。
  */
 const SLOT_SEQ_KEY = 'simSlotSeq'
