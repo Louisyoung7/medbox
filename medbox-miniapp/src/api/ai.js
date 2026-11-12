@@ -182,8 +182,16 @@ function splitFrames(buffer) {
     .map((line) => {
       const t = line.trim()
       if (!t) return null
+      // SSE 注释行（如 `:keep-alive`）忽略
+      if (t.startsWith(':')) return null
+      // 兼容两种后端：真实后端走 SseEmitter 发 `data: {json}`；Mock 发裸 JSON 行
+      let payload = t
+      if (t.startsWith('data:')) {
+        payload = t.slice('data:'.length).trim()
+      }
+      if (!payload) return null
       try {
-        return JSON.parse(t)
+        return JSON.parse(payload)
       } catch (e) {
         return null
       }

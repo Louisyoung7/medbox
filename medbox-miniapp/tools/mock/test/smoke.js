@@ -325,8 +325,12 @@ async function waitReady() {
       const frames = text
         .split('\n')
         .map((l) => {
+          const t = l.trim()
+          if (!t || t.startsWith(':')) return null
+          let payload = t
+          if (t.startsWith('data:')) payload = t.slice('data:'.length).trim()
           try {
-            return JSON.parse(l)
+            return JSON.parse(payload)
           } catch (e) {
             return null
           }

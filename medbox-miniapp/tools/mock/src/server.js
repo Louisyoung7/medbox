@@ -1060,13 +1060,15 @@ async function handleAiInsightStream(req, res, body, query) {
   }
   const { elderId, type, range } = parsed
   const { content, citations, disclaimer } = aiInsightContent(type)
-  res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.setHeader('Transfer-Encoding', 'chunked')
+  // 与真后端 SseEmitter 对齐：text/event-stream + `data: {json}` 行 + 空行分隔
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
   const sentences = content.split(/(?<=[。！？])/).filter(Boolean)
   let i = 0
   const writeFrame = (frame) => {
     try {
-      res.write(JSON.stringify(frame) + '\n')
+      res.write('data: ' + JSON.stringify(frame) + '\n\n')
     } catch (e) {
       /* 连接已断，忽略 */
     }
