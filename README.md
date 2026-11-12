@@ -26,6 +26,7 @@
 
 入口：[`medbox-spec/00_README_文档索引.md`](medbox-spec/00_README_文档索引.md)
 
+- 产品使用说明（面向用户/家人）：**[`docs/产品使用说明.md`](docs/产品使用说明.md)**
 - 快速上手：**先看 [`medbox-spec/QUICKSTART.md`](medbox-spec/QUICKSTART.md)**；后端 / 小程序看 `01` + `02`，建库看 `06`，设备接入看 `03`，实时推送看 `04`，AI 洞察看 `05`
 - 变更历史看 `git log -- medbox-spec/`（原 CHANGELOG 已冻结归档至 [`medbox-spec/archive/`](medbox-spec/archive/)）
 - 开发从 main 切特性分支：`feat/backend-xxx` 只改 `medbox-server/`，`feat/mp-xxx` 只改 `medbox-miniapp/`（首轮分支清单已归档，查历史去 `medbox-spec/archive/`）
