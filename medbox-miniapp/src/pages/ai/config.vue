@@ -122,13 +122,29 @@ export default {
     await this.resolveElderId()
     await this.loadConfig()
   },
+  async onShow() {
+    // 列表页切换老人会回写 currentElderId；回来时重新解析，避免配错对象
+    const prev = this.elderId
+    await this.resolveElderId()
+    if (this.elderId && this.elderId !== prev) {
+      this.form.apiKey = ''
+      await this.loadConfig()
+    }
+  },
   methods: {
-    /** 分析对象：监护人取可见老人首个（与洞察页一致）；老人不进入（RoleGate 已挡）。 */
+    /** 分析对象：与洞察页一致（currentElderId 优先，回落首个可见老人）；老人不进入（RoleGate 已挡）。 */
     async resolveElderId() {
       if (getRole() === 'GUARDIAN') {
-        await loadVisibleElderIds()
-        const ids = (getAlarmState().elderIds || []).slice()
-        this.elderId = ids[0] || ''
+        try {
+          await loadVisibleElderIds()
+        } catch (e) {
+          // 推导失败时仍尝试用缓存状态
+        }
+        const state = getAlarmState()
+        const ids = (state.elderIds || []).slice()
+        this.elderId = (state.currentElderId && ids.indexOf(state.currentElderId) !== -1
+          ? state.currentElderId
+          : ids[0]) || ''
       } else {
         this.elderId = ''
       }
@@ -141,7 +157,8 @@ export default {
         this.form.provider = cfg.provider || 'openai-compatible'
         this.form.baseUrl = cfg.baseUrl || ''
         this.form.model = cfg.model || ''
-        this.form.enabled = cfg.enabled
+        // 仅当确已存在配置（脱敏 Key 非空）才用后端值；否则保持默认开启，避免新配置被默认关掉 → 50310
+        this.form.enabled = cfg.apiKeyMask ? cfg.enabled : true
         this.maskedKey = cfg.apiKeyMask || ''
         // 不回填明文 apiKey —— 输入框留空
       } catch (err) {
