@@ -561,76 +561,44 @@ async function handleDeleteStock(req, res, deviceId, medicineId) {
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 
-/** 药品在该老人药箱的库存状态：ok（有库存）/ no-stock（无任何库存行）。 */
-function medicineStockState(elderId, medicineId) {
-  const deviceIds = state.devices
-    .filter((d) => d.deviceType === 'MAIN' && d.elderId === elderId)
-    .map((d) => d.deviceId)
-  const rows = state.stocks.filter(
-    (s) => deviceIds.indexOf(s.deviceId) !== -1 && s.medicineId === medicineId,
-  )
-  if (!rows.length) return 'no-stock'
-  return rows.some((s) => s.quantity != null && s.quantity > 0) ? 'ok' : 'no-stock'
-}
+// 库存是监护人独立维护的手工台账：不参与计划校验，系统不按服药事件自动扣减。
 
 function planAccess(user, plan) {
   if (!plan) return 'none'
   return elderAccess(user, plan.elderId)
 }
 
-/** 计划头 + items 校验（06 的 2.6.1 约束①：同计划药品不重复）；返回归一化结构。 */
+/** 计划校验：一老人一计划；slots 1~3 项、cellNo ∈ 1/2/3 不重复、time 为 HH:mm 墙钟。 */
 function validatePlanBody(body) {
   const elderId = String(body.elderId || '').trim()
   if (!elderId) throw new BizError(40001, 'elderId 不能为空')
   const name = String(body.name || '').trim()
-  if (!name) throw new BizError(40001, 'name 不能为空')
-  const times = []
-  ;(Array.isArray(body.times) ? body.times : []).forEach((item) => {
-    const value = String(item || '').trim()
-    if (!TIME_PATTERN.test(value)) throw new BizError(40001, `times 格式不正确: ${value || '(空)'}`)
-    if (times.indexOf(value) === -1) times.push(value)
-  })
-  if (!times.length) throw new BizError(40001, 'times 至少需要一个')
-  const repeatRule = body.repeatRule ? String(body.repeatRule).trim() : ''
-  const rawItems = Array.isArray(body.items) ? body.items : []
-  if (!rawItems.length) throw new BizError(40001, 'items 至少需要一种药品')
-  const items = []
-  rawItems.forEach((item) => {
-    const medicineId = String((item && item.medicineId) || '').trim()
-    if (!medicineId) throw new BizError(40001, 'items[].medicineId 不能为空')
-    if (items.some((exist) => exist.medicineId === medicineId)) {
-      throw new BizError(40001, `同一计划内药品不能重复: ${medicineId}`)
+  const rawSlots = Array.isArray(body.slots) ? body.slots : []
+  if (!rawSlots.length) throw new BizError(40001, 'slots 至少需要一个')
+  if (rawSlots.length > 3) throw new BizError(40001, 'slots 最多 3 项')
+  const slots = []
+  const seen = new Set()
+  rawSlots.forEach((slot) => {
+    const cellNo = Number(slot && slot.cellNo)
+    const time = String((slot && slot.time) || '').trim()
+    if (!Number.isInteger(cellNo) || cellNo < 1 || cellNo > 3) {
+      throw new BizError(40001, 'cellNo 只能为 1/2/3')
     }
-    items.push({
-      medicineId,
-      dose: item.dose ? String(item.dose) : '',
-      unit: item.unit ? String(item.unit) : '',
-      note: item.note ? String(item.note) : '',
-    })
+    if (!TIME_PATTERN.test(time)) {
+      throw new BizError(40001, `slot.time 格式不正确: ${time || '(空)'}`)
+    }
+    if (seen.has(cellNo)) throw new BizError(40001, `格号不可重复: ${cellNo}`)
+    seen.add(cellNo)
+    slots.push({ cellNo, time })
   })
-  return { elderId, name, times, repeatRule, items }
+  slots.sort((a, b) => a.cellNo - b.cellNo)
+  const repeatRule = body.repeatRule ? String(body.repeatRule).trim() : ''
+  return { elderId, name, slots, repeatRule }
 }
 
-/** 创建 / 更新共用业务校验：老人可见 + 每项药品可见且有未过期库存（06 的 2.6.1 约束②）。 */
+/** 创建 / 更新共用业务校验：仅校验老人写权限；计划与药品、库存无关联。 */
 function requirePlanWrite(user, normalized) {
   requireWrite(user, normalized.elderId)
-  normalized.items.forEach((item) => {
-    const medicine = state.medicines.find((m) => m.medicineId === item.medicineId)
-    if (!medicine) throw new BizError(40401, `药品不存在: ${item.medicineId}`)
-    const access = medicineAccess(user, medicine)
-    if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
-    if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
-    const stockState = medicineStockState(normalized.elderId, item.medicineId)
-    if (stockState !== 'ok') {
-      throw new BizError(40901, `药箱暂无库存: ${item.medicineId}`)
-    }
-  })
-}
-
-function planItemsOf(planId) {
-  return state.planItems
-    .filter((item) => item.planId === planId)
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
 }
 
 function toPlanDetail(plan) {
@@ -638,11 +606,10 @@ function toPlanDetail(plan) {
     planId: plan.planId,
     elderId: plan.elderId,
     name: plan.name,
-    times: plan.times.slice(),
+    slots: (Array.isArray(plan.slots) ? plan.slots : []).map((slot) => ({ ...slot })),
     repeatRule: plan.repeatRule,
     status: plan.status,
     syncState: plan.syncState,
-    items: planItemsOf(plan.planId).map((item) => ({ ...item })),
     createdAt: plan.createdAt,
   }
 }
@@ -658,7 +625,7 @@ async function handleListPlans(req, res, query) {
   const page = Math.max(1, Number(query.page) || 1)
   const size = Math.min(100, Math.max(1, Number(query.size) || 20))
   const total = list.length
-  // 列表项含 items 概览（02 第 6 章；药品名由小程序 join 药品字典）
+  // 一老人一计划：返回 0 或 1 条（02d）
   ok(res, { list: list.slice((page - 1) * size, page * size).map(toPlanDetail), total })
 }
 
@@ -691,16 +658,7 @@ async function handleGetNextDoses(req, res, planId, query) {
       throw new BizError(40001, 'days 超出范围(1~60)')
     }
   }
-  const items = planItemsOf(plan.planId).map((item) => {
-    const medicine = state.medicines.find((m) => m.medicineId === item.medicineId)
-    return {
-      medicineId: item.medicineId,
-      medicineName: medicine ? medicine.name : item.medicineId,
-      dose: item.dose,
-      unit: item.unit,
-    }
-  })
-  // 按设备本地墙钟展开展望窗口（Mock 用本地日期；WEEKLY 仅演示照展，真后端本期仅 DAILY）
+  // 按设备本地墙钟把 slots 展开展望窗口（每条含格号，不含药品信息）
   const base = new Date()
   base.setHours(0, 0, 0, 0)
   const doses = []
@@ -708,10 +666,10 @@ async function handleGetNextDoses(req, res, planId, query) {
     const d = new Date(base)
     d.setDate(base.getDate() + offset)
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    plan.times.forEach((time) => {
-      const local = `${dateStr}T${time}:00`
+    ;(Array.isArray(plan.slots) ? plan.slots : []).forEach((slot) => {
+      const local = `${dateStr}T${slot.time}:00`
       const utc = new Date(local).toISOString()
-      doses.push({ scheduledTimeLocal: local, scheduledTimeUtc: utc, items: items.map((it) => ({ ...it })) })
+      doses.push({ cellNo: slot.cellNo, scheduledTimeLocal: local, scheduledTimeUtc: utc })
     })
   }
   ok(res, { doses })
@@ -721,28 +679,21 @@ async function handleCreatePlan(req, res, body) {
   const user = requireUser(req)
   const normalized = validatePlanBody(body)
   requirePlanWrite(user, normalized)
+  // 一老人一计划：重复创建 40901
+  if (state.plans.some((p) => p.elderId === normalized.elderId)) {
+    throw new BizError(40901, '该老人已有服药计划')
+  }
   const plan = {
     planId: `p-${Date.now().toString(36)}`,
     elderId: normalized.elderId,
     name: normalized.name,
-    times: normalized.times,
+    slots: normalized.slots,
     repeatRule: normalized.repeatRule,
     status: 'ENABLED',
-    syncState: 'SYNCED_TO_DEVICE',
+    syncState: 'PENDING',
     createdAt: isoNow(),
   }
   state.plans.push(plan)
-  normalized.items.forEach((item, index) => {
-    state.planItems.push({
-      itemId: `pi-${Date.now().toString(36)}-${index}`,
-      planId: plan.planId,
-      medicineId: item.medicineId,
-      dose: item.dose,
-      unit: item.unit,
-      note: item.note,
-      sortOrder: index,
-    })
-  })
   ok(res, toPlanDetail(plan))
 }
 
@@ -756,21 +707,9 @@ async function handleUpdatePlan(req, res, planId, body) {
   const normalized = validatePlanBody(body)
   requirePlanWrite(user, normalized)
   plan.name = normalized.name
-  plan.times = normalized.times
+  // PUT 整体覆盖：未提交的格号即停用
+  plan.slots = normalized.slots
   plan.repeatRule = normalized.repeatRule
-  // 整体覆盖（02 第 6 章）：旧明细全删，按新 items 重建
-  state.planItems = state.planItems.filter((item) => item.planId !== plan.planId)
-  normalized.items.forEach((item, index) => {
-    state.planItems.push({
-      itemId: `pi-${Date.now().toString(36)}-${index}`,
-      planId: plan.planId,
-      medicineId: item.medicineId,
-      dose: item.dose,
-      unit: item.unit,
-      note: item.note,
-      sortOrder: index,
-    })
-  })
   ok(res, toPlanDetail(plan))
 }
 
@@ -799,9 +738,8 @@ async function handleDeletePlan(req, res, planId) {
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
   if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  // 一老人一计划：无明细级联
   state.plans = state.plans.filter((p) => p.planId !== planId)
-  // 级联删除明细（06 的 2.6.1 约束③）
-  state.planItems = state.planItems.filter((item) => item.planId !== planId)
   ok(res, null)
 }
 
@@ -1291,33 +1229,24 @@ function dateOf(iso) {
   return iso ? String(iso).slice(0, 10) : ''
 }
 
-/** 记录 → 视图对象：join 计划名 / 药品名（与计划详情同样从 state 派生，保持单一数据源）。 */
+/** 记录 → 视图对象：只带格号、结论与来源，不含药品与剂量。 */
 function buildRecordView(record) {
   const plan = state.plans.find((p) => p.planId === record.planId) || null
-  const item = state.planItems.find((it) => it.itemId === record.planItemId) || null
-  const medicine = state.medicines.find((m) => m.medicineId === record.medicineId) || null
-  const view = {
+  return {
     recordId: record.recordId,
     elderId: record.elderId,
     planId: record.planId,
-    planItemId: record.planItemId,
-    medicineId: record.medicineId,
+    cellNo: record.cellNo == null ? null : Number(record.cellNo),
     deviceId: record.deviceId,
     captureId: record.captureId || undefined,
-    actualDose: record.actualDose,
+    hasCapture: !!record.captureId,
     planTime: record.planTime,
     actualTime: record.actualTime,
-    onTime: !!record.onTime,
-    confirmedBy: record.confirmedBy || undefined,
-    confirmedAt: record.confirmedAt || undefined,
-    // feat/mp-capture-taken-result：取药结论二值化，不再有"待确认"派生态
+    onTime: record.onTime === true ? true : record.onTime === false ? false : null,
     takenResult: record.takenResult || undefined,
+    source: record.source || 'CAMERA',
     planName: (plan && plan.name) || '未命名计划',
-    medicineName: (medicine && medicine.name) || record.medicineId || '未知药品',
-    medicineDose: (item && item.dose) || (medicine && medicine.dosePerTime) || '',
-    medicineUnit: (item && item.unit) || (medicine && medicine.unit) || '',
   }
-  return view
 }
 
 async function handleListRecords(req, res, query) {
@@ -1463,14 +1392,13 @@ async function handleExportRecords(req, res, query) {
     return isFinite(t) && t >= fromTime && t <= toTime
   })
 
-  const header = ['记录ID', '老人ID', '计划名', '药品名称', '计划时间', '实际时间', '是否按时', '结论', '来源', '剂量', '抓拍ID', '设备ID']
+  const header = ['记录ID', '老人ID', '计划名', '格口号', '计划时间', '实际时间', '是否按时', '结论', '来源', '抓拍ID', '设备ID']
   const rows = list.map((r) => {
     const v = buildRecordView(r)
-    const onTimeText = r.onTime === true ? '是' : r.onTime === false ? '否' : '未判定'
-    const conclusion = r.confirmedBy ? '已确认' : '正常'
-    const source = r.captureId ? '智能药箱抓拍' : '手动录入'
-    const dose = [v.medicineDose, v.medicineUnit].filter(Boolean).join('')
-    return [r.recordId, r.elderId, v.planName, v.medicineName, v.planTime, v.actualTime, onTimeText, conclusion, source, dose, r.captureId || '', r.deviceId]
+    const onTimeText = r.onTime === true ? 'true' : r.onTime === false ? 'false' : ''
+    const conclusion = v.takenResult || ''
+    const source = v.source || 'CAMERA'
+    return [r.recordId, r.elderId, v.planName, v.cellNo == null ? '' : String(v.cellNo), v.planTime, v.actualTime, onTimeText, conclusion, source, r.captureId || '', r.deviceId]
   })
 
   const fileDate = (s) => (s ? String(s).slice(0, 10) : 'all')
@@ -1490,18 +1418,44 @@ async function handleExportRecords(req, res, query) {
 async function handleConfirmRecord(req, res, recordId, body) {
   const user = requireUser(req)
   const record = state.records.find((r) => r.recordId === recordId)
-  if (!record) throw new BizError(40401, '资源不存在')
-  // 写权限：仅 FAMILY（GUARDIAN）且关系 ACTIVE（requireWrite 内部已校验 40301 / 40302）
-  requireWrite(user, record.elderId)
-  record.confirmedBy = user.userId
-  record.confirmedAt = isoNow()
-  if (body && body.note) record.note = String(body.note)
-  // 监护人校准服药结论（feat/mp-capture-taken-result，02 §7.1）：
-  // 仅接受二值 takenResult（TAKEN / UNTAKEN），确认 TAKEN 触发库存扣减（Mock 不落库存）。
-  if (body && (body.takenResult === 'TAKEN' || body.takenResult === 'UNTAKEN')) {
-    record.takenResult = body.takenResult
+  if (record) {
+    // 纠错：仅覆盖非空字段，source 恒 MANUAL；不改 planTime、不改库存
+    requireWrite(user, record.elderId)
+    if (body && body.actualTime) record.actualTime = String(body.actualTime)
+    if (body && (body.onTime === true || body.onTime === false)) record.onTime = body.onTime
+    if (body && (body.takenResult === 'TAKEN' || body.takenResult === 'UNTAKEN')) {
+      record.takenResult = body.takenResult
+    }
+    record.source = 'MANUAL'
+    return ok(res, buildRecordView(record))
   }
-  ok(res, buildRecordView(record))
+  // 补录：路径 recordId 被忽略；必带 elderId / planId / cellNo(1~3)
+  const elderId = String((body && body.elderId) || '').trim()
+  const planId = String((body && body.planId) || '').trim()
+  const cellNo = Number(body && body.cellNo)
+  if (!elderId || !planId || !Number.isInteger(cellNo) || cellNo < 1 || cellNo > 3) {
+    throw new BizError(40001, '补录需带 elderId / planId / cellNo(1~3)')
+  }
+  requireWrite(user, elderId)
+  const plan = state.plans.find((p) => p.planId === planId)
+  if (!plan) throw new BizError(40401, `计划不存在: ${planId}`)
+  const slot = (Array.isArray(plan.slots) ? plan.slots : []).find((s) => s.cellNo === cellNo)
+  const main = state.devices.find((d) => d.elderId === elderId && d.deviceType === 'MAIN')
+  const created = {
+    recordId: `rec-${Date.now().toString(36)}`,
+    elderId,
+    planId,
+    cellNo,
+    deviceId: main ? main.deviceId : '',
+    captureId: '',
+    planTime: slot ? isoNow() : null,
+    actualTime: (body && body.actualTime) || isoNow(),
+    onTime: !!(body && body.onTime),
+    takenResult: (body && body.takenResult) || 'UNTAKEN',
+    source: 'MANUAL',
+  }
+  state.records.push(created)
+  ok(res, buildRecordView(created))
 }
 
 // ---------------------------------------------------------------- 抓拍（02b_设备管理.md §1.1；feat/mp-capture-taken-result 二值结论）
@@ -1525,7 +1479,7 @@ async function handleGetCapture(req, res, captureId) {
     captureId: capture.captureId,
     deviceId: capture.deviceId,
     elderId: capture.elderId,
-    medicineId: capture.medicineId || undefined,
+    cellNo: capture.cellNo == null ? undefined : capture.cellNo,
     planId: capture.planId || undefined,
     reason: capture.reason || 'NORMAL',
     mime: capture.mime || 'image/png',
@@ -1577,7 +1531,7 @@ async function handleListCaptures(req, res, query) {
     captureId: c.captureId,
     deviceId: c.deviceId,
     elderId: c.elderId,
-    medicineId: c.medicineId || undefined,
+    cellNo: c.cellNo == null ? undefined : c.cellNo,
     planId: c.planId || undefined,
     reason: c.reason || 'NORMAL',
     mime: c.mime || 'image/png',
@@ -1713,7 +1667,6 @@ function handleSeed(req, res, query) {
   const device = state.devices.find((d) => d.deviceType === 'MAIN')
   const stock = state.stocks[0]
   const plan = state.plans[0]
-  const planItem = plan ? state.planItems.find((pi) => pi.planId === plan.planId) : null
   const guardianTokens = issueTokens(guardian)
   const elderTokens = issueTokens(elder)
   ok(res, {
@@ -1729,7 +1682,6 @@ function handleSeed(req, res, query) {
     medicineIds: state.medicines.map((m) => m.medicineId),
     stockId: stock ? stock.stockId : 's-1001',
     planId: plan ? plan.planId : 'p-3301',
-    planItemId: planItem ? planItem.itemId : 'pi-9001',
   })
 }
 
