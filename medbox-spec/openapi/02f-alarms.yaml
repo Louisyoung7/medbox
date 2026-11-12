@@ -3,12 +3,12 @@ info:
   title: medbox · 告警（02f OpenAPI 版）
   description: |
     `medbox-spec/02f_告警.md` 的机器可读版。通用约定见 `common.yaml`。
-    列表/处理走 REST；实时推送走 WebSocket（ALARM 帧 → 全局弹窗 + 未读 +1；RESYNC → 列表全量拉取；REMINDER 帧是多药提醒、非告警、不进列表，见 04）。
+    列表/处理走 REST；实时推送走 WebSocket（ALARM 帧 → 全局弹窗 + 未读 +1；RESYNC → 列表全量拉取；REMINDER 帧为按格提醒（带 cellNo）、非告警、不进列表，见 04）。
 
     **告警类型枚举**：
     | type | 触发来源 | 说明 |
     |---|---|---|
-    | MISS | 后端判定 | 计划时间+容忍时长内未收到该计划服药事件（定时判定生成并经 WS 推送） |
+    | MISS | 后端判定 | 计划时间+容忍时长内该格未收到服药上报（按槽判定；告警只提格号与时间，不提药品名；后端定时判定生成并经 WS 推送） |
     | ENV | 设备上报 | 温度/湿度/光照超出该老人统一配置的 envThreshold（不按药品细分，01 §5.4） |
     | DEVICE_OFFLINE | 后端判定 | 心跳超时，设备离线超阈值（仅主控，传感器子设备离线不生成告警） |
     | DEVICE_FAULT | 设备上报 | 设备侧异常（up/event/error）：门超时 / 识别失败 / 硬件故障 |
