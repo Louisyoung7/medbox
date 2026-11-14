@@ -1,0 +1,497 @@
+openapi: 3.0.3
+info:
+  title: medbox · AI 洞察层（02i OpenAPI 版）
+  description: |
+    `medbox-spec/05_AI大模型与洞察层方案.md` 的机器可读版。通用约定见 `common.yaml`。
+
+    硬边界（05 §0.2 / §2.4）：
+    - 洞察只消费结构化数据，**不落库、不自动执行**；所有响应必带 `disclaimer`；
+    - BYOK：每个老人一份 `llm_config`，由监护人代配 Key，后端不托管大模型；
+    - 未配置 / Key 无效 / 上游失败统一 `50310`；无数据时不调上游，返回 `code=0` 的模板化提示。
+  version: 1.0.0
+
+servers:
+  - url: http://{host}:8080/medbox/api/v1
+    variables:
+      host: { default: 192.168.1.10 }
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: ai
+    description: LLM 配置（BYOK）/ 按需洞察 / 周期洞察
+
+paths:
+  /ai/config:
+    get:
+      operationId: getLlmConfig
+      tags: [ai]
+      summary: 查询 LLM 配置（apiKey 脱敏）【鉴权·AI_INSIGHT】
+      description: |
+        老人与监护人均可读；只回显脱敏 `apiKeyMask`（如 `sk****abcd`），**绝不回显明文 Key**。
+        尚未配置时返回 `40401`。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          description: 老人 userId
+          schema: { type: string }
+          example: u-1001
+      responses:
+        '200':
+          description: 配置（脱敏）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LlmConfigResponse'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+    put:
+      operationId: saveLlmConfig
+      tags: [ai]
+      summary: 保存 LLM 配置【鉴权·仅监护人 CONFIG_LLM_KEY】
+      description: |
+        `model` / `baseUrl` 必填，`baseUrl` 必须以 `http` 开头；`provider` 缺省 `openai-compatible`。
+        首次配置必须填 `apiKey`；编辑其他字段时 `apiKey` 留空表示沿用旧密文。
+        Key 加密（AES-GCM）落库，响应只回脱敏值。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+          example: u-1001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LlmConfigRequest'
+            example:
+              provider: openai-compatible
+              apiKey: sk-xxxxxxxx
+              model: gpt-4o-mini
+              baseUrl: https://api.openai.com/v1
+              enabled: true
+      responses:
+        '200':
+          description: 保存后的脱敏配置
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LlmConfigResponse'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+    delete:
+      operationId: deleteLlmConfig
+      tags: [ai]
+      summary: 清除 LLM 配置【鉴权·仅监护人 CONFIG_LLM_KEY】
+      description: 未配置时返回 `40401`。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+          example: u-1001
+      responses:
+        '200':
+          description: 已删除（data 为空）
+          content:
+            application/json:
+              schema:
+                $ref: './common.yaml#/components/schemas/R'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /ai/config/test:
+    post:
+      operationId: testLlmConfig
+      tags: [ai]
+      summary: 连通性探测【鉴权·仅监护人 CONFIG_LLM_KEY】
+      description: |
+        用已保存的 Key 发一次 `ping` 探测；**连接失败不抛 HTTP 错误**，而是返回 `ok=false` 与提示。
+        未配置时返回 `40401`。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+          example: u-1001
+      responses:
+        '200':
+          description: 探测结果（ok=true/false）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LlmConfigTestResponse'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /ai/insight:
+    post:
+      operationId: generateInsight
+      tags: [ai]
+      summary: 同步生成洞察【鉴权·AI_INSIGHT；限流 10 次/分钟/用户】
+      description: |
+        `type` 缺省 `COMPREHENSIVE`；`range` 缺省为最近 14 天，跨度上限 90 天（超出 → 40001）。
+        时间范围内无任何结构化数据时**不调上游**，返回 `code=0` + 模板化 `content`。
+        洞察结果**不落库**；上游超时（15s）/ 失败 → `50310`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightRequest'
+            example:
+              elderId: u-1001
+              type: COMPREHENSIVE
+              range:
+                from: '2026-10-15T00:00:00Z'
+                to: '2026-10-29T00:00:00Z'
+      responses:
+        '200':
+          description: 洞察结果（必带 disclaimer）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/InsightResponse'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '429':
+          $ref: './common.yaml#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/insight/stream:
+    post:
+      operationId: streamInsight
+      tags: [ai]
+      summary: SSE 流式生成洞察【鉴权·AI_INSIGHT；限流 10 次/分钟/用户】
+      description: |
+        请求体同 `/ai/insight`。成功时 `Content-Type: text/event-stream`，逐帧 `data: {json}`：
+
+        - `{"type":"delta","content":"…"}`
+        - `{"type":"done","citations":[...],"disclaimer":"…"}`
+        - `{"type":"error","code":50310,"message":"AI 服务暂不可用，请稍后再试"}`
+
+        鉴权、取 Key、拼上下文在请求线程内完成；失败按普通 JSON 错误返回（非 SSE）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightRequest'
+      responses:
+        '200':
+          description: SSE 流（delta* + done；异常帧 type=error）
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  data: {"type":"delta","content":"近14天晚饭后"}
+                  data: {"type":"done","citations":["med_record#rec-123"],"disclaimer":"本分析仅供参考，用药与设备调整请由监护人 / 医生决策。"}
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '429':
+          $ref: './common.yaml#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /ai/insight/schedule:
+    get:
+      operationId: getInsightSchedule
+      tags: [ai]
+      summary: 查询周期洞察设置【鉴权·AI_INSIGHT】
+      description: 未配置 LLM 时返回 `{enabled:false,cadence:"DAILY"}`，不报 404。
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+          example: u-1001
+      responses:
+        '200':
+          description: 周期洞察设置
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/InsightScheduleResponse'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+
+    put:
+      operationId: updateInsightSchedule
+      tags: [ai]
+      summary: 调整周期洞察开关与节奏【鉴权·仅监护人 CONFIG_LLM_KEY】
+      description: "`cadence` 仅支持 `DAILY` / `WEEKLY`；未配置 LLM 时返回 `40401`。"
+      parameters:
+        - name: elderId
+          in: query
+          required: true
+          schema: { type: string }
+          example: u-1001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightScheduleRequest'
+            example:
+              enabled: true
+              cadence: WEEKLY
+      responses:
+        '200':
+          description: 更新后的设置
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/InsightScheduleResponse'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Authorization: Bearer {JWT}；设备端走 MQTT，不走此通道"
+
+  responses:
+    AiUnavailable:
+      description: AI 未开通 / Key 无效 / 上游超时失败（50310 + HTTP 503）
+      content:
+        application/json:
+          schema:
+            $ref: './common.yaml#/components/schemas/R'
+          example:
+            code: 50310
+            message: AI 服务暂不可用，请稍后再试
+
+  schemas:
+    InsightType:
+      type: string
+      enum: [ADHERENCE, ENV_CORRELATION, TREND, COMPREHENSIVE]
+      description: 分析维度；缺省 COMPREHENSIVE
+
+    InsightRange:
+      type: object
+      description: 时间范围（UTC，含端点）；缺省最近 14 天，跨度上限 90 天
+      properties:
+        from:
+          type: string
+          format: date-time
+          example: '2026-10-15T00:00:00Z'
+        to:
+          type: string
+          format: date-time
+          example: '2026-10-29T00:00:00Z'
+
+    InsightRequest:
+      type: object
+      required: [elderId]
+      properties:
+        elderId:
+          type: string
+          example: u-1001
+        type:
+          $ref: '#/components/schemas/InsightType'
+        range:
+          $ref: '#/components/schemas/InsightRange'
+        deviceId:
+          type: string
+          description: 可选；当前版本不参与洞察上下文（保留字段）
+          example: BOXA-0001
+
+    InsightResponse:
+      type: object
+      required: [elderId, type, content, citations, disclaimer]
+      properties:
+        elderId:
+          type: string
+          example: u-1001
+        type:
+          $ref: '#/components/schemas/InsightType'
+        range:
+          $ref: '#/components/schemas/InsightRange'
+        content:
+          type: string
+          description: 自然语言洞察（分析 / 预测 / 建议），不落库
+          example: 近14天晚饭后漏服率较上旬上升18个百分点，且与周末强相关……（仅作假设，建议核查作息）。
+        citations:
+          type: array
+          description: 引用的结构化数据锚点（表#id），便于溯源，非结论
+          items: { type: string }
+          example: ['med_record#rec-123', 'alarm#a-5001', 'env_sample#s-9001']
+        disclaimer:
+          type: string
+          example: 本分析仅供参考，用药与设备调整请由监护人 / 医生决策。
+
+    InsightScheduleRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: 是否开启周期洞察
+          example: true
+        cadence:
+          type: string
+          enum: [DAILY, WEEKLY]
+          default: DAILY
+          description: 生成节奏
+
+    InsightScheduleResponse:
+      type: object
+      required: [elderId, enabled, cadence]
+      properties:
+        elderId:
+          type: string
+          example: u-1001
+        enabled:
+          type: boolean
+          example: true
+        cadence:
+          type: string
+          enum: [DAILY, WEEKLY]
+          example: WEEKLY
+
+    LlmConfigRequest:
+      type: object
+      required: [model, baseUrl]
+      properties:
+        provider:
+          type: string
+          default: openai-compatible
+          example: openai-compatible
+        apiKey:
+          type: string
+          description: 首次配置必填；编辑时留空表示沿用旧密文
+          example: sk-xxxxxxxx
+        model:
+          type: string
+          example: gpt-4o-mini
+        baseUrl:
+          type: string
+          description: 必须以 http 开头；可指向局域网 / 本机自建端点
+          example: https://api.openai.com/v1
+        enabled:
+          type: boolean
+          default: true
+
+    LlmConfigResponse:
+      type: object
+      properties:
+        elderId:
+          type: string
+          example: u-1001
+        provider:
+          type: string
+          example: openai-compatible
+        model:
+          type: string
+          example: gpt-4o-mini
+        baseUrl:
+          type: string
+          example: https://api.openai.com/v1
+        apiKeyMask:
+          type: string
+          description: 脱敏回显（前 2 + **** + 末 4）；绝不回显明文
+          example: sk****abcd
+        enabled:
+          type: boolean
+          example: true
+        insightEnabled:
+          type: boolean
+          description: 周期洞察开关
+          example: false
+        insightCadence:
+          type: string
+          enum: [DAILY, WEEKLY]
+          example: DAILY
+
+    LlmConfigTestResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        latencyMs:
+          type: integer
+          description: 探测耗时（毫秒）
+          example: 320
+        message:
+          type: string
+          example: 连接成功
