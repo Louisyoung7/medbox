@@ -76,16 +76,15 @@ public class AdminUserService {
         // 清单外的孤儿表（device_event / medicine / env_sample / refresh_token）按归属插在对应位置一并清理。
         cleanupMapper.deleteMedPlans(userId);            // 1
         cleanupMapper.deleteMedRecords(userId);          // 2
-        cleanupMapper.deleteMedicineStocks(userId);      // 3
         cleanupMapper.deleteMedicines(userId);
-        cleanupMapper.deleteDeviceEvents(userId);        // 4（设备事件先于设备）
+        cleanupMapper.deleteDeviceEvents(userId);        // 3（设备事件先于设备）
         cleanupMapper.deleteDevices(userId);
         cleanupMapper.deleteEnvSamples(userId);
-        cleanupMapper.deleteGuardianRelations(userId);   // 5
-        cleanupMapper.deleteAlarms(userId);              // 6
+        cleanupMapper.deleteGuardianRelations(userId);   // 4
+        cleanupMapper.deleteAlarms(userId);              // 5
         cleanupMapper.deleteAlarmSettings(userId);
-        cleanupMapper.deleteCaptures(userId);            // 7
+        cleanupMapper.deleteCaptures(userId);            // 6
         cleanupMapper.deleteRefreshTokens(userId);
-        cleanupMapper.deleteUser(userId);                // 8
+        cleanupMapper.deleteUser(userId);                // 7
     }
 }

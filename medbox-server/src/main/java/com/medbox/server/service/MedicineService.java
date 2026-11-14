@@ -5,13 +5,11 @@
   import com.medbox.server.common.exception.BizAssert;
   import com.medbox.server.common.security.Permission;
   import com.medbox.server.domain.Medicine;
-  import com.medbox.server.domain.MedicineStock;
   import com.medbox.server.dto.PageResult;
   import com.medbox.server.dto.medicine.MedicineResponse;
   import com.medbox.server.dto.medicine.MedicineSaveRequest;
   import com.medbox.server.dto.medicine.MedicineSummaryResponse;
   import com.medbox.server.mapper.MedicineMapper;
-  import com.medbox.server.mapper.MedicineStockMapper;
   import java.time.Clock;
   import java.time.OffsetDateTime;
   import java.util.List;
@@ -33,18 +31,16 @@ public class MedicineService {
     private static final int MAX_PAGE_SIZE=100;
 
     private final MedicineMapper medicineMapper;
-    private final MedicineStockMapper medicineStockMapper;
     private final AccessService accessService;
     private final Clock clock;
 
     @Autowired
-    public MedicineService(MedicineMapper medicineMapper, MedicineStockMapper medicineStockMapper, AccessService accessService) {
-        this(medicineMapper,medicineStockMapper,accessService,Clock.systemUTC());
+    public MedicineService(MedicineMapper medicineMapper, AccessService accessService) {
+        this(medicineMapper,accessService,Clock.systemUTC());
     }
 
-    public MedicineService(MedicineMapper medicineMapper, MedicineStockMapper medicineStockMapper, AccessService accessService, Clock clock) {
+    public MedicineService(MedicineMapper medicineMapper, AccessService accessService, Clock clock) {
         this.medicineMapper = medicineMapper;
-        this.medicineStockMapper = medicineStockMapper;
         this.accessService = accessService;
         this.clock = clock;
     }
@@ -86,12 +82,10 @@ public class MedicineService {
         return MedicineResponse.from(requireForRead(medicineId));
      }
 
-    /** DELETE /medicines/{medicineId}：有库存引用 → 40901。 */
+    /** DELETE /medicines/{medicineId}：无引用校验，直接删。 */
     @Transactional
     public void delete(String medicineId){
         Medicine medicine=requireForWrite(medicineId);
-        Long stockCount=medicineStockMapper.selectCount(new LambdaQueryWrapper<MedicineStock>().eq(MedicineStock::getMedicineId,medicineId));
-        BizAssert.conflictIf(stockCount!=null&&stockCount>0,"该药品仍被库存引用，无法删除");
         medicineMapper.deleteById(medicine.getId());
     }
 

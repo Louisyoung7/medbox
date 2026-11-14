@@ -34,7 +34,7 @@ public class AiInsightService {
     private static final Logger log = LoggerFactory.getLogger(AiInsightService.class);
 
     static final String DISCLAIMER = "本分析仅供参考，用药与设备调整请由监护人 / 医生决策。";
-    static final String NO_DATA = "所选时间范围内暂无可用的结构化数据，无法生成有效分析。建议先补充服药记录 / 库存 / 环境数据后再试。";
+    static final String NO_DATA = "所选时间范围内暂无可用的结构化数据，无法生成有效分析。建议先补充服药记录 / 环境数据后再试。";
     private static final String SYSTEM_PROMPT = """
         你是家用药品箱的用药数据分析助手。只根据用户提供的结构化统计做分析、预测、建议。
         硬性要求：
@@ -142,7 +142,7 @@ public class AiInsightService {
     private Premise prepare(InsightRequest request) {
         BizAssert.notBlank(request.elderId(), "elderId 不能为空");
         InsightType type = InsightType.parse(request.type());
-        BizAssert.badRequestIf(type == null, "type 仅支持 ADHERENCE / STOCK / ENV_CORRELATION / TREND / COMPREHENSIVE");
+        BizAssert.badRequestIf(type == null, "type 仅支持 ADHERENCE / ENV_CORRELATION / TREND / COMPREHENSIVE");
         InsightRange range = request.range() == null ? null : request.range();
         OffsetDateTime to = range == null || range.to() == null ? OffsetDateTime.now() : range.to();
         OffsetDateTime from = range == null || range.from() == null ? to.minusDays(14) : range.from();

@@ -9,28 +9,24 @@ import java.util.*;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
-/** 把 med_record / plan_reminder / alarm / medicine_stock / env_sample 压成"小而准"的上下文。 */
+/** 把 med_record / plan_reminder / alarm / env_sample 压成"小而准"的上下文。 */
 @Component
 public class InsightContextBuilder {
 
     private final MedRecordMapper recordMapper;
     private final PlanReminderMapper reminderMapper;
     private final AlarmMapper alarmMapper;
-    private final MedicineStockMapper stockMapper;
     private final EnvSampleMapper envMapper;
-    private final MedicineMapper medicineMapper;
     private final AiInsightProperties props;
 
     public InsightContextBuilder(MedRecordMapper recordMapper, PlanReminderMapper reminderMapper,
-                                 AlarmMapper alarmMapper, MedicineStockMapper stockMapper,
-                                 EnvSampleMapper envMapper, MedicineMapper medicineMapper,
+                                 AlarmMapper alarmMapper,
+                                 EnvSampleMapper envMapper,
                                  AiInsightProperties props) {
         this.recordMapper = recordMapper;
         this.reminderMapper = reminderMapper;
         this.alarmMapper = alarmMapper;
-        this.stockMapper = stockMapper;
         this.envMapper = envMapper;
-        this.medicineMapper = medicineMapper;
         this.props = props;
     }
 
@@ -40,9 +36,6 @@ public class InsightContextBuilder {
         int rows = 0;
         if (type == InsightType.ADHERENCE || type == InsightType.COMPREHENSIVE) {
             rows += appendAdherence(sb, citations, elderId, from, to);
-        }
-        if (type == InsightType.STOCK || type == InsightType.COMPREHENSIVE) {
-            rows += appendStock(sb, citations, elderId, from, to);
         }
         if (type == InsightType.ENV_CORRELATION || type == InsightType.COMPREHENSIVE) {
             rows += appendEnv(sb, citations, elderId, from, to);
@@ -93,28 +86,6 @@ public class InsightContextBuilder {
         records.stream().limit(10).forEach(r -> cit.add("med_record#" + r.getRecordId()));
         misses.stream().limit(5).forEach(a -> cit.add("alarm#" + a.getAlarmId()));
         return records.size() + reminders.size() + misses.size();
-    }
-
-    private int appendStock(StringBuilder sb, List<String> cit, String elderId,
-                            OffsetDateTime from, OffsetDateTime to) {
-        List<MedicineStock> stocks = stockMapper.selectList(new LambdaQueryWrapper<MedicineStock>()
-                .eq(MedicineStock::getElderId, elderId));
-        if (stocks.isEmpty()) {
-            return 0;
-        }
-        Set<String> ids = stocks.stream().map(MedicineStock::getMedicineId).collect(Collectors.toSet());
-        Map<String, String> names = medicineMapper.selectList(
-                        new LambdaQueryWrapper<Medicine>().in(Medicine::getMedicineId, ids))
-                .stream().collect(Collectors.toMap(Medicine::getMedicineId, Medicine::getName));
-        sb.append("【库存（监护人手工台账，系统不按服药事件推算消耗）】\n");
-        for (MedicineStock s : stocks) {
-            sb.append("- ").append(names.getOrDefault(s.getMedicineId(), s.getMedicineId()))
-              .append("：记录库存 ").append(s.getQuantity())
-              .append("，有效期 ").append(s.getExpiryDate())
-              .append("，建议核对实际余量后补配\n");
-            cit.add("medicine_stock#" + s.getMedicineId());
-        }
-        return stocks.size();
     }
 
     private int appendEnv(StringBuilder sb, List<String> cit, String elderId,

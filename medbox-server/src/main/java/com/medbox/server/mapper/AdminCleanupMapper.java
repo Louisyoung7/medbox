@@ -25,9 +25,6 @@ public interface AdminCleanupMapper {
     @Delete("DELETE FROM device WHERE elder_id = #{userId}")
     int deleteDevices(@Param("userId") String userId);
 
-    @Delete("DELETE FROM medicine_stock WHERE elder_id = #{userId}")
-    int deleteMedicineStocks(@Param("userId") String userId);
-
     @Delete("DELETE FROM medicine WHERE owner_elder_id = #{userId}")
     int deleteMedicines(@Param("userId") String userId);
 
