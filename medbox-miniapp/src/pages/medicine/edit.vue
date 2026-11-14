@@ -31,48 +31,6 @@
         />
       </MbCard>
 
-      <MbCard title="归属">
-        <view class="segment">
-          <view
-            class="segment__item"
-            :class="{ 'segment__item--on': ownership === 'public' }"
-            @click="ownership = 'public'"
-          >
-            公共药品
-          </view>
-          <view
-            class="segment__item"
-            :class="{ 'segment__item--on': ownership === 'private' }"
-            @click="switchPrivate"
-          >
-            归属老人
-          </view>
-        </view>
-        <text class="hint">
-          {{ ownership === 'public' ? '公共药品：全体用户可见（只读）' : '私有药品：仅该老人与其监护人可见' }}
-        </text>
-
-        <template v-if="ownership === 'private'">
-          <view v-if="eldersLoading" class="elders-tip">正在获取老人列表…</view>
-          <template v-else-if="elders.length">
-            <MbCell
-              v-for="elder in elders"
-              :key="elder"
-              :title="elder"
-              clickable
-              @click="selectedElder = elder"
-            >
-              <template #extra>
-                <view class="radio" :class="{ 'radio--on': selectedElder === elder }">
-                  <view class="radio__dot"></view>
-                </view>
-              </template>
-            </MbCell>
-          </template>
-          <view v-else class="elders-tip">暂无可归属的老人，请先为其登记药箱设备</view>
-        </template>
-      </MbCard>
-
       <view class="save">
         <MbButton type="primary" block :loading="saving" @click="save">保存</MbButton>
       </view>
@@ -83,7 +41,6 @@
 <script>
 import MbButton from '@/components/MbButton.vue'
 import MbCard from '@/components/MbCard.vue'
-import MbCell from '@/components/MbCell.vue'
 import MbEmpty from '@/components/MbEmpty.vue'
 import MbField from '@/components/MbField.vue'
 import MbLoading from '@/components/MbLoading.vue'
@@ -115,7 +72,7 @@ function errorText(err) {
 
 export default {
   name: 'MedicineEditPage',
-  components: { MbButton, MbCard, MbCell, MbEmpty, MbField, MbLoading },
+  components: { MbButton, MbCard, MbEmpty, MbField, MbLoading },
   data() {
     return {
       medicineId: '',
@@ -125,9 +82,7 @@ export default {
       saving: false,
       form: emptyForm(),
       nameError: '',
-      ownership: 'public',
       elders: [],
-      eldersLoading: false,
       eldersLoaded: false,
       selectedElder: '',
     }
@@ -136,6 +91,7 @@ export default {
     this.medicineId = (options && options.medicineId) || ''
     this.isEdit = !!this.medicineId
     uni.setNavigationBarTitle({ title: this.isEdit ? '编辑药品' : '新建药品' })
+    this.loadElders()
     if (this.isEdit) {
       this.load()
     }
@@ -162,20 +118,13 @@ export default {
       form.contraindication = medicine.contraindication || ''
       form.storageCond = medicine.storageCond || ''
       this.form = form
-      this.ownership = medicine.ownerElderId ? 'private' : 'public'
       this.selectedElder = medicine.ownerElderId || ''
-      if (this.ownership === 'private') this.loadElders()
     },
     validateName() {
       this.nameError = this.form.name.trim() ? '' : '请输入药品名称'
     },
-    switchPrivate() {
-      this.ownership = 'private'
-      this.loadElders()
-    },
     async loadElders() {
-      if (this.eldersLoaded || this.eldersLoading) return
-      this.eldersLoading = true
+      if (this.eldersLoaded) return
       try {
         // P1 `mp-guardian` 前没有"我监护的老人列表"接口，暂从可见设备的 elderId 归纳
         // （与 `feat/mp-device` 列表页归纳 WS 订阅主题同一思路）
@@ -186,23 +135,23 @@ export default {
         })
         this.elders = elders
         this.eldersLoaded = true
+        // 归属不在页面展示：新建时自动归到第一位可见老人
+        if (!this.isEdit && !this.selectedElder && elders.length) this.selectedElder = elders[0]
       } catch (err) {
-        // 拉不到设备不阻塞表单：只影响私有归属的候选，公共药品照常可建
+        // 拉不到设备不阻塞表单：保存时仍会拦"暂无可归属的老人"
         this.elders = []
-      } finally {
-        this.eldersLoading = false
       }
     },
     async save() {
       this.validateName()
       if (this.nameError) return
-      if (this.ownership === 'private' && !this.selectedElder) {
-        uni.showToast({ title: '请选择归属老人', icon: 'none' })
+      if (!this.selectedElder) {
+        uni.showToast({ title: '暂无可归属的老人，请先登记药箱设备', icon: 'none' })
         return
       }
       const payload = buildMedicinePayload({
         ...this.form,
-        ownerElderId: this.ownership === 'private' ? this.selectedElder : '',
+        ownerElderId: this.selectedElder,
       })
       this.saving = true
       try {
@@ -237,69 +186,6 @@ export default {
 /* WXSS 不支持 `.row > *` 通配符（H5 能过、小程序编译报错），用显式类名 */
 .row__item {
   flex: 1;
-}
-
-.segment {
-  display: flex;
-  padding: 6rpx;
-  border-radius: $mb-radius-pill;
-  background: $mb-border;
-
-  &__item {
-    flex: 1;
-    height: 64rpx;
-    line-height: 64rpx;
-    text-align: center;
-    font-size: 28rpx;
-    color: $mb-text-3;
-    border-radius: $mb-radius-pill;
-    transition: background-color 0.2s, color 0.2s;
-
-    &--on {
-      background: $mb-card-bg;
-      color: $mb-primary;
-      font-weight: 500;
-      box-shadow: 0 4rpx 12rpx rgba(14, 159, 142, 0.12);
-    }
-  }
-}
-
-.hint {
-  display: block;
-  margin: 16rpx 0 8rpx;
-  font-size: 24rpx;
-  color: $mb-text-3;
-}
-
-.elders-tip {
-  padding: 24rpx 0 8rpx;
-  font-size: 26rpx;
-  color: $mb-text-3;
-}
-
-.radio {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36rpx;
-  height: 36rpx;
-  border: 2rpx solid $mb-text-4;
-  border-radius: 50%;
-
-  &--on {
-    border-color: $mb-primary;
-  }
-
-  &__dot {
-    width: 20rpx;
-    height: 20rpx;
-    border-radius: 50%;
-    background: transparent;
-  }
-
-  &--on &__dot {
-    background: $mb-primary;
-  }
 }
 
 .save {

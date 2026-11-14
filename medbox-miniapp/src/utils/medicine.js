@@ -12,7 +12,8 @@ import { ROLE } from '@/store/user.js'
  *
  * 规则：
  * - 字符串字段 trim；**空串一律省略**（后端全局 `non_null` 下省略即"不更新该字段"）
- * - `ownerElderId` 为空即**公共字典**（不传该字段，02 第 5 章口径）
+ * - `ownerElderId` 为**必填**（药品必归属老人，无公共字典），工作区仍按 trim 后非空才下发，
+ *   留空由页面必填校验先拦、后端 40001 兜底
  * - `medicineId` 仅编辑时带上（新建不带，由后端生成）
  * - `name` 为空时**原样省略**，由页面先做必填校验拦住（40001 兜底）
  *
@@ -23,7 +24,7 @@ import { ROLE } from '@/store/user.js'
  * @param {string} [form.unit] 单位（片/粒/ml...）
  * @param {string} [form.contraindication] 禁忌
  * @param {string} [form.storageCond] 储存条件
- * @param {string} [form.ownerElderId] 归属老人；空 = 公共
+ * @param {string} [form.ownerElderId] 归属老人（必填）
  * @returns {Object} 请求体（只含非空字段）
  */
 export function buildMedicinePayload(form) {
@@ -79,21 +80,6 @@ export function medicineLabel(medicine) {
   const m = medicine || {}
   const dose = [m.dosePerTime, m.unit].filter(Boolean).join('')
   return dose || '药品档案'
-}
-
-/**
- * 归属标签：公共药品 / 我的私有药品 / 某老人的私有药品。
- *
- * @param {Object} medicine 药品档案（`ownerElderId` 为空 = 公共）
- * @param {string} [myUserId] 当前登录用户 ID（`ownerElderId` 与它相等时显示"我的"）
- * @returns {string}
- */
-export function medicineOwnerLabel(medicine, myUserId) {
-  const m = medicine || {}
-  const owner = m.ownerElderId
-  if (!owner) return '公共'
-  if (myUserId && owner === myUserId) return '我的'
-  return `私有 · ${owner}`
 }
 
 /**

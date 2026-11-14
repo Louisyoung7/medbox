@@ -12,7 +12,6 @@
           title="默认单次剂量"
           :value="[medicine.dosePerTime, medicine.unit].filter(Boolean).join(' ') || '-'"
         />
-        <MbCell title="归属" :value="ownerText" />
         <MbCell title="创建时间" :value="formatDateTime(medicine.createdAt)" />
       </MbCard>
 
@@ -60,7 +59,7 @@ import MbLoading from '@/components/MbLoading.vue'
 import MbModal from '@/components/MbModal.vue'
 import { deleteMedicine, getMedicine } from '@/api/medicine.js'
 import { CODE } from '@/api/request.js'
-import { getRole, getUserId } from '@/store/user.js'
+import { getRole } from '@/store/user.js'
 import { canWriteMedicine } from '@/utils/medicine.js'
 import { formatDateTime } from '@/utils/datetime.js'
 
@@ -88,24 +87,14 @@ export default {
       loading: false,
       error: '',
       canWrite: false,
-      myUserId: '',
       showDelete: false,
       deleting: false,
       deleteError: '',
     }
   },
-  computed: {
-    ownerText() {
-      const owner = this.medicine && this.medicine.ownerElderId
-      if (!owner) return '公共药品（全体可见）'
-      if (this.myUserId && owner === this.myUserId) return '我的私有药品'
-      return `私有 · ${owner}`
-    },
-  },
   onLoad(options) {
     this.medicineId = (options && options.medicineId) || ''
     this.canWrite = canWriteMedicine(getRole())
-    this.myUserId = getUserId()
     this.load()
   },
   methods: {

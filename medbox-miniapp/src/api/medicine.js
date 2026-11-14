@@ -12,9 +12,9 @@
 import { get, post, del } from '@/api/request.js'
 
 /**
- * 药品列表：当前用户可见的药品字典（**分页**，02 的 1. 通用约定）。
+ * 药品列表：当前用户可见的药品（**分页**，02 的 1. 通用约定）。
  *
- * <p>可见范围 = 公共药品（`ownerElderId` 为空）+ 我监护老人的私有药品，由后端行级过滤
+ * <p>可见范围 = 我监护老人的药品，由后端行级过滤
  * （02 的 1.3.1 `visibleElderIds()`），前端只传搜索词与分页参数，**不做本地过滤**。
  *
  * @param {Object} [params]
@@ -34,10 +34,10 @@ export function listMedicines(params, options) {
  *
  * @param {string} medicineId 药品编号（如 `m-205`）
  * @param {Object} [options] 透传请求选项
- * @returns {Promise<Object>} `medicineId` / `ownerElderId`(空=公共字典) / `name` / `spec`(后端仍存，前端已不展示) /
+ * @returns {Promise<Object>} `medicineId` / `ownerElderId`(必填) / `name` / `spec`(后端仍存，前端已不展示) /
  *   `dosePerTime`(默认单次剂量) / `unit` / `contraindication`(禁忌) /
  *   `storageCond`(储存条件) / `createdAt`(UTC)
- * @throws {ApiError} 40101 / 40301（他人私有药品）/ 40401 / -1
+ * @throws {ApiError} 40101 / 40301（无权或药品不存在）/ 40302 / 40401 / -1
  */
 export function getMedicine(medicineId, options) {
   return get(`/medicines/${medicineId}`, undefined, options)
@@ -46,14 +46,14 @@ export function getMedicine(medicineId, options) {
 /**
  * 新建 / 更新药品档案（**02 第 5 章为同一入口**：更新时带上 `medicineId`）。
  *
- * <p>**不传 `ownerElderId` 即公共字典**（全体可见只读）；归属某老人则传其 `userId`。
+ * <p>`ownerElderId` **创建必填**（药品必归属老人，无公共字典）；更新时传了也会被后端忽略（归属不可变）。
  *
  * @param {Object} payload 请求体（由 `src/utils/medicine.js` 的 {@link buildMedicinePayload} 组装）：
  *   `medicineId`(仅编辑) / `name`(必填) / `dosePerTime` / `unit` /
- *   `contraindication` / `storageCond` / `ownerElderId`(不传 = 公共)
+ *   `contraindication` / `storageCond` / `ownerElderId`(创建必填)
  * @param {Object} [options] 透传请求选项（如 `loading: '保存中'`）
  * @returns {Promise<Object>} 保存后的药品档案
- * @throws {ApiError} 40001（`name` 为空等）/ 40101 / 40301（老人只读、越权）/ 40302 / -1
+ * @throws {ApiError} 40001（`name` / `ownerElderId` 为空等）/ 40101 / 40301（老人只读、越权）/ 40302 / -1
  */
 export function saveMedicine(payload, options) {
   return post('/medicines', payload, options)

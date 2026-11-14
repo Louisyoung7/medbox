@@ -163,18 +163,16 @@ function requireDevice(user, deviceId) {
   return device
 }
 
-/** 写操作（药品档案 = WRITE_MEDICINE，仅 FAMILY；前端同口径只给监护人显入口）。
- *  elderId 为空 = 公共字典：只校验角色，不校验关系。 */
+/** 写操作（药品档案 = WRITE_MEDICINE，仅 FAMILY）；elderId 必填（药品必归属老人）。 */
 function requireWrite(user, elderId) {
   if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
-  if (!elderId) return
+  if (!elderId) throw new BizError(40001, 'ownerElderId 不能为空')
   const access = elderAccess(user, elderId)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
 }
 
 function medicineAccess(user, medicine) {
-  if (!medicine.ownerElderId) return 'ok'
   return elderAccess(user, medicine.ownerElderId)
 }
 
@@ -366,7 +364,7 @@ async function handleListMedicines(req, res, query) {
   const user = requireUser(req)
   const visible = visibleElderIds(user)
   const keyword = String(query.keyword || '').trim().toLowerCase()
-  let list = state.medicines.filter((m) => !m.ownerElderId || visible.indexOf(m.ownerElderId) !== -1)
+  let list = state.medicines.filter((m) => visible.indexOf(m.ownerElderId) !== -1)
   if (keyword) list = list.filter((m) => m.name.toLowerCase().indexOf(keyword) !== -1)
   const page = Math.max(1, Number(query.page) || 1)
   const size = Math.min(100, Math.max(1, Number(query.size) || 20))
@@ -382,20 +380,18 @@ async function handleGetMedicine(req, res, medicineId) {
   const access = medicineAccess(user, medicine)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
-  ok(res, { ...medicine, ownerElderId: medicine.ownerElderId || undefined })
+  ok(res, medicine)
 }
 
 async function handleSaveMedicine(req, res, body) {
   const user = requireUser(req)
   const name = String(body.name || '').trim()
   if (!name) throw new BizError(40001, 'name 不能为空')
-  const ownerElderId = body.ownerElderId ? String(body.ownerElderId) : ''
-  if (ownerElderId) requireWrite(user, ownerElderId)
-  else requireWrite(user, null) // 公共字典同样只有监护人能建（role 校验）
 
   const medicineId = body.medicineId ? String(body.medicineId) : ''
   const existing = medicineId ? state.medicines.find((m) => m.medicineId === medicineId) : null
   if (existing) {
+    if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
     const access = medicineAccess(user, existing)
     if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
     if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
@@ -405,10 +401,15 @@ async function handleSaveMedicine(req, res, body) {
     existing.unit = body.unit ? String(body.unit) : ''
     existing.contraindication = body.contraindication ? String(body.contraindication) : ''
     existing.storageCond = body.storageCond ? String(body.storageCond) : ''
-    existing.ownerElderId = ownerElderId
+    // 归属不可变：忽略 body.ownerElderId
     ok(res, { ...existing })
     return
   }
+
+  const ownerElderId = body.ownerElderId ? String(body.ownerElderId) : ''
+  if (!ownerElderId) throw new BizError(40001, 'ownerElderId 不能为空')
+  requireWrite(user, ownerElderId)
+
   const medicine = {
     medicineId: medicineId || `m-${Date.now().toString(36)}`,
     ownerElderId,
