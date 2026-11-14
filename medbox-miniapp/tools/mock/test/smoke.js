@@ -291,7 +291,7 @@ async function waitReady() {
     check('历史未知设备 → 40301', (await call('GET', `/env/history?deviceId=BOXA9999&from=${from7}&to=${toNow}`, { token: gw.token })).code === 40301)
     check('历史未登录 → 40101', (await call('GET', `/env/history?deviceId=BOXA1001&from=${from7}&to=${toNow}`)).code === 40101)
 
-    console.log('== AI 洞察层（05 第 2 章；feat/mp-ai-insight；后端未落地，Mock 先行） ==')
+    console.log('== AI 洞察层（05 第 2 章；feat/mp-ai-insight） ==')
     // 流式消费辅助：fetch 读取分块响应，逐行解析 {type:delta}/{type:done} 帧，或错误 JSON
     async function streamCall(apiPath, body, token) {
       const res = await fetch(BASE + apiPath, {
@@ -349,13 +349,13 @@ async function waitReady() {
     const aiStreamNoKey = await streamCall('/ai/insight/stream', aiBody('u-1002', 'COMPREHENSIVE', 7), gw.token)
     check('AI 流式未配 Key → 50310', aiStreamNoKey.code === 50310)
     const aiSched = await call('GET', '/ai/insight/schedule?elderId=u-1001', { token: gw.token })
-    check('AI 周期洞察查询 200（默认关闭/每日）', aiSched.code === 0 && aiSched.data.enabled === false && aiSched.data.frequency === 'DAILY')
-    const aiSchedPut = await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: gw.token, body: { enabled: true, frequency: 'WEEKLY' } })
-    check('AI 周期洞察设置（监护人） 200 且回显 WEEKLY', aiSchedPut.code === 0 && aiSchedPut.data.enabled === true && aiSchedPut.data.frequency === 'WEEKLY')
-    check('AI 周期洞察老人 PUT → 40301', (await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: elder.token, body: { enabled: true, frequency: 'WEEKLY' } })).code === 40301)
-    await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: gw.token, body: { enabled: false, frequency: 'DAILY' } }) // 复位
+    check('AI 周期洞察查询 200（默认关闭/每日）', aiSched.code === 0 && aiSched.data.enabled === false && aiSched.data.cadence === 'DAILY')
+    const aiSchedPut = await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: gw.token, body: { enabled: true, cadence: 'WEEKLY' } })
+    check('AI 周期洞察设置（监护人） 200 且回显 WEEKLY', aiSchedPut.code === 0 && aiSchedPut.data.enabled === true && aiSchedPut.data.cadence === 'WEEKLY')
+    check('AI 周期洞察老人 PUT → 40301', (await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: elder.token, body: { enabled: true, cadence: 'WEEKLY' } })).code === 40301)
+    await call('PUT', '/ai/insight/schedule?elderId=u-1001', { token: gw.token, body: { enabled: false, cadence: 'DAILY' } }) // 复位
 
-    console.log('== AI Key 配置（05 第 2.1 章 FP-8；feat/mp-ai-config；后端未落地，Mock 先行） ==')
+    console.log('== AI Key 配置（05 第 2.1 章 FP-8；feat/mp-ai-config） ==')
     const aiCfgGetInit = await call('GET', '/ai/config?elderId=u-1001', { token: gw.token })
     check('AI 配置查询 200 且脱敏回显 apiKeyMask（不返明文）', aiCfgGetInit.code === 0 && typeof aiCfgGetInit.data.apiKeyMask === 'string' && !('apiKey' in aiCfgGetInit.data))
     check('AI 配置查询跨老人越权 → 40301', (await call('GET', '/ai/config?elderId=u-1002', { token: elder.token })).code === 40301)

@@ -10,8 +10,7 @@
  * + `onChunkReceived` 累加字节后按行解析 JSON 帧。**不引第三方流式库**。两端统一回调
  * `onDelta/onDone/onError`，纯帧逻辑由 `utils/ai.js` 的 {@link applyInsightFrame} 收敛。
  *
- * <p>后端 `feat/ai-insight`（07）当前未落地，按 AGENTS.md 通行做法**按 05 契约 + Mock 先行**，
- * 字段做容错（见 `utils/ai.js` 的 `parseInsight`）。
+ * <p>后端已落地，字段按 05 契约对齐；展示层仍做容错（见 `utils/ai.js` 的 `parseInsight`）。
  */
 
 import { BASE_URL } from '@/config/index.js'
@@ -64,7 +63,7 @@ export function requestInsight(args, options = {}) {
 /**
  * 查询周期洞察设置：`GET /ai/insight/schedule?elderId=`。
  * @param {{elderId:string}} query
- * @returns {Promise<Object>} `{ elderId, enabled, frequency }`（缺字段容错由页面兜底）
+ * @returns {Promise<Object>} `{ elderId, enabled, cadence }`（缺字段容错由页面兜底）
  */
 export function getInsightSchedule({ elderId }) {
   return request({
@@ -77,15 +76,15 @@ export function getInsightSchedule({ elderId }) {
 
 /**
  * 调整周期洞察开关与节奏（仅监护人）：`PUT /ai/insight/schedule?elderId=`。
- * @param {{elderId:string, frequency:string}} payload `frequency` 为 `DAILY` / `WEEKLY`
+ * @param {{elderId:string, cadence:string}} payload `cadence` 为 `DAILY` / `WEEKLY`（与后端字段一致）
  * @returns {Promise<Object>} 更新后的设置
  */
-export function putInsightSchedule({ elderId, frequency }) {
+export function putInsightSchedule({ elderId, cadence }) {
   return request({
     url: '/ai/insight/schedule',
     method: 'PUT',
     params: { elderId },
-    data: { frequency },
+    data: { cadence },
     silent: true,
   }).then((data) => data || {})
 }

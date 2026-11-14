@@ -28,9 +28,10 @@ describe('parseFrame', () => {
 })
 
 describe('业务帧判定', () => {
-  it('ALARM / DEVICE_STATUS / REMINDER 推进 lastEventId，PONG 不推进', () => {
+  it('ALARM / DEVICE_STATUS / REMINDER / AI_INSIGHT 推进 lastEventId，PONG 不推进', () => {
     expect(isBusinessType(WS_EVENT.ALARM)).toBe(true)
     expect(isBusinessType(WS_EVENT.REMINDER)).toBe(true)
+    expect(isBusinessType(WS_EVENT.AI_INSIGHT)).toBe(true)
     expect(isBusinessType(WS_EVENT.PONG)).toBe(false)
     expect(isBusinessFrame({ type: 'DEVICE_STATUS' })).toBe(true)
     expect(isResyncFrame({ type: 'RESYNC' })).toBe(true)
@@ -58,6 +59,7 @@ describe('describeFrame（04：REMINDER 按格，ALARM 不带 medicineIds）', (
   })
   it('其它帧摘要', () => {
     expect(describeFrame({ type: 'DEVICE_STATUS', payload: { deviceType: 'MAIN', online: true } })).toBe('药箱主控已上线')
+    expect(describeFrame({ type: 'AI_INSIGHT', payload: { content: '近 7 天漏服集中在晚间' } })).toBe('AI 健康洞察已更新')
     expect(describeFrame({ type: 'RESYNC' })).toBe('离线期间事件已过期，请刷新列表')
     expect(describeFrame({ type: 'PONG' })).toBe('心跳正常')
     expect(describeFrame(null)).toBe('')

@@ -971,9 +971,9 @@ async function handleGetAiSchedule(req, res, query) {
   const cfg = state.aiSchedules.find((s) => s.elderId === elderId) || {
     elderId,
     enabled: false,
-    frequency: 'DAILY',
+    cadence: 'DAILY',
   }
-  ok(res, { elderId, enabled: !!cfg.enabled, frequency: cfg.frequency || 'DAILY' })
+  ok(res, { elderId, enabled: !!cfg.enabled, cadence: cfg.cadence || 'DAILY' })
 }
 
 /**
@@ -985,15 +985,15 @@ async function handlePutAiSchedule(req, res, query, body) {
   requireElder(user, elderId)
   if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
   const enabled = body && typeof body.enabled === 'boolean' ? body.enabled : false
-  const frequency = ['DAILY', 'WEEKLY'].includes(body && body.frequency) ? body.frequency : 'DAILY'
+  const cadence = ['DAILY', 'WEEKLY'].includes(body && body.cadence) ? body.cadence : 'DAILY'
   let cfg = state.aiSchedules.find((s) => s.elderId === elderId)
   if (!cfg) {
-    cfg = { elderId, enabled: false, frequency: 'DAILY' }
+    cfg = { elderId, enabled: false, cadence: 'DAILY' }
     state.aiSchedules.push(cfg)
   }
   cfg.enabled = enabled
-  cfg.frequency = frequency
-  ok(res, { elderId, enabled: cfg.enabled, frequency: cfg.frequency })
+  cfg.cadence = cadence
+  ok(res, { elderId, enabled: cfg.enabled, cadence: cfg.cadence })
 }
 
 // ---------------------------------------------------------------- AI Key 配置（05 第 2.1 章 FP-8；feat/mp-ai-config；后端未落地，Mock 先行）
