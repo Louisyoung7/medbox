@@ -18,7 +18,7 @@ import {
 } from '@/utils/ai.js'
 
 describe('utils/ai —— 维度与范围', () => {
-  it('AI_TYPE / AI_TYPES 四个维度且含 COMPREHENSIVE 默认（库存维度已随台账下线移除）', () => {
+  it('AI_TYPE / AI_TYPES 四个维度且含 COMPREHENSIVE 默认', () => {
     expect(AI_TYPES).toHaveLength(4)
     expect(AI_TYPE.COMPREHENSIVE).toBe('COMPREHENSIVE')
     expect(AI_TYPES.map((t) => t.value)).toContain('ENV_CORRELATION')
