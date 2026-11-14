@@ -28,7 +28,7 @@
         <MbCard title="监护台">
           <view class="guard-row">
             <text class="guard-hint">为老人配置告警与阈值、环境上下限。</text>
-            <MbButton type="ghost" size="small" @click="go('/pages/alarm/settings')">告警设置</MbButton>
+            <MbButton type="ghost" size="small" @click="goSettings">告警设置</MbButton>
           </view>
         </MbCard>
       </RoleGate>
@@ -84,6 +84,10 @@ export default {
   methods: {
     go(path) {
       uni.reLaunch({ url: path })
+    },
+    goSettings() {
+      // 二级页用 navigateTo 入栈，保留首页才能出现原生返回键
+      uni.navigateTo({ url: '/pages/alarm/settings' })
     },
   },
 }
