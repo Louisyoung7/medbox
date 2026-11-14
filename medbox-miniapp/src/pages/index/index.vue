@@ -20,15 +20,15 @@
         <MbCell title="药品管理" value="公共与私有药品" arrow clickable @click="go('/pages/medicine/medicine')" />
         <MbCell title="服药计划" value="格位排程" arrow clickable @click="go('/pages/plan/plan')" />
         <MbCell title="服药记录" value="按格记录" arrow clickable @click="go('/pages/record/record')" />
-        <MbCell title="告警" :value="unreadText" arrow clickable @click="go('/pages/alarm/list')" />
-        <MbCell title="监护关系" value="绑定与待确认" arrow clickable @click="go('/pages/guardian/guardian')" />
+        <MbCell title="告警" :value="unreadText" arrow clickable @click="goPage('/pages/alarm/list')" />
+        <MbCell title="监护关系" value="绑定与待确认" arrow clickable @click="goPage('/pages/guardian/guardian')" />
       </MbCard>
 
       <RoleGate entry="alarmSettings">
         <MbCard title="监护台">
           <view class="guard-row">
             <text class="guard-hint">为老人配置告警与阈值、环境上下限。</text>
-            <MbButton type="ghost" size="small" @click="goSettings">告警设置</MbButton>
+            <MbButton type="ghost" size="small" @click="goPage('/pages/alarm/settings')">告警设置</MbButton>
           </view>
         </MbCard>
       </RoleGate>
@@ -82,12 +82,13 @@ export default {
     },
   },
   methods: {
+    // Tab 页：页面栈重建（与底部 TabBar 的切换方式一致）
     go(path) {
       uni.reLaunch({ url: path })
     },
-    goSettings() {
-      // 二级页用 navigateTo 入栈，保留首页才能出现原生返回键
-      uni.navigateTo({ url: '/pages/alarm/settings' })
+    // 二级页：入栈保留首页，原生导航栏才会出现返回键
+    goPage(path) {
+      uni.navigateTo({ url: path })
     },
   },
 }
