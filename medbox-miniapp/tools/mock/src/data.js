@@ -106,24 +106,24 @@ function createSeed() {
   events.push({ eventId: 'ev-1001-hw', deviceId: 'BOXA1001', eventType: 'FAULT', detail: 'HW_FAULT', createdAt: isoOffset(-1 * DAY) })
   events.push({ eventId: 'ev-1001-cmd', deviceId: 'BOXA1001', eventType: 'COMMAND', detail: { commandId: 'c-seed-1', cmd: 'BUZZ', state: 'SUCCESS' }, createdAt: isoOffset(-2 * DAY) })
 
-  // 药品档案（06 的 2.4）：ownerElderId 为空 = 公共字典
+  // 药品档案（06 的 2.4）：ownerElderId 必填（无公共字典）
   const medicines = [
     {
-      medicineId: 'm-201', ownerElderId: '', name: '阿莫西林胶囊',
+      medicineId: 'm-201', ownerElderId: 'u-1001', name: '阿莫西林胶囊',
       spec: '0.25g×24粒', dosePerTime: '1', unit: '粒',
       contraindication: '青霉素过敏者禁用；服药期间忌酒',
       storageCond: '遮光、密封、阴凉处保存',
       createdAt: isoOffset(-25 * DAY),
     },
     {
-      medicineId: 'm-202', ownerElderId: '', name: '阿托伐他汀钙片',
+      medicineId: 'm-202', ownerElderId: 'u-1001', name: '阿托伐他汀钙片',
       spec: '20mg×7片', dosePerTime: '1', unit: '片',
       contraindication: '孕妇禁用；避免与葡萄柚汁同服',
       storageCond: '密封、干燥处',
       createdAt: isoOffset(-25 * DAY),
     },
     {
-      medicineId: 'm-203', ownerElderId: '', name: '二甲双胍缓释片',
+      medicineId: 'm-203', ownerElderId: 'u-1001', name: '二甲双胍缓释片',
       spec: '0.5g×30片', dosePerTime: '1', unit: '片',
       contraindication: '肾功能不全者慎用',
       storageCond: '密封、干燥处',
@@ -144,7 +144,7 @@ function createSeed() {
       createdAt: isoOffset(-12 * DAY),
     },
     {
-      medicineId: 'm-206', ownerElderId: '', name: '氯雷他定片',
+      medicineId: 'm-206', ownerElderId: 'u-1001', name: '氯雷他定片',
       spec: '10mg×6片', dosePerTime: '1', unit: '片',
       contraindication: '',
       storageCond: '遮光、密封',

@@ -41,7 +41,7 @@
         @click="goDetail(medicine)"
       >
         <template #extra>
-          <view class="owner" :class="medicine.ownerElderId ? 'owner--private' : 'owner--public'">
+          <view class="owner">
             <text class="owner__text">{{ ownerLabel(medicine) }}</text>
           </view>
         </template>
@@ -285,24 +285,10 @@ export default {
   height: 40rpx;
   padding: 0 16rpx;
   border-radius: $mb-radius-pill;
-
-  &--public {
-    background: $mb-primary-bg;
-  }
-
-  &--private {
-    background: $mb-border;
-  }
+  background: $mb-border;
 
   &__text {
     font-size: 22rpx;
-  }
-
-  &--public &__text {
-    color: $mb-primary;
-  }
-
-  &--private &__text {
     color: $mb-text-3;
   }
 }

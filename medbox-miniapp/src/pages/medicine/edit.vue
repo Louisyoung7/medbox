@@ -31,28 +31,12 @@
         />
       </MbCard>
 
-      <MbCard title="归属">
-        <view class="segment">
-          <view
-            class="segment__item"
-            :class="{ 'segment__item--on': ownership === 'public' }"
-            @click="ownership = 'public'"
-          >
-            公共药品
-          </view>
-          <view
-            class="segment__item"
-            :class="{ 'segment__item--on': ownership === 'private' }"
-            @click="switchPrivate"
-          >
-            归属老人
-          </view>
-        </view>
-        <text class="hint">
-          {{ ownership === 'public' ? '公共药品：全体用户可见（只读）' : '私有药品：仅该老人与其监护人可见' }}
-        </text>
-
-        <template v-if="ownership === 'private'">
+      <MbCard title="归属老人">
+        <template v-if="isEdit">
+          <MbCell title="归属老人" :value="selectedElder" />
+          <text class="hint">归属创建后不可修改</text>
+        </template>
+        <template v-else>
           <view v-if="eldersLoading" class="elders-tip">正在获取老人列表…</view>
           <template v-else-if="elders.length">
             <MbCell
@@ -68,6 +52,7 @@
                 </view>
               </template>
             </MbCell>
+            <text class="hint">药品仅对该老人与其监护人可见</text>
           </template>
           <view v-else class="elders-tip">暂无可归属的老人，请先为其登记药箱设备</view>
         </template>
@@ -125,7 +110,6 @@ export default {
       saving: false,
       form: emptyForm(),
       nameError: '',
-      ownership: 'public',
       elders: [],
       eldersLoading: false,
       eldersLoaded: false,
@@ -136,6 +120,7 @@ export default {
     this.medicineId = (options && options.medicineId) || ''
     this.isEdit = !!this.medicineId
     uni.setNavigationBarTitle({ title: this.isEdit ? '编辑药品' : '新建药品' })
+    this.loadElders()
     if (this.isEdit) {
       this.load()
     }
@@ -162,16 +147,10 @@ export default {
       form.contraindication = medicine.contraindication || ''
       form.storageCond = medicine.storageCond || ''
       this.form = form
-      this.ownership = medicine.ownerElderId ? 'private' : 'public'
       this.selectedElder = medicine.ownerElderId || ''
-      if (this.ownership === 'private') this.loadElders()
     },
     validateName() {
       this.nameError = this.form.name.trim() ? '' : '请输入药品名称'
-    },
-    switchPrivate() {
-      this.ownership = 'private'
-      this.loadElders()
     },
     async loadElders() {
       if (this.eldersLoaded || this.eldersLoading) return
@@ -186,8 +165,10 @@ export default {
         })
         this.elders = elders
         this.eldersLoaded = true
+        // 新建时只有一位老人则直接选中，减少一次点击
+        if (!this.isEdit && !this.selectedElder && elders.length === 1) this.selectedElder = elders[0]
       } catch (err) {
-        // 拉不到设备不阻塞表单：只影响私有归属的候选，公共药品照常可建
+        // 拉不到设备不阻塞表单：仅归属候选为空，保存时仍会拦"请选择归属老人"
         this.elders = []
       } finally {
         this.eldersLoading = false
@@ -196,13 +177,13 @@ export default {
     async save() {
       this.validateName()
       if (this.nameError) return
-      if (this.ownership === 'private' && !this.selectedElder) {
+      if (!this.selectedElder) {
         uni.showToast({ title: '请选择归属老人', icon: 'none' })
         return
       }
       const payload = buildMedicinePayload({
         ...this.form,
-        ownerElderId: this.ownership === 'private' ? this.selectedElder : '',
+        ownerElderId: this.selectedElder,
       })
       this.saving = true
       try {
@@ -237,31 +218,6 @@ export default {
 /* WXSS 不支持 `.row > *` 通配符（H5 能过、小程序编译报错），用显式类名 */
 .row__item {
   flex: 1;
-}
-
-.segment {
-  display: flex;
-  padding: 6rpx;
-  border-radius: $mb-radius-pill;
-  background: $mb-border;
-
-  &__item {
-    flex: 1;
-    height: 64rpx;
-    line-height: 64rpx;
-    text-align: center;
-    font-size: 28rpx;
-    color: $mb-text-3;
-    border-radius: $mb-radius-pill;
-    transition: background-color 0.2s, color 0.2s;
-
-    &--on {
-      background: $mb-card-bg;
-      color: $mb-primary;
-      font-weight: 500;
-      box-shadow: 0 4rpx 12rpx rgba(14, 159, 142, 0.12);
-    }
-  }
 }
 
 .hint {

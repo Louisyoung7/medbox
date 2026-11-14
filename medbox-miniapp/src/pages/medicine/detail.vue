@@ -97,9 +97,9 @@ export default {
   computed: {
     ownerText() {
       const owner = this.medicine && this.medicine.ownerElderId
-      if (!owner) return '公共药品（全体可见）'
-      if (this.myUserId && owner === this.myUserId) return '我的私有药品'
-      return `私有 · ${owner}`
+      if (!owner) return '—'
+      if (this.myUserId && owner === this.myUserId) return '我的'
+      return owner
     },
   },
   onLoad(options) {

@@ -1,7 +1,7 @@
 /**
  * 药品域纯函数测试（`feat/mp-medicine`，`src/utils/medicine.js`）。
  *
- * <p>覆盖：表单 → 请求体组装（trim / 省略空值 / ownerElderId 语义）、分页响应容错解析
+ * <p>覆盖：表单 → 请求体组装（trim / 省略空值 / ownerElderId 必填语义）、分页响应容错解析
  * （后端 `medicine-core` 未落地，字段名未定）、列表文案、角色写权限。
  */
 
@@ -15,7 +15,7 @@ import {
 } from '@/utils/medicine.js'
 
 describe('buildMedicinePayload', () => {
-  it('新建：trim 后只带非空字段，无 medicineId 与 ownerElderId 即公共字典', () => {
+  it('新建：trim 后只带非空字段；ownerElderId 为空时省略（页面必填校验 + 后端 40001 兜底）', () => {
     const payload = buildMedicinePayload({
       name: '  阿莫西林胶囊 ',
       dosePerTime: '',
@@ -32,6 +32,13 @@ describe('buildMedicinePayload', () => {
     expect('medicineId' in payload).toBe(false)
     expect('ownerElderId' in payload).toBe(false)
     expect('spec' in payload).toBe(false) // 规格字段前端已不再下发
+  })
+
+  it('新建：带归属老人时下发 ownerElderId（药品必归属老人）', () => {
+    expect(buildMedicinePayload({ name: '阿莫西林胶囊', ownerElderId: '  u-1001  ' })).toEqual({
+      name: '阿莫西林胶囊',
+      ownerElderId: 'u-1001',
+    })
   })
 
   it('编辑：带上 medicineId 与 ownerElderId', () => {
@@ -85,11 +92,11 @@ describe('medicineLabel', () => {
 })
 
 describe('medicineOwnerLabel', () => {
-  it('公共 / 我的私有 / 他人私有', () => {
-    expect(medicineOwnerLabel({})).toBe('公共')
+  it('我的 / 某老人的药品（无公共字典）', () => {
+    expect(medicineOwnerLabel({})).toBe('未归属')
     expect(medicineOwnerLabel({ ownerElderId: 'u-1001' }, 'u-1001')).toBe('我的')
-    expect(medicineOwnerLabel({ ownerElderId: 'u-1002' }, 'u-1001')).toBe('私有 · u-1002')
-    expect(medicineOwnerLabel(null, 'u-1001')).toBe('公共')
+    expect(medicineOwnerLabel({ ownerElderId: 'u-1002' }, 'u-1001')).toBe('u-1002')
+    expect(medicineOwnerLabel(null, 'u-1001')).toBe('未归属')
   })
 })
 
