@@ -35,8 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 服药计划 CRUD + 未来待服时间线（见文档 02d / 06 §2.6）。
  *
  * <p><b>一老人一计划</b>：{@code med_plan.elder_id} 唯一；重复创建返回 40901。
- * 计划只含 1~3 个 {@code slots}（格号 1/2/3 + 本地墙钟 HH:mm），不关联药品与库存，
- * 也不校验库存。缺失的格号 = 该格不排程。
+ * 计划只含 1~3 个 {@code slots}（格号 1/2/3 + 本地墙钟 HH:mm），不关联药品。
+ * 缺失的格号 = 该格不排程。
  *
  * <p><b>权限</b>：写（增 / 改 / 启停 / 删）= {@code WRITE_PLAN}，读 = {@code READ_PLAN}。
  *

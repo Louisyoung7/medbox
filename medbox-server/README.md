@@ -150,21 +150,12 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/users/me/delete \
 - `ELDER` —— 老人本人，设备近场使用者，只读本人数据；
 - `GUARDIAN` —— 监护人 / 子女，对 ACTIVE 监护关系下的老人可读可写。
 
-**`DOCTOR`（家庭医生）/ `NURSE`（社区护理）/ 家属是 `FAMILY`** 不是注册角色，而是**监护关系上的角色**（`guardian_relation.role`，见 `domain/enums/RelationRole`）：
-一个 GUARDIAN 账号在**老人确认监护关系时**被标记成 FAMILY / DOCTOR / NURSE，由此决定他能对这位老人做什么（详见文档 01 第 3 章 / 02 的监护关系接口）：
-
-| 关系角色 | 能干什么（对 ACTIVE 关系下的老人） |
-|----------|--------------------------------------|
-| `FAMILY` 家属 / 子女 | 可读可写：计划、药品、库存、处理告警、阈值、代配 AI Key |
-| `DOCTOR` 家庭医生 | 制定 / 修改服药计划、看依从性报告与 AI 洞察；**不处理告警、不导出** |
-| `NURSE` 社区护理 | 所辖老人**只读** + 处理告警 + 导出记录；**不可改计划与药品** |
-
-> 所以"医生 / 护士能干什么"的开关落在**监护关系确认**那一步，不在注册接口；传 `role:DOCTOR` 给注册接口会被判非法。
+**监护关系没有角色细分**：一个 GUARDIAN 账号可绑定多个老人，关系两步生效（监护人申请 → 老人确认）。权限按"是否对该老人有已生效监护关系"统一判定，不再有 FAMILY / DOCTOR / NURSE 之分（详见文档 01 第 5 章 / 02 的监护关系接口）。
 
 ## 9. MQTT（`feat/backend-mqtt`，见文档 03）
 
 后端以订阅方身份连本地 EMQX（**本期匿名连接，无需用户名密码**）：订阅 `medbox/+/+/up/#` 与 `medbox/+/+/status`（遗嘱），
-向 `medbox/{pk}/{deviceId}/down/{schedule|command}` 下发 QoS1 消息。业务尚未接线，本分支只负责"收得到、不重复、能下发"。
+向 `medbox/{pk}/{deviceId}/down/{schedule|command}` 下发 QoS1 消息；上行由各业务 `UpMessageHandler` 消费。
 
 ### 9.1 起 EMQX（不动 `docker-compose.yml`，单独一个容器）
 
@@ -216,7 +207,7 @@ docker exec -e PGPASSWORD=mypassword medbox-pg psql -U myuser -d medbox -c "sele
 |----------|--------|
 | 消费某个上行 topic 的业务逻辑 | 新增一个类实现 `UpMessageHandler`（`supports()` 返回 `up/` 之后的子路径，如 `telemetry`）并注册成 `@Bean`，**不用改本分支代码** |
 | 下发计划 / 命令 | 注入 `DownlinkPublisher`，调 `publish(deviceId, "schedule"\|"command", payload, needAck)`；`msgId` / `needAck` 由它注入，别自己拼 |
-| 下发失败要告警 | 替换 `DownlinkFailureListener` 的实现即可（当前只打 WARN 日志，告警实体属 `feat/alarm-core`） |
+| 下发失败要告警 | 替换 `DownlinkFailureListener` 的实现即可（当前只打 WARN 日志） |
 
 ## 10. WebSocket 推送（`feat/backend-ws`，见文档 04）
 
@@ -276,10 +267,7 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
 
 > **⚠️ 别预注册保留号**：`13800001234`（监护人）与 `13800008888`（老人）是 seed 写死的保留号。若你先按第 7 节用手动注册占了其中某个手机号，再跑 seed 会因手机号唯一约束冲突而失败——直接空库跑 seed 即可，或换别的手机号做 auth 自测。
 
-> **seed 覆盖哪些角色？** 只造 **1 个 GUARDIAN（监护关系角色 `FAMILY`）+ 1 个 ELDER** 及二者一条 `ACTIVE` 监护关系，**不造 DOCTOR / NURSE 监护人**。返回的 token 是那个 `FAMILY` 监护人的。所以：
-> - 测"家属/子女"视角的读写 → 直接用 seed 给的 `guardianToken` 即可；
-> - 测"家庭医生 / 社区护理"权限 → seed **给不了**，需自己再注册一个 GUARDIAN 账号，再让老人以 `DOCTOR` / `NURSE` 确认监护关系（接口见文档 02 的监护关系章）；
-> - 测"老人本人"只读 → seed 已返回 `elderToken`（对应 `e-1001` / 手机号 `13800008888` / 密码 `123456`），直接 `Authorization: Bearer $ELDER_TOKEN` 即可，无需另走登录。
+> **seed 覆盖哪些角色？** 只造 **1 个 GUARDIAN + 1 个 ELDER** 及二者一条 `ACTIVE` 监护关系。返回的 `guardianToken` 是监护人的，`elderToken` 是老人本人的，可直接用于两种视角的读写 / 只读验证。
 
 播种落地的固定业务 ID（与文档 02 §1.4 / 03 §5 的示例完全对齐，使其可直接跑通）：
 
@@ -289,13 +277,12 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
 | 老人 | userId `e-1001` / 手机号 `13800008888` / 密码 `123456` | 与监护人直接是 `ACTIVE` 监护关系（跳过申请→确认）；返回 `elderToken` 可直接以老人视角登录 |
 | 药箱主控 | `BOXA-DEBUG-01` | productKey 取 `medbox.device.default-product-key`（默认 `medbox-box`） |
 | 传感器子设备 | `BOXA-DEBUG-01-S-TH01`（温湿度）/ `BOXA-DEBUG-01-S-LX01`（光照）/ `BOXA-DEBUG-01-S-CAM01`（摄像头） | |
-| 药品 | `m-205`（阿司匹林，公共）+ `m-206`（甲硝唑，老人私有） | |
-| 库存 | `s-debug-001` | 有效期未过期 |
+| 药品 | `m-206`（甲硝唑，归属老人 `e-1001`） | |
 | 计划 | `p-3301`（仅 1 号格，开格时间 = 播种时设备本地时刻 +2 分钟） | |
 
-> **为什么只有部分 ID 带 `debug` 段**：业务号由 `user_biz_id_seq` / `medicine_stock_biz_id_seq` 等从 **1001** 起生成 —— 清库后首个注册用户必是 `u-1001`、首个库存必是 `s-1001`，种子若占用它们会与真实数据撞唯一约束，`?reset=true` 的清理更会按固定 ID **误删真实账号 / 库存**；设备号用 `BOXA-DEBUG-01` 是为了不与真机序列号重名（`clearSeed` 会按它删设备）。而 `e-1001` / `m-205` / `p-3301` 不在业务序列生成值域内（业务号恒为前缀 + 数字、且从 1001 起），永远不会与真实数据相撞，故保留短 ID。
+> **为什么只有部分 ID 带 `debug` 段**：业务号由 `user_biz_id_seq` 等从 **1001** 起生成 —— 清库后首个注册用户必是 `u-1001`，种子若占用它会与真实数据撞唯一约束，`?reset=true` 的清理更会按固定 ID **误删真实账号**；设备号用 `BOXA-DEBUG-01` 是为了不与真机序列号重名（`clearSeed` 会按它删设备）。而 `e-1001` / `m-206` / `p-3301` 不在业务序列生成值域内（业务号恒为前缀 + 数字、且从 1001 起），永远不会与真实数据相撞，故保留短 ID。
 >
-> **从旧版本升级（历史库里有 `u-1001` / `BOXA1001` / `s-1001` 老种子）**：新种子改用上面的 debug ID，旧数据不会自动清。**为什么不直接用管理后台（medbox-admin 测试数据清理）删？** 后台的硬删护栏对**任何 `ACTIVE` 账号一律拒绝**（`AdminUserService.purge()` 抛 `40902`），而种子账号写入时状态恒为 `ACTIVE`，所以后台那条「清理」按钮对种子是**禁用**的——后台删不了种子。另外旧数据也不适合无条件自动清（有误删占用 `u-1001` 的真实账号的风险）。确认要清时**先 `SELECT` 核对，再按下述条件删除**（手机号条件用于兜底，避免误删占用了 `u-1001` 的真实账号）：
+> **从旧版本升级（历史库里有 `u-1001` / `BOXA1001` 老种子）**：新种子改用上面的 debug ID，旧数据不会自动清。**为什么不直接用管理后台（medbox-admin 测试数据清理）删？** 后台的硬删护栏对**任何 `ACTIVE` 账号一律拒绝**（`AdminUserService.purge()` 抛 `40902`），而种子账号写入时状态恒为 `ACTIVE`，所以后台那条「清理」按钮对种子是**禁用**的——后台删不了种子。另外旧数据也不适合无条件自动清（有误删占用 `u-1001` 的真实账号的风险）。确认要清时**先 `SELECT` 核对，再按下述条件删除**（手机号条件用于兜底，避免误删占用了 `u-1001` 的真实账号）：
 >
 > ```sql
 > DELETE FROM med_record WHERE plan_id = 'p-3301';

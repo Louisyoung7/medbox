@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
-/** 服药事件判定核心（07 §1）：按格准入、按格就近槽、库存不联动、领域事件带格号。 */
+/** 服药事件判定核心（07 §1）：按格准入、按格就近槽、领域事件带格号。 */
 class DispenseConsumeServiceTest {
 
     private static final String CAMERA_ID = "BOXA-01-S-CAM01";

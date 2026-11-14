@@ -38,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 新建时路径 {@code {recordId}} 被忽略，由 {@code med_record_biz_id_seq} 生成新 {@code mr-} 号。
  *
  * <p><b>planTime 重算</b>：新建补录按该格 {@code slots} + {@code actualTime} 在老人 MAIN 设备时区
- * 就近槽重算；该格无排程 / 算不出槽则置 NULL。<b>记录新增与纠错都不改库存</b>（独立手工台账）。
+ * 就近槽重算；该格无排程 / 算不出槽则置 NULL。
  */
 @Service
 public class RecordService {

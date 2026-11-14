@@ -15,7 +15,7 @@
 | `02_REST接口设计.md` | REST **通用约定**（统一响应 / 错误码 / 权限默认规则）、**核心数据模型**、**模块索引**；业务模块接口已拆为 8 个分册：`02a_认证与用户` / `02b_设备管理` / `02c_药品档案` / `02d_服药计划与提醒` / `02e_服药记录与依从性` / `02f_告警` / `02g_环境监测` / `02h_管理员接口`（均在本目录） | 后端 / 小程序 |
 | `03_设备接入协议_MQTT.md` | EMQX 连接鉴权、Topic 规范、上下行 Payload 示例 | 后端 / 嵌入式 |
 | `04_实时推送协议_WebSocket.md` | 连接鉴权、消息帧结构、推送事件类型 | 后端 / 小程序 |
-| `05_AI大模型与RAG方案.md` | 大模型接入（洞察层）：分析 / 预测 / 建议接口、LLM 配置（BYOK，监护人代配 Key）；后端不托管大模型、不做 RAG | 后端 |
+| `05_AI大模型与洞察层方案.md` | 大模型接入（洞察层）：分析 / 预测 / 建议接口、LLM 配置（BYOK，监护人代配 Key）；后端不托管大模型、不做 RAG | 后端 |
 | `06_数据库设计.md` | 数据库**表结构**：实体关系、PostgreSQL 关系表建表 DDL；**判定/生成类业务规则见 `07`** | 后端 |
 | `07_业务规则.md` | **判定与生成类业务规则**：med_record 服药判定、MISS/ENV 告警判定、REMINDER 提醒生成、漏服/时区/容忍公共口径（库表字段与 DDL 见 `06`） | 后端 |
 | `openapi/`（**本目录子目录**） | **REST 接口的 OpenAPI 机器可读版（已覆盖 02a~02h 全部模块）**：`common.yaml`（公共组件：统一响应 / 通用错误码响应 / 分页 / X-Request-Id，各分册跨文件 `$ref`）+ `02a-auth-users` `02b-devices` `02c-medicines` `02d-plans` `02e-records` `02f-alarms` `02g-env` `02h-admin` 共 8 份契约 yaml（经 redocly lint 零告警）+ `api-docs-<模块>.html`（`npx @redocly/cli build-docs` 生成的人类可读 WebUI，可离线分享）+ `swagger-ui.html`（浏览器调试页，`npx serve .` 后访问 `swagger-ui.html?spec=<模块>.yaml`，Try it out 直连真实后端）+ `redocly.yaml`（lint 配置）。**契约（端点 / 字段 / 响应示例 / 错误码）以 YAML 为准**；`02a`~`02h` 分册只保留判定规则表、边界用例与口径说明（已按此精简），两者不一致即视为缺陷 | 后端 / 小程序 / 全员 |

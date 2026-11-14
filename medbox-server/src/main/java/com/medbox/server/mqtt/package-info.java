@@ -7,7 +7,7 @@
  *       {@code down/*} 发布与 {@code up/ack} 超时重发（5s × 3 次）；</li>
  *   <li><b>不做</b>：任何业务落库 —— 各上行 topic 的业务语义分散在
  *       {@code feat/env-core} / {@code feat/dispense-consume} / {@code feat/device-fault} /
- *       {@code feat/device-sensor} / {@code feat/inventory-consume}，
+ *       {@code feat/device-sensor}，
  *       它们实现 {@link com.medbox.server.mqtt.UpMessageHandler} 并注册成 Bean 即可生效。</li>
  * </ul>
  *

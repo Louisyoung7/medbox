@@ -34,7 +34,7 @@ public enum ErrorCode {
     /** 资源不存在。 */
     NOT_FOUND(40401, HttpStatus.NOT_FOUND, "资源不存在"),
 
-    /** 状态冲突（如设备离线无法下发命令、药品仍被库存引用无法删除）。 */
+    /** 状态冲突（如设备离线无法下发命令）。 */
     CONFLICT(40901, HttpStatus.CONFLICT, "状态冲突"),
 
     /** 活跃账号禁止经管理接口硬删（测试数据清理：{@code DELETE /admin/users/{userId}} 拒绝 ACTIVE 用户）。 */

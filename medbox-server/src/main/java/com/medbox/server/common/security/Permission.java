@@ -50,7 +50,7 @@ public enum Permission {
     /** 查看药品档案。 */
     READ_MEDICINE,
 
-    /** 新建 / 修改 / 删除药品档案与库存（含补药入库）。 */
+    /** 新建 / 修改 / 删除药品档案。 */
     WRITE_MEDICINE,
 
     /** 查看服药记录。 */

@@ -30,7 +30,6 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
  * {@code plan_time} → 三级容忍算 {@code onTime}（单侧窗口）→ 取药结论归一为二值 → 写
  * {@code med_record}（唯一索引冲突回滚）→ 发布 {@link DispenseRecordedEvent}。
  *
- * <p><b>库存不联动</b>：服药事件、补录、纠错都不改库存（库存是独立手工台账）。
  * 第二层幂等是 {@code uk_med_record_cell_plan_time (plan_id, cell_no, plan_time)} 部分唯一索引。
  *
  * <p><b>非 Web 线程</b>：本服务无 {@code AuthContext}，一律走 Mapper 直接查归属，不调 {@code AccessService}。
@@ -144,7 +143,7 @@ public class DispenseConsumeService {
             return Optional.empty();
         }
 
-        // —— 7. 发布领域事件（AFTER_COMMIT 派发）；不推 WS、不生成告警、不改库存 ——
+        // —— 7. 发布领域事件（AFTER_COMMIT 派发）；不推 WS、不生成告警 ——
         eventPublisher.publishEvent(new DispenseRecordedEvent(
                 record.getRecordId(), record.getElderId(), record.getPlanId(), record.getCellNo(),
                 record.getPlanTime(), record.getActualTime(), record.getOnTime(),
