@@ -20,31 +20,19 @@
         <MbCell title="药品管理" value="公共与私有药品" arrow clickable @click="go('/pages/medicine/medicine')" />
         <MbCell title="服药计划" value="格位排程" arrow clickable @click="go('/pages/plan/plan')" />
         <MbCell title="服药记录" value="按格记录" arrow clickable @click="go('/pages/record/record')" />
-        <MbCell title="告警" :value="unreadText" arrow clickable @click="go('/pages/alarm/list')" />
-        <MbCell title="监护关系" value="绑定与待确认" arrow clickable @click="go('/pages/guardian/guardian')" />
+        <MbCell title="告警" :value="unreadText" arrow clickable @click="goPage('/pages/alarm/list')" />
+        <MbCell title="监护关系" value="绑定与待确认" arrow clickable @click="goPage('/pages/guardian/guardian')" />
       </MbCard>
 
       <RoleGate entry="alarmSettings">
         <MbCard title="监护台">
           <view class="guard-row">
             <text class="guard-hint">为老人配置告警与阈值、环境上下限。</text>
-            <MbButton type="ghost" size="small" @click="go('/pages/alarm/settings')">告警设置</MbButton>
+            <MbButton type="ghost" size="small" @click="goPage('/pages/alarm/settings')">告警设置</MbButton>
           </view>
         </MbCard>
       </RoleGate>
-
-      <MbCard title="组件演示">
-        <view class="demo-row">
-          <MbButton type="primary" @click="openModal">弹窗</MbButton>
-          <MbButton type="ghost" @click="toggleLoading">加载</MbButton>
-        </view>
-      </MbCard>
     </view>
-
-    <MbModal v-model="showModal" title="提示" confirm-text="知道了">
-      这是 MedBox UI Kit 的弹窗组件示例。
-    </MbModal>
-    <MbLoading v-if="loading" text="加载中..." />
 
     <MbTabBar />
   </view>
@@ -54,8 +42,6 @@
 import MbCard from '@/components/MbCard.vue'
 import MbCell from '@/components/MbCell.vue'
 import MbButton from '@/components/MbButton.vue'
-import MbModal from '@/components/MbModal.vue'
-import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import RoleGate from '@/components/RoleGate.vue'
 import WsStatusBar from '@/components/WsStatusBar.vue'
@@ -64,13 +50,11 @@ import { getAlarmState, refreshUnreadCount } from '@/store/alarm.js'
 
 export default {
   name: 'HomePage',
-  components: { MbCard, MbCell, MbButton, MbModal, MbLoading, MbTabBar, RoleGate, WsStatusBar },
+  components: { MbCard, MbCell, MbButton, MbTabBar, RoleGate, WsStatusBar },
   data() {
     return {
       name: '',
       roleText: '',
-      showModal: false,
-      loading: false,
     }
   },
   onShow() {
@@ -98,15 +82,13 @@ export default {
     },
   },
   methods: {
+    // Tab 页：页面栈重建（与底部 TabBar 的切换方式一致）
     go(path) {
       uni.reLaunch({ url: path })
     },
-    openModal() {
-      this.showModal = true
-    },
-    toggleLoading() {
-      this.loading = true
-      setTimeout(() => (this.loading = false), 1200)
+    // 二级页：入栈保留首页，原生导航栏才会出现返回键
+    goPage(path) {
+      uni.navigateTo({ url: path })
     },
   },
 }
@@ -188,15 +170,6 @@ export default {
   .guard-hint {
     flex: 1;
     padding-right: 20rpx;
-  }
-}
-
-.demo-row {
-  display: flex;
-  gap: 20rpx;
-
-  .mb-btn {
-    flex: 1;
   }
 }
 </style>
