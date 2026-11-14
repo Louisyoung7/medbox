@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,17 +14,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.medbox.server.common.security.JwtProvider;
 import com.medbox.server.common.security.TokenType;
-import com.medbox.server.domain.Device;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.Medicine;
-import com.medbox.server.domain.MedicineStock;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
-import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.GuardianRelationMapper;
 import com.medbox.server.mapper.MedicineMapper;
-import com.medbox.server.mapper.MedicineStockMapper;
 import com.medbox.server.mapper.UserMapper;
 import com.medbox.server.support.TableInfoWarmup;
 import java.io.Serializable;
@@ -52,11 +47,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * 药品档案 + 库存的集成测试（{@code feat/medicine-core}，见文档 02 第 5 章 / 06 的 2.4、2.5）。
+ * 药品档案的集成测试（{@code feat/medicine-core}，见文档 02c、06 的 2.4）。
  *
- * <p>真实链路：MockMvc → Controller → 真实 {@code MedicineService}/{@code MedicineStockService}
+ * <p>真实链路：MockMvc → Controller → 真实 {@code MedicineService}
  * → 真实 {@code AccessService} → 真实 {@code DeviceOwnerResolverImpl} → 打桩的 Mapper。
- * 公共药写要 FAMILY 监护人、私有药写要监护关系、越权一律 40301、删除有库存引用 40901 等规则都在这里验。
+ * 公共药写要 FAMILY 监护人、私有药写要监护关系、越权一律 40301、删除无引用校验等规则都在这里验。
  *
  * <p><b>不连真实 PostgreSQL</b>：{@code save/delete} 是 {@code @Transactional}，进入方法要开 JDBC 连接，
  * 用内嵌 H2 替换 DataSource（Mapper 仍是 mock、不跑真实 SQL）。
@@ -80,7 +75,6 @@ class MedicineCoreWebIntegrationTest {
     private static final String ELDER_ID = "u-1001";
     private static final String GUARDIAN_ID = "u-2001";
     private static final String STRANGER_ID = "u-9999";
-    private static final String DEVICE_ID = "BOXA1001";
 
     @Autowired
     private MockMvc mockMvc;
@@ -92,21 +86,15 @@ class MedicineCoreWebIntegrationTest {
     private MedicineMapper medicineMapper;
 
     @MockitoBean
-    private MedicineStockMapper medicineStockMapper;
-
-    @MockitoBean
     private UserMapper userMapper;
 
     @MockitoBean
     private GuardianRelationMapper guardianRelationMapper;
 
-    @MockitoBean
-    private DeviceMapper deviceMapper;
-
     @BeforeEach
     void setUp() {
-        // Mapper 被打桩后 MyBatis 不会为实体建表信息，而 list/medicineNames 的 in(...) 要立即解析列名 —— 先预热
-        TableInfoWarmup.init(Medicine.class, MedicineStock.class, User.class, GuardianRelation.class, Device.class);
+        // Mapper 被打桩后 MyBatis 不会为实体建表信息，而 list 的 in(...) 要立即解析列名 —— 先预热
+        TableInfoWarmup.init(Medicine.class, User.class, GuardianRelation.class);
         when(userMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<User>>any())).thenReturn(elder(ELDER_ID));
     }
 
@@ -261,135 +249,17 @@ class MedicineCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("删除：仍有库存引用 → 40901")
-    void 删除被库存引用返回_40901() throws Exception {
-        givenGuardianGuards(ELDER_ID);
-        when(medicineMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Medicine>>any()))
-                .thenReturn(medicine("m-1001", null, "阿莫西林"));
-        when(medicineStockMapper.selectCount(ArgumentMatchers.<LambdaQueryWrapper<MedicineStock>>any()))
-                .thenReturn(1L);   // 有库存引用
-
-        mockMvc.perform(delete("/api/v1/medicines/{medicineId}", "m-1001")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value(40901));
-
-        verify(medicineMapper, never()).deleteById(ArgumentMatchers.<Serializable>any());
-    }
-
-    @Test
-    @DisplayName("删除：无库存引用 → 200")
+    @DisplayName("删除：无引用校验，直接删除成功")
     void 删除无引用() throws Exception {
         givenGuardianGuards(ELDER_ID);
         when(medicineMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Medicine>>any()))
                 .thenReturn(medicine("m-1001", null, "阿莫西林"));
-        when(medicineStockMapper.selectCount(ArgumentMatchers.<LambdaQueryWrapper<MedicineStock>>any()))
-                .thenReturn(0L);
         when(medicineMapper.deleteById(ArgumentMatchers.<Serializable>any())).thenReturn(1);
 
         mockMvc.perform(delete("/api/v1/medicines/{medicineId}", "m-1001")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
-    }
-
-    // ————————————————— 库存 —————————————————
-
-    @Test
-    @DisplayName("库存列表：FAMILY 监护人看该药箱 → 200，带药名")
-    void 库存列表带药名() throws Exception {
-        givenGuardianGuards(ELDER_ID);
-        when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
-                .thenReturn(mainDevice(DEVICE_ID, ELDER_ID));
-        when(medicineStockMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<MedicineStock>>any()))
-                .thenReturn(List.of(stock("s-1001", DEVICE_ID, "m-1001", 5)));
-        when(medicineMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<Medicine>>any()))
-                .thenReturn(List.of(medicine("m-1001", null, "阿莫西林")));
-
-        mockMvc.perform(get("/api/v1/devices/{deviceId}/stocks", DEVICE_ID)
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].stockId").value("s-1001"))
-                .andExpect(jsonPath("$.data[0].medicineName").value("阿莫西林"));
-    }
-
-    @Test
-    @DisplayName("库存列表：设备不存在 → 40301（防设备编号枚举）")
-    void 设备不存在返回_40301() throws Exception {
-        when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
-                .thenReturn(null);
-
-        mockMvc.perform(get("/api/v1/devices/{deviceId}/stocks", "BOXA9999")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
-    }
-
-    @Test
-    @DisplayName("库存录入：FAMILY 监护人 → 200，新建一条库存")
-    void 库存录入新建() throws Exception {
-        givenGuardianGuards(ELDER_ID);
-        when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
-                .thenReturn(mainDevice(DEVICE_ID, ELDER_ID));
-        when(medicineMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Medicine>>any()))
-                .thenReturn(medicine("m-1001", null, "阿莫西林"));
-        when(medicineStockMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<MedicineStock>>any()))
-                .thenReturn(null);   // 还没有这条库存 → 新建
-        when(medicineStockMapper.nextStockId()).thenReturn("s-1001");
-        when(medicineStockMapper.insert(any(MedicineStock.class))).thenReturn(1);
-
-        mockMvc.perform(put("/api/v1/devices/{deviceId}/stocks/{medicineId}", DEVICE_ID, "m-1001")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"quantity":5}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.stockId").value("s-1001"))
-                .andExpect(jsonPath("$.data.quantity").value(5))
-                .andExpect(jsonPath("$.data.medicineName").value("阿莫西林"));
-    }
-
-    @Test
-    @DisplayName("补药入库：数量累加 → 200（5 + 3 = 8）")
-    void 补药入库累加() throws Exception {
-        givenGuardianGuards(ELDER_ID);
-        when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
-                .thenReturn(mainDevice(DEVICE_ID, ELDER_ID));
-        when(medicineMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Medicine>>any()))
-                .thenReturn(medicine("m-1001", null, "阿莫西林"));
-        when(medicineStockMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<MedicineStock>>any()))
-                .thenReturn(stock("s-1001", DEVICE_ID, "m-1001", 5));   // 已有 5
-        when(medicineStockMapper.updateById(any(MedicineStock.class))).thenReturn(1);
-
-        mockMvc.perform(post("/api/v1/devices/{deviceId}/stocks/{medicineId}/in", DEVICE_ID, "m-1001")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"quantity":3}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.quantity").value(8));
-    }
-
-    @Test
-    @DisplayName("库存录入：引用的药品不存在 → 40401")
-    void 库存引用药品不存在返回_40401() throws Exception {
-        givenGuardianGuards(ELDER_ID);
-        when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
-                .thenReturn(mainDevice(DEVICE_ID, ELDER_ID));
-        when(medicineMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Medicine>>any()))
-                .thenReturn(null);   // 药品不存在
-
-        mockMvc.perform(put("/api/v1/devices/{deviceId}/stocks/{medicineId}", DEVICE_ID, "m-9999")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"quantity":5}
-                                """))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(40401));
     }
 
     // ————————————————— 辅助 —————————————————
@@ -422,17 +292,6 @@ class MedicineCoreWebIntegrationTest {
         return m;
     }
 
-    private static MedicineStock stock(String stockId, String deviceId, String medicineId, int quantity) {
-        MedicineStock s = new MedicineStock();
-        s.setId(1L);
-        s.setStockId(stockId);
-        s.setDeviceId(deviceId);
-        s.setElderId(ELDER_ID);
-        s.setMedicineId(medicineId);
-        s.setQuantity(quantity);
-        return s;
-    }
-
     private static GuardianRelation relation(String elderId, String guardianId, RelationStatus status) {
         GuardianRelation r = new GuardianRelation();
         r.setRelationId("r-1001");
@@ -448,13 +307,5 @@ class MedicineCoreWebIntegrationTest {
         u.setRole(UserRole.ELDER);
         u.setName("张三");
         return u;
-    }
-
-    private static Device mainDevice(String deviceId, String elderId) {
-        Device d = new Device();
-        d.setDeviceId(deviceId);
-        d.setElderId(elderId);
-        // parentDeviceId 留空 = 主控，resolver 直接取 elder_id，不会二次查库
-        return d;
     }
 }

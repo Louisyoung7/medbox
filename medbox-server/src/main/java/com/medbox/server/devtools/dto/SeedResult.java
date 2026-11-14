@@ -36,9 +36,6 @@ public record SeedResult(
         /** 播种出的药品业务 ID 列表（含公共药与私有药）。 */
         List<String> medicineIds,
 
-        /** 播种出的库存业务 ID。 */
-        String stockId,
-
         /** 播种出的计划业务 ID（计划只含格号排程）。 */
         String planId
 ) {

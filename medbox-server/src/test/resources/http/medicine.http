@@ -1,12 +1,11 @@
 @baseUrl = http://localhost:8080/medbox/api/v1
 
 # ============================================================
-# 药品与库存 · 调试脚本
+# 药品档案 · 调试脚本
 # 前置：先跑 auth.http 的「登录」拿到 token
-# 契约详见 medbox-spec/02c_药品与库存.md
+# 契约详见 medbox-spec/02c_药品档案.md
 #   - POST /medicines 新建与更新同接口：带 medicineId=更新，不带=创建
-#   - 库存按「药箱 + 药品」管理；PUT 的 quantity 为绝对值，POST /in 为增量
-#   - productionDate / expiryDate 为 DATE，收发 "YYYY-MM-DD"，不做时区换算
+#   - 药品为纯档案记录，无库存台账
 #   药品档案的「禁忌 / 储存条件」等字段以 medbox-spec/06 药品表为准
 # ============================================================
 
@@ -28,28 +27,6 @@ Authorization: Bearer {{login.response.body.$.data.token}}
 GET {{baseUrl}}/medicines/m-205
 Authorization: Bearer {{login.response.body.$.data.token}}
 
-### 删除药品（无任何药箱库存引用时才允许，否则 40901）
+### 删除药品
 DELETE {{baseUrl}}/medicines/m-205
-Authorization: Bearer {{login.response.body.$.data.token}}
-
-### 药箱库存清单（按药品：数量、生产日期、有效期）
-GET {{baseUrl}}/devices/d-1001/stocks
-Authorization: Bearer {{login.response.body.$.data.token}}
-
-### 录入 / 更新库存（quantity 为绝对值，覆盖写）
-PUT {{baseUrl}}/devices/d-1001/stocks/m-205
-Authorization: Bearer {{login.response.body.$.data.token}}
-Content-Type: application/json
-
-{ "quantity": 30, "productionDate": "2026-01-01", "expiryDate": "2027-01-01" }
-
-### 补药入库（quantity 为增量）
-POST {{baseUrl}}/devices/d-1001/stocks/m-205/in
-Authorization: Bearer {{login.response.body.$.data.token}}
-Content-Type: application/json
-
-{ "quantity": 10 }
-
-### 移除该药品库存
-DELETE {{baseUrl}}/devices/d-1001/stocks/m-205
 Authorization: Bearer {{login.response.body.$.data.token}}

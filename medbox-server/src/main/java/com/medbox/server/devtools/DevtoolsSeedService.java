@@ -8,7 +8,6 @@ import com.medbox.server.devtools.dto.SeedResult;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.Medicine;
-import com.medbox.server.domain.MedicineStock;
 import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.PlanReminder;
 import com.medbox.server.domain.PlanSlot;
@@ -21,11 +20,9 @@ import com.medbox.server.domain.enums.UserStatus;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.GuardianRelationMapper;
 import com.medbox.server.mapper.MedicineMapper;
-import com.medbox.server.mapper.MedicineStockMapper;
 import com.medbox.server.mapper.MedPlanMapper;
 import com.medbox.server.mapper.PlanReminderMapper;
 import com.medbox.server.mapper.UserMapper;
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -40,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 种子数据编排：以"系统身份"直接经各 {@code Mapper} 直写最小数据集，绕开服务层的 AuthContext / 权限校验。
  *
  * <p><b>计划按格排程</b>：种子计划只写 {@code slots}（格号 → 开格时间），不再写计划药品明细；
- * 药品与库存是独立的手工台账。种子计划不触发 {@code PlanSyncEvent}（无设备时不产生 SYNC_FAILED 噪音）。
+ * 种子计划不触发 {@code PlanSyncEvent}（无设备时不产生 SYNC_FAILED 噪音）。
  *
  * <p><b>幂等</b>：监护人已存在则整批跳过；{@code reset=true} 先按外键逆序清掉种子数据再重种。
  */
@@ -50,7 +47,6 @@ public class DevtoolsSeedService {
 
     private static final String MED_PUBLIC = "m-205";
     private static final String MED_PRIVATE = "m-206";
-    private static final String STOCK_ID = "s-debug-001";
     private static final String PLAN_ID = "p-3301";
     private static final String RELATION_ID = "r-debug-001";
 
@@ -58,7 +54,6 @@ public class DevtoolsSeedService {
     private final GuardianRelationMapper guardianRelationMapper;
     private final DeviceMapper deviceMapper;
     private final MedicineMapper medicineMapper;
-    private final MedicineStockMapper medicineStockMapper;
     private final MedPlanMapper medPlanMapper;
     private final PlanReminderMapper planReminderMapper;
     private final PasswordHasher passwordHasher;
@@ -67,14 +62,13 @@ public class DevtoolsSeedService {
 
     public DevtoolsSeedService(UserMapper userMapper, GuardianRelationMapper guardianRelationMapper,
             DeviceMapper deviceMapper, MedicineMapper medicineMapper,
-            MedicineStockMapper medicineStockMapper, MedPlanMapper medPlanMapper,
+            MedPlanMapper medPlanMapper,
             PlanReminderMapper planReminderMapper,
             PasswordHasher passwordHasher, JwtProvider jwtProvider, DevtoolsProperties props) {
         this.userMapper = userMapper;
         this.guardianRelationMapper = guardianRelationMapper;
         this.deviceMapper = deviceMapper;
         this.medicineMapper = medicineMapper;
-        this.medicineStockMapper = medicineStockMapper;
         this.medPlanMapper = medPlanMapper;
         this.planReminderMapper = planReminderMapper;
         this.passwordHasher = passwordHasher;
@@ -103,7 +97,6 @@ public class DevtoolsSeedService {
         insertGuardianAndElder(s);
         insertDevices(s);
         insertMedicines(s);
-        insertStock(s);
         insertPlan(s);
     }
 
@@ -118,7 +111,6 @@ public class DevtoolsSeedService {
         String deviceId = s.getDeviceId();
         planReminderMapper.delete(new QueryWrapper<PlanReminder>().eq("plan_id", PLAN_ID));
         medPlanMapper.delete(new QueryWrapper<MedPlan>().eq("plan_id", PLAN_ID));
-        medicineStockMapper.delete(new QueryWrapper<MedicineStock>().eq("device_id", deviceId));
         deviceMapper.delete(new QueryWrapper<Device>().eq("device_id", deviceId));
         deviceMapper.delete(new QueryWrapper<Device>().likeRight("device_id", deviceId + "-S-"));
         medicineMapper.delete(new QueryWrapper<Medicine>().in("medicine_id", MED_PUBLIC, MED_PRIVATE));
@@ -212,19 +204,6 @@ public class DevtoolsSeedService {
         medicineMapper.insert(privateMed);
     }
 
-    private void insertStock(DevtoolsProperties.Seed s) {
-        MedicineStock stock = new MedicineStock();
-        stock.setStockId(STOCK_ID);
-        stock.setDeviceId(s.getDeviceId());
-        stock.setElderId(s.getElderUserId());
-        stock.setMedicineId(MED_PUBLIC);
-        stock.setQuantity(30);
-        stock.setProductionDate(LocalDate.of(2026, 1, 1));
-        stock.setExpiryDate(LocalDate.of(2027, 12, 31));
-        stock.setUpdatedAt(OffsetDateTime.now());
-        medicineStockMapper.insert(stock);
-    }
-
     /** 只排 1 号格，时间为设备本地当前时刻 +2 分钟，便于提醒扫描立即命中；不含药品明细。 */
     private void insertPlan(DevtoolsProperties.Seed s) {
         ZoneId zone = ZoneId.of(s.getTimezone());
@@ -252,6 +231,6 @@ public class DevtoolsSeedService {
         String elderToken = jwtProvider.issue(s.getElderUserId(), UserRole.ELDER.name(), TokenType.ACCESS);
         return new SeedResult(created, s.getGuardianUserId(), s.getGuardianPhone(), guardianToken,
                 s.getElderUserId(), s.getElderPhone(), elderToken, s.getDeviceId(),
-                medicineIds, STOCK_ID, PLAN_ID);
+                medicineIds, PLAN_ID);
     }
 }
