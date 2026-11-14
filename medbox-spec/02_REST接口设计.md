@@ -1,9 +1,9 @@
 # 02 · REST 接口设计
 
 > 所有路径均相对 Base URL：`http://{后端主机内网IP}:8080/medbox/api/v1`　|　变更历史看 `git log -- medbox-spec/`
-> 标注【鉴权】表示需携带 JWT，监护数据类接口需校验权限。AI 相关接口见文档 05。
+> 标注【鉴权】表示需携带 JWT，监护数据类接口需校验权限。AI 相关接口见文档 05，机器可读契约见 `openapi/02i-ai.yaml`。
 >
-> **接口契约（端点 / 字段 / 响应示例 / 错误码）以 `openapi/*.yaml` 为事实源**（经 redocly lint；可读 WebUI `openapi/api-docs-*.html`，调试页 `openapi/swagger-ui.html?spec=<模块>.yaml`）。本文件只写**通用约定**，`02a`~`02h` 分册只写**判定规则表、边界用例与口径说明**；三者分工互不重复，不一致即视为缺陷。
+> **接口契约（端点 / 字段 / 响应示例 / 错误码）以 `openapi/*.yaml` 为事实源**（经 redocly lint；可读 WebUI `openapi/api-docs-*.html`，调试页 `openapi/swagger-ui.html?spec=<模块>.yaml`）。本文件只写**通用约定**；`02a`~`02h` 分册只写**判定规则表、边界用例与口径说明**（AI 的对应内容在 `05`，契约在 `02i-ai.yaml`）。三者分工互不重复，不一致即视为缺陷。
 
 ## 1. 通用约定
 
