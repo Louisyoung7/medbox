@@ -14,12 +14,13 @@ export const WS_EVENT = {
   DEVICE_STATUS: 'DEVICE_STATUS',
   REMINDER: 'REMINDER',
   AI_STREAM: 'AI_STREAM',
+  AI_INSIGHT: 'AI_INSIGHT',
   PONG: 'PONG',
   RESYNC: 'RESYNC',
 }
 
 /** 会推进 `lastEventId` 的业务帧（PONG 不在此列）。 */
-const BUSINESS_TYPES = [WS_EVENT.ALARM, WS_EVENT.DEVICE_STATUS, WS_EVENT.REMINDER]
+const BUSINESS_TYPES = [WS_EVENT.ALARM, WS_EVENT.DEVICE_STATUS, WS_EVENT.REMINDER, WS_EVENT.AI_INSIGHT]
 
 /** 子设备类型中文名。 */
 const DEVICE_TYPE_LABEL = {
@@ -97,6 +98,8 @@ export function describeFrame(frame) {
       const label = cellLabel(payload.cellNo)
       return label ? `服药提醒：${label}` : '服药提醒：请按时服药'
     }
+    case WS_EVENT.AI_INSIGHT:
+      return 'AI 健康洞察已更新'
     case WS_EVENT.RESYNC:
       return '离线期间事件已过期，请刷新列表'
     case WS_EVENT.PONG:

@@ -4,12 +4,14 @@ import {
   AI_TYPES,
   AI_PROVIDERS,
   MAX_RANGE_DAYS,
+  AI_DISCLAIMER_FALLBACK,
   SCHEDULE_FREQUENCIES,
   buildInsightRange,
   buildInsightPayload,
   initialState,
   applyInsightFrame,
   parseInsight,
+  parseAiInsightPayload,
   parseLlmConfig,
   validateLlmConfig,
   maskApiKey,
@@ -144,5 +146,23 @@ describe('utils/ai —— LLM 配置纯函数（05 第 2.1 章 FP-8）', () => {
     const empty = parseLlmConfig()
     expect(empty.apiKeyMask).toBe('')
     expect(empty.enabled).toBe(false)
+  })
+})
+
+describe('utils/ai —— 周期洞察 WS 帧', () => {
+  it('AI_INSIGHT payload 解析出 content / citations / disclaimer', () => {
+    const d = parseAiInsightPayload({
+      insightId: 'ai-1', elderId: 'u-1001', type: 'COMPREHENSIVE',
+      content: '近 7 天漏服集中在晚间', citations: ['med_record#r-1'], disclaimer: '仅供参考',
+    })
+    expect(d.content).toBe('近 7 天漏服集中在晚间')
+    expect(d.citations).toEqual(['med_record#r-1'])
+    expect(d.disclaimer).toBe('仅供参考')
+  })
+
+  it('缺字段兜底：缺 disclaimer 用本地文案，缺 content 为空串', () => {
+    expect(parseAiInsightPayload({}).disclaimer).toBe(AI_DISCLAIMER_FALLBACK)
+    expect(parseAiInsightPayload({}).content).toBe('')
+    expect(parseAiInsightPayload({ citations: null }).citations).toEqual([])
   })
 })

@@ -69,22 +69,23 @@ describe('ai —— 同步洞察 / 周期设置 请求层', () => {
 
   it('getInsightSchedule GET 带 elderId', async () => {
     const { ai } = await loadApi()
-    scripts = [{ body: { code: 0, data: { elderId: 'u-1001', enabled: false, frequency: 'DAILY' } } }]
+    scripts = [{ body: { code: 0, data: { elderId: 'u-1001', enabled: false, cadence: 'DAILY' } } }]
     const data = await ai.getInsightSchedule({ elderId: 'u-1001' })
     expect(sent[0].method).toBe('GET')
     expect(sent[0].url).toContain('/medbox/api/v1/ai/insight/schedule')
     expect(sent[0].url).toContain('elderId=u-1001')
     expect(data.enabled).toBe(false)
+    expect(data.cadence).toBe('DAILY')
   })
 
-  it('putInsightSchedule PUT 带 elderId(query) + frequency(body) + X-Request-Id', async () => {
+  it('putInsightSchedule PUT 带 elderId(query) + cadence(body) + X-Request-Id', async () => {
     const { ai } = await loadApi()
-    scripts = [{ body: { code: 0, data: { elderId: 'u-1001', enabled: true, frequency: 'WEEKLY' } } }]
-    await ai.putInsightSchedule({ elderId: 'u-1001', frequency: 'WEEKLY' })
+    scripts = [{ body: { code: 0, data: { elderId: 'u-1001', enabled: true, cadence: 'WEEKLY' } } }]
+    await ai.putInsightSchedule({ elderId: 'u-1001', cadence: 'WEEKLY' })
     expect(sent[0].method).toBe('PUT')
     expect(sent[0].url).toContain('/medbox/api/v1/ai/insight/schedule')
     expect(sent[0].url).toContain('elderId=u-1001')
-    expect(sent[0].data.frequency).toBe('WEEKLY')
+    expect(sent[0].data.cadence).toBe('WEEKLY')
     expect(sent[0].header['X-Request-Id']).toBeDefined()
   })
 })
