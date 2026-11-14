@@ -344,7 +344,7 @@ components:
   schemas:
     InsightType:
       type: string
-      enum: [ADHERENCE, ENV_CORRELATION, TREND, COMPREHENSIVE]
+      enum: [ADHERENCE, ENV_CORRELATION, TREND, MEDICATION_SAFETY, COMPREHENSIVE]
       description: 分析维度；缺省 COMPREHENSIVE
 
     InsightRange:
