@@ -7,7 +7,7 @@
     <template v-else-if="medicine">
       <MbCard title="药品档案">
         <view class="name">{{ medicine.name }}</view>
-        <MbCell title="规格" :value="medicine.spec || '-'" />
+
         <MbCell
           title="默认单次剂量"
           :value="[medicine.dosePerTime, medicine.unit].filter(Boolean).join(' ') || '-'"

@@ -97,7 +97,7 @@ describe('medicine —— 请求层', () => {
     const { medicine } = await loadMedicineApi()
     scripts = [{ body: { code: 0, data: { medicineId: 'm-205', name: '阿莫西林胶囊' } } }]
 
-    const payload = { name: '阿莫西林胶囊', spec: '0.25g×24粒', contraindication: '过敏者禁用' }
+    const payload = { name: '阿莫西林胶囊', contraindication: '过敏者禁用' }
     const data = await medicine.saveMedicine(payload)
 
     expect(data.medicineId).toBe('m-205')

@@ -34,7 +34,7 @@ export function listMedicines(params, options) {
  *
  * @param {string} medicineId 药品编号（如 `m-205`）
  * @param {Object} [options] 透传请求选项
- * @returns {Promise<Object>} `medicineId` / `ownerElderId`(空=公共字典) / `name` / `spec` /
+ * @returns {Promise<Object>} `medicineId` / `ownerElderId`(空=公共字典) / `name` / `spec`(后端仍存，前端已不展示) /
  *   `dosePerTime`(默认单次剂量) / `unit` / `contraindication`(禁忌) /
  *   `storageCond`(储存条件) / `createdAt`(UTC)
  * @throws {ApiError} 40101 / 40301（他人私有药品）/ 40401 / -1
@@ -49,7 +49,7 @@ export function getMedicine(medicineId, options) {
  * <p>**不传 `ownerElderId` 即公共字典**（全体可见只读）；归属某老人则传其 `userId`。
  *
  * @param {Object} payload 请求体（由 `src/utils/medicine.js` 的 {@link buildMedicinePayload} 组装）：
- *   `medicineId`(仅编辑) / `name`(必填) / `spec` / `dosePerTime` / `unit` /
+ *   `medicineId`(仅编辑) / `name`(必填) / `dosePerTime` / `unit` /
  *   `contraindication` / `storageCond` / `ownerElderId`(不传 = 公共)
  * @param {Object} [options] 透传请求选项（如 `loading: '保存中'`）
  * @returns {Promise<Object>} 保存后的药品档案
