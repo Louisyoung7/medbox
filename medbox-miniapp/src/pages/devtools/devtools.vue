@@ -303,7 +303,7 @@ export default {
      *
      * <p>**为什么回显这么全**（topic / msgId / 效果说明）：早期只弹一个"已发送"toast，
      * 用户点了看不出任何变化 —— 而 7 个预设里只有 3 个服药类真落库，其余四个 topic 的
-     * 后端分支（env-core / device-sensor / device-fault / inventory-consume）还没落地，
+     * 后端分支（env-core / device-sensor / device-fault）还没落地的 topic，
      * 发了就是"仅记日志"。不把这话说清楚，用户只会以为功能坏了。
      */
     async onSendSim(preset) {

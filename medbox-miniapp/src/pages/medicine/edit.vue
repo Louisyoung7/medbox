@@ -49,7 +49,7 @@ import { listDevices } from '@/api/device.js'
 import { CODE } from '@/api/request.js'
 import { buildMedicinePayload } from '@/utils/medicine.js'
 
-/** 表单初始值（规格字段前端已移除，不再收集）。 */
+/** 表单初始值。 */
 function emptyForm() {
   return {
     medicineId: '',

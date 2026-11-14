@@ -36,10 +36,10 @@ function createSeed() {
   // 监护关系（06 的 2.2）：PENDING 用于验证 40302；REVOKED 用于验证"看不到任何数据"。
   // createdAt 为 UTC（02 的 3.2：pending 列表按 createdAt 升序、申请响应回带）
   const relations = [
-    { relationId: 'gr-1', guardianId: 'u-2001', elderId: 'u-1001', role: 'FAMILY', status: 'ACTIVE', createdAt: isoOffset(-30 * DAY) },
-    { relationId: 'gr-2', guardianId: 'u-2001', elderId: 'u-1002', role: 'FAMILY', status: 'ACTIVE', createdAt: isoOffset(-25 * DAY) },
-    { relationId: 'gr-3', guardianId: 'u-2002', elderId: 'u-1001', role: 'FAMILY', status: 'PENDING', createdAt: isoOffset(-2 * DAY) },
-    { relationId: 'gr-4', guardianId: 'u-2003', elderId: 'u-1001', role: 'FAMILY', status: 'REVOKED', createdAt: isoOffset(-10 * DAY) },
+    { relationId: 'gr-1', guardianId: 'u-2001', elderId: 'u-1001', status: 'ACTIVE', createdAt: isoOffset(-30 * DAY) },
+    { relationId: 'gr-2', guardianId: 'u-2001', elderId: 'u-1002', status: 'ACTIVE', createdAt: isoOffset(-25 * DAY) },
+    { relationId: 'gr-3', guardianId: 'u-2002', elderId: 'u-1001', status: 'PENDING', createdAt: isoOffset(-2 * DAY) },
+    { relationId: 'gr-4', guardianId: 'u-2003', elderId: 'u-1001', status: 'REVOKED', createdAt: isoOffset(-10 * DAY) },
   ]
 
   // 设备（06 的 2.3）：MAIN 主控 + 传感器子设备；子设备 elderId 与父一致
@@ -186,7 +186,7 @@ function createSeed() {
   ]
 
   // 服药记录（02e / 06 的 2.7）：一条 = 某计划某号格某次时间窗内的一次取药事实；
-  // 只带 cellNo / takenResult / source，不关联药品、剂量，记录新增与纠错都不改库存。
+  // 只带 cellNo / takenResult / source，不关联药品、剂量。
   const records = [
     {
       recordId: 'rec-9001', elderId: 'u-1001', planId: 'p-3301', cellNo: 1,

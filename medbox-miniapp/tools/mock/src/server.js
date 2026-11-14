@@ -163,7 +163,7 @@ function requireDevice(user, deviceId) {
   return device
 }
 
-/** 写操作（药品档案 = WRITE_MEDICINE，仅 FAMILY）；elderId 必填（药品必归属老人）。 */
+/** 写操作（药品档案 = WRITE_MEDICINE，仅 GUARDIAN）；elderId 必填（药品必归属老人）。 */
 function requireWrite(user, elderId) {
   if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
   if (!elderId) throw new BizError(40001, 'ownerElderId 不能为空')
@@ -338,7 +338,7 @@ async function handleListEvents(req, res, deviceId, query) {
 /**
  * 下发控制命令（`POST /devices/{deviceId}/commands`）：异步受理，返回 {commandId, state:PENDING}；
  * Mock 同步落一条 COMMAND 事件（state=SUCCESS）模拟设备 ack（真实后端经 up/ack 异步驱动，见 02 第 4 章）。
- * 设备离线 → 40901；cmd 非法 → 40001；仅监护人（WRITE_DEVICE 仅 FAMILY）可下发。
+ * 设备离线 → 40901；cmd 非法 → 40001；仅监护人（WRITE_DEVICE）可下发。
  */
 async function handleCommand(req, res, deviceId, body) {
   const user = requireUser(req)
@@ -682,8 +682,7 @@ async function handleMarkAlarmRead(req, res, alarmId) {
 }
 
 /**
- * 处理/确认告警（`PATCH /alarms/{alarmId}/handle`）：`HANDLE_ALARM` = FAMILY + NURSE；小程序注册角色
- * 仅 GUARDIAN，故此处只放行 GUARDIAN（DOCTOR/NURSE/ELDER 写返回 40301，真后端仍按 HANDLE_ALARM 强校验）。
+ * 处理/确认告警（`PATCH /alarms/{alarmId}/handle`）：`HANDLE_ALARM` 仅 GUARDIAN；ELDER 写返回 40301。
  */
 async function handleHandleAlarm(req, res, alarmId) {
   const user = requireUser(req)
@@ -712,7 +711,7 @@ async function handleGetAlarmSettings(req, res, query) {
 }
 
 /**
- * 配置告警阈值（`PUT /alarm-settings`）：`WRITE_ALARM_SETTINGS` 仅 FAMILY（DOCTOR/NURSE/ELDER → 40301）。
+ * 配置告警阈值（`PUT /alarm-settings`）：`WRITE_ALARM_SETTINGS` 仅 GUARDIAN（ELDER → 40301）。
  * 字段可选、仅提供项覆盖原值（elderId 走 query）。
  */
 async function handleSaveAlarmSettings(req, res, query, body) {
