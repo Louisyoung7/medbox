@@ -2,7 +2,7 @@
  * 服药计划接口（medbox-spec/02d_服药计划与提醒.md / openapi/02d-plans.yaml）——全部需鉴权。
  *
  * <p>固定 3 药格模型：计划只含 `slots`（`[{cellNo: 1|2|3, time: "HH:mm"}]`），
- * 不关联药品、剂量与库存。`slots[].time` 为**设备本地墙钟**（如 `"08:00"`），不是 UTC；
+ * 不关联药品、剂量。`slots[].time` 为**设备本地墙钟**（如 `"08:00"`），不是 UTC；
  * 前端只做字符串校验与按格号排序，**不做任何时区换算**。
  *
  * <p>一老人一计划（`med_plan.elder_id` 唯一）：`GET /plans?elderId=` 返回 0 或 1 条；

@@ -90,7 +90,7 @@
         </view>
 
         <text v-if="confirmMode === 'edit'" class="confirm-body__text">
-          仅纠正该记录的取药结论；不改计划时间，也不改库存。
+          仅纠正该记录的取药结论；不改计划时间。
         </text>
         <template v-else>
           <text class="confirm-body__text">补录一条按格记录（路径记录号由后端忽略）：</text>

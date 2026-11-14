@@ -76,7 +76,7 @@
 
       <MbCell
         title="一键播种数据"
-        label="监护人 / 老人 / 药箱 / 药品 / 库存 / 按格计划"
+        label="监护人 / 老人 / 药箱 / 药品 / 按格计划"
         value="POST /_debug/seed"
         arrow
         clickable

@@ -72,9 +72,8 @@ function errorText(err) {
   return (err && err.message) || '加载失败'
 }
 
-/** 删除失败文案：40901 是药品域最有信息量的一个码（被库存引用）。 */
+/** 删除失败文案按 code 细分（请求已 silent）。 */
 function deleteErrorText(err) {
-  if (err && err.code === CODE.CONFLICT) return '该药品已被药箱库存引用，无法删除'
   if (err && err.code === CODE.GUARDIAN_PENDING) return '监护关系未生效，请等待老人确认'
   return (err && err.message) || '删除失败，请稍后再试'
 }

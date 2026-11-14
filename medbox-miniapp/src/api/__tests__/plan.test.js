@@ -1,7 +1,7 @@
 /**
  * 计划接口的**请求层链路**测试（固定 3 药格模型，对应 medbox-spec/02d）。
  *
- * <p>与 `stock.test.js` / `medicine.test.js` 同一套打桩方式：stub `uni.request`，
+ * <p>与 `medicine.test.js` 同一套打桩方式：stub `uni.request`，
  * URL / 方法 / Bearer / 请求体 / 错误码分流走 `src/api/request.js` 真实实现。
  *
  * <p>请求体只含 `slots`（格号 → 开格时间）；40901 = 该老人已有计划，

@@ -3,7 +3,7 @@
  *
  * <p>固定 3 药格模型：服药事件由设备经 **HTTP captures** 上报（带 `cellNo` + `takenResult`），
  * 旧 MQTT `up/event/dispense` 入口已下线；本页的 MQTT 预设只用于验证消息到达后端，
- * **不再落服药记录**。库存是监护人手工台账，系统不按服药事件自动扣减。
+ * **不再落服药记录**。
  *
  * <p>业务 ID 与后端 `DevtoolsProperties` 的种子参数对齐（种子计划只排 1 号格）。
  */
@@ -14,8 +14,6 @@ import { CODE } from '@/utils/error.js'
 export const SIM_DEFAULT_DEVICE_ID = 'BOXA-DEBUG-01'
 
 const SIM_PLAN_ID = 'p-3301'
-/** 库存手工台账预设用的药品 ID（与格位无关）。 */
-const SIM_STOCK_MEDICINE_ID = 'm-205'
 /** 传感器 ID 由主控 deviceId 派生。 */
 const SIM_SENSOR_TH = 'BOXA-DEBUG-01-S-TH01'
 const SIM_SENSOR_LX = 'BOXA-DEBUG-01-S-LX01'
@@ -60,7 +58,7 @@ function wallClockTs(dayOffset, hour, minute) {
  * 模拟事件预设表（驱动页面里的预设列表）。
  *
  * <p>`effect` 区分「仅记日志」与「真落库」：当前服药事件已改走 HTTP captures，
- * MQTT 预设全部只被日志兜底处理器记录、不改数据；库存台账也不随上报变化。
+ * MQTT 预设全部只被日志兜底处理器记录、不改数据。
  *
  * <p>服药类 `dayOffset` 由调用方每次递增传入：后端有第二层业务幂等
  * `uk_med_record_cell_plan_time`（`(plan_id, cell_no, plan_time)` 部分唯一索引），
@@ -145,21 +143,6 @@ export const SIM_EVENT_PRESETS = [
       ts: Date.now(),
       type: 'DOOR_TIMEOUT',
       detail: '仓门开启超过 60s 未关闭（模拟上报）',
-    }),
-  },
-  {
-    key: 'inventory',
-    label: '库存变更',
-    subTopic: 'inventory',
-    desc: '构造库存变更报文（仅记日志）',
-    effect: 'log',
-    effectNote: '库存是监护人手工台账，系统不按服药事件自动扣减；此预设不改库存数量',
-    build: (deviceId) => ({
-      msgId: nextSimMsgId(deviceId),
-      ts: Date.now(),
-      medicineId: SIM_STOCK_MEDICINE_ID,
-      quantity: 13,
-      delta: 1,
     }),
   },
 ]

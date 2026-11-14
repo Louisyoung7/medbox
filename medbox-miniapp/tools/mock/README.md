@@ -8,7 +8,7 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、245 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、237 项检查、跑完即关
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 ```
 
@@ -20,10 +20,10 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 
 | 账号 | 角色 | 姓名 | 用途 |
 |------|------|------|------|
-| 13800001234 | GUARDIAN | 张伟 | 监护 2 位老人（ACTIVE），可读写药品 / 库存 |
+| 13800001234 | GUARDIAN | 张伟 | 监护 2 位老人（ACTIVE），可读写药品档案 |
 | 13800001235 | GUARDIAN | 王芳 | 对 u-1001 关系 PENDING → 验证 **40302** 提示 |
 | 13800001236 | GUARDIAN | 周杰 | 关系 REVOKED → 列表为空、访问 40301 |
-| 13900000001 | ELDER | 张桂英 | 只读本人；写操作（新建药品 / 库存）→ **40301** |
+| 13900000001 | ELDER | 张桂英 | 只读本人；写操作（新建药品）→ **40301** |
 | 13900000002 | ELDER | 李德海 | 只读本人 |
 
 > 监护绑定演示：张伟（u-2001）已 ACTIVE 监护两位老人；王芳（u-2002）对 u-1001 **PENDING** → 张桂英登录后可在"监护关系"页看到待确认请求；周杰（u-2003）关系 REVOKED → 可在"监护关系"页对李德海（u-1002）重新申请（复活为 PENDING）。
@@ -34,15 +34,14 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `GET /devices`、`GET /devices/{id}`（含 `sensors[]`）
 - `GET /devices/{id}/events`（事件流水：分页、按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`detail` 对 FAULT 为故障码、对 COMMAND 为 `{commandId,cmd,state}`，`feat/mp-device-extra`：`REGISTERED`/`ONLINE`/`OFFLINE` 由 device-core 播种，`FAULT`/`COMMAND` 由 device-fault/device-command 续写，Mock 已播种样例）
 - `POST /devices/{id}/commands`（下发控制命令：异步受理回 `{commandId,state:PENDING}`，`cmd` ∈ `BUZZ`/`UNLOCK`/`CALIBRATE`/`REBOOT`；设备离线 → **40901**；`cmd` 非法 → **40001**；仅监护人（WRITE_DEVICE 仅 GUARDIAN）→ **40301**；子设备编号 → **40301**；Mock 同步落一条 COMMAND 事件（state=SUCCESS）模拟设备 ack）
-- `GET /medicines`（分页 + keyword，返回 `{list,total}`）、`GET /medicines/{id}`、`POST /medicines`（新建/更新同一入口）、`DELETE /medicines/{id}`（被库存引用 → **40901**）
-- `GET /devices/{id}/stocks`（裸数组）、`PUT .../stocks/{medicineId}`（数量绝对值）、`POST .../stocks/{medicineId}/in`（数量增量）、`DELETE .../stocks/{medicineId}`
+- `GET /medicines`（分页 + keyword，返回 `{list,total}`）、`GET /medicines/{id}`、`POST /medicines`（新建/更新同一入口）、`DELETE /medicines/{id}`（纯档案记录，直接删，无引用校验）
 - `GET /plans?elderId=`（一老人一计划，0 或 1 条）、`GET /plans/{id}`（含 `slots`）、`POST /plans`、`PUT /plans/{id}`（整体覆盖，未提交的格号即停用）、`PATCH /plans/{id}/status`（请求体契约 `{status:'ENABLED'|'DISABLED'}`）、`DELETE /plans/{id}`（无明细级联）
-  - 业务校验照 02d：`slots` 为空 / 超过 3 项 / 格号越界或重复 / 时间格式错 → **40001**；同一 `elderId` 重复创建 → **40901**；老人写操作 → **40301**；PENDING 监护 → **40302**。计划不校验药品与库存
+  - 业务校验照 02d：`slots` 为空 / 超过 3 项 / 格号越界或重复 / 时间格式错 → **40001**；同一 `elderId` 重复创建 → **40901**；老人写操作 → **40301**；PENDING 监护 → **40302**。计划不校验药品
   - 种子含 3 个计划（覆盖 ENABLED/DISABLED、1~3 个格位、两位老人）；`slots[].time` 为设备本地墙钟，格号 1/2/3 固定对应早/中/晚，回显按格号升序（前端 `normalizeSlots` 归一化）
 - `GET /plans/{id}/next-doses`（未来待服时间线，按格展开；`days` 默认 7 上限 60，越界 → **40001**；`scheduledTimeLocal` 按设备本地墙钟（Mock 用本地日期）；停用计划返回空；每条含 `cellNo`，**不含药品信息**；未知计划 → **40401**；权限同计划：越权 → **40301**、PENDING → **40302**、未登录 → **40101**）
 - `GET /env/realtime`（`feat/mp-env`：最新温湿光读数，合并各传感器最新非空读数；`deviceId` 必填、`sensorId` 可选按传感器查；`requireDevice(deviceId, READ_ENV)`，越权 / 子设备编号 / 不存在 → **40301**、`deviceId` 缺 → **40001**、未登录 → **40101**；温湿度与光照分两条 `env_sample` 入库，本接口合并两者最新非空读数，`sampleTime` 取较新者）
 - `GET /env/history`（`feat/mp-env`：历史曲线；`deviceId` 必填、`from`/`to` 必填（ISO-8601 UTC，含端点）、`interval` 可选（分钟 1~1440，分桶 `avg()` 聚合，缺省返回原始有序点）；按 `sensorId` 查只筛该传感器 `device_id`，否则按 `gateway_device_id` 筛其下全部传感器；`from`/`to` 缺省 / `from>to` / `interval` 越界 / 跨度 >30 天 → **40001**；权限同实时 → **40301**/**40101**；响应 `{ points: [{ sampleTime, temperature, humidity, lux }] }`，原始模式单行只带一类数值其余 `null`、分桶模式 `avg()` 忽略 `null`）
-- `POST /ai/insight`（`feat/mp-ai-insight`：按需洞察同步，05 第 2.2 章；`body`：`{elderId, type, range{from,to}, deviceId?}`，`type` ∈ `ADHERENCE/STOCK/ENV_CORRELATION/TREND/COMPREHENSIVE`；`requireElder`，缺 `elderId` → **40001**、越权/他人 → **40301**、PENDING → **40302**、未登录 → **40101**、`range` 跨度 >30 天 → **40001**；未配 LLM Key（05 第 2.1，`llm_config` 未启用）→ **50310**；响应 `{elderId,type,range,content,citations[],disclaimer}`，不落库、仅供参考）
+- `POST /ai/insight`（`feat/mp-ai-insight`：按需洞察同步，05 第 2.2 章；`body`：`{elderId, type, range{from,to}, deviceId?}`，`type` ∈ `ADHERENCE/ENV_CORRELATION/TREND/COMPREHENSIVE`（库存维度已随台账下线移除）；`requireElder`，缺 `elderId` → **40001**、越权/他人 → **40301**、PENDING → **40302**、未登录 → **40101**、`range` 跨度 >30 天 → **40001**；未配 LLM Key（05 第 2.1，`llm_config` 未启用）→ **50310**；响应 `{elderId,type,range,content,citations[],disclaimer}`，不落库、仅供参考）
 - `POST /ai/insight/stream`（同契约的**流式**版：SSE `text/event-stream`，逐帧 `data: {"type":"delta","content":"…"}` 累计文本，收尾 `data: {"type":"done","citations":[…],"disclaimer":"…"}`（`data:` 前缀 + 空行分隔，与真后端 `SseEmitter` 对齐）；未配 Key 时直接返回 **50310** 错误 JSON，前端按整段错误解析）
 - `GET /ai/insight/schedule?elderId=`（周期洞察设置查询，05 第 2.3 章；`requireElder`；默认 `{enabled:false,frequency:"DAILY"}`）
 - `PUT /ai/insight/schedule?elderId=`（周期洞察开关 + 节奏，`frequency` ∈ `DAILY/WEEKLY`；**仅 GUARDIAN** 可写，老人写 → **40301**）
@@ -68,10 +67,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 
 ## 可验证的场景
 
-- 库存有效期（expiryDate）仅作记录项由监护人录入，系统不再据其标注临期/过期：BOXA1001 各药有效期取值不同（含未填），演示数据随运行日期漂移
-- 删除被库存引用的药品 → 40901 弹窗提示；先移除库存再删 → 成功
-- 录入数量填 0 / 小数 / 非数字 → 40001（前端先拦，Mock 兜底）
-- 补药入库：数量为增量，日期选填（不传不更新）
+- 药品为纯档案记录（不建模库存）：删除药品直接成功，无"被库存引用"校验
 - 老人端登录 → 写入口隐藏、直接调写接口 40301
 - token 过期自动续期：`MOCK_ACCESS_TTL_MS=15000 npm run mock`，等 15s 后再操作，页面无感续期
 - 监护绑定：王芳登录 → 对 u-1001 重复申请 40901；张桂英登录 → 待确认列表见王芳，确认后王芳即可读 u-1001 数据；周杰对 u-1001 重新申请（REVOKED 复活）→ 确认前访问 40302；撤销 / 拒绝后关系 REVOKED，可再次申请
@@ -79,7 +75,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - 设备命令与事件（feat/mp-device-extra）：张伟（监护人）进 BOXA1001 详情 →「远程控制」卡可点 蜂鸣/解锁/校准/重启，下发后显示"下发中"并在事件列表落一条 COMMAND 成功事件；切到离线设备 BOXA1002 下发 → 提示"设备离线，无法下发"（40901）；张桂英（老人）无「远程控制」卡（WRITE_DEVICE 仅监护人）；「设备事件」卡与事件全量页可读 上线/离线/设备异常（FAULT）/控制命令 流水（Mock 播种了 门超时/硬件故障 两条异常）
 - 告警（feat/mp-alarm）：张伟（监护人）首页「告警」卡显示未读数 → 进告警列表（u-1001 共 4 条，3 未读），可按类型/已读筛选、上拉加载；点未读项进详情 →「标记已读」后未读数 -1；「处理/确认」按钮仅监护人可见（张桂英点 → 40301）；张桂英（老人）登录也能看自己告警列表但无处理按钮；进「告警设置」（仅监护台，老人不可见）改 提前期/环境上限 后保存，再查回显合并结果（老人保存 → 40301）
 - 环境监测（feat/mp-env）：张伟进 BOXA1001 详情 →「环境监测」卡进环境监测页 → 实时三卡（温度/湿度/光照）显示当前值，对照告警设置里的环境阈值区间做超标高亮（偏高红 / 偏低蓝）；历史曲线选「近1天/近7天/近30天」「原始/10分钟/1小时/1天」「全部/温湿度/光照」组合，折线随筛选重绘（自绘 canvas，温/湿/光各一段独立缩放、阈值虚线标示合规区）；切到「全部」时三指标同时画、切「光照」时只剩光照一条；时间跨度选超过 30 天 → 40001（前端不暴露该选项，Mock 兜底）；张桂英（老人）也能看（READ_ENV 全角色）
-- AI 健康洞察（feat/mp-ai-insight）：张伟「我的」页 →「AI 健康洞察」卡进洞察页 → 选维度（漏服/库存/环境关联/趋势/综合）→ 选时间范围（近7/14/30天）→「生成洞察」→ 文本**逐字流式**出现（SSE 逐帧），结尾展开 citations 引用锚点 + disclaimer 横幅；老人张桂英也能进（只鉴权）；切到监护人才可见的「周期洞察」开关 + 每日/每周 → 保存即时回显；给未配 Key 的老人（u-1002）生成 → 提示"AI 助手暂未开通"（50310）；张桂英尝试改周期洞察 → 40301
+- AI 健康洞察（feat/mp-ai-insight）：张伟「我的」页 →「AI 健康洞察」卡进洞察页 → 选维度（漏服/环境关联/趋势/综合）→ 选时间范围（近7/14/30天）→「生成洞察」→ 文本**逐字流式**出现（SSE 逐帧），结尾展开 citations 引用锚点 + disclaimer 横幅；老人张桂英也能进（只鉴权）；切到监护人才可见的「周期洞察」开关 + 每日/每周 → 保存即时回显；给未配 Key 的老人（u-1002）生成 → 提示"AI 助手暂未开通"（50310）；张桂英尝试改周期洞察 → 40301
 - AI 大模型配置（feat/mp-ai-config）：张伟「我的」页 →「AI 健康洞察」卡进洞察页 → 监护人区「配置 AI Key」按钮 → 进配置页（老人无此入口，RoleGate 隐藏）；进页自动 GET 回填（已配时只展示脱敏 `sk****abcd`，不展示明文）→ 填 provider/baseUrl/model/apiKey →「连通测试」（Mock 不真正出网，Key 格式合法即成功）→「保存」（PUT 只回 `apiKeyMask`，明文不留存）→ 保存后展示脱敏值；「清除配置」二次确认后 DELETE 回落未配置；张桂英无入口、即便直调写操作 → 40301
 
 ## 测试辅助
@@ -92,8 +88,7 @@ curl -X POST http://127.0.0.1:8080/medbox/api/v1/__mock__/reset   # 重置内存
 
 - **WebSocket 为最小实现**：`/medbox/ws` 完成握手 + `ping`/`pong` 心跳（首页状态条显示已连接），**不推业务帧**（ALARM / DEVICE_STATUS / REMINDER 留待真后端）。
 - 纯内存，重启即还原种子数据；不校验密码强度、不做限流。
-- 补药入库对"该药箱尚无此药品库存"从宽按首录处理（真实后端行为待定）。
-- 字段名假设（stocks 裸数组、`{list,total}`、PUT/POST-in 请求体、PATCH `{status}`）以 `medbox-spec/02` 第 5 / 6 章"小程序侧口径"为准，后端定稿后两处一起收紧。
+- 字段名假设（药品分页 `{list,total}`、PATCH `{status}`）以 `medbox-spec/02` 第 5 / 6 章"小程序侧口径"为准，后端定稿后两处一起收紧。
 
 ## 目录
 

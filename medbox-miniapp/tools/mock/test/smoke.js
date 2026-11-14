@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-miniapp/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 245 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 237 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -162,28 +162,9 @@ async function waitReady() {
     check('老人读他人私有药品 40301', (await call('GET', '/medicines/m-205', { token: elder.token })).code === 40301)
     check('老人写药品 40301', (await call('POST', '/medicines', { token: elder.token, body: { name: '测试' } })).code === 40301)
 
-    console.log('== 库存四条 ==')
-    const stocks = await call('GET', '/devices/BOXA1001/stocks', { token: gw.token })
-    check('BOXA1001 库存 4 行', stocks.code === 0 && Array.isArray(stocks.data) && stocks.data.length === 4)
-    check('未填有效期的行省略字段', !('expiryDate' in stocks.data.find((s) => s.medicineId === 'm-204')))
-    const put = await call('PUT', '/devices/BOXA1001/stocks/m-206', { token: gw.token, body: { quantity: 6, productionDate: '2026-09-01', expiryDate: '2027-03-31' } })
-    check('PUT 录入（绝对值）', put.code === 0 && put.data.quantity === 6)
-    const put2 = await call('PUT', '/devices/BOXA1001/stocks/m-206', { token: gw.token, body: { quantity: 3 } })
-    check('PUT 覆盖为 3 且保留日期', put2.code === 0 && put2.data.quantity === 3 && put2.data.expiryDate === '2027-03-31')
-    check('PUT 数量 0 -> 40001', (await call('PUT', '/devices/BOXA1001/stocks/m-206', { token: gw.token, body: { quantity: 0 } })).code === 40001)
-    check('PUT 数量 1.5 -> 40001', (await call('PUT', '/devices/BOXA1001/stocks/m-206', { token: gw.token, body: { quantity: 1.5 } })).code === 40001)
-    check('PUT 缺数量 -> 40001', (await call('PUT', '/devices/BOXA1001/stocks/m-206', { token: gw.token, body: {} })).code === 40001)
-    check('PUT 日期格式错 -> 40001', (await call('PUT', '/devices/BOXA1001/stocks/m-206', { token: gw.token, body: { quantity: 1, expiryDate: '2027/01/01' } })).code === 40001)
-    const restock = await call('POST', '/devices/BOXA1001/stocks/m-206/in', { token: gw.token, body: { quantity: 4 } })
-    check('POST /in 增量 3+4=7', restock.code === 0 && restock.data.quantity === 7)
-    check('老人写库存 40301', (await call('PUT', '/devices/BOXA1001/stocks/m-201', { token: elder.token, body: { quantity: 1 } })).code === 40301)
-    check('PENDING 写库存 40302', (await call('PUT', '/devices/BOXA1001/stocks/m-201', { token: pending.token, body: { quantity: 1 } })).code === 40302)
-    const delStock = await call('DELETE', '/devices/BOXA1001/stocks/m-206', { token: gw.token })
-    check('DELETE 移除库存', delStock.code === 0)
-    check('DELETE 不存在的行 40401', (await call('DELETE', '/devices/BOXA1001/stocks/m-206', { token: gw.token })).code === 40401)
-
-    console.log('== 药品删除 40901 ==')
-    check('被库存引用 40901', (await call('DELETE', '/medicines/m-201', { token: gw.token })).code === 40901)
+    console.log('== 药品删除（纯档案，直接删） ==')
+    check('删除成功', (await call('DELETE', '/medicines/m-201', { token: gw.token })).code === 0)
+    check('删除后再读 40401', (await call('GET', '/medicines/m-201', { token: gw.token })).code === 40401)
 
     console.log('== 注册 / 注销 / 刷新 ==')
     const reg = await call('POST', '/auth/register', { body: { phone: '13700009999', password: '123456', role: 'GUARDIAN', name: '测试号' } })
@@ -352,7 +333,7 @@ async function waitReady() {
     })
     const aiHappy = await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'COMPREHENSIVE', 14) })
     check('AI 同步洞察 u-1001 200 且 content/citations/disclaimer', aiHappy.code === 0 && typeof aiHappy.data.content === 'string' && aiHappy.data.content.length > 0 && Array.isArray(aiHappy.data.citations) && typeof aiHappy.data.disclaimer === 'string')
-    check('AI 同步五维度均 200', (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'ADHERENCE', 7) })).code === 0 && (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'STOCK', 7) })).code === 0 && (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'ENV_CORRELATION', 7) })).code === 0 && (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'TREND', 7) })).code === 0)
+    check('AI 同步四维度均 200（STOCK 维度已下线）', (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'ADHERENCE', 7) })).code === 0 && (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'ENV_CORRELATION', 7) })).code === 0 && (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1001', 'TREND', 7) })).code === 0)
     check('AI 未配 Key（u-1002） → 50310', (await call('POST', '/ai/insight', { token: gw.token, body: aiBody('u-1002', 'COMPREHENSIVE', 7) })).code === 50310)
     check('AI 跨度 >30 天 → 40001', (await call('POST', '/ai/insight', { token: gw.token, body: { elderId: 'u-1001', type: 'COMPREHENSIVE', range: { from: iso(new Date(now.getTime() - 31 * 86400000)), to: iso(now) } } })).code === 40001)
     check('AI 缺 elderId → 40001', (await call('POST', '/ai/insight', { token: gw.token, body: { type: 'COMPREHENSIVE', range: { from: iso(new Date(now.getTime() - 7 * 86400000)), to: iso(now) } } })).code === 40001)
@@ -592,8 +573,8 @@ async function waitReady() {
     console.log('== 重置 ==')
     const reset = await call('POST', '/__mock__/reset')
     check('reset 恢复种子数据', reset.code === 0)
-    const after = await call('GET', '/devices/BOXA1001/stocks', { token: gw.token })
-    check('reset 后库存回到 4 行', after.data.length === 4)
+    const after = await call('GET', '/medicines?page=1&size=1', { token: gw.token })
+    check('reset 后药品回到种子总量', after.code === 0 && after.data.total === 6)
 
     console.log(`\n结果: ${pass} 通过 / ${fail} 失败`)
   } finally {

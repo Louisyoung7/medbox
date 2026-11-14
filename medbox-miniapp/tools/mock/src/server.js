@@ -2,7 +2,7 @@
  * medbox 临时 Mock 后端（medbox-miniapp/tools/mock，**前端测试专用，不替代 medbox-server**）。
  *
  * 用途：后端接口未落地期间，用假数据把小程序（H5 / 微信开发者工具）跑通：
- * 登录注册、设备、药品、库存四条全部按 medbox-spec/02 的形状返回，错误码与权限口径
+ * 登录注册、设备、药品等全部按 medbox-spec/02 的形状返回，错误码与权限口径
  * （02 的 1.2 / 1.3）也按文档模拟，方便前端验证各分支的提示与拦截。
  *
  * 运行：
@@ -11,7 +11,7 @@
  *   # MOCK_ACCESS_TTL_MS=15000 npm run mock   # access token 15s 过期，验证 40101 自动续期
  *
  * 端到端测试（AI 完工时自动跑，见 AGENTS.md 3.1）：
- *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 245 项检查、跑完即关
+ *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 237 项检查、跑完即关
  *
  * 用法：把 .env.local 的 VITE_SERVER_HOST 指向运行本脚本的机器 IP（127.0.0.1 亦可），
  * 小程序侧无需任何改动；H5 联调走既有的 Vite 反代（/medbox → 127.0.0.1:8080）。
@@ -163,7 +163,7 @@ function requireDevice(user, deviceId) {
   return device
 }
 
-/** 写操作（药品档案与库存、补药入库 = WRITE_MEDICINE，仅 FAMILY；前端同口径只给监护人显入口）。
+/** 写操作（药品档案 = WRITE_MEDICINE，仅 FAMILY；前端同口径只给监护人显入口）。
  *  elderId 为空 = 公共字典：只校验角色，不校验关系。 */
 function requireWrite(user, elderId) {
   if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
@@ -203,21 +203,6 @@ function toDeviceSummary(device) {
   if (device.lastHeartbeat) summary.lastHeartbeat = device.lastHeartbeat
   summary.sensorCount = state.devices.filter((d) => d.parentDeviceId === device.deviceId).length
   return summary
-}
-
-function toStockRow(stock) {
-  const row = {
-    stockId: stock.stockId,
-    deviceId: stock.deviceId,
-    elderId: stock.elderId,
-    medicineId: stock.medicineId,
-    quantity: stock.quantity,
-  }
-  // 后端全局 non_null：空日期字段直接省略
-  if (stock.productionDate) row.productionDate = stock.productionDate
-  if (stock.expiryDate) row.expiryDate = stock.expiryDate
-  row.updatedAt = stock.updatedAt
-  return row
 }
 
 // ---------------------------------------------------------------- 处理器
@@ -447,121 +432,14 @@ async function handleDeleteMedicine(req, res, medicineId) {
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
   if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
-  // 无任何药箱库存引用时才允许删除（02 第 5 章）
-  if (state.stocks.some((s) => s.medicineId === medicineId)) {
-    throw new BizError(40901, '药品仍被库存引用，无法删除')
-  }
+  // 纯档案记录，无引用校验，直接删（02 第 5 章）
   state.medicines = state.medicines.filter((m) => m.medicineId !== medicineId)
-  ok(res, null)
-}
-
-async function handleListStocks(req, res, deviceId) {
-  const user = requireUser(req)
-  requireDevice(user, deviceId)
-  // 响应形状：02 第 5 章口径"暂按裸数组"（前端 parseStocks 容错 {list} 等）
-  const list = state.stocks.filter((s) => s.deviceId === deviceId).map(toStockRow)
-  ok(res, list)
-}
-
-/** 录入/更新与补药入库共用的参数校验（PUT 绝对值 / POST-in 增量在调用方区分）。 */
-function validateStockBody(body) {
-  const quantity = Number(body.quantity)
-  if (!Number.isInteger(quantity) || quantity <= 0) {
-    throw new BizError(40001, 'quantity 必须为正整数')
-  }
-  const productionDate = body.productionDate ? String(body.productionDate) : ''
-  const expiryDate = body.expiryDate ? String(body.expiryDate) : ''
-  if (productionDate && !isValidDate(productionDate)) {
-    throw new BizError(40001, 'productionDate 格式应为 YYYY-MM-DD')
-  }
-  if (expiryDate && !isValidDate(expiryDate)) {
-    throw new BizError(40001, 'expiryDate 格式应为 YYYY-MM-DD')
-  }
-  return { quantity, productionDate, expiryDate }
-}
-
-/** 定位库存行并做设备 + 药品 + 写权限校验，返回 { device, medicine, stock }。 */
-function resolveStockContext(user, deviceId, medicineId) {
-  const device = requireDevice(user, deviceId)
-  const medicine = state.medicines.find((m) => m.medicineId === medicineId)
-  if (!medicine) throw new BizError(40401, '资源不存在')
-  const access = medicineAccess(user, medicine)
-  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
-  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
-  requireWrite(user, device.elderId)
-  const stock = state.stocks.find((s) => s.deviceId === deviceId && s.medicineId === medicineId) || null
-  return { device, medicine, stock }
-}
-
-async function handleSaveStock(req, res, deviceId, medicineId, body) {
-  const user = requireUser(req)
-  const { device } = resolveStockContext(user, deviceId, medicineId)
-  const { quantity, productionDate, expiryDate } = validateStockBody(body)
-  const existing = state.stocks.find((s) => s.deviceId === deviceId && s.medicineId === medicineId)
-  if (existing) {
-    existing.quantity = quantity // PUT：绝对值覆盖
-    if (productionDate) existing.productionDate = productionDate
-    if (expiryDate) existing.expiryDate = expiryDate
-    existing.updatedAt = isoNow()
-    ok(res, toStockRow(existing))
-    return
-  }
-  const stock = {
-    stockId: `st-${Date.now().toString(36)}`,
-    deviceId,
-    elderId: device.elderId,
-    medicineId,
-    quantity,
-    productionDate,
-    expiryDate,
-    updatedAt: isoNow(),
-  }
-  state.stocks.push(stock)
-  ok(res, toStockRow(stock))
-}
-
-async function handleRestockStock(req, res, deviceId, medicineId, body) {
-  const user = requireUser(req)
-  const { device } = resolveStockContext(user, deviceId, medicineId)
-  const { quantity, productionDate, expiryDate } = validateStockBody(body)
-  const existing = state.stocks.find((s) => s.deviceId === deviceId && s.medicineId === medicineId)
-  if (existing) {
-    existing.quantity += quantity // POST /in：增量
-    if (productionDate) existing.productionDate = productionDate
-    if (expiryDate) existing.expiryDate = expiryDate
-    existing.updatedAt = isoNow()
-    ok(res, toStockRow(existing))
-    return
-  }
-  // 该药箱还没有此药品库存： Mock 从宽按"首录"处理（真实后端行为待定，联调时对齐）
-  const stock = {
-    stockId: `st-${Date.now().toString(36)}`,
-    deviceId,
-    elderId: device.elderId,
-    medicineId,
-    quantity,
-    productionDate,
-    expiryDate,
-    updatedAt: isoNow(),
-  }
-  state.stocks.push(stock)
-  ok(res, toStockRow(stock))
-}
-
-async function handleDeleteStock(req, res, deviceId, medicineId) {
-  const user = requireUser(req)
-  resolveStockContext(user, deviceId, medicineId)
-  const index = state.stocks.findIndex((s) => s.deviceId === deviceId && s.medicineId === medicineId)
-  if (index === -1) throw new BizError(40401, '库存记录不存在')
-  state.stocks.splice(index, 1)
   ok(res, null)
 }
 
 // ---------------------------------------------------------------- 计划（02 第 6 章）
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
-
-// 库存是监护人独立维护的手工台账：不参与计划校验，系统不按服药事件自动扣减。
 
 function planAccess(user, plan) {
   if (!plan) return 'none'
@@ -596,7 +474,7 @@ function validatePlanBody(body) {
   return { elderId, name, slots, repeatRule }
 }
 
-/** 创建 / 更新共用业务校验：仅校验老人写权限；计划与药品、库存无关联。 */
+/** 创建 / 更新共用业务校验：仅校验老人写权限；计划不关联药品。 */
 function requirePlanWrite(user, normalized) {
   requireWrite(user, normalized.elderId)
 }
@@ -994,20 +872,17 @@ function aiInsightContent(type) {
   const citations = [
     'med_record#rec-12345',
     'alarm#MISS:u-1001-2026-10-20',
-    'medicine_stock#m-205',
     'env_sample#es-th-12',
   ]
   const map = {
     ADHERENCE:
       '近 14 天内，晚饭后时段漏服率较上旬上升约 18 个百分点，且与周末强相关；建议核查作息与提醒时间是否偏移。',
-    STOCK:
-      '库存台账显示二甲双胍剩余 10 片，低于建议下限，建议核对实际余量后补配；另有一批药品将在 12 天后到期，请提前处理。库存为监护人手工维护，系统不推算消耗速度。',
     ENV_CORRELATION:
       '近一周夜间光照偏低时段，按格取药记录中的未按时比例同步上升，二者或存在关联；建议改善夜间照明并复核服药提醒。',
     TREND:
       '近 30 天漏服与异常告警整体呈缓降趋势，但上周末出现反弹，建议持续关注周末时段。',
     COMPREHENSIVE:
-      '综合来看：晚饭后漏服偏高且与周末相关；二甲双胍库存偏低需核对补配；夜间光照偏低或影响按时取药；整体趋势缓降但周末反弹，建议复核提醒与照明。',
+      '综合来看：晚饭后漏服偏高且与周末相关；夜间光照偏低或影响按时取药；整体趋势缓降但周末反弹，建议复核提醒与照明。',
   }
   const content = map[type] || map.COMPREHENSIVE
   return {
@@ -1421,7 +1296,7 @@ async function handleConfirmRecord(req, res, recordId, body) {
   const user = requireUser(req)
   const record = state.records.find((r) => r.recordId === recordId)
   if (record) {
-    // 纠错：仅覆盖非空字段，source 恒 MANUAL；不改 planTime、不改库存
+    // 纠错：仅覆盖非空字段，source 恒 MANUAL；不改 planTime
     requireWrite(user, record.elderId)
     if (body && body.actualTime) record.actualTime = String(body.actualTime)
     if (body && (body.onTime === true || body.onTime === false)) record.onTime = body.onTime
@@ -1667,7 +1542,6 @@ function handleSeed(req, res, query) {
   const guardian = state.users.find((u) => u.userId === 'u-2001') || state.users[0]
   const elder = state.users.find((u) => u.role === 'ELDER') || state.users[0]
   const device = state.devices.find((d) => d.deviceType === 'MAIN')
-  const stock = state.stocks[0]
   const plan = state.plans[0]
   const guardianTokens = issueTokens(guardian)
   const elderTokens = issueTokens(elder)
@@ -1682,7 +1556,6 @@ function handleSeed(req, res, query) {
     elderToken: elderTokens.token,
     deviceId: device ? device.deviceId : 'BOXA1001',
     medicineIds: state.medicines.map((m) => m.medicineId),
-    stockId: stock ? stock.stockId : 's-1001',
     planId: plan ? plan.planId : 'p-3301',
   })
 }
@@ -1768,21 +1641,6 @@ const server = http.createServer(async (req, res) => {
     matched = /^\/medicines\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetMedicine(req, res, decodeURIComponent(matched[1]))
     if (req.method === 'DELETE' && matched) return await handleDeleteMedicine(req, res, decodeURIComponent(matched[1]))
-
-    // 鉴权：库存四条
-    matched = /^\/devices\/([^/]+)\/stocks$/.exec(sub)
-    if (req.method === 'GET' && matched) return await handleListStocks(req, res, decodeURIComponent(matched[1]))
-    matched = /^\/devices\/([^/]+)\/stocks\/([^/]+)\/in$/.exec(sub)
-    if (req.method === 'POST' && matched) {
-      return await handleRestockStock(req, res, decodeURIComponent(matched[1]), decodeURIComponent(matched[2]), await readBody(req))
-    }
-    matched = /^\/devices\/([^/]+)\/stocks\/([^/]+)$/.exec(sub)
-    if (req.method === 'PUT' && matched) {
-      return await handleSaveStock(req, res, decodeURIComponent(matched[1]), decodeURIComponent(matched[2]), await readBody(req))
-    }
-    if (req.method === 'DELETE' && matched) {
-      return await handleDeleteStock(req, res, decodeURIComponent(matched[1]), decodeURIComponent(matched[2]))
-    }
 
     // 鉴权：计划（02 第 6 章）
     if (req.method === 'GET' && sub === '/plans') return await handleListPlans(req, res, query)

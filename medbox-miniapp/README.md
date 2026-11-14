@@ -79,8 +79,8 @@ await publishDeviceEvent({                             // 服务端版 mosquitto
 })
 ```
 
-- 事件预设 6 种：服药·按时 / 服药·迟到 / 温湿度遥测 / 传感器心跳 / 设备异常 / 库存变更，报文与 `medbox-spec/03` 第 5 章示例同形态。
-- **每行预设右侧有「落库 / 仅日志」标签，发送后有结果面板**（topic + msgId + 效果说明 + 「去记录页查看」）。目前只有 `event/dispense` 有专属处理器（`dispense-consume` 已落地，写 `med_record` + 扣库存）；`telemetry` / `sensor/heartbeat` / `event/error` / `inventory` 对应的后端分支（`env-core` / `device-sensor` / `device-fault` / `inventory-consume`）**尚未落地**，消息只被 `LoggingUpMessageHandler` 兜底记一行日志、**不改任何数据** —— 点之前就会标出来，别期待界面变化。
+- 事件预设 5 种：服药·按时 / 服药·迟到 / 温湿度遥测 / 传感器心跳 / 设备异常，报文与 `medbox-spec/03` 第 5 章示例同形态。
+- **每行预设右侧有「落库 / 仅日志」标签，发送后有结果面板**（topic + msgId + 效果说明 + 「去记录页查看」）。目前只有 `event/dispense` 有专属处理器（`dispense-consume` 已落地，写 `med_record`）；`telemetry` / `sensor/heartbeat` / `event/error` 对应的后端分支（`env-core` / `device-sensor` / `device-fault`）**尚未落地**，消息只被 `LoggingUpMessageHandler` 兜底记一行日志、**不改任何数据** —— 点之前就会标出来，别期待界面变化。
 - **后端未开 `medbox.devtools.enabled` 时接口 404**，页面会用 `devtoolsErrorMessage` 提示"去后端开开关"，不会只说"服务端内部错误"。
 - ⚠️ **服药类预设的两个后端约束**（`utils/devtools-sim.js` 已按此构造，页面也有说明）：
   1. `onTime` 由后端拿 `ts` **现算**（`!actualTime.isAfter(planTime + 容忍)`），payload 里的 `onTime` 被忽略 —— 所以 `ts` 按"设备本地墙钟"构造（UTC+8，与 devtools 种子的 `device.timezone` 一致），而不是 `Date.now()`，否则下午点"按时"会落一条 `onTime=false` 的记录；
@@ -244,7 +244,7 @@ npm run test:all    # 单元测试 + 端到端一次跑完（AI 完工时的标�
 ```
 
 - 演示账号（密码统一 `123456`）：`13800001234` 监护人张伟（全读写）/ `13900000001` 老人张桂英（只读）/ `13800001235` 王芳（PENDING→40302）等，完整清单与场景见 `tools/mock/README.md`。
-- 接口形状、错误码、权限口径全部对照 `medbox-spec/02`；字段名假设（stocks 裸数组、`{list,total}`）后端定稿后两处一起收紧。
+- 接口形状、错误码、权限口径全部对照 `medbox-spec/02`；字段名假设（药品分页 `{list,total}`）后端定稿后两处一起收紧。
 - 重置数据：`curl -X POST http://127.0.0.1:8080/medbox/api/v1/__mock__/reset`。
 - ⚠️ 无 WebSocket：WS 状态条显示未连接属预期；**微信侧注意 WXSS 不支持通配符 `*`**（H5 测不出，小程序编译才报错）。
 

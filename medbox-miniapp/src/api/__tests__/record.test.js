@@ -1,7 +1,7 @@
 /**
  * 记录接口的**请求层链路**测试（`feat/mp-record`，对应 medbox-spec/02 第 7 章）。
  *
- * <p>与 `plan.test.js` / `stock.test.js` 同一套打桩方式：stub `uni.request`，
+ * <p>与 `plan.test.js` 同一套打桩方式：stub `uni.request`，
  * URL / 方法 / Bearer / 请求体 / 错误码分流走 `src/api/request.js` 真实实现。
  *
  * <p>⚠️ 后端 `record-core` 未落地：这里断言的是**前端契约**（02 第 7 章的路径与方法、

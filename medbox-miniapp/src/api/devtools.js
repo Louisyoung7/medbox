@@ -12,7 +12,7 @@
 import { post } from '@/api/request.js'
 
 /**
- * 一键播种最小链路数据集（监护人 + 老人 + 药箱 + 传感器 + 药品/库存 + 按格计划）。
+ * 一键播种最小链路数据集（监护人 + 老人 + 药箱 + 传感器 + 药品 + 按格计划）。
  *
  * <p>**幂等**：种子已存在时跳过写入（`created=false`），token 仍重新签发。
  *
@@ -20,7 +20,7 @@ import { post } from '@/api/request.js'
  * @param {Object} [options] 透传请求选项
  * @returns {Promise<Object>} `SeedResult`：
  *   `{created, guardianUserId, guardianPhone, guardianToken, elderUserId, elderPhone,
- *     elderToken, deviceId, medicineIds, stockId, planId}`
+ *     elderToken, deviceId, medicineIds, planId}`
  * @throws {ApiError} 网络失败（-1）；后端未开启调试端点时见 `devtoolsErrorMessage`
  */
 export function seedDebugData(reset = false, options) {
