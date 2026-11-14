@@ -14,6 +14,7 @@ export const AI_TYPE = {
   ADHERENCE: 'ADHERENCE',
   ENV_CORRELATION: 'ENV_CORRELATION',
   TREND: 'TREND',
+  MEDICATION_SAFETY: 'MEDICATION_SAFETY',
   COMPREHENSIVE: 'COMPREHENSIVE',
 }
 
@@ -26,6 +27,7 @@ export const AI_TYPES = [
   { value: 'ADHERENCE', label: '漏服分析', desc: '服药记录 + 计划提醒 + 漏服告警' },
   { value: 'ENV_CORRELATION', label: '环境关联', desc: '温湿光遥测 + 对应时段服药记录' },
   { value: 'TREND', label: '趋势预警', desc: '历史服药 / 告警趋势外推' },
+  { value: 'MEDICATION_SAFETY', label: '用药安全', desc: '监护人填写的药品说明（不联网）' },
   { value: 'COMPREHENSIVE', label: '综合洞察', desc: '以上全部维度（默认）' },
 ]
 

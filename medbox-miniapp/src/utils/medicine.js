@@ -22,7 +22,7 @@ import { ROLE } from '@/store/user.js'
  * @param {string} [form.name] 药品名
  * @param {string} [form.dosePerTime] 默认单次剂量
  * @param {string} [form.unit] 单位（片/粒/ml...）
- * @param {string} [form.contraindication] 禁忌
+ * @param {string} [form.description] 药品说明（监护人手动填写：成分/适应症/禁忌/注意事项）
  * @param {string} [form.storageCond] 储存条件
  * @param {string} [form.ownerElderId] 归属老人（必填）
  * @returns {Object} 请求体（只含非空字段）
@@ -40,7 +40,7 @@ export function buildMedicinePayload(form) {
   put('name', src.name)
   put('dosePerTime', src.dosePerTime)
   put('unit', src.unit)
-  put('contraindication', src.contraindication)
+  put('description', src.description)
   put('storageCond', src.storageCond)
   put('ownerElderId', src.ownerElderId)
   return payload

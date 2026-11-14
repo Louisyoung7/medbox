@@ -19,7 +19,7 @@ describe('buildMedicinePayload', () => {
       name: '  阿莫西林胶囊 ',
       dosePerTime: '',
       unit: '   ',
-      contraindication: null,
+      description: null,
       storageCond: '遮光密封',
       ownerElderId: '',
     })
@@ -48,6 +48,18 @@ describe('buildMedicinePayload', () => {
     })
 
     expect(payload).toEqual({ medicineId: 'm-205', name: '阿莫西林胶囊', ownerElderId: 'u-1001' })
+  })
+
+  it('新建：药品说明 trim 后下发（AI 用药安全洞察的唯一事实来源）', () => {
+    expect(buildMedicinePayload({
+      name: '阿莫西林胶囊',
+      description: '  主要成分：阿莫西林。禁忌：对青霉素过敏者禁用。  ',
+      ownerElderId: 'u-1001',
+    })).toEqual({
+      name: '阿莫西林胶囊',
+      description: '主要成分：阿莫西林。禁忌：对青霉素过敏者禁用。',
+      ownerElderId: 'u-1001',
+    })
   })
 
   it('name 为空时省略该字段（由页面必填校验先拦，40001 兜底）', () => {

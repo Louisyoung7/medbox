@@ -20,10 +20,12 @@ import {
 } from '@/utils/ai.js'
 
 describe('utils/ai —— 维度与范围', () => {
-  it('AI_TYPE / AI_TYPES 四个维度且含 COMPREHENSIVE 默认', () => {
-    expect(AI_TYPES).toHaveLength(4)
+  it('AI_TYPE / AI_TYPES 五个维度且含 COMPREHENSIVE 默认', () => {
+    expect(AI_TYPES).toHaveLength(5)
     expect(AI_TYPE.COMPREHENSIVE).toBe('COMPREHENSIVE')
+    expect(AI_TYPE.MEDICATION_SAFETY).toBe('MEDICATION_SAFETY')
     expect(AI_TYPES.map((t) => t.value)).toContain('ENV_CORRELATION')
+    expect(AI_TYPES.map((t) => t.value)).toContain('MEDICATION_SAFETY')
     expect(AI_TYPES.map((t) => t.value)).not.toContain('STOCK')
     expect(AI_TYPE.STOCK).toBeUndefined()
   })
