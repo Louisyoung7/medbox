@@ -33,7 +33,7 @@ public class Medicine{
     private String name;/** 药品名称。 */
     private String dosePerTime;/** 默认单次剂量（计划明细未指定时取此值）。 */
     private String unit;/** 药品单位。 */
-    private String contraindication;/** 禁忌。 */
+    private String description;/** 药品说明（监护人手动填写，AI 用药安全洞察的唯一事实来源）。 */
     private String storageCond;/** 存储条件。 */
     private OffsetDateTime createdAt;/** 创建时间。 */
 

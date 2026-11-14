@@ -35,6 +35,7 @@ public class AiInsightService {
 
     static final String DISCLAIMER = "本分析仅供参考，用药与设备调整请由监护人 / 医生决策。";
     static final String NO_DATA = "所选时间范围内暂无可用的结构化数据，无法生成有效分析。建议先补充服药记录 / 环境数据后再试。";
+    static final String NO_MEDICATION_DATA = "该老人暂无药品档案或药品说明，无法进行用药安全分析。请先补充药品说明后再试。";
     private static final String SYSTEM_PROMPT = """
         你是家用药品箱的用药数据分析助手。只根据用户提供的结构化统计做分析、预测、建议。
         硬性要求：
@@ -42,7 +43,9 @@ public class AiInsightService {
         2) 用"可能 / 倾向 / 建议核查"这类措辞，结论要能回到给定数据。
         3) 中文输出，分点、简短，不超过 400 字。
         """;
-    private static final List<String> BANNED = List.of("确诊", "停药", "换药", "加大剂量", "减少剂量", "自行加量");
+    private static final List<String> BANNED = List.of(
+            "确诊", "停药", "换药", "加大剂量", "减少剂量", "自行加量",
+            "禁止同服", "不得同服", "严禁同服");
     private static final int MAX_RANGE_DAYS = 90;
 
     private final AccessService accessService;
@@ -67,7 +70,8 @@ public class AiInsightService {
     public InsightResponse insight(InsightRequest request) {
         Premise p = prepare(request);
         if (p.context().empty()) {
-            return new InsightResponse(p.elderId(), p.type().name(), p.range(), NO_DATA, List.of(), DISCLAIMER);
+            return new InsightResponse(p.elderId(), p.type().name(), p.range(),
+                    noDataMessage(p.type()), List.of(), DISCLAIMER);
         }
         String content;
         try {
@@ -87,7 +91,7 @@ public class AiInsightService {
         streamExecutor.execute(() -> {
             try {
                 if (p.context().empty()) {
-                    send(emitter, Map.of("type", "delta", "content", NO_DATA));
+                    send(emitter, Map.of("type", "delta", "content", noDataMessage(p.type())));
                 } else {
                     // 不用 forEach：send 抛 IOException 是受检异常，lambda 里捕获不了；for 循环由外层 catch 兜底
                     for (String delta : gateway.stream(p.credentials(), SYSTEM_PROMPT, prompt(p)).toIterable()) {
@@ -125,12 +129,12 @@ public class AiInsightService {
         InsightContextBuilder.InsightContext ctx = contextBuilder.build(elderId, type, from, to);
         InsightRange range = new InsightRange(from, to);
         if (ctx.empty()) {
-            return new InsightResponse(elderId, type.name(), range, NO_DATA, List.of(), DISCLAIMER);
+            return new InsightResponse(elderId, type.name(), range,
+                    noDataMessage(type), List.of(), DISCLAIMER);
         }
         try {
             String content = gateway.complete(cred, SYSTEM_PROMPT,
-                    "分析维度：" + type + "\n时间范围（UTC）：" + from + " ~ " + to
-                            + "\n结构化数据：\n" + ctx.text());
+                    promptText(type, range, ctx.text()));
             return new InsightResponse(elderId, type.name(), range, sanitize(content),
                     ctx.citations(), DISCLAIMER);
         } catch (RuntimeException ex) {
@@ -157,8 +161,25 @@ public class AiInsightService {
     }
 
     private String prompt(Premise p) {
-        return "分析维度：" + p.type() + "\n时间范围（UTC）：" + p.range().from() + " ~ " + p.range().to()
-                + "\n结构化数据：\n" + p.context().text();
+        return promptText(p.type(), p.range(), p.context().text());
+    }
+
+    /** 公共提示词：用药安全维度额外声明"只依据监护人填写的说明"。 */
+    private String promptText(InsightType type, InsightRange range, String contextText) {
+        StringBuilder sb = new StringBuilder()
+                .append("分析维度：").append(type)
+                .append("\n时间范围（UTC）：").append(range.from()).append(" ~ ").append(range.to())
+                .append("\n结构化数据：\n").append(contextText);
+        if (type == InsightType.MEDICATION_SAFETY || type == InsightType.COMPREHENSIVE) {
+            sb.append("\n\n用药安全约束：只依据上下文【用药安全】中监护人填写的药品说明判断；")
+              .append("说明未提及的成分、适应症、禁忌、相互作用一律回答「说明未覆盖，无法判断」。")
+              .append("不得联网、不得引用说明之外的外部知识，不得给出诊断或停药 / 换药 / 剂量调整结论。");
+        }
+        return sb.toString();
+    }
+
+    private String noDataMessage(InsightType type) {
+        return type == InsightType.MEDICATION_SAFETY ? NO_MEDICATION_DATA : NO_DATA;
     }
 
     private String sanitize(String content) {

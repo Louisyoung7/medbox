@@ -47,7 +47,7 @@ public R<PageResult<MedicineSummaryResponse>>list(
     return R.ok(medicineService.list(keyword,page,size));
 }
 
-/** 药品详情（含禁忌 / 储存条件 / 创建时间）。 */
+/** 药品详情（含药品说明 / 储存条件 / 创建时间）。 */
 @GetMapping("/{medicineId}")
 public R<MedicineResponse> detail(@PathVariable ("medicineId") String medicineId){
     return R.ok(medicineService.detail(medicineId));

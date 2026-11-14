@@ -1,7 +1,7 @@
 package com.medbox.server.ai;
 
 public enum InsightType{
-    ADHERENCE,ENV_CORRELATION,TREND,COMPREHENSIVE;
+    ADHERENCE,ENV_CORRELATION,TREND,MEDICATION_SAFETY,COMPREHENSIVE;
 
     /** 空 → COMPREHENSIVE；未知 → null（调用方报 40001）。 */
     public static InsightType parse(String raw){
