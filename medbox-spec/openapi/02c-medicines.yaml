@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: medbox · 药品与库存（02c OpenAPI 版）
+  title: medbox · 药品档案（02c OpenAPI 版）
   description: |
-    `medbox-spec/02c_药品与库存.md` 的机器可读版。通用约定见 `common.yaml`。
-    库存是**独立手工台账**，与 1/2/3 号格无绑定、**不按服药事件自动扣减**；按「药箱 + 药品」管理（medicine_stock，06 §2.5）。
+    `medbox-spec/02c_药品档案.md` 的机器可读版。通用约定见 `common.yaml`。
+    药品档案是**纯手工记录**：仅记录"有哪些药"及其文字信息，**不记录数量与日期、不与药箱设备关联**（06 §2.4）。
   version: 1.0.0
 
 servers:
@@ -17,8 +17,6 @@ security:
 tags:
   - name: medicines
     description: 药品档案（公共字典 + 私有药品）
-  - name: stocks
-    description: 药箱库存（按药箱 + 药品）
 
 paths:
   /medicines:
@@ -118,7 +116,7 @@ paths:
       operationId: deleteMedicine
       tags: [medicines]
       summary: 删除药品档案【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
-      description: '无任何药箱库存引用时才允许（medicine_stock.medicine_id 存在记录 → 40901）。'
+      description: '药品档案无任何业务引用（计划 / 记录不关联药品），删除直接成功。'
       parameters:
         - $ref: '#/components/parameters/MedicineId'
         - $ref: './common.yaml#/components/parameters/XRequestId'
@@ -135,125 +133,6 @@ paths:
           $ref: './common.yaml#/components/responses/Forbidden'
         '409':
           $ref: './common.yaml#/components/responses/Conflict'
-
-  /devices/{deviceId}/stocks:
-    get:
-      operationId: listStocks
-      tags: [stocks]
-      summary: 药箱库存清单（按药品）【鉴权·WRITE_MEDICINE 读侧走 READ_MEDICINE】
-      description: |
-        列表行级字段即 06 §2.5（stockId/medicineId/quantity/productionDate/expiryDate/updatedAt），
-        **不内嵌药品摘要**——名称/规格/单位由客户端拉药品字典按 medicineId join。
-        查询他人设备与设备不存在一律 40301（不返回 40401，与 02b 同口径）。
-      parameters:
-        - $ref: './02b-devices.yaml#/components/parameters/DeviceId'
-      responses:
-        '200':
-          description: 库存清单（code=0）
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: './common.yaml#/components/schemas/R'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/MedicineStock'
-        '401':
-          $ref: './common.yaml#/components/responses/Unauthorized'
-        '403':
-          $ref: './common.yaml#/components/responses/Forbidden'
-
-  /devices/{deviceId}/stocks/{medicineId}:
-    put:
-      operationId: putStock
-      tags: [stocks]
-      summary: 录入 / 更新某药品库存【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
-      description: 'quantity 为绝对值（覆盖写）；两个日期均为 YYYY-MM-DD（DATE 列，选填，不传即不更新该列，无时区换算）。'
-      parameters:
-        - $ref: './02b-devices.yaml#/components/parameters/DeviceId'
-        - $ref: '#/components/parameters/MedicineId'
-        - $ref: './common.yaml#/components/parameters/XRequestId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StockUpdateRequest'
-      responses:
-        '200':
-          description: 录入/更新成功（code=0，data 为库存行）
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: './common.yaml#/components/schemas/R'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MedicineStock'
-        '400':
-          $ref: './common.yaml#/components/responses/BadRequest'
-        '401':
-          $ref: './common.yaml#/components/responses/Unauthorized'
-        '403':
-          $ref: './common.yaml#/components/responses/Forbidden'
-    delete:
-      operationId: deleteStock
-      tags: [stocks]
-      summary: 移除该药品库存【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
-      parameters:
-        - $ref: './02b-devices.yaml#/components/parameters/DeviceId'
-        - $ref: '#/components/parameters/MedicineId'
-        - $ref: './common.yaml#/components/parameters/XRequestId'
-      responses:
-        '200':
-          description: 移除成功（code=0）
-          content:
-            application/json:
-              schema:
-                $ref: './common.yaml#/components/schemas/R'
-        '401':
-          $ref: './common.yaml#/components/responses/Unauthorized'
-        '403':
-          $ref: './common.yaml#/components/responses/Forbidden'
-
-  /devices/{deviceId}/stocks/{medicineId}/in:
-    post:
-      operationId: stockIn
-      tags: [stocks]
-      summary: 补药入库（增加库存，可同时更新生产日期/有效期）【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
-      description: 'quantity 为增量（区别于 PUT 的覆盖写）；日期口径同 PUT（YYYY-MM-DD，选填）。'
-      parameters:
-        - $ref: './02b-devices.yaml#/components/parameters/DeviceId'
-        - $ref: '#/components/parameters/MedicineId'
-        - $ref: './common.yaml#/components/parameters/XRequestId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StockUpdateRequest'
-      responses:
-        '200':
-          description: 入库成功（code=0，data 为库存行）
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: './common.yaml#/components/schemas/R'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MedicineStock'
-        '400':
-          $ref: './common.yaml#/components/responses/BadRequest'
-        '401':
-          $ref: './common.yaml#/components/responses/Unauthorized'
-        '403':
-          $ref: './common.yaml#/components/responses/Forbidden'
 
 components:
   securitySchemes:
@@ -318,46 +197,3 @@ components:
           nullable: true
           description: 不传即公共字典；传某老人 userId 即其私有药品
         # 禁忌 / 储存条件等字段见 06 §2.4，随后端实现追加
-
-    MedicineStock:
-      type: object
-      properties:
-        stockId:
-          type: string
-          example: st-3001
-        medicineId:
-          type: string
-          example: m-205
-        quantity:
-          type: integer
-          example: 20
-        productionDate:
-          type: string
-          format: date
-          nullable: true
-          description: YYYY-MM-DD（DATE 列，无时区换算）
-        expiryDate:
-          type: string
-          format: date
-          nullable: true
-        updatedAt:
-          type: string
-          format: date-time
-
-    StockUpdateRequest:
-      type: object
-      required: [quantity]
-      properties:
-        quantity:
-          type: integer
-          description: PUT=绝对值（覆盖写）；POST /in=增量
-          example: 20
-        productionDate:
-          type: string
-          format: date
-          nullable: true
-          description: YYYY-MM-DD，选填，不传即不更新该列
-        expiryDate:
-          type: string
-          format: date
-          nullable: true
