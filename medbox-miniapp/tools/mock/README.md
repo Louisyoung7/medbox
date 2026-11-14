@@ -43,8 +43,8 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
 - `GET /env/history`（`feat/mp-env`：历史曲线；`deviceId` 必填、`from`/`to` 必填（ISO-8601 UTC，含端点）、`interval` 可选（分钟 1~1440，分桶 `avg()` 聚合，缺省返回原始有序点）；按 `sensorId` 查只筛该传感器 `device_id`，否则按 `gateway_device_id` 筛其下全部传感器；`from`/`to` 缺省 / `from>to` / `interval` 越界 / 跨度 >30 天 → **40001**；权限同实时 → **40301**/**40101**；响应 `{ points: [{ sampleTime, temperature, humidity, lux }] }`，原始模式单行只带一类数值其余 `null`、分桶模式 `avg()` 忽略 `null`）
 - `POST /ai/insight`（`feat/mp-ai-insight`：按需洞察同步，05 第 2.2 章；`body`：`{elderId, type, range{from,to}, deviceId?}`，`type` ∈ `ADHERENCE/ENV_CORRELATION/TREND/COMPREHENSIVE`；`requireElder`，缺 `elderId` → **40001**、越权/他人 → **40301**、PENDING → **40302**、未登录 → **40101**、`range` 跨度 >30 天 → **40001**；未配 LLM Key（05 第 2.1，`llm_config` 未启用）→ **50310**；响应 `{elderId,type,range,content,citations[],disclaimer}`，不落库、仅供参考）
 - `POST /ai/insight/stream`（同契约的**流式**版：SSE `text/event-stream`，逐帧 `data: {"type":"delta","content":"…"}` 累计文本，收尾 `data: {"type":"done","citations":[…],"disclaimer":"…"}`（`data:` 前缀 + 空行分隔，与真后端 `SseEmitter` 对齐）；未配 Key 时直接返回 **50310** 错误 JSON，前端按整段错误解析）
-- `GET /ai/insight/schedule?elderId=`（周期洞察设置查询，05 第 2.3 章；`requireElder`；默认 `{enabled:false,frequency:"DAILY"}`）
-- `PUT /ai/insight/schedule?elderId=`（周期洞察开关 + 节奏，`frequency` ∈ `DAILY/WEEKLY`；**仅 GUARDIAN** 可写，老人写 → **40301**）
+- `GET /ai/insight/schedule?elderId=`（周期洞察设置查询，05 第 2.3 章；`requireElder`；默认 `{enabled:false,cadence:"DAILY"}`）
+- `PUT /ai/insight/schedule?elderId=`（周期洞察开关 + 节奏，`cadence` ∈ `DAILY/WEEKLY`；**仅 GUARDIAN** 可写，老人写 → **40301**）
 - `GET /ai/config?elderId=`（AI Key 配置查询，05 第 2.1 章 FP-8；`requireElder`；**脱敏回显** `apiKeyMask`，**绝不回显明文**，无配置返回空 `apiKeyMask` + `enabled:false`）
 - `PUT /ai/config?elderId=`（AI Key 配置保存，`body`：`{provider,apiKey,model,baseUrl,enabled}`，**仅 GUARDIAN** 写；`provider`/`baseUrl`(http(s)://)/`model` 必填 → **40001**，老人 → **40301**；`apiKey` 仅当提供时更新，便于只改开关/地址；响应只回 `apiKeyMask`）
 - `POST /ai/config/test?elderId=`（连通测试，**仅 GUARDIAN** 写；**不真正出网**，按 Key 格式（`sk-` 开头且长度足够）模拟成功 / 失败，优先用本次提交的候选 Key 否则用已保存配置）

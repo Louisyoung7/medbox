@@ -247,7 +247,7 @@ export default {
       try {
         const data = await getInsightSchedule({ elderId: this.elderId })
         this.scheduleEnabled = !!data.enabled
-        if (data.frequency) this.scheduleFrequency = data.frequency
+        if (data.cadence) this.scheduleFrequency = data.cadence
       } catch (e) {
         console.warn('[ai] 周期洞察设置读取失败', e && e.code ? e.code : e)
       }
@@ -262,7 +262,7 @@ export default {
       try {
         await putInsightSchedule({
           elderId: this.elderId,
-          frequency: this.scheduleFrequency,
+          cadence: this.scheduleFrequency,
           enabled,
         })
       } catch (err) {
@@ -282,7 +282,7 @@ export default {
       try {
         await putInsightSchedule({
           elderId: this.elderId,
-          frequency: value,
+          cadence: value,
           enabled: this.scheduleEnabled,
         })
       } catch (err) {

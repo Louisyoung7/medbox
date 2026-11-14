@@ -41,6 +41,9 @@ export const SCHEDULE_FREQUENCIES = [
 /** 时间范围上限（天）：05 第 2.2 章 `range` 跨度 > 30 天由后端判 40001，前端封顶一致。 */
 export const MAX_RANGE_DAYS = 30
 
+/** 周期洞察缺 disclaimer 时的本地兜底（05 第 2.4 章：响应必带声明）。 */
+export const AI_DISCLAIMER_FALLBACK = '本分析仅供参考，用药与设备调整请由监护人 / 医生决策。'
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
@@ -141,6 +144,27 @@ export function parseInsight(data) {
     content: typeof d.content === 'string' ? d.content : '',
     citations: Array.isArray(d.citations) ? d.citations : [],
     disclaimer: typeof d.disclaimer === 'string' ? d.disclaimer : '',
+  }
+}
+
+/**
+ * 容错解析 WS `AI_INSIGHT` 帧的 payload（04 第 3 章 / 05 第 2.3 章）。
+ *
+ * <p>周期洞察由后端定时生成后直接推送，**不落库**；前端只展示，不提供采纳/落库动作。
+ * 缺 `disclaimer` 时补本地兜底文案，缺 `content` 视为空帧（调用方不弹窗）。
+ *
+ * @param {Object} [payload] `{ insightId, elderId, type, content, citations, disclaimer }`
+ * @returns {{insightId:string, elderId:string, type:string, content:string, citations:Array, disclaimer:string}}
+ */
+export function parseAiInsightPayload(payload) {
+  const p = payload || {}
+  return {
+    insightId: typeof p.insightId === 'string' ? p.insightId : '',
+    elderId: typeof p.elderId === 'string' ? p.elderId : '',
+    type: typeof p.type === 'string' ? p.type : '',
+    content: typeof p.content === 'string' ? p.content : '',
+    citations: Array.isArray(p.citations) ? p.citations : [],
+    disclaimer: typeof p.disclaimer === 'string' && p.disclaimer ? p.disclaimer : AI_DISCLAIMER_FALLBACK,
   }
 }
 
