@@ -169,7 +169,7 @@ class MedicineCoreWebIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"阿莫西林","spec":"0.25g","dosePerTime":"1","unit":"粒"}
+                                {"name":"阿莫西林","dosePerTime":"1","unit":"粒"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.medicineId").value("m-1001"))
@@ -183,7 +183,7 @@ class MedicineCoreWebIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"阿莫西林","spec":"0.25g","unit":"粒"}
+                                {"name":"阿莫西林","unit":"粒"}
                                 """))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(40301));
@@ -202,7 +202,7 @@ class MedicineCoreWebIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"二甲双胍","spec":"0.5g","unit":"片","ownerElderId":"u-1001"}
+                                {"name":"二甲双胍","unit":"片","ownerElderId":"u-1001"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.medicineId").value("m-1002"))
@@ -285,7 +285,6 @@ class MedicineCoreWebIntegrationTest {
         m.setMedicineId(medicineId);
         m.setOwnerElderId(ownerElderId);
         m.setName(name);
-        m.setSpec("10mg");
         m.setDosePerTime("1");
         m.setUnit("片");
         m.setCreatedAt(OffsetDateTime.parse("2026-10-18T00:00:00Z"));

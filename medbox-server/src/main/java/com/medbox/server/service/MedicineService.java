@@ -98,7 +98,6 @@ public class MedicineService {
         medicine.setMedicineId(medicineMapper.nextMedicineId());
         medicine.setOwnerElderId(owner);
         medicine.setName(request.name());
-        medicine.setSpec(request.spec());
         medicine.setDosePerTime(request.dosePerTime());
         medicine.setUnit(request.unit());
         medicine.setContraindication(request.contraindication());
@@ -112,7 +111,6 @@ public class MedicineService {
         Medicine medicine = requireForWrite(request.medicineId());
         // ownerElderId 归属不可变：忽略请求里带的 ownerElderId
         medicine.setName(request.name());
-        medicine.setSpec(request.spec());
         medicine.setDosePerTime(request.dosePerTime());
         medicine.setUnit(request.unit());
         medicine.setContraindication(request.contraindication());

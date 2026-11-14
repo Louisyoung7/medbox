@@ -185,7 +185,6 @@ public class DevtoolsSeedService {
         publicMed.setMedicineId(MED_PUBLIC);
         publicMed.setOwnerElderId(null);
         publicMed.setName("阿司匹林");
-        publicMed.setSpec("100mg*30片");
         publicMed.setDosePerTime("1");
         publicMed.setUnit("片");
         publicMed.setContraindication("胃溃疡慎用");
@@ -197,7 +196,6 @@ public class DevtoolsSeedService {
         privateMed.setMedicineId(MED_PRIVATE);
         privateMed.setOwnerElderId(s.getElderUserId());
         privateMed.setName("甲硝唑");
-        privateMed.setSpec("0.2g*21片");
         privateMed.setDosePerTime("1");
         privateMed.setUnit("片");
         privateMed.setCreatedAt(OffsetDateTime.now());

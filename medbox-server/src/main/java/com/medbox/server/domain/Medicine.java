@@ -32,7 +32,6 @@ public class Medicine{
     private String medicineId;/** 业务 ID，如 {@code m-1001}。 */
     private String ownerElderId;/** 所属老人 ID，为空表示公共药品字典。 */
     private String name;/** 药品名称。 */
-    private String spec;/** 药品规格。 */
     private String dosePerTime;/** 默认单次剂量（计划明细未指定时取此值）。 */
     private String unit;/** 药品单位。 */
     private String contraindication;/** 禁忌。 */

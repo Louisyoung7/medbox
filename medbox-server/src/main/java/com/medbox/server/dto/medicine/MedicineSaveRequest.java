@@ -20,7 +20,6 @@ import jakarta.validation.constraints.Size;
    *
    * @param medicineId       药品业务 ID；新建留空，更新时必填
    * @param name             药品名称
-   * @param spec             规格（如 "25mg×30片"）
    * @param dosePerTime      默认单次剂量（计划明细未指定时取此值，如
   "1"）
    * @param unit             单位（片/粒/ml）
@@ -36,9 +35,6 @@ public record MedicineSaveRequest(
     @NotBlank(message="name 不能为空")
     @Size(max=128,message="name 超长")
     String name,
-
-    @Size(max=64,message="spec 超长")
-    String spec,
 
     @Size(max=32,message="dosePerTime 超长")
     String dosePerTime,
