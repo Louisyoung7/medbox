@@ -215,11 +215,13 @@ class MedicineCoreWebIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"阿莫西林","dosePerTime":"1","unit":"粒","ownerElderId":"u-1001"}
+                                {"name":"阿莫西林","dosePerTime":"1","unit":"粒","ownerElderId":"u-1001",
+                                 "description":"主要成分：阿莫西林。禁忌：对青霉素过敏者禁用。"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.medicineId").value("m-1001"))
-                .andExpect(jsonPath("$.data.ownerElderId").value(ELDER_ID));
+                .andExpect(jsonPath("$.data.ownerElderId").value(ELDER_ID))
+                .andExpect(jsonPath("$.data.description").value("主要成分：阿莫西林。禁忌：对青霉素过敏者禁用。"));
     }
 
     @Test

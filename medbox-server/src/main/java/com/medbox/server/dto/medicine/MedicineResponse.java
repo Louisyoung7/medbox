@@ -8,14 +8,14 @@ import java.time.OffsetDateTime;
    * （见文档 02 第 5 章）。
    *
    * <p>与 {@link MedicineSummaryResponse}
-  的区别：多出禁忌、储存条件、创建时间三个
+  的区别：多出药品说明、储存条件、创建时间三个
    * 详情字段（列表不放长文本）。
    *
    * @param medicineId       药品业务 ID
    * @param name             药品名称
    * @param dosePerTime      默认单次剂量
    * @param unit             单位
-   * @param contraindication 禁忌
+   * @param description      药品说明（监护人手动填写）
    * @param storageCond      储存条件文字说明
    * @param ownerElderId     归属老人业务 ID（必填）
    * @param createdAt        创建时间（UTC）
@@ -26,7 +26,7 @@ public record MedicineResponse(
     String name,
     String dosePerTime,
     String unit,
-    String contraindication,
+    String description,
     String storageCond,
     String ownerElderId,
     OffsetDateTime createdAt
@@ -37,7 +37,7 @@ public record MedicineResponse(
             medicine.getName(),
             medicine.getDosePerTime(),
             medicine.getUnit(),
-            medicine.getContraindication(),
+            medicine.getDescription(),
             medicine.getStorageCond(),
             medicine.getOwnerElderId(),
             medicine.getCreatedAt()

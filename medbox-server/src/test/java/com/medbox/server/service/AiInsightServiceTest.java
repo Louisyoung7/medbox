@@ -137,6 +137,30 @@ class AiInsightServiceTest {
     }
 
     @Test
+    @DisplayName("MEDICATION_SAFETY 无药品 → 专用模板文案，不调上游")
+    void 用药安全无数据_专用文案() {
+        givenPassage(new InsightContextBuilder.InsightContext("", List.of(), true));
+
+        InsightResponse resp = service.insight(new InsightRequest(ELDER_ID, "MEDICATION_SAFETY", null, null));
+
+        assertEquals(AiInsightService.NO_MEDICATION_DATA, resp.content());
+        assertEquals("MEDICATION_SAFETY", resp.type());
+        verifyNoInteractions(gateway);
+    }
+
+    @Test
+    @DisplayName("MEDICATION_SAFETY：'禁止同服' 由后置过滤替换")
+    void 用药安全_禁用词替换() {
+        givenPassage(dataContext());
+        when(gateway.complete(any(), any(), any())).thenReturn("两药禁止同服，请核对说明。");
+
+        InsightResponse resp = service.insight(new InsightRequest(ELDER_ID, "MEDICATION_SAFETY", null, null));
+
+        assertTrue(resp.content().contains("请咨询医生后再决定"));
+        assertTrue(!resp.content().contains("禁止同服"));
+    }
+
+    @Test
     @DisplayName("周期任务内层 generateForElder：不做权限校验（定时任务无 AuthContext）")
     void 周期内层不查权限() {
         LlmConfig config = new LlmConfig();

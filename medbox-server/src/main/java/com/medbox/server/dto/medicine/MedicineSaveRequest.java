@@ -22,7 +22,7 @@ import jakarta.validation.constraints.Size;
    * @param dosePerTime      默认单次剂量（计划明细未指定时取此值，如
   "1"）
    * @param unit             单位（片/粒/ml）
-   * @param contraindication 禁忌（TEXT，可长文本）
+   * @param description      药品说明（TEXT，监护人手动填写；AI 用药安全洞察只依据此文本）
    * @param storageCond      储存条件文字说明（如
   "遮光、密封、阴凉处"），仅供展示
    * @param ownerElderId     归属老人业务 ID；创建必填，更新时忽略
@@ -41,8 +41,8 @@ public record MedicineSaveRequest(
     @Size(max=16,message="unit 超长")
     String unit,
 
-    @Size(max=1024,message="contraindication 超长")
-    String contraindication,
+    @Size(max=2000,message="description 超长")
+    String description,
 
     @Size(max=128,message="storageCond 超长")
     String storageCond,

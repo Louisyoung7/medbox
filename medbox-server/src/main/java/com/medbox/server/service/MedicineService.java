@@ -101,7 +101,7 @@ public class MedicineService {
         medicine.setName(request.name());
         medicine.setDosePerTime(request.dosePerTime());
         medicine.setUnit(request.unit());
-        medicine.setContraindication(request.contraindication());
+        medicine.setDescription(request.description());
         medicine.setStorageCond(request.storageCond());
         medicine.setCreatedAt(OffsetDateTime.now(clock));
         medicineMapper.insert(medicine);
@@ -114,7 +114,7 @@ public class MedicineService {
         medicine.setName(request.name());
         medicine.setDosePerTime(request.dosePerTime());
         medicine.setUnit(request.unit());
-        medicine.setContraindication(request.contraindication());
+        medicine.setDescription(request.description());
         medicine.setStorageCond(request.storageCond());
         medicineMapper.updateById(medicine);
         return MedicineResponse.from(medicine);

@@ -17,16 +17,19 @@ public class InsightContextBuilder {
     private final PlanReminderMapper reminderMapper;
     private final AlarmMapper alarmMapper;
     private final EnvSampleMapper envMapper;
+    private final MedicineMapper medicineMapper;
     private final AiInsightProperties props;
 
     public InsightContextBuilder(MedRecordMapper recordMapper, PlanReminderMapper reminderMapper,
                                  AlarmMapper alarmMapper,
                                  EnvSampleMapper envMapper,
+                                 MedicineMapper medicineMapper,
                                  AiInsightProperties props) {
         this.recordMapper = recordMapper;
         this.reminderMapper = reminderMapper;
         this.alarmMapper = alarmMapper;
         this.envMapper = envMapper;
+        this.medicineMapper = medicineMapper;
         this.props = props;
     }
 
@@ -42,6 +45,9 @@ public class InsightContextBuilder {
         }
         if (type == InsightType.TREND || type == InsightType.COMPREHENSIVE) {
             rows += appendTrend(sb, citations, elderId, from, to);
+        }
+        if (type == InsightType.MEDICATION_SAFETY || type == InsightType.COMPREHENSIVE) {
+            rows += appendMedicationSafety(sb, citations, elderId);
         }
         return new InsightContext(sb.toString(), List.copyOf(citations), rows == 0);
     }
@@ -134,6 +140,38 @@ public class InsightContextBuilder {
           .append("- 迟到占比: ").append(records.isEmpty() ? 0 : late * 100 / records.size()).append("%\n");
         records.stream().limit(5).forEach(r -> cit.add("med_record#" + r.getRecordId()));
         return records.size();
+    }
+
+    /** 用药安全：监护人填写的药品说明是唯一事实来源，不联网、不推断说明未写的内容。 */
+    private int appendMedicationSafety(StringBuilder sb, List<String> cit, String elderId) {
+        List<Medicine> medicines = medicineMapper.selectList(new LambdaQueryWrapper<Medicine>()
+                .eq(Medicine::getOwnerElderId, elderId)
+                .orderByAsc(Medicine::getMedicineId)
+                .last("LIMIT " + props.getMaxMedicines()));
+        if (medicines.isEmpty()) {
+            return 0;
+        }
+        sb.append("【用药安全】\n")
+          .append("- 在册药品 ").append(medicines.size()).append(" 种（最多列出前 ")
+          .append(props.getMaxMedicines()).append(" 种）\n")
+          .append("- 以下说明由监护人手动填写，是唯一事实来源；系统未与服药记录关联，无法确认实际服用\n");
+        for (Medicine m : medicines) {
+            String desc = m.getDescription();
+            if (desc == null || desc.isBlank()) {
+                desc = "（未填写说明，仅能按名称核对说明书）";
+            } else if (desc.length() > props.getMaxDescriptionChars()) {
+                desc = desc.substring(0, props.getMaxDescriptionChars()) + "…";
+            }
+            String dose = (m.getDosePerTime() == null ? "" : m.getDosePerTime())
+                    + (m.getUnit() == null ? "" : m.getUnit());
+            sb.append("- [medicine#").append(m.getMedicineId()).append("] ").append(m.getName());
+            if (!dose.isBlank()) {
+                sb.append("（参考单次用量 ").append(dose).append("）");
+            }
+            sb.append("：").append(desc).append("\n");
+            cit.add("medicine#" + m.getMedicineId());
+        }
+        return medicines.size();
     }
 
     /** 拼好的上下文；empty=true 表示区间内没有任何可用数据。 */

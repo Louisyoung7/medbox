@@ -28,7 +28,7 @@ paths:
         更新时请求体带 medicineId，创建不带（由后端生成）；药品**必归属某位老人**（无公共字典）：
         ownerElderId 创建必填（留空 → 40001），更新时传了也会被忽略（归属不可变）。
         可见范围 = 我监护老人的药品（服务端按 visibleElderIds() 行级过滤）。
-        含禁忌、储存条件等字段（详见 06 §2.4）。
+        含药品说明、储存条件等字段（详见 06 §2.4）。
       parameters:
         - $ref: './common.yaml#/components/parameters/XRequestId'
       requestBody:
@@ -154,7 +154,7 @@ components:
   schemas:
     Medicine:
       type: object
-      description: 字段以最终实现为准（06 §2.4）；含禁忌、储存条件等
+      description: 字段以最终实现为准（06 §2.4）；含药品说明、储存条件等
       properties:
         medicineId:
           type: string
@@ -166,6 +166,11 @@ components:
           type: string
           nullable: true
           example: 粒
+        description:
+          type: string
+          nullable: true
+          description: 药品说明（监护人手动填写：成分/适应症/禁忌/注意事项），AI 用药安全洞察的唯一事实来源；列表接口不返回，仅详情返回
+          example: 主要成分：阿莫西林。禁忌：对青霉素过敏者禁用。
         ownerElderId:
           type: string
           description: 归属老人业务 ID（必填，创建后不可变）
@@ -185,7 +190,12 @@ components:
         unit:
           type: string
           nullable: true
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: 药品说明（监护人手动填写），AI 用药安全洞察只依据此文本
         ownerElderId:
           type: string
           description: 归属老人业务 ID；创建必填，更新时忽略（归属不可变）
-        # 禁忌 / 储存条件等字段见 06 §2.4，随后端实现追加
+        # 储存条件等字段见 06 §2.4，随后端实现追加

@@ -3,7 +3,7 @@ import com.medbox.server.domain.Medicine;
   /**
    * {@code GET /medicines} 的列表项（见文档 02 第 5 章）。
    *
-   * <p><b>不含禁忌 / 储存条件</b>：{@code contraindication} 是
+   * <p><b>不含药品说明 / 储存条件</b>：{@code description} 是
   TEXT、{@code storageCond} 是展示长文本，
    * 字典列表按分页返回几十条，逐条塞长文本只会撑大响应；这两个字段放详
   情接口
