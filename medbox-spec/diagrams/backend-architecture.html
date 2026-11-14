@@ -289,7 +289,7 @@
           <rect x="820" y="720" width="520" height="130" rx="10"/>
           <text x="1080" y="750" text-anchor="middle">领域模型</text>
           <text class="sub" x="1080" y="772" text-anchor="middle">domain/ + enums/</text>
-          <text class="sub" x="1080" y="792" text-anchor="middle">Device · Medicine · MedicineStock</text>
+          <text class="sub" x="1080" y="792" text-anchor="middle">Device · Medicine</text>
           <text class="sub" x="1080" y="810" text-anchor="middle">DeviceEvent · User · GuardianRelation</text>
           <text class="sub" x="1080" y="828" text-anchor="middle">RefreshToken · Idempotency · MqttMessage</text>
           <text class="sub" x="1080" y="846" text-anchor="middle" style="font-size:9px">dto/ 请求响应对象（入参 / 出参）</text>
@@ -360,14 +360,14 @@
 
     "pkg-sec": { title:"安全与鉴权", tag:"sec", tagText:"安全层", rows:[["包","common/security + service/AccessService"]], points:["JwtProvider / JwtPayload / TokenType","AuthContext / AccessIdentity","Permission / PasswordHasher","DeviceOwnerResolver：设备归属解析","AccessService：RBAC + 数据归属双重校验（可见老人集合）"] },
 
-    "pkg-svc": { title:"业务服务层（service/）", tag:"svc", tagText:"业务层", rows:[["包","service/"]], points:["AuthService / UserService / RefreshTokenService","DeviceService / DeviceEventService","MedicineService / MedicineStockService","PlanService / RecordService / AlarmService / AlarmSettingService","GuardianRelationService / CaptureService","IdempotencyService / DevtoolsMqttSimService / DevtoolsSeedService","DeviceOwnerResolverImpl / DeviceStatusEventBridge（状态→WS 桥接）"] },
+    "pkg-svc": { title:"业务服务层（service/）", tag:"svc", tagText:"业务层", rows:[["包","service/"]], points:["AuthService / UserService / RefreshTokenService","DeviceService / DeviceEventService","MedicineService","PlanService / RecordService / AlarmService / AlarmSettingService","GuardianRelationService / CaptureService","IdempotencyService / DevtoolsMqttSimService / DevtoolsSeedService","DeviceOwnerResolverImpl / DeviceStatusEventBridge（状态→WS 桥接）"] },
 
     "pkg-mqttout": { title:"设备下行 / 状态（mqtt/ 出站）", tag:"comm", tagText:"通信集成", rows:[["包","mqtt/ 出站"],["出口","DownlinkPublisher（唯一）"]], points:["下行统一注入 msgId/needAck 信封","PendingAckRegistry：5s 超时重发×3","MqttTransport / MqttConnectionManager","DeviceStatusService / DeviceStatusChangeListener","DownlinkFailureListener（失败告警）"] },
     "pkg-wspush": { title:"实时推送（ws/ 推送）", tag:"comm", tagText:"通信集成", rows:[["包","ws/ 推送"],["出口","WsPushService（唯一）"]], points:["WsSessionManager：topic→session 倒排","WsEventBuffer：按主题 200条/10min","WsEventId / WsFrame / WsFrameType","WsSubscription / WsTopic","WsIdleSessionReaper：90s 空闲回收"] },
     "pkg-ai": { title:"AI 集成（ai/）", tag:"comm", tagText:"通信集成", rows:[["包","ai/"],["客户端","ChatClient（BYOK）"],["配置","LlmConfig（监护人代配 Key）"]], points:["结构化数据拼入 Prompt","仅出网 Chat 调用，不落库","返回自然语言洞察（分析/预测/建议）","AiConfig / LlmConfig"] },
 
-    "pkg-mapper": { title:"Mapper 层（mapper/ + db/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"],["迁移","db/migration Flyway（V1 建表）"]], points:["DeviceMapper / MedicineMapper","MedicineStockMapper / DeviceEventMapper","UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
-    "pkg-domain": { title:"领域模型（domain/ + dto/）", tag:"persist", tagText:"持久层", rows:[["包","domain/ + enums/ + dto/"]], points:["Device / Medicine / MedicineStock","DeviceEvent / User / GuardianRelation","RefreshToken / IdempotencyRecord / MqttMessage","dto/：请求响应对象（入参 / 出参）","enums/：设备类型/告警类型/状态等枚举"] },
+    "pkg-mapper": { title:"Mapper 层（mapper/ + db/）", tag:"persist", tagText:"持久层", rows:[["框架","MyBatis-Plus"],["迁移","db/migration Flyway（V1 建表）"]], points:["DeviceMapper / MedicineMapper","DeviceEventMapper / UserMapper / GuardianRelationMapper","RefreshTokenMapper / IdempotencyRecordMapper","MqttMessageMapper"] },
+    "pkg-domain": { title:"领域模型（domain/ + dto/）", tag:"persist", tagText:"持久层", rows:[["包","domain/ + enums/ + dto/"]], points:["Device / Medicine","DeviceEvent / User / GuardianRelation","RefreshToken / IdempotencyRecord / MqttMessage","dto/：请求响应对象（入参 / 出参）","enums/：设备类型/告警类型/状态等枚举"] },
 
     "pkg-config": { title:"横切配置 / 异常", tag:"config", tagText:"横切", rows:[["包","config/ + common/exception"],["原则","通道细节收口、调用方零改动"]], points:["WebMvcConfig / MybatisPlusConfig","DeviceConfig / DeviceProperties","common/exception：BizException / BizAssert / ErrorCode","TraceContext（链路上下文）"] }
   };
