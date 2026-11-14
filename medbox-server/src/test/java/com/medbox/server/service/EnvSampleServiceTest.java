@@ -85,7 +85,7 @@ class EnvSampleServiceTest {
     }
 
     @Test
-    @DisplayName("ingest：缺 sensorId 跳过、不入库存")
+    @DisplayName("ingest：缺 sensorId 跳过、不入库")
     void ingestMissingSensorId() {
         TelemetryPayload p = new TelemetryPayload();
         p.setTs(1759474487000L);

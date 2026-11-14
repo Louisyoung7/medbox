@@ -14,7 +14,7 @@ import java.util.Map;
  *
  * <p><b>{@code slots} 只描述「几点开几号格」</b>：1~3 项、{@code cellNo} ∈ 1/2/3 且不重复、
  * {@code time} 为 HH:mm 设备本地墙钟（不传 UTC）；未提交的格号视为该格不排程。
- * 格号合法性与去重在 Service 层校验，计划与药品、库存无任何关联。
+ * 格号合法性与去重在 Service 层校验，计划与药品无任何关联。
  *
  * @param elderId           归属老人业务 ID（创建必填，修改忽略）
  * @param name              方案名（可空）

@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 服药计划接口（见文档 02 第 6 章、06 的 2.6 / 2.6.1）。
  *
- * <p>只做参数绑定与 {@code R<T>} 包装，权限 / 校验 / 时区换算 / 库存校验全在
+ * <p>只做参数绑定与 {@code R<T>} 包装，权限 / 校验 / 时区换算全在
  * {@link PlanService}；未登录由 {@code AuthInterceptor} 统一兜 40101。
  */
 @RestController

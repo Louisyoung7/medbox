@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>提供两类能力（见文档 02 的 1.4 / 03 第 5 章）：
  * <ul>
- *   <li>{@code POST /api/v1/_debug/seed} —— 一键播种最小链路数据集（1 监护人 + 1 老人 + 药箱 + 传感器 + 药品/库存/计划）；</li>
+ *   <li>{@code POST /api/v1/_debug/seed} —— 一键播种最小链路数据集（1 监护人 + 1 老人 + 药箱 + 传感器 + 药品/计划）；</li>
  *   <li>{@code POST /api/v1/_debug/mqtt/publish} —— 服务端模拟设备上报，等价于 {@code mosquitto_pub}。</li>
  * </ul>
  *

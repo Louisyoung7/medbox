@@ -11,7 +11,7 @@ public record MqttPublishRequest(
         /** 药箱主控设备 ID（同时是 MQTT clientId）。 */
         String deviceId,
 
-        /** 上行子路径，如 {@code event/dispense}、{@code telemetry}、{@code sensor/heartbeat}、{@code inventory}。 */
+        /** 上行子路径，如 {@code event/dispense}、{@code telemetry}、{@code sensor/heartbeat}。 */
         String subTopic,
 
         /** 产品 key；为空时取 {@code medbox.device.default-product-key}。 */

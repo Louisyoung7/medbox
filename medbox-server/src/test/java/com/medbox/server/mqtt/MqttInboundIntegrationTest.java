@@ -162,14 +162,14 @@ class MqttInboundIntegrationTest {
     void unknownSubPathGoesToFallback() {
         when(messageMapper.insert(any(MqttMessage.class))).thenReturn(1);
 
-        gateway.onMessage("medbox/pk001/BOXA1001/up/inventory",
-            "{\"msgId\":\"BOXA1001-0000000127\",\"ts\":1,\"medicineId\":\"m-205\",\"quantity\":12,\"delta\":-1}"
+        gateway.onMessage("medbox/pk001/BOXA1001/up/unknown",
+            "{\"msgId\":\"BOXA1001-0000000127\",\"ts\":1}"
                 .getBytes(StandardCharsets.UTF_8));
 
         // 兜底实现不记录，但要确认这条消息确实被消费（去重表里也只有一条）
         ArgumentCaptor<MqttMessage> captor = ArgumentCaptor.forClass(MqttMessage.class);
         verify(messageMapper, times(1)).insert(captor.capture());
-        assertThat(captor.getValue().getTopic()).isEqualTo("medbox/pk001/BOXA1001/up/inventory");
+        assertThat(captor.getValue().getTopic()).isEqualTo("medbox/pk001/BOXA1001/up/unknown");
     }
 
     /** 记录调用情况的测试 handler。 */
