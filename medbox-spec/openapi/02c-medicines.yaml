@@ -63,7 +63,7 @@ paths:
         - name: keyword
           in: query
           required: false
-          description: 按名称/规格搜索
+          description: 按名称搜索
           schema: { type: string }
         - $ref: './common.yaml#/components/parameters/Page'
         - $ref: './common.yaml#/components/parameters/Size'
@@ -161,10 +161,6 @@ components:
         name:
           type: string
           example: 阿莫西林胶囊
-        specification:
-          type: string
-          nullable: true
-          example: 0.25g*24粒
         unit:
           type: string
           nullable: true
@@ -186,9 +182,6 @@ components:
           description: 更新时必带；创建不传（后端生成）
         name:
           type: string
-        specification:
-          type: string
-          nullable: true
         unit:
           type: string
           nullable: true

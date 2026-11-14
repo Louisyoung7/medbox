@@ -15,7 +15,6 @@ import com.medbox.server.domain.Medicine;
    *
    * @param medicineId   药品业务 ID
    * @param name         药品名称
-   * @param spec         规格
    * @param unit         单位
    * @param dosePerTime  默认单次剂量
    * @param ownerElderId 归属老人业务 ID；null = 公共药品字典
@@ -23,7 +22,6 @@ import com.medbox.server.domain.Medicine;
 public record MedicineSummaryResponse(
     String medicineId,
     String name,
-    String spec,
     String unit,
     String dosePerTime,
     String ownerElderId
@@ -32,7 +30,6 @@ public record MedicineSummaryResponse(
         return new MedicineSummaryResponse(
             medicine.getMedicineId(),
             medicine.getName(),
-            medicine.getSpec(),
             medicine.getUnit(),
             medicine.getDosePerTime(),
             medicine.getOwnerElderId()

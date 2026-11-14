@@ -13,7 +13,6 @@ import java.time.OffsetDateTime;
    *
    * @param medicineId       药品业务 ID
    * @param name             药品名称
-   * @param spec             规格
    * @param dosePerTime      默认单次剂量
    * @param unit             单位
    * @param contraindication 禁忌
@@ -25,7 +24,6 @@ import java.time.OffsetDateTime;
 public record MedicineResponse(
     String medicineId,
     String name,
-    String spec,
     String dosePerTime,
     String unit,
     String contraindication,
@@ -37,7 +35,6 @@ public record MedicineResponse(
         return new MedicineResponse(
             medicine.getMedicineId(),
             medicine.getName(),
-            medicine.getSpec(),
             medicine.getDosePerTime(),
             medicine.getUnit(),
             medicine.getContraindication(),
