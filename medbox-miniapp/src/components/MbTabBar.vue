@@ -37,6 +37,7 @@ const ICONS = {
     "<rect x='3' y='9' width='18' height='6' rx='3' transform='rotate(45 12 12)'/><path d='M12 9v6M9 12h6'/>",
   plan: "<circle cx='12' cy='12' r='8'/><path d='M12 8v4l3 2'/>",
   record: "<rect x='5' y='3' width='14' height='18' rx='2'/><path d='M8 8h8M8 12h8M8 16h5'/>",
+  ai: "<path d='M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z'/><circle cx='19' cy='5' r='1.6'/>",
   profile: "<circle cx='12' cy='8' r='4'/><path d='M4 21c0-4 4-6 8-6s8 2 8 6'/>",
 }
 

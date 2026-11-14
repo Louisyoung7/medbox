@@ -33,17 +33,6 @@
       </MbCard>
     </RoleGate>
 
-    <!-- AI 健康洞察（feat/mp-ai-insight）：仅后端鉴权，老人/监护人可见；进入选维度+时间范围 -->
-    <MbCard title="AI 健康洞察">
-      <MbCell
-        title="进入分析"
-        label="基于用药 / 库存 / 环境数据的智能分析建议"
-        arrow
-        clickable
-        @click="onOpenAiInsight"
-      />
-    </MbCard>
-
     <!-- 开发调试（feat/mp-devtools）：真机联调时改后端 HOST，不必重新编译 -->
     <MbCard title="开发调试">
       <MbCell
@@ -204,11 +193,6 @@ export default {
      */
     onOpenDevtools() {
       uni.navigateTo({ url: '/pages/devtools/devtools' })
-    },
-
-    /** 打开 AI 健康洞察页（feat/mp-ai-insight）：仅后端鉴权，老人/监护人都可进入。 */
-    onOpenAiInsight() {
-      uni.navigateTo({ url: '/pages/ai/insight' })
     },
 
     onLogout() {

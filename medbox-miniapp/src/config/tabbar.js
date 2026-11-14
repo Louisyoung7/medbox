@@ -15,6 +15,7 @@ export const TAB_ENTRIES = [
   { key: 'medicine', title: '药品', path: '/pages/medicine/medicine', icon: 'medicine' },
   { key: 'plan', title: '计划', path: '/pages/plan/plan', icon: 'plan' },
   { key: 'record', title: '记录', path: '/pages/record/record', icon: 'record' },
+  { key: 'ai', title: 'AI', path: '/pages/ai/insight', icon: 'ai' },
   { key: 'profile', title: '我的', path: '/pages/profile/profile', icon: 'profile' },
 ]
 
