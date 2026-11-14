@@ -32,19 +32,7 @@
           </view>
         </MbCard>
       </RoleGate>
-
-      <MbCard title="组件演示">
-        <view class="demo-row">
-          <MbButton type="primary" @click="openModal">弹窗</MbButton>
-          <MbButton type="ghost" @click="toggleLoading">加载</MbButton>
-        </view>
-      </MbCard>
     </view>
-
-    <MbModal v-model="showModal" title="提示" confirm-text="知道了">
-      这是 MedBox UI Kit 的弹窗组件示例。
-    </MbModal>
-    <MbLoading v-if="loading" text="加载中..." />
 
     <MbTabBar />
   </view>
@@ -54,8 +42,6 @@
 import MbCard from '@/components/MbCard.vue'
 import MbCell from '@/components/MbCell.vue'
 import MbButton from '@/components/MbButton.vue'
-import MbModal from '@/components/MbModal.vue'
-import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import RoleGate from '@/components/RoleGate.vue'
 import WsStatusBar from '@/components/WsStatusBar.vue'
@@ -64,13 +50,11 @@ import { getAlarmState, refreshUnreadCount } from '@/store/alarm.js'
 
 export default {
   name: 'HomePage',
-  components: { MbCard, MbCell, MbButton, MbModal, MbLoading, MbTabBar, RoleGate, WsStatusBar },
+  components: { MbCard, MbCell, MbButton, MbTabBar, RoleGate, WsStatusBar },
   data() {
     return {
       name: '',
       roleText: '',
-      showModal: false,
-      loading: false,
     }
   },
   onShow() {
@@ -100,13 +84,6 @@ export default {
   methods: {
     go(path) {
       uni.reLaunch({ url: path })
-    },
-    openModal() {
-      this.showModal = true
-    },
-    toggleLoading() {
-      this.loading = true
-      setTimeout(() => (this.loading = false), 1200)
     },
   },
 }
@@ -188,15 +165,6 @@ export default {
   .guard-hint {
     flex: 1;
     padding-right: 20rpx;
-  }
-}
-
-.demo-row {
-  display: flex;
-  gap: 20rpx;
-
-  .mb-btn {
-    flex: 1;
   }
 }
 </style>
