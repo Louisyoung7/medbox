@@ -11,8 +11,8 @@ import {
 } from '@/utils/devtools-sim.js'
 
 describe('SIM_EVENT_PRESETS（固定药格模型：服药报文带 cellNo）', () => {
-  it('预设 6 项，MQTT 预设全部仅记日志', () => {
-    expect(SIM_EVENT_PRESETS).toHaveLength(6)
+  it('预设 5 项，MQTT 预设全部仅记日志', () => {
+    expect(SIM_EVENT_PRESETS).toHaveLength(5)
     expect(SIM_EVENT_PRESETS.every((p) => p.effect === 'log')).toBe(true)
   })
   it('服药预设只带 cellNo + takenResult，不含药品 / 剂量 / 计划项', () => {
@@ -27,8 +27,9 @@ describe('SIM_EVENT_PRESETS（固定药格模型：服药报文带 cellNo）', (
       expect(body.unit).toBeUndefined()
     })
   })
-  it('库存预设说明为手工台账、不自动扣减', () => {
-    expect(getSimPreset('inventory').effectNote).toContain('手工台账')
+  it('库存变更预设已随台账下线移除', () => {
+    expect(getSimPreset('inventory')).toBeUndefined()
+    expect(SIM_EVENT_PRESETS.map((p) => p.subTopic)).not.toContain('inventory')
   })
 })
 

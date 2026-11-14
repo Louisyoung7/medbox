@@ -1,8 +1,8 @@
 /**
  * 药品域接口（medbox-spec/02 第 5 章）—— 全部需鉴权（默认 `auth: true`，不带 Bearer 会 40101）。
  *
- * <p>`feat/mp-medicine` 只落地**药品档案 CRUD**（列表 / 详情 / 新建更新合一 / 删除）；
- * 库存相关接口（`/devices/{id}/stocks` 等）归 P0 第 5 步 `feat/mp-stock`，不在此导出。
+ * <p>药品为**纯档案记录**（名称 / 规格 / 单次用量 / 单位 / 禁忌 / 储存条件），系统不建模库存；
+ * 本文件只收敛药品档案 CRUD（列表 / 详情 / 新建更新合一 / 删除）。
  *
  * <p>⚠️ **后端 `medicine-core` 尚未落地**（07 清单未勾选）：本文件按 02 第 5 章 + 06 的 2.4
  * 先行实现，真机联调待后端合并；分页响应字段名未定处已做容错解析，见
@@ -34,7 +34,7 @@ export function listMedicines(params, options) {
  *
  * @param {string} medicineId 药品编号（如 `m-205`）
  * @param {Object} [options] 透传请求选项
- * @returns {Promise<Object>} `medicineId` / `ownerElderId`(空=公共字典) / `name` / `spec` /
+ * @returns {Promise<Object>} `medicineId` / `ownerElderId`(空=公共字典) / `name` / `spec`(后端仍存，前端已不展示) /
  *   `dosePerTime`(默认单次剂量) / `unit` / `contraindication`(禁忌) /
  *   `storageCond`(储存条件) / `createdAt`(UTC)
  * @throws {ApiError} 40101 / 40301（他人私有药品）/ 40401 / -1
@@ -49,7 +49,7 @@ export function getMedicine(medicineId, options) {
  * <p>**不传 `ownerElderId` 即公共字典**（全体可见只读）；归属某老人则传其 `userId`。
  *
  * @param {Object} payload 请求体（由 `src/utils/medicine.js` 的 {@link buildMedicinePayload} 组装）：
- *   `medicineId`(仅编辑) / `name`(必填) / `spec` / `dosePerTime` / `unit` /
+ *   `medicineId`(仅编辑) / `name`(必填) / `dosePerTime` / `unit` /
  *   `contraindication` / `storageCond` / `ownerElderId`(不传 = 公共)
  * @param {Object} [options] 透传请求选项（如 `loading: '保存中'`）
  * @returns {Promise<Object>} 保存后的药品档案
@@ -60,12 +60,12 @@ export function saveMedicine(payload, options) {
 }
 
 /**
- * 删除药品档案：**无任何药箱库存引用时才允许**（02 第 5 章）。
+ * 删除药品档案（02 第 5 章）：纯档案记录，**无引用校验，直接删**。
  *
  * @param {string} medicineId 药品编号
  * @param {Object} [options] 透传请求选项（弹窗提交场景传 `silent: true` 由页面兜底）
  * @returns {Promise<null>} 成功时 `data` 通常为 null（后端 `non_null` 下字段直接缺失）
- * @throws {ApiError} **40901（仍被库存引用）** / 40101 / 40301 / 40401 / -1
+ * @throws {ApiError} 40101 / 40301 / 40401 / -1
  */
 export function deleteMedicine(medicineId, options) {
   return del(`/medicines/${medicineId}`, undefined, options)

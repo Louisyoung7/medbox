@@ -3,7 +3,7 @@
  *
  * <p>设备上报以 `cellNo`（1/2/3）为唯一归属依据；取药结论二值化
  * `takenResult`（`TAKEN` 已取药 / `UNTAKEN` 未取药），不报置信度、无第三态、无「待确认」。
- * 仅 `UNTAKEN` 携带抓拍原图作留证。记录补录 / 纠错都不改库存。
+ * 仅 `UNTAKEN` 携带抓拍原图作留证。
  *
  * <p>本文件为纯函数，不引入 `@/config/index.js`（`uni.getStorageSync` 在 Vitest 下不可用）。
  */

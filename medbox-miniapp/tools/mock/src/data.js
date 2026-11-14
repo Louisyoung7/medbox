@@ -1,19 +1,11 @@
 /**
  * Mock 后端的种子数据（medbox-miniapp/tools/mock，前端测试专用，不替代 medbox-server）。
  *
- * 字段与口径严格对照 medbox-spec：06 的 2.1~2.5（user / guardian_relation / device /
- * medicine / medicine_stock）、02 第 3~5 章（接口形状）、01 第 3 章（角色与权限）。
+ * 字段与口径严格对照 medbox-spec：06 的 2.1~2.4（user / guardian_relation / device /
+ * medicine）、02 第 3~5 章（接口形状）、01 第 3 章（角色与权限）。
  *
- * 日期类种子值相对"运行时刻"计算，保证演示数据（有效期取值多样：未填 / 过去 / 未来）不随日期漂移。
+ * 日期类种子值相对"运行时刻"计算，保证演示数据不随日期漂移。
  */
-
-/** 相对今天偏移 N 天的 YYYY-MM-DD。 */
-function dateOffset(days) {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
 
 /** 相对现在偏移 N 毫秒的 ISO-8601 UTC（后端时间一律 UTC，见 02 的 1.）。 */
 function isoOffset(ms) {
@@ -30,7 +22,7 @@ const DEMO_PASSWORD = '123456'
 /**
  * 生成一份全新的内存状态（`/__mock__/reset` 与每次启动都调它）。
  *
- * @returns {Object} { users, relations, devices, medicines, stocks, refreshTokens }
+ * @returns {Object} { users, relations, devices, medicines, plans, records, refreshTokens }
  */
 function createSeed() {
   const users = [
@@ -158,17 +150,6 @@ function createSeed() {
       storageCond: '遮光、密封',
       createdAt: isoOffset(-8 * DAY),
     },
-  ]
-
-  // 库存（06 的 2.5）：按"药箱 + 药品"，日期由监护人手动录入；有效期取值覆盖多种（含未填 / 过去 / 未来），仅作记录项
-  const stocks = [
-    { stockId: 'st-1', deviceId: 'BOXA1001', elderId: 'u-1001', medicineId: 'm-201', quantity: 24, productionDate: dateOffset(-45), expiryDate: dateOffset(60), updatedAt: isoOffset(-2 * DAY) },
-    { stockId: 'st-2', deviceId: 'BOXA1001', elderId: 'u-1001', medicineId: 'm-202', quantity: 7, productionDate: dateOffset(-35), expiryDate: dateOffset(10), updatedAt: isoOffset(-2 * DAY) },
-    { stockId: 'st-3', deviceId: 'BOXA1001', elderId: 'u-1001', medicineId: 'm-203', quantity: 30, productionDate: dateOffset(-60), expiryDate: dateOffset(-5), updatedAt: isoOffset(-1 * DAY) },
-    { stockId: 'st-4', deviceId: 'BOXA1001', elderId: 'u-1001', medicineId: 'm-204', quantity: 14, productionDate: '', expiryDate: '', updatedAt: isoOffset(-1 * DAY) },
-    { stockId: 'st-5', deviceId: 'BOXA1002', elderId: 'u-1002', medicineId: 'm-205', quantity: 2, productionDate: dateOffset(-20), expiryDate: dateOffset(45), updatedAt: isoOffset(-3 * DAY) },
-    { stockId: 'st-6', deviceId: 'BOXA1002', elderId: 'u-1002', medicineId: 'm-206', quantity: 6, productionDate: dateOffset(-10), expiryDate: dateOffset(70), updatedAt: isoOffset(-3 * DAY) },
-    { stockId: 'st-7', deviceId: 'BOXA1002', elderId: 'u-1002', medicineId: 'm-201', quantity: 12, productionDate: dateOffset(-15), expiryDate: dateOffset(30), updatedAt: isoOffset(-3 * DAY) },
   ]
 
   // 服药计划（02d / 06 的 2.6）：只描述「几点开几号格」，格号 1/2/3 固定对应早/中/晚；
@@ -328,7 +309,7 @@ function createSeed() {
     },
   }
 
-  return { users, relations, devices, events, alarms, alarmSettings, medicines, stocks, plans, records, captures, envSamples: seedEnvSamples(), llmConfigs: seedLlmConfigs(), aiSchedules: [], refreshTokens: new Set() }
+  return { users, relations, devices, events, alarms, alarmSettings, medicines, plans, records, captures, envSamples: seedEnvSamples(), llmConfigs: seedLlmConfigs(), aiSchedules: [], refreshTokens: new Set() }
 }
 
 /**

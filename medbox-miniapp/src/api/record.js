@@ -37,7 +37,7 @@ export function getRecord(recordId) {
  * 补录 / 纠错（**单接口双语义**，仅 `WRITE_RECORD` = GUARDIAN）。
  *
  * <p>① 记录已存在 → 纠错：仅覆盖请求体里非空的 `actualTime` / `onTime` / `takenResult`，
- * `source` 恒置 `MANUAL`，不改 `planTime`、不改库存；
+ * `source` 恒置 `MANUAL`，不改 `planTime`；
  * ② 记录不存在 → 补录：路径 `{recordId}` 被忽略，请求体必带
  * `elderId` / `planId` / `cellNo`（缺任一 40001，计划查不到 40401），
  * 由服务端生成新 `mr-` 号，`planTime` 按该格就近槽重算。

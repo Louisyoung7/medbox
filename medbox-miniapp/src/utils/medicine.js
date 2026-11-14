@@ -19,7 +19,6 @@ import { ROLE } from '@/store/user.js'
  * @param {Object} form 页面表单
  * @param {string} [form.medicineId] 编辑时的药品编号；新建传空
  * @param {string} [form.name] 药品名
- * @param {string} [form.spec] 规格
  * @param {string} [form.dosePerTime] 默认单次剂量
  * @param {string} [form.unit] 单位（片/粒/ml...）
  * @param {string} [form.contraindication] 禁忌
@@ -38,7 +37,6 @@ export function buildMedicinePayload(form) {
   const id = text(src.medicineId)
   if (id) payload.medicineId = id
   put('name', src.name)
-  put('spec', src.spec)
   put('dosePerTime', src.dosePerTime)
   put('unit', src.unit)
   put('contraindication', src.contraindication)
@@ -72,18 +70,15 @@ export function parseMedicinePage(data) {
 }
 
 /**
- * 列表行副标题：规格 · 默认剂量+单位（缺字段自动省略）。
+ * 列表行副标题：默认剂量+单位（缺字段自动省略）。
  *
  * @param {Object} medicine 药品档案
- * @returns {string} 如 `0.1g×24片 · 1片`；都缺时回退"药品档案"
+ * @returns {string} 如 `1片`；都缺时回退"药品档案"
  */
 export function medicineLabel(medicine) {
   const m = medicine || {}
-  const parts = []
-  if (m.spec) parts.push(String(m.spec))
   const dose = [m.dosePerTime, m.unit].filter(Boolean).join('')
-  if (dose) parts.push(dose)
-  return parts.length ? parts.join(' · ') : '药品档案'
+  return dose || '药品档案'
 }
 
 /**

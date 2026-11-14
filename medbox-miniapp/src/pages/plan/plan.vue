@@ -5,7 +5,7 @@
       <text class="head__sub">固定药格 · 开格时间</text>
     </view>
 
-    <!-- 老人选择器：监护人可见；候选来自可见设备的 elderId（P1 mp-guardian 前无老人列表接口，同 mp-stock 模式）。
+    <!-- 老人选择器：监护人可见；候选来自可见设备的 elderId（P1 mp-guardian 前无老人列表接口）。
          老人端为只读本人的计划，显示静态文案。 -->
     <scroll-view v-if="canWrite && elders.length > 1" class="elders" scroll-x :show-scrollbar="false">
       <view

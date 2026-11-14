@@ -18,18 +18,15 @@ import {
 } from '@/utils/ai.js'
 
 describe('utils/ai —— 维度与范围', () => {
-  it('AI_TYPE / AI_TYPES 五个维度且含 COMPREHENSIVE 默认', () => {
-    expect(AI_TYPES).toHaveLength(5)
+  it('AI_TYPE / AI_TYPES 四个维度且含 COMPREHENSIVE 默认（库存维度已随台账下线移除）', () => {
+    expect(AI_TYPES).toHaveLength(4)
     expect(AI_TYPE.COMPREHENSIVE).toBe('COMPREHENSIVE')
     expect(AI_TYPES.map((t) => t.value)).toContain('ENV_CORRELATION')
+    expect(AI_TYPES.map((t) => t.value)).not.toContain('STOCK')
+    expect(AI_TYPE.STOCK).toBeUndefined()
   })
 
-  it('库存维度按手工台账展示，不出现按服药推算消耗的旧口径', () => {
-    const stock = AI_TYPES.find((t) => t.value === 'STOCK')
-    expect(stock.label).toBe('库存盘点')
-    expect(stock.desc).toContain('手工台账')
-    expect(stock.desc).toContain('不推算消耗')
-    expect(stock.desc).not.toMatch(/近 N 日消耗|预测/)
+  it('环境关联维度描述消费服药记录', () => {
     const env = AI_TYPES.find((t) => t.value === 'ENV_CORRELATION')
     expect(env.desc).toContain('服药记录')
   })
@@ -46,8 +43,8 @@ describe('utils/ai —— 维度与范围', () => {
 
   it('buildInsightPayload 缺 elderId 抛错；deviceId 仅在提供时下发', () => {
     expect(() => buildInsightPayload({})).toThrow(/elderId/)
-    const p1 = buildInsightPayload({ elderId: 'u-1001', type: 'STOCK', rangeDays: 14 })
-    expect(p1.type).toBe('STOCK')
+    const p1 = buildInsightPayload({ elderId: 'u-1001', type: 'TREND', rangeDays: 14 })
+    expect(p1.type).toBe('TREND')
     expect(p1.range).toHaveProperty('from')
     const p2 = buildInsightPayload({ elderId: 'u-1001' })
     expect(p2.type).toBe('COMPREHENSIVE')

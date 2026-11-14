@@ -13,7 +13,6 @@
           :error="nameError"
           @blur="validateName"
         />
-        <MbField v-model="form.spec" label="规格" placeholder="如：0.25g×24粒" />
         <view class="row">
           <MbField v-model="form.dosePerTime" class="row__item" label="默认单次剂量" placeholder="如：1" />
           <MbField v-model="form.unit" class="row__item" label="单位" placeholder="片 / 粒 / ml / 瓶" />
@@ -93,12 +92,11 @@ import { listDevices } from '@/api/device.js'
 import { CODE } from '@/api/request.js'
 import { buildMedicinePayload } from '@/utils/medicine.js'
 
-/** 表单初始值（与 `medicine` 表字段一一对应，见 06 的 2.4）。 */
+/** 表单初始值（规格字段前端已移除，不再收集）。 */
 function emptyForm() {
   return {
     medicineId: '',
     name: '',
-    spec: '',
     dosePerTime: '',
     unit: '',
     contraindication: '',
@@ -159,7 +157,6 @@ export default {
       const form = emptyForm()
       form.medicineId = medicine.medicineId || this.medicineId
       form.name = medicine.name || ''
-      form.spec = medicine.spec || ''
       form.dosePerTime = medicine.dosePerTime || ''
       form.unit = medicine.unit || ''
       form.contraindication = medicine.contraindication || ''

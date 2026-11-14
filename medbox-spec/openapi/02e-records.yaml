@@ -142,7 +142,7 @@ paths:
         ① **命中已有记录 → 纠错**：仅覆盖请求体里**非空**的 actualTime/onTime/takenResult（设备误判时监护人改写 TAKEN/UNTAKEN），source 恒置 MANUAL；
         ② **记录不存在 → 新建（补录）**：路径 {recordId} **被忽略**，服务端生成新 mr- 号并在响应返回；请求体须带 elderId/planId/cellNo（缺任一带 40001，计划查不到带 40401），source=MANUAL，planTime 按该格就近槽重算（无 planId / 该格无排程 / 算不出则 NULL）。
 
-        **库存不联动**：补录 / 纠错均不改库存；库存为独立手工台账（02c）。
+        **无库存联动**：系统不建模库存（药品为纯档案记录），补录 / 纠错无任何库存语义。
         **MISS 不受影响**：漏服仅由「规定时间内该格无上报」触发，超时未补录仍判 MISS。
       parameters:
         - $ref: '#/components/parameters/RecordId'

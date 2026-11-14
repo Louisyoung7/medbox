@@ -6,7 +6,7 @@
  * （`request.js` 已由 user-delete 覆盖）。
  *
  * <p>⚠️ 后端 `medicine-core` 未落地：这里断言的是**前端契约**（02 第 5 章的路径与方法、
- * 分页参数、40901 兑现），真机联调后如有偏差改契约处即可。
+ * 分页参数、错误码兑现），真机联调后如有偏差改契约处即可。
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -97,7 +97,7 @@ describe('medicine —— 请求层', () => {
     const { medicine } = await loadMedicineApi()
     scripts = [{ body: { code: 0, data: { medicineId: 'm-205', name: '阿莫西林胶囊' } } }]
 
-    const payload = { name: '阿莫西林胶囊', spec: '0.25g×24粒', contraindication: '过敏者禁用' }
+    const payload = { name: '阿莫西林胶囊', contraindication: '过敏者禁用' }
     const data = await medicine.saveMedicine(payload)
 
     expect(data.medicineId).toBe('m-205')
@@ -126,14 +126,14 @@ describe('medicine —— 请求层', () => {
     expect(sent[0].url).toContain('/medbox/api/v1/medicines/m-205')
   })
 
-  it('deleteMedicine：40901（被库存引用）兑现 ApiError(code 40901)，凭据保留', async () => {
+  it('deleteMedicine：40401（药品不存在）兑现 ApiError，凭据保留', async () => {
     const { medicine, CODE } = await loadMedicineApi()
-    scripts = [{ body: { code: 40901, message: '药品仍被库存引用，无法删除' } }]
+    scripts = [{ body: { code: 40401, message: '药品不存在' } }]
 
     const error = await medicine.deleteMedicine('m-205').catch((err) => err)
 
-    expect(error.code).toBe(CODE.CONFLICT)
-    expect(error.code).toBe(40901)
+    expect(error.code).toBe(CODE.NOT_FOUND)
+    expect(error.code).toBe(40401)
     expect(storage.accessToken).toBe('TOKEN')
   })
 

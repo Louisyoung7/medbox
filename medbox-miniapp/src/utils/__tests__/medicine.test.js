@@ -18,7 +18,6 @@ describe('buildMedicinePayload', () => {
   it('新建：trim 后只带非空字段，无 medicineId 与 ownerElderId 即公共字典', () => {
     const payload = buildMedicinePayload({
       name: '  阿莫西林胶囊 ',
-      spec: ' 0.25g×24粒 ',
       dosePerTime: '',
       unit: '   ',
       contraindication: null,
@@ -28,11 +27,11 @@ describe('buildMedicinePayload', () => {
 
     expect(payload).toEqual({
       name: '阿莫西林胶囊',
-      spec: '0.25g×24粒',
       storageCond: '遮光密封',
     })
     expect('medicineId' in payload).toBe(false)
     expect('ownerElderId' in payload).toBe(false)
+    expect('spec' in payload).toBe(false) // 规格字段前端已不再下发
   })
 
   it('编辑：带上 medicineId 与 ownerElderId', () => {
@@ -73,15 +72,13 @@ describe('parseMedicinePage', () => {
 })
 
 describe('medicineLabel', () => {
-  it('规格与默认剂量拼成副标题', () => {
-    expect(medicineLabel({ spec: '0.25g×24粒', dosePerTime: '1', unit: '粒' })).toBe(
-      '0.25g×24粒 · 1粒',
-    )
+  it('默认剂量+单位拼成副标题（规格字段前端已移除，不参与展示）', () => {
+    expect(medicineLabel({ dosePerTime: '1', unit: '粒' })).toBe('1粒')
+    expect(medicineLabel({ spec: '0.25g×24粒', dosePerTime: '1', unit: '粒' })).toBe('1粒')
   })
 
   it('缺字段自动省略；全缺回退“药品档案”', () => {
-    expect(medicineLabel({ dosePerTime: '1', unit: '片' })).toBe('1片')
-    expect(medicineLabel({ spec: '0.1g' })).toBe('0.1g')
+    expect(medicineLabel({ dosePerTime: '1' })).toBe('1')
     expect(medicineLabel({})).toBe('药品档案')
     expect(medicineLabel(null)).toBe('药品档案')
   })

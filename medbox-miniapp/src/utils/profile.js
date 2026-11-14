@@ -40,7 +40,7 @@ export function rolePermissionText(role) {
     case ROLE.ELDER:
       return '只读本人数据（计划 / 记录 / 告警 / 设备状态），可用 AI 问答'
     case ROLE.GUARDIAN:
-      return '对已确认绑定的老人可读可写（计划、药品、库存、告警处理）'
+      return '对已确认绑定的老人可读可写（计划、药品、告警处理）'
     default:
       return ''
   }
