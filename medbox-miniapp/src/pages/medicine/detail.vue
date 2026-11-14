@@ -15,9 +15,9 @@
         <MbCell title="创建时间" :value="formatDateTime(medicine.createdAt)" />
       </MbCard>
 
-      <MbCard title="禁忌">
-        <view class="contraindication">
-          <text class="contraindication__text">{{ medicine.contraindication || '暂无' }}</text>
+      <MbCard title="药品说明">
+        <view class="description">
+          <text class="description__text">{{ medicine.description || '暂无' }}</text>
         </view>
       </MbCard>
 
@@ -154,10 +154,10 @@ export default {
   margin-bottom: 16rpx;
 }
 
-.contraindication {
+.description {
   padding: 20rpx 24rpx;
-  border-left: 8rpx solid $mb-danger;
-  background: #fdecec;
+  border-left: 8rpx solid $mb-primary;
+  background: $mb-primary-bg;
   border-radius: $mb-radius-sm;
 
   &__text {

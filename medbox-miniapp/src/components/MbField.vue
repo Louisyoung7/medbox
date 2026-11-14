@@ -37,7 +37,7 @@
 <script>
 /**
  * 表单输入（`feat/mp-ui-kit`）：label / input / 错误提示，密码类型带显隐切换。
- * `v-model` 双向绑定（modelValue）。`type` = text / password / number / **textarea（多行，`feat/mp-medicine` 起可用：禁忌、储存条件等长文本）**。
+ * `v-model` 双向绑定（modelValue）。`type` = text / password / number / **textarea（多行，`feat/mp-medicine` 起可用：药品说明、储存条件等长文本）**。
  */
 export default {
   name: 'MbField',

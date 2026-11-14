@@ -1,7 +1,7 @@
 /**
  * 药品域接口（medbox-spec/02 第 5 章）—— 全部需鉴权（默认 `auth: true`，不带 Bearer 会 40101）。
  *
- * <p>药品为**纯档案记录**（名称 / 单次用量 / 单位 / 禁忌 / 储存条件）；
+ * <p>药品为**纯档案记录**（名称 / 单次用量 / 单位 / 药品说明 / 储存条件）；
  * 本文件只收敛药品档案 CRUD（列表 / 详情 / 新建更新合一 / 删除）。
  *
  * <p>⚠️ **后端 `medicine-core` 尚未落地**（07 清单未勾选）：本文件按 02 第 5 章 + 06 的 2.4
@@ -35,7 +35,7 @@ export function listMedicines(params, options) {
  * @param {string} medicineId 药品编号（如 `m-205`）
  * @param {Object} [options] 透传请求选项
  * @returns {Promise<Object>} `medicineId` / `ownerElderId`(必填) / `name` / `spec`(后端仍存，前端已不展示) /
- *   `dosePerTime`(默认单次剂量) / `unit` / `contraindication`(禁忌) /
+ *   `dosePerTime`(默认单次剂量) / `unit` / `description`(药品说明，AI 用药安全洞察的唯一事实来源) /
  *   `storageCond`(储存条件) / `createdAt`(UTC)
  * @throws {ApiError} 40101 / 40301（无权或药品不存在）/ 40302 / 40401 / -1
  */
@@ -50,7 +50,7 @@ export function getMedicine(medicineId, options) {
  *
  * @param {Object} payload 请求体（由 `src/utils/medicine.js` 的 {@link buildMedicinePayload} 组装）：
  *   `medicineId`(仅编辑) / `name`(必填) / `dosePerTime` / `unit` /
- *   `contraindication` / `storageCond` / `ownerElderId`(创建必填)
+ *   `description` / `storageCond` / `ownerElderId`(创建必填)
  * @param {Object} [options] 透传请求选项（如 `loading: '保存中'`）
  * @returns {Promise<Object>} 保存后的药品档案
  * @throws {ApiError} 40001（`name` / `ownerElderId` 为空等）/ 40101 / 40301（老人只读、越权）/ 40302 / -1

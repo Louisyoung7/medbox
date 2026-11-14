@@ -387,6 +387,8 @@ async function handleSaveMedicine(req, res, body) {
   const user = requireUser(req)
   const name = String(body.name || '').trim()
   if (!name) throw new BizError(40001, 'name 不能为空')
+  const description = body.description ? String(body.description) : ''
+  if (description.length > 2000) throw new BizError(40001, 'description 超长')
 
   const medicineId = body.medicineId ? String(body.medicineId) : ''
   const existing = medicineId ? state.medicines.find((m) => m.medicineId === medicineId) : null
@@ -399,7 +401,7 @@ async function handleSaveMedicine(req, res, body) {
     existing.spec = body.spec ? String(body.spec) : ''
     existing.dosePerTime = body.dosePerTime ? String(body.dosePerTime) : ''
     existing.unit = body.unit ? String(body.unit) : ''
-    existing.contraindication = body.contraindication ? String(body.contraindication) : ''
+    existing.description = description
     existing.storageCond = body.storageCond ? String(body.storageCond) : ''
     // 归属不可变：忽略 body.ownerElderId
     ok(res, { ...existing })
@@ -417,7 +419,7 @@ async function handleSaveMedicine(req, res, body) {
     spec: body.spec ? String(body.spec) : '',
     dosePerTime: body.dosePerTime ? String(body.dosePerTime) : '',
     unit: body.unit ? String(body.unit) : '',
-    contraindication: body.contraindication ? String(body.contraindication) : '',
+    description,
     storageCond: body.storageCond ? String(body.storageCond) : '',
     createdAt: isoNow(),
   }
@@ -869,11 +871,17 @@ function isAiEnabled(_user, elderId) {
 
 /** 按维度生成自然语言洞察 + 引用锚点 + 免责声明（纯展示，不落库、不决策，见 05 FP-9/FP-10）。 */
 function aiInsightContent(type) {
-  const citations = [
+  const recordCitations = [
     'med_record#rec-12345',
     'alarm#MISS:u-1001-2026-10-20',
     'env_sample#es-th-12',
   ]
+  const medicineCitations = ['medicine#m-201', 'medicine#m-202', 'medicine#m-203']
+  const citations = type === 'MEDICATION_SAFETY'
+    ? medicineCitations
+    : type === 'COMPREHENSIVE'
+      ? [...recordCitations, ...medicineCitations]
+      : recordCitations
   const map = {
     ADHERENCE:
       '近 14 天内，晚饭后时段漏服率较上旬上升约 18 个百分点，且与周末强相关；建议核查作息与提醒时间是否偏移。',
@@ -881,8 +889,10 @@ function aiInsightContent(type) {
       '近一周夜间光照偏低时段，按格取药记录中的未按时比例同步上升，二者或存在关联；建议改善夜间照明并复核服药提醒。',
     TREND:
       '近 30 天漏服与异常告警整体呈缓降趋势，但上周末出现反弹，建议持续关注周末时段。',
+    MEDICATION_SAFETY:
+      '在册药品说明中，阿莫西林标注“对青霉素过敏者禁用”，阿托伐他汀标注“避免与葡萄柚汁同服”；两种药的说明均未提及彼此联用风险，说明未覆盖的部分无法判断，建议携带药盒向药师核实。',
     COMPREHENSIVE:
-      '综合来看：晚饭后漏服偏高且与周末相关；夜间光照偏低或影响按时取药；整体趋势缓降但周末反弹，建议复核提醒与照明。',
+      '综合来看：晚饭后漏服偏高且与周末相关；夜间光照偏低或影响按时取药；整体趋势缓降但周末反弹，建议复核提醒与照明。在册药品说明未覆盖彼此的联用风险，建议向药师核实。',
   }
   const content = map[type] || map.COMPREHENSIVE
   return {

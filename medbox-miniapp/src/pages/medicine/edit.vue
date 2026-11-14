@@ -18,10 +18,10 @@
           <MbField v-model="form.unit" class="row__item" label="单位" placeholder="片 / 粒 / ml / 瓶" />
         </view>
         <MbField
-          v-model="form.contraindication"
+          v-model="form.description"
           type="textarea"
-          label="禁忌"
-          placeholder="如：青霉素过敏者禁用；服用期间忌酒"
+          label="药品说明（AI 分析依据）"
+          placeholder="照抄说明书即可，如：主要成分：阿莫西林；适应症：呼吸道感染；禁忌：对青霉素过敏者禁用；注意事项：服药期间忌酒（最多 2000 字）"
         />
         <MbField
           v-model="form.storageCond"
@@ -56,7 +56,7 @@ function emptyForm() {
     name: '',
     dosePerTime: '',
     unit: '',
-    contraindication: '',
+    description: '',
     storageCond: '',
     ownerElderId: '',
   }
@@ -115,7 +115,7 @@ export default {
       form.name = medicine.name || ''
       form.dosePerTime = medicine.dosePerTime || ''
       form.unit = medicine.unit || ''
-      form.contraindication = medicine.contraindication || ''
+      form.description = medicine.description || ''
       form.storageCond = medicine.storageCond || ''
       this.form = form
       this.selectedElder = medicine.ownerElderId || ''
@@ -147,6 +147,10 @@ export default {
       if (this.nameError) return
       if (!this.selectedElder) {
         uni.showToast({ title: '暂无可归属的老人，请先登记药箱设备', icon: 'none' })
+        return
+      }
+      if (String(this.form.description || '').length > 2000) {
+        uni.showToast({ title: '药品说明最多 2000 字', icon: 'none' })
         return
       }
       const payload = buildMedicinePayload({

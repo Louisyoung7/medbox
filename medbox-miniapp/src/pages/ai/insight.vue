@@ -21,8 +21,8 @@
       <view class="chip-desc">{{ selectedTypeDesc }}</view>
     </MbCard>
 
-    <!-- 时间范围 -->
-    <MbCard title="时间范围">
+    <!-- 时间范围（用药安全维度只读药品说明，不按时间统计） -->
+    <MbCard v-if="type !== 'MEDICATION_SAFETY'" title="时间范围">
       <view class="range-row">
         <view
           v-for="r in rangeOptions"
@@ -35,6 +35,9 @@
         </view>
       </view>
       <view class="range-hint">最多 30 天（超出将被服务端拒绝）</view>
+    </MbCard>
+    <MbCard v-else title="分析依据">
+      <view class="range-hint">只读取药品档案中监护人填写的药品说明，不按时间范围统计；AI 不联网，说明未覆盖的内容会回答“无法判断”。</view>
     </MbCard>
 
     <!-- 生成按钮 -->
