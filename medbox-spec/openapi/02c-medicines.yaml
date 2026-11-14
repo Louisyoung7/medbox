@@ -16,7 +16,7 @@ security:
 
 tags:
   - name: medicines
-    description: 药品档案（公共字典 + 私有药品）
+    description: 药品档案（必归属老人，无公共字典）
 
 paths:
   /medicines:
@@ -25,8 +25,9 @@ paths:
       tags: [medicines]
       summary: 新建/更新药品档案【鉴权·WRITE_MEDICINE（仅 GUARDIAN）】
       description: |
-        更新时请求体带 medicineId，创建不带（由后端生成）；ownerElderId **不传即公共字典**，传某老人 userId 即其私有药品。
-        可见范围 = 公共药品（ownerElderId 为空）+ 我监护老人的私有药品（服务端按 visibleElderIds() 行级过滤）。
+        更新时请求体带 medicineId，创建不带（由后端生成）；药品**必归属某位老人**（无公共字典）：
+        ownerElderId 创建必填（留空 → 40001），更新时传了也会被忽略（归属不可变）。
+        可见范围 = 我监护老人的药品（服务端按 visibleElderIds() 行级过滤）。
         含禁忌、储存条件等字段（详见 06 §2.4）。
       parameters:
         - $ref: './common.yaml#/components/parameters/XRequestId'
@@ -57,8 +58,8 @@ paths:
     get:
       operationId: listMedicines
       tags: [medicines]
-      summary: 药品字典 / 我的药品列表（分页、搜索）【鉴权】
-      description: 可见范围 = 公共药品 + 我监护老人的私有药品（行级过滤）；分页按通用约定 page/size、返回 total。
+      summary: 我的药品列表（分页、搜索）【鉴权】
+      description: 可见范围 = 我监护老人的药品（行级过滤）；无 ACTIVE 监护关系时返回空分页。分页按通用约定 page/size、返回 total。
       parameters:
         - name: keyword
           in: query
@@ -167,8 +168,7 @@ components:
           example: 粒
         ownerElderId:
           type: string
-          nullable: true
-          description: null=公共字典；非 null=该老人私有药品
+          description: 归属老人业务 ID（必填，创建后不可变）
         createdAt:
           type: string
           format: date-time
@@ -187,6 +187,5 @@ components:
           nullable: true
         ownerElderId:
           type: string
-          nullable: true
-          description: 不传即公共字典；传某老人 userId 即其私有药品
+          description: 归属老人业务 ID；创建必填，更新时忽略（归属不可变）
         # 禁忌 / 储存条件等字段见 06 §2.4，随后端实现追加

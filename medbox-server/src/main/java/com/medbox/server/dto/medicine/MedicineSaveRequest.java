@@ -12,10 +12,9 @@ import jakarta.validation.constraints.Size;
    * 所以这里没有单独的 {@code PUT /medicines/{medicineId}}。
    *
    * <p><b>{@code ownerElderId} 决定可见范围</b>（见 06 的
-  2.4）：留空表示「公共药品字典」，
-   * 全体用户可见只读；填了老人 ID
-  表示该老人的私有药品，仅其监护人可见。是否有权写
-   * 这个老人（{@code WRITE_MEDICINE}）在 Service 层用 {@code
+  2.4）：药品必归属某位老人，创建时必填，留空 → 40001；
+   * 更新时传了也会被忽略（归属不可变）。是否有权写这个老人
+   * （{@code WRITE_MEDICINE}）在 Service 层用 {@code
   require(elderId, WRITE_MEDICINE)} 判定。
    *
    * @param medicineId       药品业务 ID；新建留空，更新时必填
@@ -26,7 +25,7 @@ import jakarta.validation.constraints.Size;
    * @param contraindication 禁忌（TEXT，可长文本）
    * @param storageCond      储存条件文字说明（如
   "遮光、密封、阴凉处"），仅供展示
-   * @param ownerElderId     归属老人业务 ID；留空 = 公共药品字典
+   * @param ownerElderId     归属老人业务 ID；创建必填，更新时忽略
    */
 public record MedicineSaveRequest(
     @Size(max=64,message="medicineId 超长")

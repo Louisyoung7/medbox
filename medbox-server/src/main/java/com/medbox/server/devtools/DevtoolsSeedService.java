@@ -45,8 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(prefix = "medbox.devtools", name = "enabled", havingValue = "true")
 public class DevtoolsSeedService {
 
-    private static final String MED_PUBLIC = "m-205";
-    private static final String MED_PRIVATE = "m-206";
+    private static final String MED_SEED = "m-206";
     private static final String PLAN_ID = "p-3301";
     private static final String RELATION_ID = "r-debug-001";
 
@@ -79,7 +78,7 @@ public class DevtoolsSeedService {
     @Transactional
     public SeedResult seed(boolean reset) {
         DevtoolsProperties.Seed s = props.getSeed();
-        List<String> medicineIds = List.of(MED_PUBLIC, MED_PRIVATE);
+        List<String> medicineIds = List.of(MED_SEED);
         if (reset) {
             clearSeed(s);
             insertAll(s);
@@ -113,7 +112,7 @@ public class DevtoolsSeedService {
         medPlanMapper.delete(new QueryWrapper<MedPlan>().eq("plan_id", PLAN_ID));
         deviceMapper.delete(new QueryWrapper<Device>().eq("device_id", deviceId));
         deviceMapper.delete(new QueryWrapper<Device>().likeRight("device_id", deviceId + "-S-"));
-        medicineMapper.delete(new QueryWrapper<Medicine>().in("medicine_id", MED_PUBLIC, MED_PRIVATE));
+        medicineMapper.delete(new QueryWrapper<Medicine>().in("medicine_id", MED_SEED));
         guardianRelationMapper.delete(new QueryWrapper<GuardianRelation>()
                 .eq("elder_id", s.getElderUserId()).eq("guardian_id", s.getGuardianUserId()));
         userMapper.delete(new QueryWrapper<User>().in("user_id", s.getGuardianUserId(), s.getElderUserId()));
@@ -181,25 +180,14 @@ public class DevtoolsSeedService {
     }
 
     private void insertMedicines(DevtoolsProperties.Seed s) {
-        Medicine publicMed = new Medicine();
-        publicMed.setMedicineId(MED_PUBLIC);
-        publicMed.setOwnerElderId(null);
-        publicMed.setName("阿司匹林");
-        publicMed.setDosePerTime("1");
-        publicMed.setUnit("片");
-        publicMed.setContraindication("胃溃疡慎用");
-        publicMed.setStorageCond("阴凉干燥处");
-        publicMed.setCreatedAt(OffsetDateTime.now());
-        medicineMapper.insert(publicMed);
-
-        Medicine privateMed = new Medicine();
-        privateMed.setMedicineId(MED_PRIVATE);
-        privateMed.setOwnerElderId(s.getElderUserId());
-        privateMed.setName("甲硝唑");
-        privateMed.setDosePerTime("1");
-        privateMed.setUnit("片");
-        privateMed.setCreatedAt(OffsetDateTime.now());
-        medicineMapper.insert(privateMed);
+        Medicine med = new Medicine();
+        med.setMedicineId(MED_SEED);
+        med.setOwnerElderId(s.getElderUserId());
+        med.setName("甲硝唑");
+        med.setDosePerTime("1");
+        med.setUnit("片");
+        med.setCreatedAt(OffsetDateTime.now());
+        medicineMapper.insert(med);
     }
 
     /** 只排 1 号格，时间为设备本地当前时刻 +2 分钟，便于提醒扫描立即命中；不含药品明细。 */

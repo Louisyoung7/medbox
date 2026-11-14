@@ -33,7 +33,7 @@ public record SeedResult(
         /** 调试药箱主控设备 ID。 */
         String deviceId,
 
-        /** 播种出的药品业务 ID 列表（含公共药与私有药）。 */
+        /** 播种出的药品业务 ID 列表。 */
         List<String> medicineIds,
 
         /** 播种出的计划业务 ID（计划只含格号排程）。 */

@@ -37,7 +37,7 @@ public class MedicineController {
     return R.ok(medicineService.save(request));
   }
 
-/** 分页列表 + 按名称搜索，可见 = 公共药品 +我监护老人的私有药品。 */
+/** 分页列表 + 按名称搜索，可见 = 我监护老人的药品。 */
 @GetMapping
 public R<PageResult<MedicineSummaryResponse>>list(
     @RequestParam(value="keyword",required=false)String keyword,
@@ -53,7 +53,7 @@ public R<MedicineResponse> detail(@PathVariable ("medicineId") String medicineId
     return R.ok(medicineService.detail(medicineId));
 }
 
-/** 删除药品；仍被库存引用 → 40901。 */
+/** 删除药品；无业务引用校验，直接删除。 */
 @DeleteMapping("/{medicineId}")
 public R<Void>delete (@PathVariable ("medicineId")String medicineId){
     medicineService.delete(medicineId);
