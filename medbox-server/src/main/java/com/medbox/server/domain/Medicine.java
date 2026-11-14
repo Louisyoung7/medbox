@@ -8,9 +8,8 @@ import lombok.Data;
   /**
    * 药品档案，对应 {@code medicine} 表（见文档 06 的 2.4，由 V1 建）。
    *
-   * <p><b>可见范围</b>：{@code owner_elder_id}
-  为空表示「公共药品字典」，全体用户可见只读；
-   * 非空表示该老人的私有药品，仅其监护人可见。这个判定放 Service 层（02 第 5
+   * <p><b>可见范围</b>：药品必归属某位老人（{@code owner_elder_id} 非空，无公共字典），
+   * 仅该老人与其监护人可见。这个判定放 Service 层（02 第 5
   章），实体不掺业务。
    *
    * <p><b>主键必须 {@code IdType.AUTO}</b>：表主键是 BIGSERIAL，MyBatis-Plus
@@ -30,7 +29,7 @@ public class Medicine{
     @TableId(type=IdType.AUTO)
     private Long id;
     private String medicineId;/** 业务 ID，如 {@code m-1001}。 */
-    private String ownerElderId;/** 所属老人 ID，为空表示公共药品字典。 */
+    private String ownerElderId;/** 所属老人 ID（必填，创建后不可变）。 */
     private String name;/** 药品名称。 */
     private String dosePerTime;/** 默认单次剂量（计划明细未指定时取此值）。 */
     private String unit;/** 药品单位。 */

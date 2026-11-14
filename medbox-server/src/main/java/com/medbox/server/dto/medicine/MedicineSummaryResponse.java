@@ -10,14 +10,13 @@ import com.medbox.server.domain.Medicine;
    * （{@link MedicineResponse}）。
    *
    * <p>{@code ownerElderId}
-  用来区分「公共字典（null）」与「某老人的私有药品」——
-   * 小程序据此给私有药品打上归属标记。
+  恒非空，小程序据此显示药品所属老人。
    *
    * @param medicineId   药品业务 ID
    * @param name         药品名称
    * @param unit         单位
    * @param dosePerTime  默认单次剂量
-   * @param ownerElderId 归属老人业务 ID；null = 公共药品字典
+   * @param ownerElderId 归属老人业务 ID（必填）
    */
 public record MedicineSummaryResponse(
     String medicineId,

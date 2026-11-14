@@ -20,10 +20,10 @@
 
   /**
    * 药品档案 CRUD（见文档 02 第 5 章、06 的 2.4）。
-   * 可见范围 = 公共药品（ownerElderId 为空）+ 我监护老人的私有药品；
-   * 写权限 = 公共药品要 FAMILY 监护人，私有药品要该老人的 FAMILY
-  监护人。
+   * 药品必归属某位老人（无公共字典）：可见范围 = 我监护老人的药品；
+   * 写权限 = 该老人的 WRITE_MEDICINE（仅监护人）。
    */
+
 
 @Service
 public class MedicineService {
@@ -52,7 +52,7 @@ public class MedicineService {
         return isNew?create(request):update(request);
     }
 
-     /** GET /medicines：分页 + 按名称搜索，可见 = 公共 +我监护老人的私有。 */
+     /** GET /medicines：分页 + 按名称搜索，可见 = 我监护老人的药品。 */
      public PageResult<MedicineSummaryResponse> list(String keyword,Integer page ,Integer size){
         int safePage=page==null?1:page;
         int safeSize=size==null?DEFAULT_PAGE_SIZE:size;
@@ -63,12 +63,12 @@ public class MedicineService {
         safeSize=Math.min(safeSize,MAX_PAGE_SIZE);
 
         Set<String> elderIds=accessService.visibleElderIds();
-        LambdaQueryWrapper<Medicine> query=new LambdaQueryWrapper<Medicine>().and(w->{
-            w.isNull(Medicine::getOwnerElderId);
-            if(!elderIds.isEmpty()){
-                w.or().in(Medicine::getOwnerElderId,elderIds);
-            }
-        }).orderByAsc(Medicine::getMedicineId);
+        if(elderIds.isEmpty()){
+            return PageResult.empty(safePage,safeSize);
+        }
+        LambdaQueryWrapper<Medicine> query=new LambdaQueryWrapper<Medicine>()
+            .in(Medicine::getOwnerElderId,elderIds)
+            .orderByAsc(Medicine::getMedicineId);
         if(keyword!=null&&!keyword.isBlank()){
             query.like(Medicine::getName,keyword.trim());
         }
@@ -91,8 +91,9 @@ public class MedicineService {
 
     private MedicineResponse create(MedicineSaveRequest request){
 
-        String owner=normalizeOwner(request.ownerElderId());
-        requireWriteByOwner(owner);
+        String owner=trimToNull(request.ownerElderId());
+        BizAssert.badRequestIf(owner==null,"ownerElderId 不能为空");
+        accessService.require(owner,Permission.WRITE_MEDICINE);
 
         Medicine medicine=new Medicine();
         medicine.setMedicineId(medicineMapper.nextMedicineId());
@@ -118,19 +119,16 @@ public class MedicineService {
         medicineMapper.updateById(medicine);
         return MedicineResponse.from(medicine);
       }
-    /** 读：不存在或不可见一律 40301（防枚举），私有药再走
-  READ_MEDICINE。 */
+    /** 读：不存在或无权一律 40301（防枚举），按归属老人校验 READ_MEDICINE。 */
       private Medicine requireForRead(String medicineId) {
         Medicine medicine = find(medicineId);
-        if (medicine.getOwnerElderId() != null) {
-            accessService.require(medicine.getOwnerElderId(),Permission.READ_MEDICINE);
-        }
+        accessService.require(medicine.getOwnerElderId(),Permission.READ_MEDICINE);
         return medicine;
     }
-    /** 写：不存在一律 40301，再按公共/私有判写权限。 */
+    /** 写：不存在或无权一律 40301，按归属老人校验 WRITE_MEDICINE。 */
       private Medicine requireForWrite(String medicineId) {
         Medicine medicine = find(medicineId);
-        requireWriteByOwner(medicine.getOwnerElderId());
+        accessService.require(medicine.getOwnerElderId(),Permission.WRITE_MEDICINE);
         return medicine;
     }
 
@@ -140,21 +138,11 @@ public class MedicineService {
         return medicine;
     }
 
-    /** 公共（owner 为空）→ requireGuardian；私有 → 该老人WRITE_MEDICINE。 */
-      private void requireWriteByOwner(String ownerElderId) {
-        if (ownerElderId == null) {
-            accessService.requireGuardian();
-        } else {
-            accessService.require(ownerElderId,Permission.WRITE_MEDICINE);
-        }
-    }
-
-
-    private String normalizeOwner(String ownerElderId){
-        if(ownerElderId==null||ownerElderId.isBlank()){
+    private String trimToNull(String value){
+        if(value==null||value.isBlank()){
             return null;
         }
-        return ownerElderId.trim();
+        return value.trim();
     }
 }
 

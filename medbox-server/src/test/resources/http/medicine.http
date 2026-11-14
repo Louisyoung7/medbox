@@ -19,14 +19,14 @@ Content-Type: application/json
   "ownerElderId": "e-1001"
 }
 
-### 药品字典 / 我的药品列表（分页、搜索）
+### 药品列表（分页、搜索；返回我监护老人的药品）
 GET {{baseUrl}}/medicines?page=1&size=20
 Authorization: Bearer {{login.response.body.$.data.token}}
 
 ### 药品详情
-GET {{baseUrl}}/medicines/m-205
+GET {{baseUrl}}/medicines/m-206
 Authorization: Bearer {{login.response.body.$.data.token}}
 
 ### 删除药品
-DELETE {{baseUrl}}/medicines/m-205
+DELETE {{baseUrl}}/medicines/m-206
 Authorization: Bearer {{login.response.body.$.data.token}}

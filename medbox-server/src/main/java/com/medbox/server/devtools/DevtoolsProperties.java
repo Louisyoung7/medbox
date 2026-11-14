@@ -12,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <b>会与真实数据相撞的 ID 一律加 {@code debug} 段</b>：{@code u-debug-guardian}（业务首个用户必是
  * {@code u-1001}）、{@code BOXA-DEBUG-01}（设备号可能等于真机序列号，且 {@code clearSeed} 会按它删设备）、
  * {@code s-debug-001}（业务首个库存必是 {@code s-1001}）。
- * 其余 {@code e-1001} / {@code m-205} / {@code p-3301} / {@code pi-9001} 不在业务序列生成值域内
+ * 其余 {@code e-1001} / {@code m-206} / {@code p-3301} / {@code pi-9001} 不在业务序列生成值域内
  * （业务号恒为前缀 + 数字、且从 1001 起），天然隔离，故保留短 ID。
  */
 @ConfigurationProperties(prefix = "medbox.devtools")

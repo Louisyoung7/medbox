@@ -17,7 +17,7 @@ import java.time.OffsetDateTime;
    * @param unit             单位
    * @param contraindication 禁忌
    * @param storageCond      储存条件文字说明
-   * @param ownerElderId     归属老人业务 ID；null = 公共药品字典
+   * @param ownerElderId     归属老人业务 ID（必填）
    * @param createdAt        创建时间（UTC）
    */
 

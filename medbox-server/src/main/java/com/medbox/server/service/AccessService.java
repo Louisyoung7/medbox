@@ -115,8 +115,8 @@ public class AccessService {
     /**
      * 当前登录用户**可见的老人 ID 集合**：老人本人只有自己；监护人是所有 ACTIVE 关系下的老人。
      *
-     * <p>给列表类接口做行级过滤（如 {@code feat/medicine-core} 的"公共药品 + 我监护老人的私有药品"），
-     * 用 IN 一次过滤，避免逐条判定带来的 N+1。
+     * <p>给列表类接口做行级过滤（如 {@code feat/medicine-core} 的"我监护老人的药品"），
+     * 用 IN 一次过滤，避免逐条判定带来的 N+1；集合为空时调用方应直接返回空分页。
      */
     public Set<String> visibleElderIds() {
         AuthContext.CurrentUser current = AuthContext.required();
@@ -144,21 +144,6 @@ public class AccessService {
                 .eq(GuardianRelation::getElderId, elderId)
                 .eq(GuardianRelation::getStatus, RelationStatus.ACTIVE));
     }
- /**
-  * 校验当前用户是「任一监护人」—— 供公共药品（ownerElderId 为空）的写操作使用。
-  * 老人本人没有 WRITE_MEDICINE，一律 40301。监护人（统一单一角色）均具备该权限。
-  */
- public void requireGuardian() {
-     AuthContext.CurrentUser current = AuthContext.required();
-     UserRole role = UserRole.parse(current.role());
-     BizAssert.forbiddenIf(role != UserRole.GUARDIAN, FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
-
-     List<GuardianRelation> active = guardianRelationMapper.selectList(new LambdaQueryWrapper<GuardianRelation>()
-                     .eq(GuardianRelation::getGuardianId, current.userId())
-                     .eq(GuardianRelation::getStatus, RelationStatus.ACTIVE));
-     BizAssert.forbiddenIf(active.isEmpty(), FORBIDDEN_MESSAGE + "(WRITE_MEDICINE)");
- }
-
  /**
        * 校验目标 userId 确实是老人账号 —— 供监护关系写接口（申请 /
   确认等）使用，
