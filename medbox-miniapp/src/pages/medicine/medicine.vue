@@ -39,13 +39,7 @@
         clickable
         arrow
         @click="goDetail(medicine)"
-      >
-        <template #extra>
-          <view class="owner">
-            <text class="owner__text">{{ ownerLabel(medicine) }}</text>
-          </view>
-        </template>
-      </MbCell>
+      />
     </MbCard>
 
     <view v-if="hasMore && !error" class="more">
@@ -69,11 +63,10 @@ import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import { listMedicines } from '@/api/medicine.js'
 import { CODE } from '@/api/request.js'
-import { getRole, getUserId } from '@/store/user.js'
+import { getRole } from '@/store/user.js'
 import {
   canWriteMedicine,
   medicineLabel,
-  medicineOwnerLabel,
   parseMedicinePage,
 } from '@/utils/medicine.js'
 
@@ -102,7 +95,6 @@ export default {
       loading: false,
       error: '',
       canWrite: false,
-      myUserId: '',
       loaded: false,
       debounceTimer: null,
     }
@@ -120,7 +112,6 @@ export default {
   },
   onLoad() {
     this.canWrite = canWriteMedicine(getRole())
-    this.myUserId = getUserId()
     this.fetchPage(true)
   },
   onShow() {
@@ -132,9 +123,6 @@ export default {
   },
   methods: {
     medicineLabel,
-    ownerLabel(medicine) {
-      return medicineOwnerLabel(medicine, this.myUserId)
-    },
     onKeywordInput(e) {
       this.keyword = e.detail.value
       this.clearDebounce()
@@ -276,20 +264,6 @@ export default {
     background: $mb-primary-bg;
     font-size: 24rpx;
     color: $mb-primary;
-  }
-}
-
-.owner {
-  display: inline-flex;
-  align-items: center;
-  height: 40rpx;
-  padding: 0 16rpx;
-  border-radius: $mb-radius-pill;
-  background: $mb-border;
-
-  &__text {
-    font-size: 22rpx;
-    color: $mb-text-3;
   }
 }
 

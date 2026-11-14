@@ -10,7 +10,6 @@ import {
   buildMedicinePayload,
   canWriteMedicine,
   medicineLabel,
-  medicineOwnerLabel,
   parseMedicinePage,
 } from '@/utils/medicine.js'
 
@@ -88,15 +87,6 @@ describe('medicineLabel', () => {
     expect(medicineLabel({ dosePerTime: '1' })).toBe('1')
     expect(medicineLabel({})).toBe('药品档案')
     expect(medicineLabel(null)).toBe('药品档案')
-  })
-})
-
-describe('medicineOwnerLabel', () => {
-  it('我的 / 某老人的药品（无公共字典）', () => {
-    expect(medicineOwnerLabel({})).toBe('未归属')
-    expect(medicineOwnerLabel({ ownerElderId: 'u-1001' }, 'u-1001')).toBe('我的')
-    expect(medicineOwnerLabel({ ownerElderId: 'u-1002' }, 'u-1001')).toBe('u-1002')
-    expect(medicineOwnerLabel(null, 'u-1001')).toBe('未归属')
   })
 })
 

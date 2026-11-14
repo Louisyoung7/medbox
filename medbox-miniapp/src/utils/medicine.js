@@ -83,21 +83,6 @@ export function medicineLabel(medicine) {
 }
 
 /**
- * 归属标签：我的 / 某老人的药品。
- *
- * @param {Object} medicine 药品档案（`ownerElderId` 必填）
- * @param {string} [myUserId] 当前登录用户 ID（`ownerElderId` 与它相等时显示"我的"）
- * @returns {string}
- */
-export function medicineOwnerLabel(medicine, myUserId) {
-  const m = medicine || {}
-  const owner = m.ownerElderId
-  if (!owner) return '未归属'
-  if (myUserId && owner === myUserId) return '我的'
-  return owner
-}
-
-/**
  * 当前角色是否可见药品写入口（新建 / 编辑 / 删除）。
  *
  * <p>02 的 1.3 权限矩阵：`WRITE_MEDICINE` 仅 **GUARDIAN（监护人）** ✅，老人只读。
