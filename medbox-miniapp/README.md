@@ -213,18 +213,19 @@ logout()            // 清 token + 用户资料 + reLaunch 登录页
 
 ```bash
 npm install
-npm run build:app-plus     # 产物在 dist/build/app-plus
+npm run build:app-plus     # 产物在 dist/build/app
 ```
 
 > `dev:app-plus` 仅用于 HBuilderX 真机运行热更新；纯命令行出包用 `build:app-plus` 即可。
 
 **3. 打包安装 APK（需要 HBuilderX）**
 
-CLI 只能产出 App 资源，**出 APK 要在 HBuilderX 里做**（本机是 Linux 命令行，无 GUI 打包环境）：
+CLI 只能产出 App 资源，**出 APK 要在 HBuilderX 里做**：
 
-- 用 HBuilderX 打开本工程 → 发行 → 原生 App-云打包（或本地打包 / 自定义基座）；
-- 选 Android，勾「使用自定义基座 / 公共测试证书」即可，无需自有签名与上架资质；
-- 打出来的 debug 包默认允许 `http://` 明文（Android 9+ 的 cleartext 限制在调试基座下已放开），正合局域网 `http` 联调；
+- 用 HBuilderX **打开本工程根目录**（CLI 工程直接打开 `medbox-miniapp/`，不是 `dist/`）；标准版需先在「工具 → 插件安装」装 App 开发插件；
+- 首次打包：双击 `src/manifest.json` 可视化界面，AppID 一栏点「重新获取」用 DCloud 账号申请 `uni.xxxxxxx`（本项目实测值为 `__UNI__623AA83`），写回 `src/manifest.json` 后**提交入库**，以后打包免填；
+- 菜单 **发行 → 原生 App-云打包** → Android → 证书选「**使用云端证书（服务器生成）**」（「公共测试证书」已下线，勿用）；云端证书绑定 appid、自动填信息、有效期 100 年，开发阶段免配 JRE；
+- 打出的包默认允许 `http://` 明文，正合局域网 `http` 联调；产物在 `dist/release/apk/`；
 - 装到手机，按步骤 1 设 IP，重启 App，登录即可。
 
 **4. 排错**
