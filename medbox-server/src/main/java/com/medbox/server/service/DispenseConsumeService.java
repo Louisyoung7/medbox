@@ -17,10 +17,8 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 /**
  * 服药事件消费核心（见 07 §1）。
@@ -28,9 +26,10 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
  * <p>设备经 HTTP captures 上报，组装成 {@link CaptureDispenseInput} 后转发本类。消费流程：
  * 准入校验（{@code planId + cellNo}、格号 1/2/3、设备归属、计划归属）→ 按该格就近槽重算
  * {@code plan_time} → 三级容忍算 {@code onTime}（单侧窗口）→ 取药结论归一为二值 → 写
- * {@code med_record}（唯一索引冲突回滚）→ 发布 {@link DispenseRecordedEvent}。
+ * {@code med_record}（唯一索引冲突则跳过）→ 发布 {@link DispenseRecordedEvent}。
  *
- * 第二层幂等是 {@code uk_med_record_cell_plan_time (plan_id, cell_no, plan_time)} 部分唯一索引。
+ * 第二层幂等是 {@code uk_med_record_cell_plan_time (plan_id, cell_no, plan_time)} 部分唯一索引，
+ * 由 {@code insertIfAbsent} 的 {@code ON CONFLICT DO NOTHING} 实现（命中不写、不抛异常、不毒化外层事务）。
  *
  * <p><b>非 Web 线程</b>：本服务无 {@code AuthContext}，一律走 Mapper 直接查归属，不调 {@code AccessService}。
  */
@@ -133,11 +132,12 @@ public class DispenseConsumeService {
         record.setDeviceId(mainDeviceId);
         record.setCreatedAt(OffsetDateTime.now(clock));
 
-        // —— 6. 写记录（第二层业务幂等：唯一索引冲突 → 回滚跳过）——
-        try {
-            medRecordMapper.insert(record);
-        } catch (DuplicateKeyException ex) {
-            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        // —— 6. 写记录（第二层业务幂等：ON CONFLICT DO NOTHING，命中则不写、不抛异常）——
+        // 不用「insert + catch DuplicateKeyException + setRollbackOnly」：本方法与外层
+        // CaptureService.upload 共享同一事务，setRollbackOnly 会毒化外层事务导致提交时
+        // UnexpectedRollbackException，连 capture 都落不了库。
+        int inserted = medRecordMapper.insertIfAbsent(record);
+        if (inserted == 0) {
             log.info("dispense 幂等命中：跳过写记录 camera={} planId={} cellNo={} planTime={}",
                     input.getCameraDeviceId(), input.getPlanId(), input.getCellNo(), planTime);
             return Optional.empty();

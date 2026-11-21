@@ -60,7 +60,7 @@ class DispenseConsumeServiceTest {
         when(timezoneResolver.resolve(anyString())).thenReturn(ZoneId.of("Asia/Shanghai"));
         when(toleranceResolver.resolveMinutes(any(), anyString())).thenReturn(15);
         when(medRecordMapper.nextRecordId()).thenReturn("mr-1001");
-        when(medRecordMapper.insert(any(MedRecord.class))).thenReturn(1);
+        when(medRecordMapper.insertIfAbsent(any(MedRecord.class))).thenReturn(1);
     }
 
     private static MedPlan plan(String elderId, List<PlanSlot> slots) {
@@ -132,7 +132,7 @@ class DispenseConsumeServiceTest {
         assertTrue(service.consume(input(null, 1)).isEmpty());
         assertTrue(service.consume(input(PLAN_ID, 4)).isEmpty());
         assertTrue(service.consume(input(PLAN_ID, null)).isEmpty());
-        verify(medRecordMapper, never()).insert(any(MedRecord.class));
+        verify(medRecordMapper, never()).insertIfAbsent(any(MedRecord.class));
         verify(eventPublisher, never()).publishEvent(any());
     }
 
@@ -142,7 +142,7 @@ class DispenseConsumeServiceTest {
         when(medPlanMapper.selectOne(any())).thenReturn(plan("u-9999", List.of(slot(1, "08:00"))));
 
         assertTrue(service.consume(input(PLAN_ID, 1)).isEmpty());
-        verify(medRecordMapper, never()).insert(any(MedRecord.class));
+        verify(medRecordMapper, never()).insertIfAbsent(any(MedRecord.class));
     }
 
     @Test
@@ -155,6 +155,18 @@ class DispenseConsumeServiceTest {
         disabled.setStatus("DISABLED");
         when(medPlanMapper.selectOne(any())).thenReturn(disabled);
         assertTrue(service.consume(input(PLAN_ID, 1)).isPresent());
+    }
+
+    @Test
+    @DisplayName("幂等命中：insertIfAbsent 返回 0 → 跳过写记录、不发事件，返回 empty")
+    void 幂等命中不写记录不发事件() {
+        when(medPlanMapper.selectOne(any())).thenReturn(
+                plan(ELDER_ID, List.of(slot(1, "08:00"))));
+        when(medRecordMapper.insertIfAbsent(any(MedRecord.class))).thenReturn(0);
+
+        assertTrue(service.consume(input(PLAN_ID, 1)).isEmpty());
+        verify(medRecordMapper).insertIfAbsent(any(MedRecord.class));
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
