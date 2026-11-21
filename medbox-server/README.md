@@ -231,7 +231,7 @@ curl -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/ws/publish \
 - 本机没起应用也能跑真链路测试：`MEDBOX_WS_LOCAL_TEST=true ./gradlew test --tests '*WsLocalIntegrationTest'`
   （它会自己拉起随机端口的完整上下文，替代手工 wscat）。
 
-## 11. 联调辅助（devtools，feat/backend-devtools，见文档 02 的 1.5 / 03 的 5.5）
+## 11. 联调辅助（devtools，feat/backend-devtools，见文档 02 的 1.5 / 03 第 5 章）
 
 给开发者 / QA 的局域网联调辅助端点，**全部走 `medbox.devtools.enabled` 开关**：
 
@@ -262,7 +262,7 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
   -H 'Content-Type: application/json' -d '{
     "deviceId":"BOXA-DEBUG-01",
     "subTopic":"telemetry/temperature",
-    "payload":"{\"msgId\":\"BOXA-DEBUG-01-000123\",\"ts\":1759474487000,\"sensorId\":\"BOXA-DEBUG-01-S-TH01\",\"temperature\":26.5}" }'
+    "payload":"{\"msgId\":\"BOXA-DEBUG-01-0000000123\",\"ts\":1759474487000,\"sensorId\":\"BOXA-DEBUG-01-S-TH01\",\"temperature\":26.5}" }'
 ```
 
 > **⚠️ 别预注册保留号**：`13800001234`（监护人）与 `13800008888`（老人）是 seed 写死的保留号。若你先按第 7 节用手动注册占了其中某个手机号，再跑 seed 会因手机号唯一约束冲突而失败——直接空库跑 seed 即可，或换别的手机号做 auth 自测。
@@ -299,4 +299,25 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
 
 - 模拟消息若触发计划下发（`down/schedule`），设备不在场会 `SYNC_FAILED`，属预期，不视为缺陷。
 - MQTT 没启 / 没连 broker 时该端点返回 `50000`，先按第 9 节起好 EMQX。
-- 完整字段语义见文档 02 的 1.5（seed 响应结构）与 03 的 5.5（payload 与各 `subTopic` 对齐）。
+- 完整字段语义见文档 02 的 1.5（seed 响应结构）与 03 第 5 章（payload 与各 `subTopic` 对齐）。
+- 该端点是**服务端单发报文**，不建 MQTT 会话、不订阅下行、不回执；需要验证设备会话 / ack / 摄像头抓拍时用下一节的 `tools/device-sim`（见文档 03 第 5 章）。
+
+## 12. 设备模拟器（tools/device-sim，dev/QA）
+
+无真机时用独立 Node CLI 扮演**设备对端**，跑通「上线 → 遥测/心跳 → 下行回执 → 摄像头抓拍 → 落库/判定 → WS 推送」链路。它不进 Gradle 构建、不受 `medbox.devtools.enabled` 控制，与第 11 节的 `_debug` 端点互补（详见文档 03 第 5 章）。
+
+```bash
+cd tools/device-sim
+npm install
+npm test                    # 纯函数 + 本地假 HTTP 服务，CI 可跑（无需 PG/EMQX）
+npm run mcu -- --ack ok --duration-ms 90000
+npm run camera -- --capture taken --cell-no 1 --plan-id p-3301 --captured-at <ISO-8601 UTC>
+MEDBOX_DEVICE_SIM_SMOKE=true npm run smoke   # opt-in 端到端，需 PG + EMQX + devtools 开启的后端
+```
+
+| 子命令 | 关键开关 | 用途 |
+|--------|----------|------|
+| `mcu` | `--ack ok\|fail\|silent`、`--offline`、`--error-type DOOR_TIMEOUT\|CAMERA_FAILED\|HW_FAULT` | MQTT 会话、retained 上线 + LWT、遥测/心跳、`down/#` 订阅与回执 |
+| `camera` | `--capture taken\|untaken\|none`、`--device-id-mismatch`、`--unknown-device` | HTTP multipart 抓拍、留证图、错误路径 |
+
+默认对齐 seed：`BOXA-DEBUG-01` / `medbox-box` / `p-3301` / 三个 `-S-*` 传感器；`msgId` 序号落在 `.state/`（已 gitignore），重启不归零。真机联调用 `--device-id` / `--broker` / `--base-url` 覆盖，完整命令与报告口径见 `tools/device-sim/README.md`。

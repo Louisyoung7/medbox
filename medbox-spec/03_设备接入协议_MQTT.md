@@ -17,7 +17,7 @@
 | 消息幂等 | **所有上行消息必须带 `msgId`**，格式固定为 **`{deviceId}-{10位递增序号}`**（如 `BOXA-DEBUG-01-0000000124`，序号持久化、重启不归零）。断线重连重发时服务端按 `msgId` 去重，避免重复写入服药记录 / 告警 |
 | 下行确认 | 下行消息带 `msgId` 与 `needAck`；设备处理后向 `.../up/ack` 回执。**重发策略：超时 5s 未回执则重发，最多 3 次**；3 次仍无回执则标记该下发失败并生成告警（见第 2 章） |
 
-EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、Topic 监控与调试发布 / 订阅。
+EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），用于查看连接与 Topic 监控；它只作协议层观察手段，设备侧模拟统一走第 5 章的 `tools/device-sim`。
 
 ## 2. Topic 规范
 
@@ -41,12 +41,12 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 
 ```json
 // 温湿度传感器（TEMP_HUMI）
-{ "msgId":"BOXA-DEBUG-01-000123", "ts":1759474487000,
+{ "msgId":"BOXA-DEBUG-01-0000000123", "ts":1759474487000,
   "sensorId":"BOXA-DEBUG-01-S-TH01",
   "temperature":24.6, "humidity":52.1 }
 
 // 光照传感器（LIGHT）
-{ "msgId":"BOXA-DEBUG-01-000124", "ts":1759474488000,
+{ "msgId":"BOXA-DEBUG-01-0000000124", "ts":1759474488000,
   "sensorId":"BOXA-DEBUG-01-S-LX01",
   "lux":120 }
 ```
@@ -58,7 +58,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 上行·设备异常 `.../up/event/error`（**仅设备侧异常**）：
 
 ```json
-{ "msgId":"BOXA-DEBUG-01-000125", "ts":1759474512000, "type":"DOOR_TIMEOUT",
+{ "msgId":"BOXA-DEBUG-01-0000000125", "ts":1759474512000, "type":"DOOR_TIMEOUT",
   "detail":"仓门开启超过 60s 未关闭" }
 ```
 
@@ -67,7 +67,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 上行·传感器心跳 `.../up/sensor/heartbeat`（主控周期性汇总子设备状态）：
 
 ```json
-{ "msgId":"BOXA-DEBUG-01-000128", "ts":1759474540000,
+{ "msgId":"BOXA-DEBUG-01-0000000128", "ts":1759474540000,
   "sensors":[ { "sensorId":"BOXA-DEBUG-01-S-TH01","online":true },
               { "sensorId":"BOXA-DEBUG-01-S-LX01","online":true },
               { "sensorId":"BOXA-DEBUG-01-S-CAM01","online":false } ] }
@@ -78,7 +78,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 上行·下行回执 `.../up/ack`（对应下行消息中的 `msgId`）：
 
 ```json
-{ "msgId":"BOXA-DEBUG-01-000126", "ts":1759474520000,
+{ "msgId":"BOXA-DEBUG-01-0000000126", "ts":1759474520000,
   "ackFor":"d-001", "result":"OK", "reason":null }
 ```
 
@@ -121,3 +121,58 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），可查看连接、
 - **摄像头**：端侧判定并经 HTTP 上报 `cellNo` + `takenResult`（仅 `UNTAKEN` 附原图留证，可同时本地留证）；
 - **单片机**：本地时钟基准与提醒触发（到点本地声光 + 解锁对应格，见 01 §2.3），不参与服药事件上报；环境遥测仍经 MQTT 上报；
 - **后端**：只接收格号与取药结论、不运行图像识别；据「该格在规定时间内是否收到上报」判漏服（`MISS`）；`onTime` 由后端按「该格就近槽 + 三级最小容忍时长（计划级 > 老人级 > 15 分钟，见 07 §5）」重算，单侧窗口只判迟到，**改阈值无需重烧固件**。完整判定规则表见 `07_业务规则.md`。
+
+## 5. 设备模拟工具（dev/QA）
+
+没有真机时，用 `medbox-server/tools/device-sim/` 作为**设备对端**跑通上行 → 落库/判定 → 下行回执 → WebSocket 推送链路。它严格复用第 1～4 章已定义的 topic、payload、`msgId`、ack 与 multipart 字段，不扩展协议；工具本身不进生产构建、不占用 8080。
+
+**与 `POST /api/v1/_debug/mqtt/publish` 的区别**（两者并存，不可互相替代）：
+
+| 能力 | `_debug/mqtt/publish`（服务端调试端点） | `tools/device-sim`（设备侧模拟器） |
+|------|------------------------------------------|-------------------------------------|
+| 身份 | 后端进程复用 `MqttTransport` 发一条报文 | `mcu` 以 `clientId = deviceId` 建立真实 MQTT 会话；`camera` 以设备身份走 HTTP |
+| 连接语义 | 不建会话、无 LWT / retained / 订阅 | retained 上线 + LWT、KeepAlive 60s、`clean session=false`、订阅 `down/#` |
+| 下行与回执 | 不订阅下行、不回 `up/ack` | 按 `--ack ok|fail|silent` 回执，可验证 5s×3 重发与 `SYNC_FAILED` / `FAILED` |
+| 服药事件 | 只透传指定 subTopic，当前服药事件已不走 MQTT | `camera` 按第 4 章 HTTP multipart 直报 `cellNo` + `takenResult`，仅 `UNTAKEN` 附图 |
+| 门禁 | 受 `medbox.devtools.enabled` 控制，默认不装配 | 独立 CLI，不受该开关控制 |
+
+### 5.1 运行
+
+```bash
+cd medbox-server/tools/device-sim
+npm install
+# 药箱主控（种子设备）：上线 + 温湿/光照遥测 + 传感器心跳 + down/# 订阅 + 回执
+npm run mcu -- --ack ok --duration-ms 90000
+# 摄像头：按时取药（TAKEN 不附图）
+npm run camera -- --capture taken --cell-no 1 --plan-id p-3301 --captured-at <ISO-8601 UTC>
+```
+
+默认对齐本仓联调种子：`deviceId=BOXA-DEBUG-01`、`productKey=medbox-box`、传感器 `-S-TH01`/`-S-LX01`/`-S-CAM01`、`planId=p-3301`。真机联调用 `--device-id` / `--broker` / `--base-url` 覆盖。所有上行 `msgId` 由 `.state/{deviceId}.json` 持久化递增（10 位、重启不归零），可命中服务端幂等去重。
+
+### 5.2 MCU 场景
+
+| 开关 | 动作 | 后端预期 |
+|------|------|----------|
+| `--ack ok` | `down/schedule` / `down/command` 带 `needAck:true` 时回 `up/ack result=OK` | 计划 `SYNCED_TO_DEVICE`、命令 `SUCCESS`；`ackFor` 等于下行 `msgId` |
+| `--ack fail` | 回 `result=FAILED`（`reason=mock_failure`） | 计划 `SYNC_FAILED`、命令 `FAILED`，已回执不再重发 |
+| `--ack silent` | 不回执 | 5s 后重发共 3 次，仍无回执则 `SYNC_FAILED` / `FAILED` 并告警；需保持在线 |
+| `--offline` | 完全不连 broker | 主控 180s 判离线并生成 `DEVICE_OFFLINE`，命令下发 40901 |
+| `--error-type DOOR_TIMEOUT\|CAMERA_FAILED\|HW_FAULT` | 额外发一条 `up/event/error` | 记入设备事件流水并生成 `DEVICE_FAULT` 告警 |
+
+### 5.3 摄像头场景
+
+| 开关 | 动作 | 后端预期 |
+|------|------|----------|
+| `--capture taken` | `cellNo` + `TAKEN` + `planId`，不附图 | 落 capture 与 med_record，`takenResult=TAKEN` |
+| `--capture untaken` | 同上 `UNTAKEN`，自动生成 1×1 JPEG 作留证 | 落带图 capture 与 med_record；`UNTAKEN` 无 `file` 时 40001 |
+| `--capture none` | 到点不上报 | 超容忍窗口后由后端判 `MISS`（容忍：计划级 > 老人级 > 15 分钟） |
+| `--device-id-mismatch` | `X-Device-Id` 与路径不一致 | 40001 |
+| `--unknown-device` | 未登记摄像头 ID | 40301 |
+
+同一 `planId + cellNo` 60s 内重复上报只保留第一条，故连续自测不同结论时换 `cellNo` 或换时间槽。`TAKEN` 不附图在响应上的判定依据是无 `sizeBytes` / 无 `fileToken`；`mime` 因 `capture.mime` 的 DB 默认值可能仍回显 `image/jpeg`（见 06 的 2.12），不代表真有文件。
+
+### 5.4 测试与边界
+
+- `npm test`：纯函数 + 本地假 HTTP 服务，CI 可跑、不依赖 PG/EMQX。
+- `MEDBOX_DEVICE_SIM_SMOKE=true npm run smoke`：opt-in 端到端冒烟，需本机 PostgreSQL、EMQX 与以 `medbox.devtools.enabled=true` 启动的后端；覆盖上线、心跳、三种回执、命令终态、TAKEN/UNTAKEN、错误路径，输出 `N 通过 / M 失败` 报告。
+- 不覆盖：断网缓存补传、MISS 定时扫描、WebSocket 业务帧断言——这些仍需按 `docs/单片机与摄像头联调对接.md` 用真机或调试端点验证。EMQX Dashboard / `mosquitto_sub` 仅作协议层观察，不再充当设备模拟手段。
