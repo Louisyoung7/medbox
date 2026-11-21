@@ -83,8 +83,6 @@ medbox:
     dir: /var/medbox/captures     # 抓拍图片本地存储目录（需可写、留意磁盘配额）
     retention-days-unread: 30     # 未读最长保留天数
     retention-days-read: 7        # 已读后保留天数；expire_at = MIN(captured+30d, viewed+7d)
-    # —— 抓拍上传设备侧 HMAC 共用密钥（见文档 02 的 4.1）：写固件与后端配置，不入库；本地可覆盖 —— #
-    upload-secret: ${MEDBOX_CAPTURE_UPLOAD_SECRET:medbox-capture-upload-secret-change-me}
     # —— 文件读取短期令牌（fileToken）密钥与有效期：供小程序 <image src> 拼接，避免暴露长期 JWT —— #
     file-token-secret: ${MEDBOX_CAPTURE_FILE_TOKEN_SECRET:medbox-capture-file-token-secret-change-me}
     file-token-ttl-minutes: 5     # fileToken 有效期（分钟）

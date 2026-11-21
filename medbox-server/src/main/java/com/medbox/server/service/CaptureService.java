@@ -40,7 +40,7 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * 抓拍图片业务（见文档 02 的 4.1 / 01 的 4.6 / 06 的 2.12）。
  *
- * <p><b>职责</b>：上传（设备 HMAC 鉴权后的落盘 + 去重 + 过期计算）、列表、详情、文件流、删除；
+ * <p><b>职责</b>：上传（设备身份校验后的落盘 + 去重 + 过期计算）、列表、详情、文件流、删除；
  * 所有用户侧鉴权都在本类里通过 {@link AccessService#require} 完成（权限矩阵见 02 的 1.3：
  * {@code READ_CAPTURE} 仅老人本人与 FAMILY 监护人、{@code WRITE_CAPTURE} 仅 FAMILY）。
  *
@@ -102,7 +102,7 @@ public class CaptureService {
     }
 
     /**
-     * 设备上传抓拍（调用前已由 {@code DeviceCaptureAuth} 完成 HMAC 校验）。
+     * 设备上传抓拍（调用前 Controller 已校验 {@code X-Device-Id} 与路径 deviceId 一致）。
      *
      * @return 本次（或命中的既有）抓拍的 {@code captureId} 与 {@code expireAt}
      */

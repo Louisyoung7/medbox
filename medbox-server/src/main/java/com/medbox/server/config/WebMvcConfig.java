@@ -25,7 +25,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  *        否则 {@code AuthContext} 恒为空、所有带 token 的请求都会误报 401。Devtools 与 Ws 的免登录策略刻意不同。</li>
  * </ul>
  *
- * <p>后续分支新增**无需登录**的接口（如抓拍上传走设备侧 HMAC 签名）时，在这里加排除路径。
+ * <p>后续分支新增**无需登录**的接口（如抓拍上传走设备身份 Header 校验）时，在这里加排除路径。
  */
 @Configuration
 @EnableConfigurationProperties(RateLimitProperties.class)
@@ -53,7 +53,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/api/v1/auth/**",
                         "/api/v1/_debug/seed", "/api/v1/_debug/mqtt/**",
                         "/api/v1/_debug/plan-reminder/trigger",
-                        "/api/v1/devices/*/captures",   // 抓拍上传走设备 HMAC，不走用户 JWT（feat/capture-core）
+                        "/api/v1/devices/*/captures",   // 抓拍上传走设备身份 Header，不走用户 JWT
                         "/actuator/**");
 
         // 限流拦截器：必须排在 AuthInterceptor 之后，AI 洞察维度才能取到其写入的 userId（见 feat/ai-limit）。

@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 抓拍图片相关配置（{@code medbox.capture.*}，见文档 02b §1.1 / 06 §2.12）。
  *
  * <p>与 {@code DeviceProperties} 同一套路：能配的都进配置，Service 不写死常量。
- * 密钥类字段走环境变量覆盖（{@code MEDBOX_CAPTURE_UPLOAD_SECRET} / {@code MEDBOX_CAPTURE_FILE_TOKEN_SECRET}），
- * 不入库、不进真实账号体系。设备上报已不做人脸识别、不报置信度，故本类不再有置信度阈值。
+ * fileToken 密钥走环境变量覆盖（{@code MEDBOX_CAPTURE_FILE_TOKEN_SECRET}），不入库、不进真实账号体系。
+ * 设备上报已不做人脸识别、不报置信度，故本类不再有置信度阈值。
  */
 @ConfigurationProperties(prefix = "medbox.capture")
 public class CaptureProperties {
@@ -20,9 +20,6 @@ public class CaptureProperties {
 
     /** 已读后保留天数（read）：首次查看后 expire_at = MIN(captured_at+unread, viewed_at+该值)（默认 7）。 */
     private int retentionDaysRead = 7;
-
-    /** 设备上传 HMAC 共用密钥（一把密钥写在固件与后端配置里，不入库，见 02b §1.1）。 */
-    private String uploadSecret;
 
     /** fileToken 签发/校验密钥（小程序 {@code <image src>} 用，避免暴露长期 JWT）。 */
     private String fileTokenSecret;
@@ -61,14 +58,6 @@ public class CaptureProperties {
 
     public void setRetentionDaysRead(int retentionDaysRead) {
         this.retentionDaysRead = retentionDaysRead;
-    }
-
-    public String getUploadSecret() {
-        return uploadSecret;
-    }
-
-    public void setUploadSecret(String uploadSecret) {
-        this.uploadSecret = uploadSecret;
     }
 
     public String getFileTokenSecret() {
