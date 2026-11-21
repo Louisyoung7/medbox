@@ -1,0 +1,19 @@
+{
+  "name": "medbox-device-sim",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MedBox 设备侧模拟器（单片机 MQTT 会话 + 摄像头 HTTP 抓拍），dev/QA 专用",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "smoke": "node test/smoke.js",
+    "mcu": "node src/cli.js mcu",
+    "camera": "node src/cli.js camera"
+  },
+  "dependencies": {
+    "mqtt": "^5.0.0"
+  }
+}
