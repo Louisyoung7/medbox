@@ -73,7 +73,7 @@ spring:
 docker exec -e PGPASSWORD=mypassword medbox-pg psql -U myuser -d medbox -c "\dt"
 # 索引
 docker exec -e PGPASSWORD=mypassword medbox-pg psql -U myuser -d medbox -c "\di"
-# 迁移记录（应含 V1 … V18 且 success = t）
+# 迁移记录（应含 V1 … V27 且 success = t）
 docker exec -e PGPASSWORD=mypassword medbox-pg psql -U myuser -d medbox \
   -c "select installed_rank, version, success from flyway_schema_history order by installed_rank;"
 ```
