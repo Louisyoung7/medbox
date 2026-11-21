@@ -40,6 +40,17 @@ function check(name, condition, detail = '') {
   }
 }
 
+const healthUrl = `${baseUrl.replace(/\/api\/v1\/?$/, '')}/actuator/health`;
+
+async function backendReady() {
+  try {
+    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(3_000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function api(pathname, { method = 'GET', token, body } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -172,7 +183,10 @@ async function checkCamera(token) {
     !!untakenRow && untakenRow.takenResult === 'UNTAKEN' && !!untakenRow.mime && untakenRow.sizeBytes > 0,
     JSON.stringify(untakenRow));
   const takenRow = list.find((row) => row.captureId === taken.captureId);
-  check('TAKEN 不附图', !!takenRow && takenRow.takenResult === 'TAKEN' && !takenRow.mime, JSON.stringify(takenRow));
+  // 06 的 capture.mime 有 DB 默认值 image/jpeg；TAKEN 不附图的判定依据是「无 sizeBytes / 无 fileToken」。
+  check('TAKEN 不附图（无 sizeBytes / fileToken）',
+    !!takenRow && takenRow.takenResult === 'TAKEN' && !takenRow.sizeBytes && !takenRow.fileToken,
+    JSON.stringify(takenRow));
 
   const mismatch = await postCapture(validateConfig(resolveConfig({ capture: 'taken', deviceIdMismatch: true })));
   check('X-Device-Id 不一致 → 40001', mismatch.code === 40001, JSON.stringify(mismatch));
@@ -186,15 +200,21 @@ async function checkCamera(token) {
 
 try {
   console.log('== 端到端冒烟（真后端 + EMQX）==');
-  const seedData = await seed();
-  if (seedData.guardianToken) {
-    for (const ack of ackScenarios) {
-      await checkAckScenario(seedData, ack);
-      if (ack !== ackScenarios.at(-1)) await seed();
+  if (!(await backendReady())) {
+    check('后端健康检查通过', false,
+      `${healthUrl} 不可达；先启动后端（SPRING_PROFILES_ACTIVE=local ./gradlew bootRun，devtools.enabled=true），或用 MEDBOX_SIM_BASE_URL 指向正确地址`);
+  } else {
+    check('后端健康检查通过', true);
+    const seedData = await seed();
+    if (seedData.guardianToken) {
+      for (const ack of ackScenarios) {
+        await checkAckScenario(seedData, ack);
+        if (ack !== ackScenarios.at(-1)) await seed();
+      }
+      await checkCamera(seedData.guardianToken);
     }
-    await checkCamera(seedData.guardianToken);
+    console.log('== MISS / WS 业务帧：需定时扫描与 WS debug 端点，本脚本未覆盖（见 README）==');
   }
-  console.log('== MISS / WS 业务帧：需定时扫描与 WS debug 端点，本脚本未覆盖（见 README）==');
 } catch (error) {
   failed += 1;
   failures.push(`脚本异常：${error.message}`);

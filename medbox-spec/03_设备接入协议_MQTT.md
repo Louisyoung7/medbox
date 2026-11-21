@@ -169,7 +169,7 @@ npm run camera -- --capture taken --cell-no 1 --plan-id p-3301 --captured-at <IS
 | `--device-id-mismatch` | `X-Device-Id` 与路径不一致 | 40001 |
 | `--unknown-device` | 未登记摄像头 ID | 40301 |
 
-同一 `planId + cellNo` 60s 内重复上报只保留第一条，故连续自测不同结论时换 `cellNo` 或换时间槽。
+同一 `planId + cellNo` 60s 内重复上报只保留第一条，故连续自测不同结论时换 `cellNo` 或换时间槽。`TAKEN` 不附图在响应上的判定依据是无 `sizeBytes` / 无 `fileToken`；`mime` 因 `capture.mime` 的 DB 默认值可能仍回显 `image/jpeg`（见 06 的 2.12），不代表真有文件。
 
 ### 5.4 测试与边界
 
