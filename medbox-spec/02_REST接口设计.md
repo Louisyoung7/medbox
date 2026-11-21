@@ -11,7 +11,7 @@
 |----|------|
 | Base URL | `http://{后端主机内网IP}:8080/medbox/api/v1`（局域网内网地址，见文档 01） |
 | 请求体格式 | `application/json; charset=utf-8` |
-| 认证方式 | Header: `Authorization: Bearer {JWT}`（设备端走 MQTT，本期匿名连接，不走此通道；抓拍上传的设备侧鉴权见 `02b_设备管理.md` §1.1） |
+| 认证方式 | Header: `Authorization: Bearer {JWT}`（设备端走 MQTT，本期匿名连接，不走此通道；抓拍上传的设备身份校验见 `02b_设备管理.md` §1.1） |
 | 时间格式 | ISO-8601 **UTC**，如 `2026-10-03T07:04:00Z`；前端本地化展示 |
 | 时区口径 | 除服药计划的 `slots[].time`（见 `02d_服药计划与提醒.md` §1）外，**所有时间一律 UTC**。`med_plan.slots[].time` 存**设备本地墙钟时间**（如 `"08:00"`），时区取 `device.timezone`（默认 `Asia/Shanghai`）；服务端判定时换算成 UTC 后再比较 |
 | 幂等 | 写操作支持 Header: `X-Request-Id`（UUID）去重 |
