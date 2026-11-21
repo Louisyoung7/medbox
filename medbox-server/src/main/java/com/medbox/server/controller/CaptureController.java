@@ -1,7 +1,6 @@
 package com.medbox.server.controller;
 
 import com.medbox.server.common.exception.BizAssert;
-import com.medbox.server.service.DeviceCaptureAuth;
 import com.medbox.server.dto.PageResult;
 import com.medbox.server.dto.R;
 import com.medbox.server.dto.capture.CaptureResponse;
@@ -28,7 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
  * <p>本控制器只做参数绑定 + {@code R<T>} 包装；<b>所有权限判定在 {@link CaptureService} 里</b>
  * （与 {@code DeviceController} 同一形态）。五个端点：
  * <ul>
- *   <li>{@code POST /api/v1/devices/{deviceId}/captures} —— 设备 HMAC 上传（从 JWT 拦截器排除，本类自带设备鉴权）；</li>
+ *   <li>{@code POST /api/v1/devices/{deviceId}/captures} —— 设备上传（从 JWT 拦截器排除，仅校验设备身份 Header + 登记归属）；</li>
  *   <li>{@code GET  /api/v1/captures} —— 列表（按 reason / 时间区间过滤）；</li>
  *   <li>{@code GET  /api/v1/captures/{captureId}} —— 详情；</li>
  *   <li>{@code GET  /api/v1/captures/{captureId}/file} —— 图片流（fileToken 校验 + 监护关系复核）；</li>
@@ -40,16 +39,14 @@ import org.springframework.web.multipart.MultipartFile;
 public class CaptureController {
 
     private final CaptureService captureService;
-    private final DeviceCaptureAuth deviceCaptureAuth;
 
-    public CaptureController(CaptureService captureService, DeviceCaptureAuth deviceCaptureAuth) {
+    public CaptureController(CaptureService captureService) {
         this.captureService = captureService;
-        this.deviceCaptureAuth = deviceCaptureAuth;
     }
 
     /**
-     * 设备上传抓拍：摄像头子设备走设备身份（HMAC 签名 + ±5 分钟时间窗），不走用户 JWT。
-     * 路径 deviceId 必须与 Header {@code X-Device-Id} 一致，签名对其计算。
+     * 设备上传抓拍：摄像头子设备走设备身份（{@code X-Device-Id} + 库内登记归属），不走用户 JWT。
+     * 路径 deviceId 必须与 Header {@code X-Device-Id} 一致。
      */
     @PostMapping("/devices/{deviceId}/captures")
     public R<CaptureUploadResponse> upload(@PathVariable("deviceId") String deviceId,
@@ -64,7 +61,6 @@ public class CaptureController {
         String headerDeviceId = request.getHeader("X-Device-Id");
         BizAssert.badRequestIf(headerDeviceId == null || !headerDeviceId.equals(deviceId),
                 "X-Device-Id 与路径 deviceId 不一致");
-        deviceCaptureAuth.verify(deviceId, request.getHeader("X-Device-Sign"), request.getHeader("X-Timestamp"));
         return R.ok(captureService.upload(deviceId, file, reason, planId, cellNo, takenResult, capturedAt));
     }
 
