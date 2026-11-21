@@ -7,6 +7,8 @@ import com.medbox.server.common.security.JwtProvider;
 import com.medbox.server.common.security.TokenType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -25,6 +27,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthInterceptor.class);
+
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtProvider jwtProvider;
@@ -36,6 +40,10 @@ public class AuthInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+        // 【临时排障日志】真机联调时定位 40101：打印被拦请求的完整路径与方法，确认实际打到了哪个端点
+        log.info("auth check: method={} uri={} query={} hasBearer={}",
+                request.getMethod(), request.getRequestURI(), request.getQueryString(),
+                header != null && header.startsWith(BEARER_PREFIX));
         BizAssert.unauthorizedIf(header == null || !header.startsWith(BEARER_PREFIX), "缺少登录凭证");
         String token = header.substring(BEARER_PREFIX.length()).trim();
         JwtPayload payload = jwtProvider.parse(token, TokenType.ACCESS);

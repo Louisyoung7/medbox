@@ -47,7 +47,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BizException.class)
     public ResponseEntity<R<Void>> handleBizException(BizException ex) {
-        log.debug("biz exception, code={}, message={}", ex.code(), ex.getMessage());
+        log.info("biz exception, code={}, message={}", ex.code(), ex.getMessage());
         return failure(ex.errorCode(), ex.getMessage());
     }
 

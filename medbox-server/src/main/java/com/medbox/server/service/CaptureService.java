@@ -28,6 +28,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -56,6 +58,8 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @Service
 public class CaptureService {
+
+    private static final Logger log = LoggerFactory.getLogger(CaptureService.class);
 
     /** 去重时间窗（秒）：同一 planId + cellNo 分组内 60 秒只留一张。 */
     static final int DEDUP_WINDOW_SECONDS = 60;
@@ -110,6 +114,9 @@ public class CaptureService {
     public CaptureUploadResponse upload(String deviceId, MultipartFile file, String reason,
                                        String planId, Integer cellNo,
                                        String takenResult, OffsetDateTime capturedAt) {
+        log.info("抓拍上报入口 deviceId={} planId={} cellNo={} takenResult={} hasFile={} capturedAt={}",
+                deviceId, planId, cellNo, takenResult, file != null && !file.isEmpty(), capturedAt);
+
         String elderId = deviceOwnerResolver.resolveElderId(deviceId);
         BizAssert.forbiddenIf(elderId == null, "设备归属老人解析失败（设备未注册或父设备缺失）");
 
@@ -131,6 +138,8 @@ public class CaptureService {
             Capture duplicate = captureMapper.selectByPlanWithinWindow(
                     planId, cellNo, capAt, DEDUP_WINDOW_SECONDS);
             if (duplicate != null) {
+                log.info("抓拍去重命中 planId={} cellNo={} existingCaptureId={}",
+                        planId, cellNo, duplicate.getCaptureId());
                 return new CaptureUploadResponse(duplicate.getCaptureId(), duplicate.getExpireAt());
             }
         }
@@ -151,6 +160,7 @@ public class CaptureService {
                 filePath = target.toAbsolutePath().toString();
                 mime = file.getContentType() != null ? file.getContentType() : "image/jpeg";
                 sizeBytes = (int) file.getSize();
+                log.info("抓拍落盘 captureId={} path={} size={} mime={}", captureId, filePath, sizeBytes, mime);
             } catch (IOException e) {
                 throw BizException.of(ErrorCode.INTERNAL_ERROR, "抓拍文件落盘失败：" + e.getMessage());
             }
@@ -169,7 +179,8 @@ public class CaptureService {
         entity.setTakenResult(takenNorm);
         entity.setCapturedAt(capAt);
         entity.setExpireAt(expireAt);
-        captureMapper.insert(entity);
+        int inserted = captureMapper.insert(entity);
+        log.info("抓拍入库 captureId={} elderId={} inserted={}", captureId, elderId, inserted);
 
         // planId 非空 → 调判定核心生成 med_record（与 capture 同事务）
         String recordId = null;
@@ -187,6 +198,7 @@ public class CaptureService {
                     .orElse(null);
         }
 
+        log.info("抓拍上报完成 captureId={} recordId={} dispense={}", captureId, recordId, dispense);
         return new CaptureUploadResponse(captureId, expireAt, recordId);
     }
 
