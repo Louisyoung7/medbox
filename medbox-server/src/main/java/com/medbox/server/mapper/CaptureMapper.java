@@ -30,11 +30,11 @@ public interface CaptureMapper extends BaseMapper<Capture> {
      * 去重查询：同一 {@code planId + cellNo} 分组内，{@code capturedAt} 前后 {@code windowSeconds}
      * 秒内的已有抓拍（见 07 §1.5）。
      *
-     * <p>用 {@code ABS(EXTRACT(EPOCH FROM (captured_at - :capturedAt)))} 算时间差（秒），
-     * MyBatis 注解里 {@code <=} 用 CDATA 包裹避免被当成动态标签解析。命中返回第一条即视为重复。
+     * <p>用 {@code ABS(EXTRACT(EPOCH FROM (captured_at - #{capturedAt})))} 算时间差（秒）；
+     * {@code @Select} 注解是普通 Java 字符串，{@code <=} 直接写，不能用 XML 的 CDATA 包裹。命中返回第一条即视为重复。
      */
     @Select("SELECT * FROM capture WHERE plan_id = #{planId} AND cell_no = #{cellNo} "
-            + "AND ABS(EXTRACT(EPOCH FROM (captured_at - #{capturedAt}))) <![CDATA[<=]]> #{windowSeconds} "
+            + "AND ABS(EXTRACT(EPOCH FROM (captured_at - #{capturedAt}))) <= #{windowSeconds} "
             + "ORDER BY captured_at LIMIT 1")
     Capture selectByPlanWithinWindow(@Param("planId") String planId,
                                      @Param("cellNo") Integer cellNo,
