@@ -62,7 +62,7 @@ npm run camera -- --capture none                        # 到点不上报（交�
 | 计划同步失败 | 同上改 `--ack fail` / `--ack silent` | `SYNC_FAILED`；silent 触发 5s×3 重发 |
 | 命令终态 | `--ack ok` 时下发 `REBOOT` | 事件流 COMMAND 行 `state=SUCCESS` |
 | 设备离线 | `npm run mcu -- --offline --duration-ms 90000` | 主控 180s 判离线并生成 `DEVICE_OFFLINE` |
-| 已取药 / 未取药 | `npm run camera -- --capture taken|untaken` | 记录页出现对应结论，UNTAKEN 带抓拍图 |
+| 已取药 / 未取药 | `npm run camera -- --capture taken` / `--capture untaken` | 记录页出现对应结论，UNTAKEN 带抓拍图 |
 | 漏服 | `npm run camera -- --capture none` 且不补报 | 超容忍窗口后生成 `MISS` |
 | 错误路径 | `--device-id-mismatch` / `--unknown-device` | 40001 / 40301 |
 
@@ -71,7 +71,7 @@ npm run camera -- --capture none                        # 到点不上报（交�
 ```bash
 npm test                                   # node:test：纯函数 + 本地假 HTTP 服务，CI 可跑
 MEDBOX_DEVICE_SIM_SMOKE=true npm run smoke # opt-in 端到端：真 PG + EMQX + devtools 后端
-MEDBOX_SIM_SMOKE_QUICK=true npm run smoke  # 只跑 ack=ok，跳过重发等待
+MEDBOX_DEVICE_SIM_SMOKE=true MEDBOX_SIM_SMOKE_QUICK=true npm run smoke  # 只跑 ack=ok，跳过重发等待
 ```
 
 - `npm test` 输出 TAP 报告（用例数 / 通过 / 失败），不需要外部服务。

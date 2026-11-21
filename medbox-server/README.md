@@ -231,7 +231,7 @@ curl -X POST http://192.168.1.10:8080/medbox/api/v1/_debug/ws/publish \
 - 本机没起应用也能跑真链路测试：`MEDBOX_WS_LOCAL_TEST=true ./gradlew test --tests '*WsLocalIntegrationTest'`
   （它会自己拉起随机端口的完整上下文，替代手工 wscat）。
 
-## 11. 联调辅助（devtools，feat/backend-devtools，见文档 02 的 1.5 / 03 的 5.5）
+## 11. 联调辅助（devtools，feat/backend-devtools，见文档 02 的 1.5 / 03 第 5 章）
 
 给开发者 / QA 的局域网联调辅助端点，**全部走 `medbox.devtools.enabled` 开关**：
 
@@ -299,7 +299,7 @@ curl -s -X POST http://localhost:8080/medbox/api/v1/_debug/mqtt/publish \
 
 - 模拟消息若触发计划下发（`down/schedule`），设备不在场会 `SYNC_FAILED`，属预期，不视为缺陷。
 - MQTT 没启 / 没连 broker 时该端点返回 `50000`，先按第 9 节起好 EMQX。
-- 完整字段语义见文档 02 的 1.5（seed 响应结构）与 03 的 5.5（payload 与各 `subTopic` 对齐）。
+- 完整字段语义见文档 02 的 1.5（seed 响应结构）与 03 第 5 章（payload 与各 `subTopic` 对齐）。
 - 该端点是**服务端单发报文**，不建 MQTT 会话、不订阅下行、不回执；需要验证设备会话 / ack / 摄像头抓拍时用下一节的 `tools/device-sim`（见文档 03 第 5 章）。
 
 ## 12. 设备模拟器（tools/device-sim，dev/QA）
