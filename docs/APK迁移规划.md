@@ -92,7 +92,7 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 - [x] 删除 `mp-*` 脚本与 `@dcloudio/uni-mp-*` 依赖
 - [x] `manifest.json`：删 `mp-weixin`；补 Android 权限（含 Android 13 通知权限）、明文 HTTP、通知权限
 - [x] 删除 `ai.js` 的 `mpTransport` 与相关单测
-- [x] 去掉 `report.vue` 里 `getFileSystemManager` / `shareFileMessage` 的 mp 分支（下载错误体解析随 P2 导出改造一起换）
+- [x] 去掉 `report.vue` 里 `getFileSystemManager` / `shareFileMessage` 的 mp 分支（下载错误体解析未改动，仍按 HTTP 状态映射）
 - [x] `.github/workflows/ci-miniapp.yml` → `ci-app.yml`，构建改 `build:h5` + `build:app-plus`
 - [x] 同步文档中已变更的路径与命令
 
@@ -106,11 +106,11 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 目标：真机上 AI、导出、告警可用。
 
-- [ ] AI 流式：App 用 `plus.net.XMLHttpRequest`，H5 保留 `fetch`；提供非流式降级
-- [ ] 文件导出：App 保存到下载目录或系统打开；H5 用 `<a download>`；删 `shareFileMessage`
-- [ ] 告警：前台实时；`onShow` 回前台补拉未读与最新记录
-- [ ] 前后台切换时 WS 重连
-- [ ] 补三端 transport 选择与导出的单测
+- [x] AI 流式：App 用 `plus.net.XMLHttpRequest`，H5 保留 `fetch`；提供非流式降级
+- [x] 文件导出：App 复制到公共下载目录；H5 用 `<a download>`；无 `shareFileMessage`
+- [x] 告警：前台实时；`onShow` 回前台补拉未读与最新记录（补拉不重复弹窗）
+- [x] 前后台切换时 WS 重连（`onShow` 幂等补连，`onHide` 不主动断）
+- [x] 补 transport 选择、导出、回前台补拉的单测
 
 验收：
 
@@ -173,10 +173,10 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 | 风险 | 影响 | 规避 |
 |---|---|---|
 | APK 只能人工出包 | CI 无法交付安装包 | 固化 HBuilderX 流程，产物人工验收 |
-| Android 9+ 禁明文 HTTP | 装上后连不上后端 | manifest 放开 cleartext，或后续上 TLS |
-| 后台进程被系统挂起 | WS 断连，告警收不到 | 先做回前台补拉，再评估本地通知 |
-| App 不支持 `enableChunked` | AI 流式失效 | 换 `plus.net.XMLHttpRequest` 或降级非流式 |
-| 微信专属 API 残留 | 真机报错 | P1 全量清理，单测兜底 |
+| Android 9+ 禁明文 HTTP | 装上后连不上后端 | 云打包默认放行；后续若收紧 targetSdk 需补 networkSecurityConfig |
+| 后台进程被系统挂起 | WS 断连，告警收不到 | 已做回前台补拉（P2）；本地通知仍待评估 |
+| App 不支持 `enableChunked` | AI 流式失效 | 已换 `plus.net.XMLHttpRequest`，并带非流式降级（P2） |
+| 微信专属 API 残留 | 真机报错 | P1 已全量清理，单测兜底 |
 | H5 能力缺失 | 测试结论失真 | 真机能力只在 APK 上验收 |
 
 ---
@@ -195,8 +195,8 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 | 阶段 | 分支 | 状态 | 合并 commit | 备注 |
 |---|---|---|---|---|
-| P0 | `docs/app-migration` | 已完成并合入 main | 68e4f8c | 纯文档；目录重命名与代码改动在 P1 |
-| P1 | `feat/app-base` | 进行中 | — | 依赖决策 1、2 |
-| P2 | `feat/app-runtime` | 未开始 | — | 依赖决策 3 |
+| P0 | `docs/app-migration` | 已完成并合入 main（已推送） | 68e4f8c | 纯文档；目录重命名与代码改动在 P1 |
+| P1 | `feat/app-base` | 已完成并合入 main（已推送） | 1f0882a | 目录迁移与小程序耦合清理 |
+| P2 | `feat/app-runtime` | 已完成（待 PR 合入） | — | AI 流式 / 导出 / 回前台补拉 |
 | P3 | `feat/backend-app-support` | 待定 | — | 按需 |
 | P4 | `feat/app-release` | 未开始 | — | 依赖 P1、P2 |

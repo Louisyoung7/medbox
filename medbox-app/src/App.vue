@@ -3,7 +3,7 @@ import { setupAuth } from '@/store/auth.js'
 import { connect } from '@/store/ws.js'
 import {
   loadVisibleElderIds,
-  refreshUnreadCount,
+  refreshAfterForeground,
   getAlarmState,
 } from '@/store/alarm.js'
 import AlarmRealtime from '@/components/AlarmRealtime.vue'
@@ -22,7 +22,8 @@ export default {
   onShow: function () {
     // 切后台系统会掐断长连接，回前台幂等补连；监护人传已知 elderIds，老人端由 ws 默认自己
     connect({ elderIds: getAlarmState().elderIds })
-    refreshUnreadCount()
+    // 补拉未读角标与最新记录（WS 断连期间漏掉的告警在此兜底，不重复弹窗）
+    refreshAfterForeground()
   },
   onHide: function () {
     // 不主动断开：断开后后端补推窗口（10 分钟）照样推进，回前台补连还能补到事件
@@ -31,7 +32,7 @@ export default {
     async bootstrapRealtime() {
       await loadVisibleElderIds()
       connect({ elderIds: getAlarmState().elderIds })
-      refreshUnreadCount()
+      refreshAfterForeground()
     },
   },
 }
