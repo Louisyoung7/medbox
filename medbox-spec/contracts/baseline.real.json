@@ -1,0 +1,16 @@
+{
+  "profile": "real",
+  "guardian": {
+    "account": "13800001234",
+    "password": "123456",
+    "userId": "u-debug-guardian"
+  },
+  "elder": {
+    "account": "13800008888",
+    "password": "123456",
+    "userId": "e-1001"
+  },
+  "deviceId": "BOXA-DEBUG-01",
+  "medicineId": "m-206",
+  "planId": "p-3301"
+}

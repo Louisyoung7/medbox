@@ -1,0 +1,35 @@
+{
+  "name": "auth: 监护人登录成功",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data.token": "string",
+          "data.refreshToken": "string",
+          "data.userId": "string",
+          "data.role": "string",
+          "data.expiresIn": "number"
+        },
+        "equals": {
+          "data.userId": "${guardian.userId}",
+          "data.role": "GUARDIAN"
+        }
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    }
+  ]
+}

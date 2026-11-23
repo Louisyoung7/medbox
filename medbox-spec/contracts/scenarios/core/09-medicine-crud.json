@@ -1,0 +1,96 @@
+{
+  "name": "medicine: 新建 → 详情 → 删除",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    },
+    {
+      "name": "新建药品",
+      "auth": "guardianToken",
+      "request": {
+        "method": "POST",
+        "path": "/medicines",
+        "body": {
+          "name": "契约测试药品",
+          "ownerElderId": "${elder.userId}",
+          "dosePerTime": "1",
+          "unit": "片",
+          "description": "契约测试",
+          "storageCond": "常温"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data.medicineId": "string",
+          "data.name": "string",
+          "data.ownerElderId": "string"
+        },
+        "equals": {
+          "data.name": "契约测试药品",
+          "data.ownerElderId": "${elder.userId}"
+        }
+      },
+      "capture": {
+        "newMedicineId": "data.medicineId"
+      }
+    },
+    {
+      "name": "读取新建药品",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/medicines/${vars.newMedicineId}"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "equals": {
+          "data.medicineId": "${vars.newMedicineId}",
+          "data.name": "契约测试药品"
+        }
+      }
+    },
+    {
+      "name": "删除新建药品",
+      "auth": "guardianToken",
+      "request": {
+        "method": "DELETE",
+        "path": "/medicines/${vars.newMedicineId}"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      }
+    },
+    {
+      "name": "删除后不可见",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/medicines/${vars.newMedicineId}"
+      },
+      "expect": {
+        "status": 404,
+        "code": 40401
+      }
+    }
+  ]
+}
