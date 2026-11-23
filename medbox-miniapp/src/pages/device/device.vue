@@ -30,6 +30,7 @@
       </MbCell>
     </MbCard>
 
+    <MbDrawer />
     <MbTabBar />
   </view>
 </template>
@@ -40,6 +41,7 @@ import MbCell from '@/components/MbCell.vue'
 import MbEmpty from '@/components/MbEmpty.vue'
 import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
+import MbDrawer from '@/components/MbDrawer.vue'
 import { listDevices } from '@/api/device.js'
 import { connect, onEvent, onResync, WS_EVENT } from '@/store/ws.js'
 import { getRole, ROLE } from '@/store/user.js'
@@ -49,7 +51,7 @@ import { formatRelative } from '@/utils/datetime.js'
 
 export default {
   name: 'DevicePage',
-  components: { MbCard, MbCell, MbEmpty, MbLoading, MbTabBar },
+  components: { MbCard, MbCell, MbEmpty, MbLoading, MbTabBar, MbDrawer },
   data() {
     return {
       devices: [],

@@ -64,6 +64,7 @@
       <MbButton type="primary" block @click="goCreate">新建计划</MbButton>
     </view>
 
+    <MbDrawer />
     <MbTabBar />
   </view>
 </template>
@@ -75,6 +76,7 @@ import MbCell from '@/components/MbCell.vue'
 import MbEmpty from '@/components/MbEmpty.vue'
 import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
+import MbDrawer from '@/components/MbDrawer.vue'
 import { listDevices } from '@/api/device.js'
 import { listPlans, updatePlanStatus } from '@/api/plan.js'
 import { CODE } from '@/api/request.js'
@@ -96,7 +98,7 @@ function errorText(err) {
 
 export default {
   name: 'PlanPage',
-  components: { MbButton, MbCard, MbCell, MbEmpty, MbLoading, MbTabBar },
+  components: { MbButton, MbCard, MbCell, MbEmpty, MbLoading, MbTabBar, MbDrawer },
   data() {
     return {
       canWrite: false,

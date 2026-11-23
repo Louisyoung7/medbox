@@ -11,36 +11,64 @@ vi.hoisted(() => {
 })
 
 import pagesJson from '@/pages.json'
-import { TAB_ENTRIES } from '@/config/tabbar.js'
+import { TAB_ENTRIES, DRAWER_ENTRIES } from '@/config/tabbar.js'
+import { NAV_ICONS } from '@/utils/nav-icon.js'
 import { ROLE } from '@/store/user.js'
 import { canAccess, visibleEntries } from '@/utils/permission.js'
 
-describe('TAB_ENTRIES（feat/mp-ai-tab）', () => {
-  it('包含 AI 一级入口，路径与图标齐备', () => {
-    const ai = TAB_ENTRIES.find((e) => e.key === 'ai')
-    expect(ai).toBeDefined()
-    expect(ai.path).toBe('/pages/ai/insight')
-    expect(ai.icon).toBe('ai')
-    expect(ai.title).toBeTruthy()
+const registered = pagesJson.pages.map((p) => '/' + p.path)
+
+describe('底部栏 TAB_ENTRIES（feat/mp-nav-drawer）', () => {
+  it('只保留 4 个主入口', () => {
+    expect(TAB_ENTRIES.map((e) => e.key)).toEqual(['home', 'medicine', 'plan', 'record'])
   })
 
-  it('AI 入口位于「记录」与「我的」之间（第 6 位）', () => {
-    const keys = TAB_ENTRIES.map((e) => e.key)
-    expect(keys.indexOf('ai')).toBe(keys.indexOf('record') + 1)
-    expect(keys.indexOf('ai')).toBe(keys.indexOf('profile') - 1)
-  })
-
-  it('AI 入口路径已在 pages.json 注册', () => {
-    const registered = pagesJson.pages.map((p) => '/' + p.path)
+  it('路径已在 pages.json 注册、图标齐备、均为一级页', () => {
     TAB_ENTRIES.forEach((e) => {
       expect(registered).toContain(e.path)
+      expect(NAV_ICONS[e.icon]).toBeTruthy()
+      expect(e.tab).toBe(true)
+    })
+  })
+})
+
+describe('侧边栏 DRAWER_ENTRIES（feat/mp-nav-drawer）', () => {
+  it('收纳设备 / AI / 告警 / 监护关系 / 我的', () => {
+    expect(DRAWER_ENTRIES.map((e) => e.key)).toEqual([
+      'device',
+      'ai',
+      'alarm',
+      'guardian',
+      'profile',
+    ])
+  })
+
+  it('与底部入口不重复', () => {
+    const tabKeys = TAB_ENTRIES.map((e) => e.key)
+    DRAWER_ENTRIES.forEach((e) => expect(tabKeys).not.toContain(e.key))
+  })
+
+  it('路径已在 pages.json 注册、图标齐备', () => {
+    DRAWER_ENTRIES.forEach((e) => {
+      expect(registered).toContain(e.path)
+      expect(NAV_ICONS[e.icon]).toBeTruthy()
     })
   })
 
-  it('AI 入口未登记 ENTRY_ROLES，老人 / 监护人均可见（仅后端鉴权口径）', () => {
+  it('一级页用 reLaunch、二级页用 navigateTo', () => {
+    const byKey = Object.fromEntries(DRAWER_ENTRIES.map((e) => [e.key, e]))
+    expect(byKey.device.tab).toBe(true)
+    expect(byKey.ai.tab).toBe(true)
+    expect(byKey.profile.tab).toBe(true)
+    expect(byKey.alarm.tab).toBeFalsy()
+    expect(byKey.guardian.tab).toBeFalsy()
+  })
+
+  it('AI / 监护关系对老人与监护人均可见（未登记 ENTRY_ROLES）', () => {
     expect(canAccess(ROLE.ELDER, 'ai')).toBe(true)
     expect(canAccess(ROLE.GUARDIAN, 'ai')).toBe(true)
-    expect(visibleEntries(ROLE.ELDER, TAB_ENTRIES).map((e) => e.key)).toContain('ai')
-    expect(visibleEntries(ROLE.GUARDIAN, TAB_ENTRIES).map((e) => e.key)).toContain('ai')
+    expect(canAccess(ROLE.ELDER, 'guardian')).toBe(true)
+    expect(visibleEntries(ROLE.ELDER, DRAWER_ENTRIES).map((e) => e.key)).toContain('ai')
+    expect(visibleEntries(ROLE.GUARDIAN, DRAWER_ENTRIES).map((e) => e.key)).toContain('ai')
   })
 })

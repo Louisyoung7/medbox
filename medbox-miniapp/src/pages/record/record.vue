@@ -89,6 +89,7 @@
 
     <view v-if="loading && records.length === 0" class="loading-tip">加载中…</view>
 
+    <MbDrawer />
     <MbTabBar />
   </view>
 </template>
@@ -99,6 +100,7 @@ import MbCard from '@/components/MbCard.vue'
 import MbCell from '@/components/MbCell.vue'
 import MbEmpty from '@/components/MbEmpty.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
+import MbDrawer from '@/components/MbDrawer.vue'
 import { listDevices } from '@/api/device.js'
 import { listRecords } from '@/api/record.js'
 import { CODE } from '@/api/request.js'
@@ -124,7 +126,7 @@ function errorText(err) {
 
 export default {
   name: 'RecordPage',
-  components: { MbButton, MbCard, MbCell, MbEmpty, MbTabBar },
+  components: { MbButton, MbCard, MbCell, MbEmpty, MbTabBar, MbDrawer },
   data() {
     return {
       canWrite: false,
@@ -286,6 +288,8 @@ export default {
   align-items: flex-end;
   justify-content: space-between;
   margin-bottom: $mb-gap;
+  /* 右侧给顶部三横杠按钮留位，避免遮住「依从性报告」入口 */
+  padding-right: 96rpx;
 
   &__left {
     display: flex;

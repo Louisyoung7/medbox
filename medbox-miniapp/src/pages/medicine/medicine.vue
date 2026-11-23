@@ -50,6 +50,7 @@
       <MbButton type="primary" block @click="goCreate">新建药品</MbButton>
     </view>
 
+    <MbDrawer />
     <MbTabBar />
   </view>
 </template>
@@ -61,6 +62,7 @@ import MbCell from '@/components/MbCell.vue'
 import MbEmpty from '@/components/MbEmpty.vue'
 import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
+import MbDrawer from '@/components/MbDrawer.vue'
 import { listMedicines } from '@/api/medicine.js'
 import { CODE } from '@/api/request.js'
 import { getRole } from '@/store/user.js'
@@ -84,7 +86,7 @@ function errorText(err) {
 
 export default {
   name: 'MedicinePage',
-  components: { MbButton, MbCard, MbCell, MbEmpty, MbLoading, MbTabBar },
+  components: { MbButton, MbCard, MbCell, MbEmpty, MbLoading, MbTabBar, MbDrawer },
   data() {
     return {
       keyword: '',
@@ -201,6 +203,8 @@ export default {
   align-items: center;
   gap: 20rpx;
   margin-bottom: $mb-gap;
+  /* 右侧给顶部三横杠按钮留位，避免遮住「搜索」 */
+  padding-right: 96rpx;
 
   &__box {
     flex: 1;

@@ -83,6 +83,7 @@
       />
     </MbModal>
 
+    <MbDrawer />
     <MbTabBar />
   </view>
 </template>
@@ -94,6 +95,7 @@ import MbButton from '@/components/MbButton.vue'
 import MbModal from '@/components/MbModal.vue'
 import MbField from '@/components/MbField.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
+import MbDrawer from '@/components/MbDrawer.vue'
 import RoleGate from '@/components/RoleGate.vue'
 import { getMe } from '@/api/auth.js'
 import { CODE } from '@/api/request.js'
@@ -103,7 +105,7 @@ import { needsProfileRefresh, profileFieldText, rolePermissionText } from '@/uti
 
 export default {
   name: 'ProfilePage',
-  components: { MbCard, MbCell, MbButton, MbModal, MbField, MbTabBar, RoleGate },
+  components: { MbCard, MbCell, MbButton, MbModal, MbField, MbTabBar, MbDrawer, RoleGate },
   data() {
     return {
       name: '',
