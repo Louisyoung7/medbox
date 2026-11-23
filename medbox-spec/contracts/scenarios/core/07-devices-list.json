@@ -1,0 +1,46 @@
+{
+  "name": "device: 监护人设备列表",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    },
+    {
+      "name": "设备列表",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/devices"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data": "array",
+          "data[0].deviceId": "string",
+          "data[0].deviceType": "string",
+          "data[0].onlineState": "string",
+          "data[0].sensorCount": "number"
+        },
+        "minLength": {
+          "data": 1
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "profile": "mock",
+  "guardian": {
+    "account": "13800001234",
+    "password": "123456",
+    "userId": "u-2001"
+  },
+  "elder": {
+    "account": "13900000001",
+    "password": "123456",
+    "userId": "u-1001"
+  },
+  "deviceId": "BOXA1001",
+  "medicineId": "m-201",
+  "planId": "p-3301"
+}
