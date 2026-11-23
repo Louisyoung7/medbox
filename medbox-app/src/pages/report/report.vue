@@ -106,6 +106,7 @@ import { getAdherence, exportRecords } from '@/api/report.js'
 import { CODE } from '@/api/request.js'
 import { canWriteRecord } from '@/utils/record.js'
 import { canExportRecord, toAdherenceView, buildChartPoints, adherencePeriodLabel } from '@/utils/report.js'
+import { saveExportedFile } from '@/utils/export.js'
 import { getRole, getUserId } from '@/store/user.js'
 
 const PERIODS = [
@@ -233,22 +234,24 @@ export default {
       this.exporting = true
       try {
         const res = await exportRecords({ elderId: this.elderId }, { silent: true })
-        await this.saveAndShare(res)
-        uni.showToast({ title: '导出成功', icon: 'success' })
+        const result = await this.saveAndShare(res)
+        if (!result || result.mode === 'none') {
+          uni.showToast({ title: '导出失败：未获取文件', icon: 'none' })
+          return
+        }
+        uni.showToast({
+          title: result.mode === 'app-downloads' ? '已保存到下载目录' : '已开始下载',
+          icon: 'success',
+        })
       } catch (err) {
         uni.showToast({ title: errorText(err), icon: 'none' })
       } finally {
         this.exporting = false
       }
     },
-    // 文件流落地：本期只校验文件流已返回；App 保存到下载目录 / H5 `<a download>` 见 P2。
+    // 文件流落地：App 复制到公共下载目录，H5 触发浏览器下载（见 utils/export.js）。
     async saveAndShare(res) {
-      const tmp = res.filePath || res.tempFilePath
-      if (!tmp) {
-        uni.showToast({ title: '导出失败：未获取文件', icon: 'none' })
-        return
-      }
-      uni.showToast({ title: '已获取导出文件', icon: 'none' })
+      return saveExportedFile(res)
     },
   },
 }

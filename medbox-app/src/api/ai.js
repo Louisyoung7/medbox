@@ -6,8 +6,10 @@
  * （50310 AI 不可用 / 40001 参数 / 40301 权限），页面只 `catch` 按 `code` 细分。
  *
  * <p>**流式接口**（长洞察逐字）`request.js` 不支持分块读取，本文件自研封装：
- * 用浏览器 `fetch` 的 `ReadableStream` 逐块读取后按行解析 JSON 帧，**不引第三方流式库**。
- * 统一回调 `onDelta/onDone/onError`，纯帧逻辑由 `utils/ai.js` 的 {@link applyInsightFrame} 收敛。
+ * H5 用浏览器 `fetch` 的 `ReadableStream`；App 用 `plus.net.XMLHttpRequest` 的 `readyState=3`
+ * 递增 `responseText`。两条链路都把文本切成 JSON 帧，纯帧逻辑由 `utils/ai.js` 的
+ * {@link applyInsightFrame} 收敛。传输不可用或首个字到达前失败时，自动降级为同步
+ * `POST /ai/insight`（一次性返回）。**不引第三方流式库**。
  *
  * <p>后端已落地，字段按 05 契约对齐；展示层仍做容错（见 `utils/ai.js` 的 `parseInsight`）。
  */
@@ -275,9 +277,164 @@ function h5Transport(payload, handlers) {
 }
 
 /**
+ * 流式传输选择：App 有 `plus.net.XMLHttpRequest` 时优先用它（webview 的 fetch 不支持增量读），
+ * 否则退浏览器 `fetch`；都没有返回 `null`（调用方走非流式降级）。纯函数，便于单测。
+ *
+ * @param {{transport?:Function, hasAppXhr?:boolean, hasFetch?:boolean}} [env]
+ * @returns {Function|null}
+ */
+export function resolveStreamTransport(env = {}) {
+  if (typeof env.transport === 'function') return env.transport
+  if (env.hasAppXhr) return appTransport
+  if (env.hasFetch) return h5Transport
+  return null
+}
+
+/** 运行时是否具备 App 的增量 XHR。 */
+function hasAppXhr() {
+  return (
+    typeof plus !== 'undefined' &&
+    plus &&
+    plus.net &&
+    typeof plus.net.XMLHttpRequest === 'function'
+  )
+}
+
+/**
+ * App 传输：`plus.net.XMLHttpRequest` 在 `readyState=3` 时 `responseText` 递增，
+ * 取本次新增片段交给统一帧解析。
+ */
+function appTransport(payload, handlers) {
+  const { onDelta, onDone, onError } = handlers
+  let xhr
+  try {
+    xhr = new plus.net.XMLHttpRequest()
+  } catch (e) {
+    onError(new ApiError({ code: -1, message: messageOf(-1) }))
+    return { abort: () => {} }
+  }
+
+  let consumed = 0
+  let buffer = ''
+  let state = initialState()
+  let completed = false
+  let deltaCount = 0
+  let settled = false
+
+  const fail = (err) => {
+    if (settled) return
+    settled = true
+    onError(err || new ApiError({ code: -1, message: messageOf(-1) }))
+  }
+
+  const push = (text) => {
+    if (!text) return
+    buffer += text
+    const { frames, rest } = splitFrames(buffer)
+    buffer = rest
+    for (const fr of frames) {
+      if (fr.type === 'delta') {
+        deltaCount += 1
+        state = applyInsightFrame(state, fr)
+        onDelta(fr.content || '')
+      } else if (fr.type === 'done' && !completed) {
+        completed = true
+        state = applyInsightFrame(state, fr)
+        onDone(parseInsight(state))
+      }
+    }
+  }
+
+  const drain = () => {
+    const text = xhr.responseText || ''
+    if (text.length > consumed) {
+      push(text.slice(consumed))
+      consumed = text.length
+    }
+  }
+
+  xhr.onreadystatechange = () => {
+    if (settled) return
+    if (xhr.readyState === 3) {
+      drain()
+      return
+    }
+    if (xhr.readyState !== 4) return
+    drain()
+    if (xhr.status >= 200 && xhr.status < 300) {
+      if (settled) return
+      try {
+        if (buffer.trim()) throwStreamError(buffer)
+      } catch (e) {
+        fail(e)
+        return
+      }
+      if (!completed) {
+        // 服务端正常结束却没发 done 帧：有内容就按当前状态收尾，没内容视为失败
+        if (deltaCount > 0) {
+          settled = true
+          onDone(parseInsight(state))
+        } else {
+          fail(new ApiError({ code: -1, message: messageOf(-1) }))
+        }
+      } else {
+        settled = true
+      }
+      return
+    }
+    let text = ''
+    try {
+      text = xhr.responseText || ''
+    } catch (e) {
+      text = ''
+    }
+    try {
+      throwStreamError(text)
+    } catch (err) {
+      fail(err)
+    }
+  }
+  xhr.onerror = () => fail(new ApiError({ code: -1, message: messageOf(-1) }))
+
+  xhr.open('POST', aiUrl('/ai/insight/stream'))
+  const headers = streamHeaders()
+  Object.keys(headers).forEach((k) => xhr.setRequestHeader(k, headers[k]))
+  xhr.send(JSON.stringify(payload))
+
+  return {
+    abort: () => {
+      settled = true
+      if (typeof xhr.abort === 'function') xhr.abort()
+    },
+  }
+}
+
+/**
+ * 非流式降级：直接 `POST /ai/insight`，一次性把完整洞察交给 `onDone`。
+ * 传输不可用、或首个 `delta` 到达前就失败时使用（已输出部分内容则不再降级，避免重复生成）。
+ */
+function fallbackInsight(args, handlers) {
+  let cancelled = false
+  requestInsight(args).then(
+    (insight) => {
+      if (!cancelled && handlers.onDone) handlers.onDone(insight)
+    },
+    (err) => {
+      if (!cancelled && handlers.onError) handlers.onError(err)
+    },
+  )
+  return {
+    abort: () => {
+      cancelled = true
+    },
+  }
+}
+
+/**
  * 流式生成洞察（长洞察逐字）：`POST /ai/insight/stream`。
  *
- * <p>用 `fetch` + `ReadableStream` 读流；测试可传 `transport` 注入假实现。
+ * <p>App 走 `plus.net.XMLHttpRequest`、H5 走 `fetch`；传输不可用或首字前失败时降级为
+ * 同步 `requestInsight`。测试可传 `transport` 注入假实现。
  *
  * @param {Object} args `{elderId, type, rangeDays, deviceId, now}`
  * @param {Object} handlers `{ onDelta(content:string), onDone(insight:Object), onError(err), signal? }`
@@ -286,12 +443,38 @@ function h5Transport(payload, handlers) {
  */
 export function streamInsight(args, handlers = {}, opts = {}) {
   const payload = buildInsightPayload(args)
-  const transport = opts.transport || h5Transport
+  const transport = resolveStreamTransport({
+    transport: opts.transport,
+    hasAppXhr: hasAppXhr(),
+    hasFetch: typeof fetch === 'function',
+  })
+  if (!transport) {
+    return fallbackInsight(args, handlers)
+  }
+
+  let produced = false
+  const wrapped = {
+    ...handlers,
+    onDelta: (content) => {
+      produced = true
+      if (handlers.onDelta) handlers.onDelta(content)
+    },
+    onError: (err) => {
+      // null 表示主动取消，不降级
+      if (err === null) return
+      if (!produced) {
+        fallbackInsight(args, handlers)
+        return
+      }
+      if (handlers.onError) handlers.onError(err)
+    },
+  }
   try {
-    return transport(payload, handlers)
+    return transport(payload, wrapped)
   } catch (e) {
-    // 同步抛错（如注入的测试 transport）兜底到 onError，避免漏到页面
-    if (handlers && handlers.onError) handlers.onError(e)
+    // 同步抛错（如注入的测试 transport）兜底，避免漏到页面
+    if (!produced) return fallbackInsight(args, handlers)
+    if (handlers.onError) handlers.onError(e)
     return { abort: () => {} }
   }
 }

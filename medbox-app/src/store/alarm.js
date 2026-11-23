@@ -11,15 +11,17 @@
  */
 
 import { reactive } from 'vue'
-import { getUnreadCount } from '@/api/alarm.js'
+import { getAlarms, getUnreadCount } from '@/api/alarm.js'
 import { getUserInfo } from '@/store/user.js'
 import { listDevices } from '@/api/device.js'
 
-/** 响应式状态：未读数 / 当前老人 / 可见老人列表。 */
+/** 响应式状态：未读数 / 当前老人 / 可见老人列表 / 回前台补拉的最新记录。 */
 const state = reactive({
   unreadCount: 0,
   currentElderId: '',
   elderIds: [],
+  latest: [],
+  refreshTick: 0,
 })
 
 /** 取响应式状态（组件 `computed` 里引用以跟踪变化）。 */
@@ -47,6 +49,7 @@ export function resetAlarmUnread() {
   state.unreadCount = 0
   state.currentElderId = ''
   state.elderIds = []
+  state.latest = []
 }
 
 /**
@@ -63,6 +66,29 @@ export async function refreshUnreadCount(elderId) {
   } catch (err) {
     console.warn('[alarm] 未读计数刷新失败', err && err.code ? err.code : err)
   }
+}
+
+/**
+ * 回前台补拉（`feat/app-runtime`）：未读角标 + 最新 5 条记录。
+ *
+ * <p>**去重口径**：实时弹窗只由 WS 的 `ALARM` 帧驱动；本函数只刷新角标与 `latest` 列表
+ * （列表页靠 `refreshTick` 或重新进入刷新），不重复弹窗。App 切后台后进程可能被挂起、
+ * WS 断连期间漏掉的告警靠这次补拉兜底。
+ *
+ * @returns {Promise<Array>} 最新记录（失败时保留上一次的 `latest`）
+ */
+export async function refreshAfterForeground() {
+  const eid = state.currentElderId
+  if (!eid) return state.latest
+  await refreshUnreadCount(eid)
+  try {
+    const data = await getAlarms({ elderId: eid, page: 1, size: 5 })
+    state.latest = data && Array.isArray(data.list) ? data.list : []
+    state.refreshTick += 1
+  } catch (err) {
+    console.warn('[alarm] 回前台补拉最新记录失败', err && err.code ? err.code : err)
+  }
+  return state.latest
 }
 
 /**

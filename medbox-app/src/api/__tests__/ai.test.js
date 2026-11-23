@@ -118,18 +118,23 @@ describe('ai —— streamInsight 流式封装（注入 transport）', () => {
     expect(handle).toHaveProperty('abort')
   })
 
-  it('onError 在 transport 抛错时回调', async () => {
+  it('transport 同步抛错且未产出 → 降级同步接口（不把异常抛给页面）', async () => {
     const { ai } = await loadApi()
     let err = null
+    let done = null
+    scripts = [{ body: { code: 0, data: { summary: 'ok' } } }]
     const transport = () => {
       throw new Error('transport boom')
     }
     ai.streamInsight(
       { elderId: 'u-1001' },
-      { onError: (e) => (err = e) },
+      { onDone: (d) => (done = d), onError: (e) => (err = e) },
       { transport },
     )
-    expect(err).toBeInstanceOf(Error)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(err).toBe(null)
+    expect(done).not.toBeNull()
+    expect(sent.some((s) => s.url.includes('/ai/insight') && !s.url.includes('/stream'))).toBe(true)
   })
 })
 
@@ -195,5 +200,72 @@ describe('ai —— LLM 配置请求层（05 第 2.1 章 FP-8）', () => {
     scripts = [{ body: { code: 40001, message: 'baseUrl 不合法' } }]
     const err = await ai.putLlmConfig({ elderId: 'u-1001', provider: 'openai-compatible', baseUrl: 'not-url', model: 'gpt-4o-mini', apiKey: 'sk-xxx' }).catch((e) => e)
     expect(err.code).toBe(CODE.BAD_REQUEST)
+  })
+})
+
+describe('流式传输选择与降级（feat/app-runtime）', () => {
+  /** 等请求层的 Promise 链跑完（同步降级只经过 Promise 微任务）。 */
+  const flush = () => new Promise((r) => setTimeout(r, 0))
+
+  it('App 有 plus.net.XMLHttpRequest 时优先 App 传输；否则用 fetch', async () => {
+    const { ai } = await loadApi()
+    expect(ai.resolveStreamTransport({ hasAppXhr: true, hasFetch: true })).toBeTypeOf('function')
+    expect(ai.resolveStreamTransport({ hasFetch: true })).toBeTypeOf('function')
+    expect(ai.resolveStreamTransport({})).toBe(null)
+  })
+
+  it('无任何流式能力 → 降级为同步 /ai/insight，不请求 /stream', async () => {
+    vi.stubGlobal('fetch', undefined)
+    const { ai } = await loadApi()
+    let done = null
+    scripts = [{ body: { code: 0, data: { summary: '降级结果' } } }]
+    ai.streamInsight({ elderId: 'u-1001', type: 'ADHOC' }, { onDone: (d) => { done = d }, onError: () => {} })
+    await flush()
+    expect(done).toBeTruthy()
+    expect(sent[0].url).toContain('/ai/insight')
+    expect(sent[0].url).not.toContain('/stream')
+  })
+
+  it('首个 delta 前失败 → 降级同步接口', async () => {
+    const { ai } = await loadApi()
+    let done = null
+    scripts = [{ body: { code: 0, data: { summary: '降级结果' } } }]
+    const transport = (payload, handlers) => {
+      handlers.onError({ code: -1, message: 'boom' })
+      return { abort: () => {} }
+    }
+    ai.streamInsight({ elderId: 'u-1001', type: 'ADHOC' }, { onDone: (d) => { done = d }, onError: () => {} }, { transport })
+    await flush()
+    expect(done).toBeTruthy()
+    expect(sent.some((s) => s.url.includes('/ai/insight') && !s.url.includes('/stream'))).toBe(true)
+  })
+
+  it('已输出 delta 后失败 → 不降级，直接报错（避免重复生成）', async () => {
+    const { ai } = await loadApi()
+    let done = null
+    let error = null
+    const transport = (payload, handlers) => {
+      handlers.onDelta('前半段')
+      handlers.onError({ code: -1, message: 'boom' })
+      return { abort: () => {} }
+    }
+    ai.streamInsight({ elderId: 'u-1001', type: 'ADHOC' }, { onDone: (d) => { done = d }, onError: (e) => { error = e } }, { transport })
+    await flush()
+    expect(done).toBe(null)
+    expect(error).toBeTruthy()
+    expect(sent.length).toBe(0)
+  })
+
+  it('主动取消（onError(null)）不触发降级', async () => {
+    const { ai } = await loadApi()
+    let done = null
+    const transport = (payload, handlers) => {
+      handlers.onError(null)
+      return { abort: () => {} }
+    }
+    ai.streamInsight({ elderId: 'u-1001', type: 'ADHOC' }, { onDone: (d) => { done = d }, onError: () => {} }, { transport })
+    await flush()
+    expect(done).toBe(null)
+    expect(sent.length).toBe(0)
   })
 })
