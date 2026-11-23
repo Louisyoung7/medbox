@@ -81,15 +81,15 @@
       }
     },
     {
-      "name": "删除后不可见",
+      "name": "删除后不可见（不存在与无权同码 40301，防枚举）",
       "auth": "guardianToken",
       "request": {
         "method": "GET",
         "path": "/medicines/${vars.newMedicineId}"
       },
       "expect": {
-        "status": 404,
-        "code": 40401
+        "status": 403,
+        "code": 40301
       }
     }
   ]

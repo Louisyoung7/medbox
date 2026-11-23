@@ -376,7 +376,8 @@ async function handleListMedicines(req, res, query) {
 async function handleGetMedicine(req, res, medicineId) {
   const user = requireUser(req)
   const medicine = state.medicines.find((m) => m.medicineId === medicineId)
-  if (!medicine) throw new BizError(40401, '资源不存在')
+  // 不存在与无权同码 40301（02 §1.3 防枚举；真后端 MedicineService.requireForRead 同口径）
+  if (!medicine) throw new BizError(40301, '无权限访问该资源')
   const access = medicineAccess(user, medicine)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
@@ -392,6 +393,8 @@ async function handleSaveMedicine(req, res, body) {
 
   const medicineId = body.medicineId ? String(body.medicineId) : ''
   const existing = medicineId ? state.medicines.find((m) => m.medicineId === medicineId) : null
+  // 带了 medicineId 却查不到 = 更新已删除/不存在的档案；真后端 requireForWrite 返回 40301
+  if (medicineId && !existing) throw new BizError(40301, '无权限访问该资源')
   if (existing) {
     if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
     const access = medicineAccess(user, existing)
@@ -430,7 +433,8 @@ async function handleSaveMedicine(req, res, body) {
 async function handleDeleteMedicine(req, res, medicineId) {
   const user = requireUser(req)
   const medicine = state.medicines.find((m) => m.medicineId === medicineId)
-  if (!medicine) throw new BizError(40401, '资源不存在')
+  // 不存在与无权同码 40301（02 §1.3 防枚举）
+  if (!medicine) throw new BizError(40301, '无权限访问该资源')
   const access = medicineAccess(user, medicine)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
@@ -513,7 +517,8 @@ async function handleListPlans(req, res, query) {
 async function handleGetPlan(req, res, planId) {
   const user = requireUser(req)
   const plan = state.plans.find((p) => p.planId === planId)
-  if (!plan) throw new BizError(40401, '资源不存在')
+  // 计划经归属老人解析权限：不存在与无权同码 40301（02 §1.3 防枚举；真后端 findForRead 同口径）
+  if (!plan) throw new BizError(40301, '无权限访问该资源')
   const access = planAccess(user, plan)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
@@ -523,13 +528,13 @@ async function handleGetPlan(req, res, planId) {
 async function handleGetNextDoses(req, res, planId, query) {
   const user = requireUser(req)
   const plan = state.plans.find((p) => p.planId === planId)
-  if (!plan) throw new BizError(40401, '资源不存在')
+  if (!plan) throw new BizError(40301, '无权限访问该资源')
   const access = planAccess(user, plan)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
-  // 停用计划：02/07 约定返回空（feat/mp-plan-timeline 空态之一）
+  // 停用计划：02/07 约定返回空（feat/mp-plan-timeline 空态之一）；响应为裸数组，与真后端 R<List> 一致
   if (plan.status === 'DISABLED') {
-    return ok(res, { doses: [] })
+    return ok(res, [])
   }
   // days：默认 7、上限 60（与后端一致）；越界 40001
   let days = 7
@@ -553,7 +558,7 @@ async function handleGetNextDoses(req, res, planId, query) {
       doses.push({ cellNo: slot.cellNo, scheduledTimeLocal: local, scheduledTimeUtc: utc })
     })
   }
-  ok(res, { doses })
+  ok(res, doses)
 }
 
 async function handleCreatePlan(req, res, body) {
@@ -581,7 +586,7 @@ async function handleCreatePlan(req, res, body) {
 async function handleUpdatePlan(req, res, planId, body) {
   const user = requireUser(req)
   const plan = state.plans.find((p) => p.planId === planId)
-  if (!plan) throw new BizError(40401, '资源不存在')
+  if (!plan) throw new BizError(40301, '无权限访问该资源')
   const access = planAccess(user, plan)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
@@ -597,7 +602,7 @@ async function handleUpdatePlan(req, res, planId, body) {
 async function handleUpdatePlanStatus(req, res, planId, body) {
   const user = requireUser(req)
   const plan = state.plans.find((p) => p.planId === planId)
-  if (!plan) throw new BizError(40401, '资源不存在')
+  if (!plan) throw new BizError(40301, '无权限访问该资源')
   const access = planAccess(user, plan)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
@@ -614,7 +619,7 @@ async function handleUpdatePlanStatus(req, res, planId, body) {
 async function handleDeletePlan(req, res, planId) {
   const user = requireUser(req)
   const plan = state.plans.find((p) => p.planId === planId)
-  if (!plan) throw new BizError(40401, '资源不存在')
+  if (!plan) throw new BizError(40301, '无权限访问该资源')
   const access = planAccess(user, plan)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')

@@ -55,13 +55,13 @@
         "status": 200,
         "code": 0,
         "shape": {
-          "data.doses": "array",
-          "data.doses[0].cellNo": "number",
-          "data.doses[0].scheduledTimeLocal": "string",
-          "data.doses[0].scheduledTimeUtc": "string"
+          "data": "array",
+          "data[0].cellNo": "number",
+          "data[0].scheduledTimeLocal": "string",
+          "data[0].scheduledTimeUtc": "string"
         },
         "minLength": {
-          "data.doses": 1
+          "data": 1
         }
       }
     }

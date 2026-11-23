@@ -172,7 +172,8 @@ async function waitReady() {
 
     console.log('== 药品删除（纯档案，直接删） ==')
     check('删除成功', (await call('DELETE', '/medicines/m-201', { token: gw.token })).code === 0)
-    check('删除后再读 40401', (await call('GET', '/medicines/m-201', { token: gw.token })).code === 40401)
+    // 不存在与无权同码 40301（02 §1.3 防枚举；真后端 requireForRead 同口径）
+    check('删除后再读 40301', (await call('GET', '/medicines/m-201', { token: gw.token })).code === 40301)
 
     console.log('== 注册 / 注销 / 刷新 ==')
     const reg = await call('POST', '/auth/register', { body: { phone: '13700009999', password: '123456', role: 'GUARDIAN', name: '测试号' } })
@@ -233,25 +234,26 @@ async function waitReady() {
     check('PATCH 停用（契约 {status}）', disabled.code === 0 && disabled.data.status === 'DISABLED')
     check('PATCH 非法状态 40001', (await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'ON' } })).code === 40001)
     check('DELETE 删除计划', (await call('DELETE', `/plans/${newPlanId}`, { token: gw.token })).code === 0)
-    check('删除后详情 40401', (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).code === 40401)
+    check('删除后详情 40301', (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).code === 40301)
 
     console.log('== 未来待服药时间线（02d；next-doses 按格展开） ==')
     const nd7 = await call('GET', '/plans/p-3301/next-doses?days=7', { token: gw.token })
-    check('GET next-doses 200 且 7天×3格=21 条', nd7.code === 0 && Array.isArray(nd7.data.doses) && nd7.data.doses.length === 21)
-    check('next-doses 每条含 cellNo 与墙钟本地时间', nd7.data.doses.every((d) => d.cellNo >= 1 && d.cellNo <= 3 && d.scheduledTimeLocal && d.scheduledTimeUtc))
-    check('next-doses 不含药品信息', nd7.data.doses.every((d) => !('items' in d) && !('medicineName' in d)))
+    // 响应为裸数组（与真后端 R<List> 一致）
+    check('GET next-doses 200 且 7天×3格=21 条', nd7.code === 0 && Array.isArray(nd7.data) && nd7.data.length === 21)
+    check('next-doses 每条含 cellNo 与墙钟本地时间', nd7.data.every((d) => d.cellNo >= 1 && d.cellNo <= 3 && d.scheduledTimeLocal && d.scheduledTimeUtc))
+    check('next-doses 不含药品信息', nd7.data.every((d) => !('items' in d) && !('medicineName' in d)))
     const nd15 = await call('GET', '/plans/p-3301/next-doses?days=15', { token: gw.token })
-    check('days=15 → 45 条', nd15.code === 0 && nd15.data.doses.length === 45)
+    check('days=15 → 45 条', nd15.code === 0 && nd15.data.length === 45)
     // 停用计划 p-3302 → 空（空态之一）
     const ndDisabled = await call('GET', '/plans/p-3302/next-doses?days=7', { token: gw.token })
-    check('停用计划 next-doses 空', ndDisabled.code === 0 && Array.isArray(ndDisabled.data.doses) && ndDisabled.data.doses.length === 0)
+    check('停用计划 next-doses 空', ndDisabled.code === 0 && Array.isArray(ndDisabled.data) && ndDisabled.data.length === 0)
     // 老人读自己（READ_PLAN 全角色）
     check('老人读 next-doses 200', (await call('GET', '/plans/p-3301/next-doses?days=7', { token: elder.token })).code === 0)
     // 权限分支：REVOKED → 40301、PENDING → 40302
     check('REVOKED 监护人查 next-doses 40301', (await call('GET', '/plans/p-3301/next-doses?days=7', { token: revoked.token })).code === 40301)
     check('PENDING 监护人查 next-doses 40302', (await call('GET', '/plans/p-3301/next-doses?days=7', { token: pending.token })).code === 40302)
-    // 未知计划 40401；days 越界 40001；未登录 40101
-    check('未知计划 next-doses 40401', (await call('GET', '/plans/p-9999/next-doses?days=7', { token: gw.token })).code === 40401)
+    // 未知计划 40301（防枚举）；days 越界 40001；未登录 40101
+    check('未知计划 next-doses 40301', (await call('GET', '/plans/p-9999/next-doses?days=7', { token: gw.token })).code === 40301)
     check('days=0 → 40001', (await call('GET', '/plans/p-3301/next-doses?days=0', { token: gw.token })).code === 40001)
     check('days=61 → 40001', (await call('GET', '/plans/p-3301/next-doses?days=61', { token: gw.token })).code === 40001)
     check('未登录 next-doses 40101', (await call('GET', '/plans/p-3301/next-doses?days=7')).code === 40101)
