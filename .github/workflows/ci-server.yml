@@ -1,15 +1,21 @@
 name: CI · medbox-server
 
 # 只关心后端目录：改动 medbox-miniapp/ 不会触发本工作流（同理见 ci-miniapp.yml）
+# 契约场景与 runner 放在小程序侧（medbox-miniapp/tools/contract），后端 CI 的 real-e2e 会用到它们，
+# 故这两个路径的改动也要触发本工作流。
 on:
   push:
     branches: [main]
     paths:
       - 'medbox-server/**'
+      - 'medbox-spec/contracts/**'
+      - 'medbox-miniapp/tools/contract/**'
       - '.github/workflows/ci-server.yml'
   pull_request:
     paths:
       - 'medbox-server/**'
+      - 'medbox-spec/contracts/**'
+      - 'medbox-miniapp/tools/contract/**'
       - '.github/workflows/ci-server.yml'
   workflow_dispatch:
 
@@ -17,9 +23,13 @@ concurrency:
   group: ci-server-${{ github.ref }}
   cancel-in-progress: true
 
+# 测试分层见 medbox-spec/08_测试体系与CI.md：
+#   unit         单元 + H2 集成测试（不需要外部 DB / Docker）
+#   infra        Testcontainers PostgreSQL：Flyway 全量迁移 + Mapper 真实 SQL
+#   real-e2e     真实 PG + EMQX + 后端 jar：契约场景 --profile real + device-sim 冒烟
 jobs:
-  build:
-    name: Gradle build (JDK 21)
+  unit:
+    name: 单元与 H2 集成测试
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,13 +47,185 @@ jobs:
       - name: 赋予 gradlew 执行权限
         run: chmod +x ./gradlew
 
-      - name: 构建与测试
-        run: ./gradlew build --no-daemon
+      - name: 单元 + H2 集成测试
+        run: ./gradlew test --no-daemon
 
       - name: 上传测试报告（仅在失败时）
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: server-test-reports
-          path: medbox-server/build/reports/tests
+          name: server-unit-test-reports
+          path: medbox-server/build/reports/tests/test
+          if-no-files-found: ignore
+
+  device-sim-unit:
+    name: device-sim 单元测试
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbox-server/tools/device-sim
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: medbox-server/tools/device-sim/package-lock.json
+
+      - name: 安装依赖（锁版本）
+        run: npm ci
+
+      - name: 单元测试
+        run: npm test
+
+  infra:
+    name: Testcontainers PostgreSQL（迁移与 Mapper）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbox-server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: 赋予 gradlew 执行权限
+        run: chmod +x ./gradlew
+
+      # ubuntu-latest 自带 Docker，Testcontainers 直接可用；缺 Docker 时任务会明确失败，不静默跳过
+      - name: Flyway 迁移与 Mapper 真实 SQL
+        run: ./gradlew infraTest --no-daemon
+
+      - name: 上传测试报告（仅在失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-infra-test-reports
+          path: medbox-server/build/reports/tests/infraTest
+          if-no-files-found: ignore
+
+  real-e2e:
+    name: 真实 PG + EMQX 跨进程联调（契约 real + device-sim）
+    runs-on: ubuntu-latest
+    # 单元测试都不过时不必起真实链路
+    needs: [unit]
+
+    services:
+      postgres:
+        # V1 有 CREATE EXTENSION vector（V18 才 drop），全新库必须带 pgvector 扩展
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: medbox
+          POSTGRES_USER: medbox
+          POSTGRES_PASSWORD: medbox
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U medbox"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      emqx:
+        image: emqx/emqx:5.8.0
+        ports:
+          - 1883:1883
+          - 18083:18083
+
+    env:
+      # application.yml 的 datasource 占位符（见文档 01 的 4.1.1）
+      MEDBOX_DB_URL: jdbc:postgresql://localhost:5432/medbox
+      MEDBOX_DB_USERNAME: medbox
+      MEDBOX_DB_PASSWORD: medbox
+      # 设备模拟器默认连的就是这两个地址，显式写出来避免默认值变动后 CI 莫名的红
+      MEDBOX_SIM_BASE_URL: http://localhost:8080/medbox/api/v1
+      MEDBOX_SIM_BROKER: tcp://localhost:1883
+      MEDBOX_DEVICE_SIM_SMOKE: 'true'
+      MEDBOX_SIM_SMOKE_QUICK: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: medbox-server/tools/device-sim/package-lock.json
+
+      - name: 打包后端（跳过 test，测试已在 unit job 跑过）
+        working-directory: medbox-server
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bootJar -x test --no-daemon
+
+      - name: 启动后端（真实 PG + EMQX，打开 devtools）
+        working-directory: medbox-server
+        run: |
+          nohup java -jar build/libs/medbox-server-*.jar \
+            --medbox.devtools.enabled=true \
+            --medbox.mqtt.enabled=true \
+            --medbox.ratelimit.enabled=false \
+            --medbox.capture.dir=/tmp/medbox-captures \
+            > /tmp/medbox-server.log 2>&1 &
+          echo $! > /tmp/medbox-server.pid
+
+      - name: 等待后端就绪
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:8080/medbox/actuator/health >/dev/null 2>&1; then
+              echo "后端已就绪"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "后端 180s 内未就绪，日志如下："
+          cat /tmp/medbox-server.log
+          exit 1
+
+      - name: 等待 EMQX 就绪（backend 连不上不阻塞启动，这里单独等）
+        run: |
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/127.0.0.1/1883) >/dev/null 2>&1; then
+              echo "EMQX 已就绪"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "EMQX 120s 内未就绪"
+          exit 1
+
+      - name: 播种调试数据
+        run: |
+          curl -fsS -X POST 'http://localhost:8080/medbox/api/v1/_debug/seed?reset=true'
+
+      - name: 契约场景（对真实后端）
+        run: node medbox-miniapp/tools/contract/run.mjs --base http://127.0.0.1:8080/medbox/api/v1 --profile real
+
+      - name: 安装 device-sim 依赖
+        working-directory: medbox-server/tools/device-sim
+        run: npm ci
+
+      - name: device-sim 冒烟（MQTT 会话 + 抓拍 + 同步回执）
+        working-directory: medbox-server/tools/device-sim
+        run: npm run smoke
+
+      - name: 上传后端日志（仅在失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-real-e2e-log
+          path: /tmp/medbox-server.log
           if-no-files-found: ignore
