@@ -7,7 +7,7 @@
 
 | 协议 | 首选调试工具 | 说明 |
 |------|--------------|------|
-| REST / HTTP | VS Code **REST Client** + `http/` 下的 `.http` 文件 | 点 Send 即发，JWT 自动注入 |
+| REST / HTTP | **Swagger UI**（`medbox-spec/openapi/swagger-ui.html`） | 加载 OpenAPI 契约，Try it out 直连真实后端 |
 | WebSocket | `wscat` / node `ws` 脚本 / 浏览器 Console | 自定义 JSON 帧（ping/pong + eventId） |
 | MQTT | **EMQX Dashboard（内置 WebSocket 客户端）** | 本期 Broker 匿名、局域网，Dashboard 首选；备选 MQTTX / mosquitto / mqtt.js |
 
@@ -15,22 +15,21 @@
 
 ## 1. REST / HTTP
 
-调试文件在 `http/` 子目录：
-
-- `http/auth.http` — 登录/注册/刷新/当前用户/监护关系（含 `# @name login` 供后续自动注入 token）
-- `http/plan.http` — 服药计划 CRUD + 时间线 + 启停
-- `http/record.http` — 服药记录 / 依从性 / 确认补录 / CSV 导出
-- `http/medicine.http` — 药品档案 + 药箱库存
+统一用 `medbox-spec/openapi/swagger-ui.html`：契约（端点 / 字段 / 错误码）来自 `openapi/*.yaml`，Try it out 直连真实后端。
 
 **步骤**：
 
-1. VS Code 安装插件 **REST Client**（或 IntelliJ 内置 HTTP Client）；
-2. 改每个文件顶部的 `@baseUrl`（局域网设备填内网 IP，默认 `http://localhost:8080/medbox/api/v1`）；
-3. 先点 `auth.http` 的「登录」Send，拿到 JWT；其余【鉴权】请求通过 `{{login.response.body.$.data.token}}` **自动带 token**，无需手粘；
-4. 每个请求上方 `###` 分隔，点行内 Send 即发，响应格式化展示。
+1. 在 `medbox-spec/openapi/` 下起静态服务：
+   ```bash
+   npx serve .
+   ```
+2. 浏览器打开 `swagger-ui.html?spec=02a-auth-users.yaml`（换成目标模块的 yaml 名）；
+3. 改 `servers` 里的 `host`（局域网设备填内网 IP，默认 `localhost:8080`）；
+4. 先调「登录」拿 JWT，点右上角 **Authorize** 填入 token，其余带鉴权的接口会自动带上。
 
 **要点**：
 
+- 模块对应关系：`02a` 认证与用户 / `02b` 设备 / `02c` 药品档案 / `02d` 服药计划 / `02e` 服药记录 / `02f` 告警 / `02g` 环境监测 / `02h` 管理员 / `02i` AI；
 - 统一响应为 `R<T>`：`{ code, message, data, traceId, timestamp }`；`timestamp` 为 **epoch 秒**；
 - 写方法自动带幂等头 `X-Request-Id`（见 `02_REST接口设计.md` §1）；
 - 字段 / 错误码 / 分页口径以 `medbox-spec/02_*` 为准。
@@ -141,8 +140,5 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），内含 **WebSocket
 
 | 路径 | 协议 | 用途 |
 |------|------|------|
-| `http/auth.http` | REST | 登录拿 token + 用户 / 监护关系 |
-| `http/plan.http` | REST | 服药计划 CRUD / 时间线 / 启停 |
-| `http/record.http` | REST | 服药记录 / 依从性 / 确认补录 / 导出 |
-| `http/medicine.http` | REST | 药品档案 + 药箱库存 |
+| `medbox-spec/openapi/swagger-ui.html` | REST | Swagger UI 调试页（Try it out 直连后端） |
 | 本文档 | WS / MQTT | WebSocket 与 MQTT 手动调试方法（MQTT 首选 Dashboard） |
