@@ -91,15 +91,23 @@ dependencies {
     // 进入方法时 Spring 要开 JDBC 连接。故内嵌 H2 充当 DataSource（见 DeviceCoreWebIntegrationTest 的
     // @TestConfiguration），事务可正常开启、Mapper 仍是 mock、不跑任何真实 SQL。
     testImplementation("com.h2database:h2")
+    // infraTest：Testcontainers 起真实 PostgreSQL 跑 Flyway 迁移与 Mapper SQL（@Tag("infra")）
+    // 版本由 Boot 4.1.1 BOM 统一管理（testcontainers-bom），不写死版本号
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testCompileOnly("org.projectlombok:lombok")
     testAnnotationProcessor("org.projectlombok:lombok")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.named<Test>("test") {
-    useJUnitPlatform()
+    // 真实 PostgreSQL 相关测试统一打 @Tag("infra")，由下方的 infraTest 任务单独执行：
+    // CI（GitHub Actions）的 test 阶段没有 Docker / PostgreSQL，必须排除，避免「本地绿、CI 红」。
+    useJUnitPlatform {
+        excludeTags("infra")
+    }
     // CI（GitHub Actions）里没有 PostgreSQL / EMQX：测试期关掉 Flyway 与 MQTT 连接，否则 @SpringBootTest 启动即失败。
-    // 将来接 Testcontainers 做集成测试时，删掉这两行即可。
+    // 需要真实迁移 / SQL 的测试见下方 infraTest（Testcontainers 起 PostgreSQL，Flyway 保持开启）。
     environment("SPRING_FLYWAY_ENABLED", "false")
     environment("MEDBOX_MQTT_ENABLED", "false")
     // 测试期关掉全部定时调度（各 *IntegrationTest 都是手动调 scanner.scan(clock) 触发，不依赖 @Scheduled）。
@@ -113,4 +121,39 @@ tasks.named<Test>("test") {
     // 全量 580+ 个测试共用一个 JVM、缓存十几个 ApplicationContext，默认堆在尾部会 OOM
     // （pgVectorStoreBatchingStrategy 装配失败 → 上下文缓存被污染 → 后续 @SpringBootTest 全红）
     maxHeapSize = "2g"
+}
+
+// 真实基础设施测试：Testcontainers 起 PostgreSQL，Flyway 全量迁移 + Mapper 注解 SQL 真跑。
+// 与 test 分层的原因见 medbox-spec/08_测试体系与CI.md：
+//   ./gradlew test       本地 / CI 单元与 H2 集成测试，不需要 Docker
+//   ./gradlew infraTest  需要 Docker（缺 Docker 时 Testcontainers 直接失败，不静默跳过）
+//   -PskipInfra          临时跳过（如无 Docker 的机器上只跑 test）
+tasks.register<Test>("infraTest") {
+    description = "在 Testcontainers PostgreSQL 上跑 Flyway 迁移与 Mapper 真实 SQL（需 Docker）"
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+
+    useJUnitPlatform {
+        includeTags("infra")
+    }
+
+    // Flyway 保持开启（application.yml 默认 true），由 PostgresInfraTestBase 注入容器数据源。
+    // MQTT / 定时调度与 test 任务一致地关掉：跑 SQL 断言时不应有后台线程并发写同一张表。
+    environment("MEDBOX_MQTT_ENABLED", "false")
+    environment("MEDBOX_ALARM_MISS_ENABLED", "false")
+    environment("MEDBOX_ALARM_ENV_ENABLED", "false")
+    environment("MEDBOX_ALARM_DEVICE_FAULT_ENABLED", "false")
+    environment("MEDBOX_ALARM_DEVICE_OFFLINE_ENABLED", "false")
+    environment("MEDBOX_PLAN_REMINDER_ENABLED", "false")
+    environment("MEDBOX_AI_INSIGHT_ENABLED", "false")
+
+    maxHeapSize = "2g"
+    shouldRunAfter(tasks.named("test"))
+    // 配置阶段就取值，避免执行期访问 project（Gradle configuration cache 不允许）
+    val skipInfra = providers.gradleProperty("skipInfra").isPresent
+    onlyIf { !skipInfra }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
 }
