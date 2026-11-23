@@ -8,8 +8,9 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、237 项检查、跑完即关
-npm run test:all    # 单元测试（vitest）+ 端到端（mock）一次跑完
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、243 项检查、跑完即关
+npm run test:contract:mock  # 契约场景对 Mock 跑一遍（自起 18099，场景在 medbox-spec/contracts）
+npm run test:all    # 单元测试（vitest）+ 端到端（mock）+ 契约（mock）一次跑完
 ```
 
 - 把 `.env.local` 的 `VITE_SERVER_HOST` 指向运行本脚本的机器 IP（本机调试填 `127.0.0.1`）。

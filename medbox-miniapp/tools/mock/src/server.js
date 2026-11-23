@@ -11,7 +11,7 @@
  *   # MOCK_ACCESS_TTL_MS=15000 npm run mock   # access token 15s 过期，验证 40101 自动续期
  *
  * 端到端测试（AI 完工时自动跑，见 AGENTS.md 3.1）：
- *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 237 项检查、跑完即关
+ *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 243 项检查、跑完即关
  *
  * 用法：把 .env.local 的 VITE_SERVER_HOST 指向运行本脚本的机器 IP（127.0.0.1 亦可），
  * 小程序侧无需任何改动；H5 联调走既有的 Vite 反代（/medbox → 127.0.0.1:8080）。
@@ -741,8 +741,9 @@ async function handleSaveAlarmSettings(req, res, query, body) {
     }
   }
   cur.elderId = elderId
+  cur.updatedAt = new Date().toISOString()
   state.alarmSettings[elderId] = cur
-  ok(res, null)
+  ok(res, cur)
 }
 
 /** 告警设置默认值（老人级；字段对齐 02 第 8/9 章 + 06 §2.6.1）。 */

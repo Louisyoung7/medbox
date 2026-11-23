@@ -1,0 +1,42 @@
+{
+  "name": "medicine: 老人写入被拒",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "老人登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${elder.account}",
+          "password": "${elder.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "elderToken": "data.token"
+      }
+    },
+    {
+      "name": "老人新建药品",
+      "auth": "elderToken",
+      "request": {
+        "method": "POST",
+        "path": "/medicines",
+        "body": {
+          "name": "越权药品",
+          "ownerElderId": "${elder.userId}",
+          "dosePerTime": "1",
+          "unit": "片"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "code": 40301
+      }
+    }
+  ]
+}

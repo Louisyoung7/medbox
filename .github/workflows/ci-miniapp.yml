@@ -6,10 +6,12 @@ on:
     branches: [main]
     paths:
       - 'medbox-miniapp/**'
+      - 'medbox-spec/contracts/**'
       - '.github/workflows/ci-miniapp.yml'
   pull_request:
     paths:
       - 'medbox-miniapp/**'
+      - 'medbox-spec/contracts/**'
       - '.github/workflows/ci-miniapp.yml'
   workflow_dispatch:
 
@@ -36,6 +38,15 @@ jobs:
 
       - name: 安装依赖（锁版本）
         run: npm ci
+
+      - name: 单元测试
+        run: npm test
+
+      - name: Mock 端到端
+        run: npm run test:e2e
+
+      - name: 契约场景（对 Mock）
+        run: npm run test:contract:mock
 
       - name: 构建 mp-weixin
         run: npm run build:mp-weixin

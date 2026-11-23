@@ -38,7 +38,9 @@
     "build:quickapp-webview-union": "uni build -p quickapp-webview-union",
     "test": "vitest run",
     "test:e2e": "node tools/mock/test/smoke.js",
-    "test:all": "vitest run && node tools/mock/test/smoke.js",
+    "test:contract:mock": "node tools/contract/run.mjs --profile mock --start-mock",
+    "test:contract": "node tools/contract/run.mjs",
+    "test:all": "vitest run && node tools/mock/test/smoke.js && node tools/contract/run.mjs --profile mock --start-mock",
     "mock": "node tools/mock/src/server.js"
   },
   "dependencies": {
