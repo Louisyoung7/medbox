@@ -1,0 +1,108 @@
+{
+  "name": "alarm: 告警设置读写与权限",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "监护人登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    },
+    {
+      "name": "老人登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${elder.account}",
+          "password": "${elder.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "elderToken": "data.token"
+      }
+    },
+    {
+      "name": "监护人查询设置",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/alarm-settings?elderId=${elder.userId}"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data": "object"
+        }
+      }
+    },
+    {
+      "name": "监护人保存漏服容忍",
+      "auth": "guardianToken",
+      "request": {
+        "method": "PUT",
+        "path": "/alarm-settings?elderId=${elder.userId}",
+        "body": {
+          "missTolerateMin": 20
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data": "object"
+        },
+        "equals": {
+          "data.missTolerateMin": 20
+        }
+      }
+    },
+    {
+      "name": "保存后回读",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/alarm-settings?elderId=${elder.userId}"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "equals": {
+          "data.missTolerateMin": 20
+        }
+      }
+    },
+    {
+      "name": "老人保存设置被拒",
+      "auth": "elderToken",
+      "request": {
+        "method": "PUT",
+        "path": "/alarm-settings?elderId=${elder.userId}",
+        "body": {
+          "missTolerateMin": 5
+        }
+      },
+      "expect": {
+        "status": 403,
+        "code": 40301
+      }
+    }
+  ]
+}

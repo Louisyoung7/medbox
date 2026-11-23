@@ -1,0 +1,45 @@
+{
+  "name": "user: 监护人读取老人资料",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    },
+    {
+      "name": "读取老人资料",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/users/${elder.userId}/profile"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data.userId": "string",
+          "data.role": "string",
+          "data.name": "string"
+        },
+        "equals": {
+          "data.userId": "${elder.userId}",
+          "data.role": "ELDER"
+        }
+      }
+    }
+  ]
+}

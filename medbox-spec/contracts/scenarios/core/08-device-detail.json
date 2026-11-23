@@ -1,0 +1,44 @@
+{
+  "name": "device: 设备详情",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    },
+    {
+      "name": "设备详情",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/devices/${deviceId}"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data.deviceId": "string",
+          "data.deviceType": "string",
+          "data.sensors": "array"
+        },
+        "equals": {
+          "data.deviceId": "${deviceId}"
+        }
+      }
+    }
+  ]
+}

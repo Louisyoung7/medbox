@@ -1,0 +1,47 @@
+{
+  "name": "user: 监护人读取自己",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    },
+    {
+      "name": "GET /users/me",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/users/me"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data.userId": "string",
+          "data.role": "string",
+          "data.name": "string",
+          "data.phone": "string"
+        },
+        "equals": {
+          "data.userId": "${guardian.userId}",
+          "data.role": "GUARDIAN",
+          "data.phone": "${guardian.account}"
+        }
+      }
+    }
+  ]
+}

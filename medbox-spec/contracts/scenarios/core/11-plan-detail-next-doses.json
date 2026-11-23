@@ -1,0 +1,69 @@
+{
+  "name": "plan: 计划详情与未来待服药",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    },
+    {
+      "name": "计划详情",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/plans/${planId}"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data.planId": "string",
+          "data.elderId": "string",
+          "data.slots": "array"
+        },
+        "equals": {
+          "data.planId": "${planId}",
+          "data.elderId": "${elder.userId}"
+        },
+        "minLength": {
+          "data.slots": 1
+        }
+      }
+    },
+    {
+      "name": "未来 2 天待服药",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/plans/${planId}/next-doses?days=2"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data": "array",
+          "data[0].cellNo": "number",
+          "data[0].scheduledTimeLocal": "string",
+          "data[0].scheduledTimeUtc": "string"
+        },
+        "minLength": {
+          "data": 1
+        }
+      }
+    }
+  ]
+}

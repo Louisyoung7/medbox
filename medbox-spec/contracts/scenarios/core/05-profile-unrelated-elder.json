@@ -1,0 +1,61 @@
+{
+  "name": "user: 无关老人读取资料被拒",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "注册无关老人",
+      "request": {
+        "method": "POST",
+        "path": "/auth/register",
+        "body": {
+          "phone": "${runPhone}",
+          "password": "123456",
+          "role": "ELDER",
+          "name": "契约无关老人"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data.token": "string",
+          "data.userId": "string",
+          "data.role": "string"
+        },
+        "equals": {
+          "data.role": "ELDER"
+        }
+      },
+      "capture": {
+        "otherElderToken": "data.token"
+      }
+    },
+    {
+      "name": "读取有监护关系的老人资料",
+      "auth": "otherElderToken",
+      "request": {
+        "method": "GET",
+        "path": "/users/${elder.userId}/profile"
+      },
+      "expect": {
+        "status": 403,
+        "code": 40301
+      }
+    },
+    {
+      "name": "清理注册账号",
+      "auth": "otherElderToken",
+      "request": {
+        "method": "POST",
+        "path": "/users/me/delete",
+        "body": {
+          "password": "123456"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      }
+    }
+  ]
+}

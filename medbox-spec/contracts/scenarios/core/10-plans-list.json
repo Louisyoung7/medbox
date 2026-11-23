@@ -1,0 +1,43 @@
+{
+  "name": "plan: 老人计划列表",
+  "profiles": ["mock", "real"],
+  "steps": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "body": {
+          "account": "${guardian.account}",
+          "password": "${guardian.password}"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "code": 0
+      },
+      "capture": {
+        "guardianToken": "data.token"
+      }
+    },
+    {
+      "name": "计划列表",
+      "auth": "guardianToken",
+      "request": {
+        "method": "GET",
+        "path": "/plans?elderId=${elder.userId}"
+      },
+      "expect": {
+        "status": 200,
+        "code": 0,
+        "shape": {
+          "data.list": "array",
+          "data.total": "number"
+        },
+        "minLength": {
+          "data.list": 1
+        }
+      }
+    }
+  ]
+}
