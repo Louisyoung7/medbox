@@ -31,7 +31,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），用于查看连接
 | 设备→云 | **`.../up/ack`**    | 1   | **下行消息回执**（计划 / 命令的 `msgId` 处理结果）                       |
 | 设备→云 | `.../status (LWT)`        | 0   | 在线/离线状态（retained）                                                        |
 | 云→设备 | `.../down/schedule`       | 1   | 下发/同步服药计划与提醒任务                                                      |
-| 云→设备 | `.../down/command`        | 1   | 控制命令（重启/校准；**蜂鸣/解锁由设备本地或小程序本地触发，后端不下发**） |
+| 云→设备 | `.../down/command`        | 1   | 控制命令（重启/校准；**蜂鸣/解锁由设备本地或客户端本地触发，后端不下发**） |
 
 ## 3. Payload 示例
 
@@ -106,7 +106,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），用于查看连接
 { "msgId":"d-102", "cmd":"REBOOT", "params":{}, "needAck":true }
 ```
 
-`cmd` 取值：`REBOOT` 重启 / `CALIBRATE` 校准（白名单见文档 02b_设备管理.md §1.0.1，非法值 REST 层 40001 拦截、不会到这里）。**蜂鸣（`BUZZ`）/ 解锁（`UNLOCK`）由设备本地或小程序本地触发，后端不下发这两类指令**（见 01 §2.3）。设备处理后经 `up/ack` 回执 `ackFor=msgId`：回执 OK → `device_command.state=SUCCESS`；回执 FAILED 或 5s 超时重发 3 次仍无回执 → `FAILED`（见文档 06 的 2.17）。
+`cmd` 取值：`REBOOT` 重启 / `CALIBRATE` 校准（白名单见文档 02b_设备管理.md §1.0.1，非法值 REST 层 40001 拦截、不会到这里）。**蜂鸣（`BUZZ`）/ 解锁（`UNLOCK`）由设备本地或客户端本地触发，后端不下发这两类指令**（见 01 §2.3）。设备处理后经 `up/ack` 回执 `ackFor=msgId`：回执 OK → `device_command.state=SUCCESS`；回执 FAILED 或 5s 超时重发 3 次仍无回执 → `FAILED`（见文档 06 的 2.17）。
 
 ## 4. 摄像头识别与上报链路（摄像头 → 后端 HTTP）
 

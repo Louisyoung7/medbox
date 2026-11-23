@@ -1,35 +1,35 @@
 # medbox · 家用智能药品箱
 
-单仓多目录：后端、小程序、Web 前端各占一个目录，接口与设计文档同仓存放。**先做后端与小程序，Web 前端（`medbox-admin/`）本期占位不实现。**
+单仓多目录：后端、客户端、Web 前端各占一个目录，接口与设计文档同仓存放。**先做后端与客户端（Android APK），Web 前端（`medbox-admin/`）本期占位不实现。**
 
 ## 目录结构
 
 | 目录 | 内容 | 技术栈 | 任务清单 | 状态 |
 |------|------|--------|----------|------|
 | `medbox-server/` | Java 后端 | Spring Boot 4 / Java 21 / Gradle | 首轮分支清单已归档（[`medbox-spec/archive/07`](medbox-spec/archive/07_特性分支清单_后端.md)） | 进行中 |
-| `medbox-miniapp/` | uni-app 小程序 | Vue 3 + Vite | 首轮分支清单已归档（[`medbox-spec/archive/08`](medbox-spec/archive/08_特性分支清单_小程序.md)） | 进行中 |
+| `medbox-app/` | uni-app 客户端（生产端 Android APK；H5 仅用于开发联调） | Vue 3 + Vite | 首轮分支清单已归档（`medbox-spec/archive/08`） | 进行中 |
 | `medbox-admin/` | Web 前端 / 管理后台 | 未定 | 首轮设计见归档 `archive/09` | ⏸ 本期占位 |
 | `medbox-spec/` | 接口与设计文档（唯一权威副本） | — | — | ✅ |
 
-各端**独立构建**：后端在 `medbox-server/` 用 Gradle（`./gradlew bootRun` / `./gradlew build`），小程序在 `medbox-miniapp/` 用 npm，仓库根没有统一构建脚本。
+各端**独立构建**：后端在 `medbox-server/` 用 Gradle（`./gradlew bootRun` / `./gradlew build`），客户端在 `medbox-app/` 用 npm（`npm run dev:h5` / `npm run build:h5` / `npm run build:app-plus`），仓库根没有统一构建脚本。
 
 ## CI（GitHub Actions）
 
-两套技术栈**各一个 workflow**，靠 `paths` 过滤互不触发（详见 [`medbox-spec/01` 的 4.0.1](medbox-spec/01_系统架构与部署.md)）：
+两套技术栈**各一个 workflow**，靠 `paths` 过滤互不触发（详见 [`medbox-spec/01` 的 4.0.1](medbox-spec/01_系统架构与产品定义.md)）：
 
 | Workflow | 触发目录 | 命令 |
 |----------|----------|------|
 | `ci-server.yml` | `medbox-server/**` | JDK 21 + `./gradlew build` |
-| `ci-miniapp.yml` | `medbox-miniapp/**` | Node 24 + `npm ci` + `npm run build:mp-weixin` |
+| `ci-app.yml` | `medbox-app/**`、`medbox-spec/contracts/**` | Node 24 + `npm ci` + `npm test` + `npm run test:e2e` + `npm run test:contract:mock` + `npm run build:h5` + `npm run build:app-plus` |
 
 ## 文档
 
 入口：[`medbox-spec/00_README_文档索引.md`](medbox-spec/00_README_文档索引.md)
 
 - 产品使用说明（面向用户/家人）：**[`docs/产品使用说明.md`](docs/产品使用说明.md)**
-- 快速上手：**先看 [`medbox-spec/QUICKSTART.md`](medbox-spec/QUICKSTART.md)**；后端 / 小程序看 `01` + `02`，建库看 `06`，设备接入看 `03`，实时推送看 `04`，AI 洞察看 `05`
+- 快速上手：**先看 [`medbox-spec/QUICKSTART.md`](medbox-spec/QUICKSTART.md)**；后端 / 客户端看 `01` + `02`，建库看 `06`，设备接入看 `03`，实时推送看 `04`，AI 洞察看 `05`
 - 变更历史看 `git log -- medbox-spec/`（原 CHANGELOG 已冻结归档至 [`medbox-spec/archive/`](medbox-spec/archive/)）
-- 开发从 main 切特性分支：`feat/backend-xxx` 只改 `medbox-server/`，`feat/mp-xxx` 只改 `medbox-miniapp/`（首轮分支清单已归档，查历史去 `medbox-spec/archive/`）
+- 开发从 main 切特性分支：`feat/backend-xxx` 只改 `medbox-server/`，`feat/app-xxx` 只改 `medbox-app/`（首轮分支清单已归档，查历史去 `medbox-spec/archive/`）
 
 文档就在这个仓库里，**不通过 git subtree 同步**；改了接口 / 字段 / 表结构时，请把 `medbox-spec/` 的改动与代码放进同一个 PR（可以分开 commit）。
 

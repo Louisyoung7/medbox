@@ -99,9 +99,9 @@
       <!-- ============ EDGES ============ -->
       <g id="edges">
         <!-- inbound -->
-        <path class="edge e-http" data-from="ext-miniapp" data-to="pkg-controller" d="M470,92 C540,110 600,140 720,150" marker-end="url(#arrow)"/>
+        <path class="edge e-http" data-from="ext-app" data-to="pkg-controller" d="M470,92 C540,110 600,140 720,150" marker-end="url(#arrow)"/>
         <path class="edge e-http" data-from="ext-admin" data-to="pkg-controller" d="M720,92 C760,108 760,128 760,150" marker-end="url(#arrow)"/>
-        <path class="edge e-ws" data-from="ext-miniapp" data-to="pkg-wsapi" d="M520,92 C760,110 980,140 1180,150" marker-end="url(#arrow)"/>
+        <path class="edge e-ws" data-from="ext-app" data-to="pkg-wsapi" d="M520,92 C760,110 980,140 1180,150" marker-end="url(#arrow)"/>
         <path class="edge e-mqtt" data-from="ext-device" data-to="ext-emqx" d="M160,100 L160,150" marker-end="url(#arrow)"/>
         <path class="edge e-mqtt" data-from="ext-emqx" data-to="pkg-mqttin" d="M160,270 L470,270" marker-end="url(#arrow)"/>
 
@@ -128,7 +128,7 @@
 
         <!-- outbound 通信 -> 外部 -->
         <path class="edge e-mqtt" data-from="pkg-mqttout" data-to="ext-emqx" d="M480,680 C320,560 220,360 170,270" marker-end="url(#arrow)"/>
-        <path class="edge e-ws" data-from="pkg-wspush" data-to="ext-miniapp" d="M820,680 C720,480 600,260 500,92" marker-end="url(#arrow)"/>
+        <path class="edge e-ws" data-from="pkg-wspush" data-to="ext-app" d="M820,680 C720,480 600,260 500,92" marker-end="url(#arrow)"/>
         <path class="edge e-net" data-from="pkg-ai" data-to="ext-cloudai" d="M1340,650 C1394,600 1394,130 1362,114" marker-end="url(#arrow)"/>
 
         <!-- 持久 -> 数据库 -->
@@ -164,9 +164,9 @@
       <!-- ============ NODES ============ -->
       <g id="nodes">
         <!-- 外部系统 -->
-        <g class="node n-ext" id="ext-miniapp" data-key="ext-miniapp">
+        <g class="node n-ext" id="ext-app" data-key="ext-app">
           <rect x="350" y="20" width="240" height="72" rx="10"/>
-          <text x="470" y="48" text-anchor="middle">小程序端</text>
+          <text x="470" y="48" text-anchor="middle">客户端</text>
           <text class="sub" x="470" y="68" text-anchor="middle">REST / WebSocket 客户端</text>
         </g>
         <g class="node n-ext" id="ext-admin" data-key="ext-admin">
@@ -345,8 +345,8 @@
 
 <script>
   const INFO = {
-    "ext-miniapp": { title:"小程序端", tag:"ext", tagText:"外部", rows:[["协议","HTTP REST + WebSocket"]], points:["BASE_URL=/medbox/api/v1","WS_URL=/medbox/ws","不直接连 MQTT"] },
-    "ext-admin": { title:"Web 管理后台（medbox-admin）", tag:"ext", tagText:"外部", rows:[["协议","HTTP REST → 后端"],["本期","feat/admin-testdata-cleanup（测试数据清理）"]], points:["独立 ADMIN 账号体系，不在小程序角色内","设备准入审核等运营职责后续在此承载","需后端放行 CORS 或 dev proxy"] },
+    "ext-app": { title:"客户端", tag:"ext", tagText:"外部", rows:[["协议","HTTP REST + WebSocket"]], points:["BASE_URL=/medbox/api/v1","WS_URL=/medbox/ws","不直接连 MQTT"] },
+    "ext-admin": { title:"Web 管理后台（medbox-admin）", tag:"ext", tagText:"外部", rows:[["协议","HTTP REST → 后端"],["本期","feat/admin-testdata-cleanup（测试数据清理）"]], points:["独立 ADMIN 账号体系，不在客户端角色内","设备准入审核等运营职责后续在此承载","需后端放行 CORS 或 dev proxy"] },
     "ext-device": { title:"药箱设备（主控 MAIN）", tag:"ext", tagText:"外部", rows:[["协议","MQTT :1883（匿名）"],["clientId","= deviceId"]], points:["唯一 MQTT 客户端","摄像头识别经 WiFi 聚合后上报","传感器由主控转发"] },
     "ext-emqx": { title:"EMQX Broker", tag:"ext", tagText:"外部", rows:[["端口",":1883 / Dashboard :18083"],["Topic","medbox/{pk}/{deviceId}/up|down/#"]], points:["设备⇄后端消息总线","QoS1 + msgId 幂等；LWT 遗嘱","下行重发 5s×3（后端侧账本）"] },
 

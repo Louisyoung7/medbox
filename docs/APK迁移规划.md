@@ -1,7 +1,7 @@
 # APK 迁移规划（小程序 → APK，保留 H5 联调）
 
-> 状态：规划中，4 项决策待确认（见第 4 节）
-> 适用范围：`medbox-miniapp/`、`medbox-server/`、`medbox-spec/`、CI 与全部文档
+> 状态：4 项决策已确认（均按「建议」执行），P0 完成、待合入
+> 适用范围：`medbox-miniapp/`（P1 起改为 `medbox-app/`）、`medbox-server/`、`medbox-spec/`、CI 与全部文档
 > 原则：换壳不换业务。后端业务接口与判定逻辑不动。
 
 ---
@@ -43,16 +43,16 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 ---
 
-## 4. 待确认决策
+## 4. 决策（已确认，按建议执行）
 
-| # | 决策 | 选项 | 建议 |
+| # | 决策 | 选项 | 结论 |
 |---|---|---|---|
 | 1 | 技术栈 | 继续 uni-app / 换 Capacitor、Flutter | 继续 uni-app |
 | 2 | 目录与分支命名 | 保留 `medbox-miniapp/`、`feat/mp-xxx` / 改 `medbox-app/`、`feat/app-xxx` | 重命名，分支改 `feat/app-xxx` |
 | 3 | 后台提醒 | A 前台实时 + 回前台补拉 / B 本地通知 / C 轮询 / D 第三方推送 | 先 A，后 B |
 | 4 | H5 定位 | 仅本地联调 / 需部署给他人访问 | 仅本地联调，后端加 CORS 的事不做 |
 
-决策确认前，阶段顺序按「建议」列编排；决策变化只影响 P1 与 P3 的范围。
+决策已确认，阶段顺序按「结论」列编排；后续若调整，只影响 P1 与 P3 的范围。
 
 ---
 
@@ -62,23 +62,24 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 目标：先把口径改对，后续代码按文档执行。
 
-- [ ] `AGENTS.md`：0.1 目录表、三条硬要求、铁律 1 分支前缀、第 2 / 6 / 7 节命令
-- [ ] `README.md`：目录表、CI 表、构建命令
-- [ ] `medbox-miniapp/README.md`：标题、H5 定位、APK 打包前置、删微信开发者工具段
-- [ ] `medbox-spec/00`：标题、范围、目录表、分支命名、测试矩阵
-- [ ] `medbox-spec/01`：产品定义、架构图、部署表、4.2 配置、角色表述
-- [ ] `medbox-spec/02a` / `02b` / `02g`：「小程序侧口径」改「客户端口径」
-- [ ] `medbox-spec/03` / `06`：注释性表述
-- [ ] `medbox-spec/04`：标题、连接数约定
-- [ ] `medbox-spec/05`：§2.6 客户端传输说明
-- [ ] `medbox-spec/08`：L1–L3 路径、`ci-miniapp` → `ci-app`、构建命令
-- [ ] `QUICKSTART.md`、`contracts/README.md`、`tools/mock/README.md`
-- [ ] `docs/产品使用说明.md`：安装与使用说明改 APK
-- [ ] `archive/` 保持冻结，只在 00 标注为「历史」
+- [x] `AGENTS.md`：0.1 目录表、三条硬要求、铁律 1 分支前缀、第 2 / 6 / 7 节命令
+- [x] `README.md`：目录表、CI 表、构建命令
+- [x] `medbox-miniapp/README.md`：标题、H5 定位、APK 打包前置、删微信开发者工具段
+- [x] `medbox-spec/00`：标题、范围、目录表、分支命名、测试矩阵
+- [x] `medbox-spec/01`：产品定义、架构图、部署表、4.2 配置、角色表述
+- [x] `medbox-spec/02a` / `02b` / `02g`：「小程序侧口径」改「客户端口径」
+- [x] `medbox-spec/03` / `06`：注释性表述
+- [x] `medbox-spec/04`：标题、连接数约定
+- [x] `medbox-spec/05`：§2.6 客户端传输说明
+- [x] `medbox-spec/08`：L1–L3 路径、`ci-miniapp` → `ci-app`、构建命令
+- [x] `QUICKSTART.md`、`contracts/README.md`、`tools/mock/README.md`
+- [x] `docs/产品使用说明.md`：使用说明口径改 APK（安装 / 升级步骤留给 P4）
+- [x] `archive/` 保持冻结，只在 00 标注为「历史」
+- [x] 顺带覆盖：`medbox-spec/openapi` 描述、`diagrams/*.html`、`docs/单片机与摄像头联调对接.md`、`medbox-admin/README.md`
 
 验收：
 
-- `grep -ri "小程序" medbox-spec docs README.md AGENTS.md` 只命中 `archive/`。
+- `grep -ri "小程序" medbox-spec docs README.md AGENTS.md` 只命中 `archive/` 与本文档（第 1、2 节描述迁移前状态）。
 - 文档中的命令、路径、分支名可直接照抄执行。
 
 ### P1 · `feat/app-base`（App 骨架）
@@ -194,7 +195,7 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 | 阶段 | 分支 | 状态 | 合并 commit | 备注 |
 |---|---|---|---|---|
-| P0 | `docs/app-migration` | 进行中 | — | 本文档随分支提交 |
+| P0 | `docs/app-migration` | 已完成（待合入） | — | 纯文档；目录重命名与代码改动在 P1 |
 | P1 | `feat/app-base` | 未开始 | — | 依赖决策 1、2 |
 | P2 | `feat/app-runtime` | 未开始 | — | 依赖决策 3 |
 | P3 | `feat/backend-app-support` | 待定 | — | 按需 |

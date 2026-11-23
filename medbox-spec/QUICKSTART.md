@@ -8,7 +8,7 @@
 
 - **设备**（药箱主控 + 传感器 + 摄像头）经 **MQTT(EMQX)** 上报
 - **Java 后端**（`medbox-server/`，Spring Boot 4 + Java 21）落库并判定
-- **uni-app 小程序**（`medbox-miniapp/`）通过 **HTTP REST + WebSocket** 交互
+- **uni-app 客户端**（`medbox-app/`，主交付端 Android APK；H5 仅本地联调）通过 **HTTP REST + WebSocket** 交互
 - **AI 问答**走大模型（后端不托管，监护人代配 Key）
 - `medbox-admin/` 本期只做测试数据清理工具
 - 本目录 `medbox-spec/` 是唯一权威文档集
@@ -16,7 +16,7 @@
 ## 二、怎么开工（三步）
 
 1. **同步**：`git switch main && git pull && git switch -`
-2. **开工**：从 main 切特性分支（后端 `feat/backend-xxx` / 小程序 `feat/mp-xxx` / Web `feat/admin-xxx` / 文档 `docs/xxx`），一切改动都在特性分支上，绝不碰 main
+2. **开工**：从 main 切特性分支（后端 `feat/backend-xxx` / 客户端 `feat/app-xxx` / Web `feat/admin-xxx` / 文档 `docs/xxx`），一切改动都在特性分支上，绝不碰 main
 3. **收尾**：修正受影响的 spec 文档 → 与代码同一 PR 提交
 
 > 首轮开发的分支清单已归档（`archive/07` / `08` / `09`），查历史分支与依赖关系去归档；后续新增分支不再建清单文件，实现口径直接沉淀到对应 spec 文档。

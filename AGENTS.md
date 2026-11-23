@@ -8,7 +8,7 @@
 
 ## 0. 项目一句话
 
-家用智能药品箱：设备（药箱主控 + 传感器 + 摄像头）经 **MQTT(EMQX)** 上报，Java 后端落库并判定，**WebSocket** 推给 uni-app 小程序，**HTTP REST** 供小程序读写，AI 问答走大模型（OCR 与 Embedding 本地化）。当前全部为**局域网**通信。
+家用智能药品箱：设备（药箱主控 + 传感器 + 摄像头）经 **MQTT(EMQX)** 上报，Java 后端落库并判定，**WebSocket** 推给 uni-app 客户端（主交付端为 Android APK，H5 仅用于开发联调），**HTTP REST** 供客户端读写，AI 问答走大模型（OCR 与 Embedding 本地化）。当前全部为**局域网**通信。
 
 ---
 
@@ -17,21 +17,21 @@
 | 目录 | 端 | 技术栈 | 任务清单 | 本期 |
 |------|----|--------|----------|------|
 | `medbox-server/` | Java 后端 | **Spring Boot 4 + Java 21 + Gradle（Kotlin DSL）** | 首轮清单见 `archive/07`（已归档） | ✅ 实现 |
-| `medbox-miniapp/` | uni-app 小程序 | Vue3 + Vite | 首轮清单见 `archive/08`（已归档） | ✅ 实现 |
+| `medbox-app/` | uni-app 客户端（Android APK，H5 仅本地联调） | Vue3 + Vite | 首轮清单见 `archive/08`（已归档） | ✅ 实现 |
 | `medbox-admin/` | Web 前端 / 管理后台 | 本期先做「测试数据清理」dev/QA 工具（设计见 `archive/09`，已归档） | — | ⏸ |
 | `medbox-spec/` | 本文档集（唯一权威副本） | — | — | ✅ |
 
 **给 AI 的三条硬要求**：
 
-1. **先确认自己在哪个端**：接到需求先判断落在 `medbox-server/` 还是 `medbox-miniapp/`，**不要跨端改动**（一个分支只动一个端；确实需要跨端时必须先向用户说明并尽量拆成两个分支）。
-2. **相对路径是相对端目录的**：文档里写 `src/main/resources/application.yml` 指 `medbox-server/src/main/resources/application.yml`；写 `src/config/index.js` 指 `medbox-miniapp/src/config/index.js`。**不要在仓库根建 `src/`**。
+1. **先确认自己在哪个端**：接到需求先判断落在 `medbox-server/` 还是 `medbox-app/`，**不要跨端改动**（一个分支只动一个端；确实需要跨端时必须先向用户说明并尽量拆成两个分支）。
+2. **相对路径是相对端目录的**：文档里写 `src/main/resources/application.yml` 指 `medbox-server/src/main/resources/application.yml`；写 `src/config/index.js` 指 `medbox-app/src/config/index.js`。**不要在仓库根建 `src/`**。
 3. **`medbox-admin/` 本期只做测试数据清理工具**：设计与首个分支 `feat/admin-testdata-cleanup` 见归档 `archive/09`（后端接口依赖 `feat/backend-admin-cleanup`）。真实产品后台（用户管理/设备管理/统计看板等）仍待设计，届时**先在 `02`/`06` 补接口与表结构**，再按分支命名规则开工；用户若要求超出测试数据清理的 Web 前端，先提醒"文档未设计、需先补接口"。
 
 ---
 
 ## 1. 铁律（AI 发现违反时，必须先提醒用户再继续）
 
-1. **绝不在主分支开发**：一切改动都在 `feat/xxx` 特性分支上做。分支命名约定：后端 `feat/backend-xxx`、小程序 `feat/mp-xxx`、Web `feat/admin-xxx`、文档 `docs/xxx`（首轮 37+23 个分支的清单已归档至 `medbox-spec/archive/07` / `08` / `09`，查历史分支去归档）。
+1. **绝不在主分支开发**：一切改动都在 `feat/xxx` 特性分支上做。分支命名约定：后端 `feat/backend-xxx`、客户端 `feat/app-xxx`、Web `feat/admin-xxx`、文档 `docs/xxx`（首轮 37+23 个分支的清单已归档至 `medbox-spec/archive/07` / `08` / `09`，查历史分支去归档）。
 2. **每次开工前先拉最新**：`git switch main && git pull`，代码与文档一起更新；再看 `git log --oneline -5 -- medbox-spec/` 判断文档有没有变、有没有影响自己这一端（变更历史以 git 为准，不再维护 CHANGELOG）。
 3. **完成特性分支、合并前必须更新文档**：修正与实现不一致的接口/字段；**文档只写当前最新口径，不留旧痕迹**（变更历史看 `git log`，不写进文档正文，也不再维护 CHANGELOG；原 `CHANGELOG.md` 已移至 `medbox-spec/archive/CHANGELOG.md` 冻结归档）。
    - **文档可与代码分分支**：文档改动可单独提交到 `docs/<对应特性名>` 分支（基于 `main`），与代码分支 `feat/xxx` 分别评审、分别合并；但**代码分支合入 `main` 前，对应文档分支必须已合入**（否则 `main` 上会出现「文档已说删除、代码尚未删除」的短暂不一致）。
@@ -58,7 +58,7 @@ git log --oneline -5 -- medbox-spec/
 然后读文档：
 
 - 后端任务 → 按模块读 `medbox-spec/02`（接口）、`medbox-spec/06`（表结构）、`medbox-spec/03`（MQTT）；
-- 小程序任务 → 读 `medbox-spec/02`、`medbox-spec/04`；
+- 客户端任务（`medbox-app/`）→ 读 `medbox-spec/02`、`medbox-spec/04`；
 - 不确定口径 → 查 `medbox-spec/01`（目录结构、时区、权限、过期、鉴权等全局口径）。
 
 **提醒义务**：如果用户直接在主分支上让我改代码，或本次会话还没 pull 过，我必须先说一句：
@@ -77,9 +77,9 @@ git log --oneline -5 -- medbox-spec/
 ### 3.1 三条实现约定（2026-10-10 新增，所有功能分支适用）
 
 1. **功能分支必须带集成测试，并输出测试报告**
-   - 地基分支（骨架 / 统一响应 / 建表 / 认证）有单元测试即可；**从第一个功能分支起**，凡新增接口或判定逻辑，必须补集成测试（后端用 MockMvc 打真实接口链路，小程序侧至少覆盖请求层与编排层）；
+   - 地基分支（骨架 / 统一响应 / 建表 / 认证）有单元测试即可；**从第一个功能分支起**，凡新增接口或判定逻辑，必须补集成测试（后端用 MockMvc 打真实接口链路，客户端侧至少覆盖请求层与编排层）；
    - 交付时**把测试报告贴给用户**（`./gradlew test` / npm test 的结果摘要：用例数、通过数、失败项），不要只说"已实现"；
-   - **小程序侧另跑 Mock 端到端 + 契约**：每个功能分支完工时，在 `npm test`（单元测试）之后**自动执行 `npm run test:e2e`**（`medbox-miniapp/tools/mock`：自起服务、自选 18099 端口、243 项检查、跑完即关，不占用 8080），以及 `npm run test:contract:mock`（`medbox-spec/contracts` 的核心场景对 Mock 双跑之一），三份结果一并贴给用户；后端接口未落地时的联调与回归也用 `npm run mock` 起这个假后端；
+   - **客户端侧另跑 Mock 端到端 + 契约**：每个功能分支完工时，在 `npm test`（单元测试）之后**自动执行 `npm run test:e2e`**（`medbox-app/tools/mock`：自起服务、自选 18099 端口、243 项检查、跑完即关，不占用 8080），以及 `npm run test:contract:mock`（`medbox-spec/contracts` 的核心场景对 Mock 双跑之一），三份结果一并贴给用户；后端接口未落地时的联调与回归也用 `npm run mock` 起这个假后端；
    - 目的：把"人工手动跑一遍"从瓶颈里摘出来。用户的验证动作降级为**看报告**，不再逐接口手点。
    - **后端测试分两层**：`./gradlew test` 保持**不依赖外部 DB**（CI 无 PostgreSQL）。凡 `@SpringBootTest` 会触达 `@Transactional` 服务，用 `@TestConfiguration` 提供一个 `@Primary` 的**嵌入式 H2 `DataSource`** 替换真实 DataSource，Mapper 仍 `@MockitoBean` 打桩、不跑真实 SQL；
    - 真实 SQL / Flyway 放 `@Tag("infra")`，由 `./gradlew infraTest` 执行（Testcontainers 起 PostgreSQL，需 Docker）；缺 Docker 时明确失败，不静默跳过。CI 的 `ci-server` 另跑 `infra` 与 `real-e2e`（真 PostgreSQL + EMQX + 契约 `--profile real` + device-sim smoke），详见 `medbox-spec/08_测试体系与CI.md`。
@@ -92,7 +92,7 @@ git log --oneline -5 -- medbox-spec/
    - 目的：这类逻辑写错了不会报错、只会悄悄算错，返工成本远高于先对齐口径。
 3. **合并同类分支，不要为每个待办单开一个分支**
    - 能在**同一个分支内写完并一起测试**的待办合并成一个分支（如"药品 CRUD + 库存录入"、"记录列表 + 详情 + 补录"、"抓拍上传 + 读取"）；
-   - 合并后的分支名示例（首轮清单见归档 `archive/07` / `08`，如 `feat/device-core`、`feat/mp-record`），PR 描述写明对应模块与分支名；
+   - 合并后的分支名示例（首轮清单见归档 `archive/07` / `08`，如 `feat/device-core`、`feat/app-record`），PR 描述写明对应模块与分支名；
    - 目的：省掉重复的分支 / PR / 文档改动开销，也让相关代码在同一次测试里被覆盖。
 
 ---
@@ -114,7 +114,7 @@ git switch main && git pull && git switch -
 #    - 修正与实现不一致的接口 / 字段 / 表结构；文档只写当前最新口径、不留旧痕迹（变更历史看 git log，不写 CHANGELOG）
 
 # ③ 一起提交（同 PR 时）；分分支时文档单独提交到 docs/<特性名>
-git add medbox-server/ medbox-spec/      # 或 medbox-miniapp/ medbox-spec/
+git add medbox-server/ medbox-spec/      # 或 medbox-app/ medbox-spec/
 git commit -m "feat(<模块>): <说明>；docs(spec): 同步最新口径"
 ```
 
@@ -153,7 +153,7 @@ git stash pop                # 恢复未提交改动
 | 场景 | 命令 |
 |------|------|
 | 新建特性分支（后端） | `git switch -c feat/backend-xxx main` |
-| 新建特性分支（小程序） | `git switch -c feat/mp-xxx main` |
+| 新建特性分支（客户端） | `git switch -c feat/app-xxx main` |
 | 开工同步（代码 + 文档） | `git switch main && git pull && git switch -` |
 | 跑后端测试（出报告） | `cd medbox-server && ./gradlew test` |
 | 看文档改了什么（git 即变更源） | `git log --oneline -5 -- medbox-spec/` |
@@ -167,12 +167,12 @@ git stash pop                # 恢复未提交改动
 ## 7. 自检清单（每次回答前过一遍）
 
 - [ ] 我这次改的是**特性分支**，不是 `main`？
-- [ ] 我清楚自己改的是**哪一个端**（`medbox-server/` / `medbox-miniapp/`），没有跨端乱改？
+- [ ] 我清楚自己改的是**哪一个端**（`medbox-server/` / `medbox-app/`），没有跨端乱改？
 - [ ] 本次会话**pull 过最新代码与文档**了吗？
 - [ ] 实现与 `medbox-spec/` 里的字段 / 错误码 / 枚举**一致**吗？
 - [ ] 改了接口或表结构 → **`medbox-spec/02` / `06` / `03` 同步改了**吗？
 - [ ] 改了文档 → **文档正文只写最新口径、不留旧痕迹**吗？（变更历史看 `git log`，不写进文档，也不再维护 `CHANGELOG.md`）
-- [ ] 是功能分支 → **写了集成测试并把测试报告给了用户**吗？是判定型分支 → **先出规则表再写代码**了吗？小程序分支 → **`npm run test:e2e`（Mock 端到端）也跑了吗**？
+- [ ] 是功能分支 → **写了集成测试并把测试报告给了用户**吗？是判定型分支 → **先出规则表再写代码**了吗？客户端分支 → **`npm run test:e2e`（Mock 端到端）也跑了吗**？
 - [ ] 能合并的待办合并成一个分支了吗？没有为单接口 CRUD 单开分支？
 - [ ] 功能已完成 → 受影响的 `medbox-spec/` 文档已随代码同 PR 或已在 `docs/<特性名>` 分支完成？
 - [ ] 用户要合并 → 提醒过"先更新文档再合并"吗？

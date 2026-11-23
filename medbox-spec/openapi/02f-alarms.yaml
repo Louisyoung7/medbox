@@ -84,7 +84,7 @@ paths:
     get:
       operationId: getUnreadCount
       tags: [alarms]
-      summary: 未读告警数（小程序角标）【鉴权·READ_ALARM】
+      summary: 未读告警数（客户端角标）【鉴权·READ_ALARM】
       parameters:
         - name: elderId
           in: query

@@ -1,6 +1,6 @@
-# medbox-miniapp/tools/mock · 临时 Mock 后端（前端测试专用）
+# medbox-app/tools/mock · 临时 Mock 后端（前端测试专用）
 
-后端接口未落地期间，用这个**纯 Node 内置模块**（零依赖）的假后端把小程序跑通。
+后端接口未落地期间，用这个**纯 Node 内置模块**（零依赖）的假后端把客户端跑通。
 **不替代 `medbox-server/`**，联调以真后端为准；口径全部对照 `medbox-spec/02` / `06` / `01`。
 
 ## 用法
@@ -15,7 +15,6 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）+ 契约（mo
 
 - 把 `.env.local` 的 `VITE_SERVER_HOST` 指向运行本脚本的机器 IP（本机调试填 `127.0.0.1`）。
 - H5 联调：走既有的 Vite 反代（`/medbox → 127.0.0.1:8080`），照常 `npm run dev:h5`。
-- 微信开发者工具：照常勾选「不校验合法域名」。
 
 ## 演示账号（密码统一 `123456`）
 
@@ -59,12 +58,12 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）+ 契约（mo
 - `GET /alarms?elderId=&type=&readState=`（告警分页：按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`type` ∈ `MISS`/`ENV`/`DEVICE_OFFLINE`/`DEVICE_FAULT`，`readState` ∈ `READ`/`UNREAD`；`feat/mp-alarm`：`alarm-core` 已落地，Mock 播种 `MISS`/`ENV` 样例，`DEVICE_OFFLINE` 对应后端 `alarm-device-offline` 在 07 仍未落地，不播）
 - `GET /alarms/unread-count?elderId=`（未读告警数，驱动角标）
 - `PATCH /alarms/{alarmId}/read`（标记已读，`READ_ALARM` 双角色均可；不存在 → **40401**；无关系 → **40301**）
-- `PATCH /alarms/{alarmId}/handle`（处理/确认，`HANDLE_ALARM` 仅 GUARDIAN；小程序注册角色仅 GUARDIAN → 非监护人 → **40301**；不存在 → **40401**）
+- `PATCH /alarms/{alarmId}/handle`（处理/确认，`HANDLE_ALARM` 仅 GUARDIAN；客户端注册角色仅 GUARDIAN → 非监护人 → **40301**；不存在 → **40401**）
 - `GET /alarm-settings?elderId=`（查询阈值；缺则回默认 `advanceMin=10`/`missTolerateMin=15`/`envThreshold` 温湿光上下限）、`PUT /alarm-settings?elderId=`（保存，字段可选仅覆盖提供项；`WRITE_ALARM_SETTINGS` 仅 GUARDIAN → 非监护人 → **40301**）
 - `POST /_debug/seed`（一键播种，免登录，回带双 access token）、`POST /_debug/mqtt/publish`（服务端模拟设备上报，免登录）
   - 与真后端口径一致：这两个路径在 `WebMvcConfig` 里被排除在 `AuthInterceptor` 之外（`medbox.devtools.enabled=false` 时真后端直接不装配、返回 404）
   - ⚠️ **Mock 不接 EMQX**：`mqtt/publish` 只校验 `deviceId` / `subTopic` 必填、`payload` 必须是 JSON **字符串**（后端 DTO 收 `String`，传对象会被 Jackson 拒掉）、`deviceId` 须是 Mock 里存在的设备，然后打日志回显，**不落库、不推 WS**，也不校验 payload 里的业务 ID（Mock 种子 ID 与后端 devtools 种子不同，如光照子设备这里是 `-S-LGT01`）
-  - 小程序「开发调试」页（`feat/mp-devtools`）的「一键播种数据」「模拟设备上报」两个按钮打的就是这两个端点
+  - 客户端「开发调试」页（`feat/app-devtools`）的「一键播种数据」「模拟设备上报」两个按钮打的就是这两个端点
 
 ## 可验证的场景
 
@@ -89,7 +88,7 @@ curl -X POST http://127.0.0.1:8080/medbox/api/v1/__mock__/reset   # 重置内存
 
 - **WebSocket 为最小实现**：`/medbox/ws` 完成握手 + `ping`/`pong` 心跳（首页状态条显示已连接），**不推业务帧**（ALARM / DEVICE_STATUS / REMINDER 留待真后端）。
 - 纯内存，重启即还原种子数据；不校验密码强度、不做限流。
-- 字段名假设（药品分页 `{list,total}`、PATCH `{status}`）以 `medbox-spec/02` 第 5 / 6 章"小程序侧口径"为准，后端定稿后两处一起收紧。
+- 字段名假设（药品分页 `{list,total}`、PATCH `{status}`）以 `medbox-spec/02` 第 5 / 6 章"客户端侧口径"为准，后端定稿后两处一起收紧。
 
 ## 目录
 

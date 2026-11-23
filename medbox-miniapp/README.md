@@ -1,16 +1,16 @@
-# medbox-miniapp · 家用智能药品箱（uni-app 小程序）
+# medbox-app · 家用智能药品箱（uni-app 客户端）
 
-Vue 3 + Vite 版 uni-app 工程，对应任务清单 `medbox-spec/08_特性分支清单_小程序.md`。
+Vue 3 + Vite 版 uni-app 工程。主交付端为 **Android APK**；H5 只用于本地开发联调与快速回归，不对外部署。
 
 ## 运行
 
 ```bash
 npm install
-npm run dev:mp-weixin   # 微信小程序，产物在 dist/dev/mp-weixin
-npm run dev:h5          # H5，浏览器打开 http://localhost:5173
+npm run dev:h5          # H5 联调，浏览器打开 http://localhost:5173
+npm run build:h5        # H5 产物（仅本地联调 / 回归）
+npm run dev:app-plus    # App 真机运行（HBuilderX 热更新用）
+npm run build:app-plus  # App 资源，产物在 dist/build/app；出 APK 见「APK 打包前置」
 ```
-
-用**微信开发者工具**打开 `dist/dev/mp-weixin` 目录预览。
 
 ## 后端地址配置
 
@@ -27,7 +27,7 @@ npm run dev:h5          # H5，浏览器打开 http://localhost:5173
 
 ```bash
 cp .env.example .env.local
-# 编辑 .env.local：开发者工具 / H5 填 127.0.0.1，真机调试填电脑的局域网 IP
+# 编辑 .env.local：H5 填 127.0.0.1，App 真机联调填电脑的局域网 IP
 ```
 
 > **为什么 `VITE_TLS` 放在 `.env` 而不是 `.env.development`**：Vite 只加载当前 mode 的 `.env.[mode]`，
@@ -42,7 +42,7 @@ cp .env.example .env.local
 import { BASE_URL, WS_URL, SERVER_HOST, DEFAULT_HOST, setServerHost, getServerHost, clearServerHost, normalizeHost } from '@/config/index.js'
 // BASE_URL = http://{HOST}:8080/medbox/api/v1
 // WS_URL   = ws://{HOST}:8080/medbox/ws
-// 没有 MQTT_URL：小程序不直连 MQTT，设备消息由后端中转
+// 没有 MQTT_URL：客户端不直连 MQTT，设备消息由后端中转
 
 setServerHost('http://192.168.1.23:8080/')  // 归一化后写入 192.168.1.23，返回 true
 setServerHost('')                            // 非法输入：不写入，返回 false
@@ -57,12 +57,12 @@ clearServerHost()                            // 清除覆盖，回落默认
 ## 开发调试（`feat/mp-devtools`）
 
 「我的 → 开发调试」（`pages/devtools/devtools.vue`）：真机调试时 IP 常变，在这里改一次即可，
-**存本地缓存、重启小程序后生效**，不必重新编译。页面含三块：
+**存本地缓存、重启客户端后生效**，不必重新编译。页面含三块：
 
 | 区块 | 内容 |
 |------|------|
 | 服务器地址（HOST） | 展示当前地址与生效 URL；输入框可粘贴整串地址（保存时自动剥协议 / 端口 / 路径）；「恢复默认」清掉覆盖回落到 `.env.local` / `.env` |
-| 局域网联调说明 | 微信开发者工具「不校验合法域名」勾选、真机调试（开发版）流程、"只需配一个 HOST" |
+| 局域网联调说明 | H5 走 Vite 反代、App 真机联调流程、"只需配一个 HOST" |
 | 没有真设备？ | **可点**：「一键播种数据」调 `POST /_debug/seed`（回显账号 / 设备 / 双 token，点 token 复制，并自动回填设备 ID）；下方直接罗列 7 种事件预设，点哪行发哪条（调 `POST /_debug/mqtt/publish`） |
 页面逻辑分层：HOST 读写薄封装在 `src/utils/devtools.js`，报文构造（事件预设 + msgId + 错误文案归一）在 `src/utils/devtools-sim.js`，
 请求层在 `src/api/devtools.js`，底层 HOST 读写与归一化在 `src/config/index.js`。
@@ -84,7 +84,7 @@ await publishDeviceEvent({                             // 服务端版 mosquitto
 - **后端未开 `medbox.devtools.enabled` 时接口 404**，页面会用 `devtoolsErrorMessage` 提示"去后端开开关"，不会只说"服务端内部错误"。
 - ⚠️ **服药类预设的两个后端约束**（`utils/devtools-sim.js` 已按此构造，页面也有说明）：
   1. `onTime` 由后端拿 `ts` **现算**（`!actualTime.isAfter(planTime + 容忍)`），payload 里的 `onTime` 被忽略 —— 所以 `ts` 按"设备本地墙钟"构造（UTC+8，与 devtools 种子的 `device.timezone` 一致），而不是 `Date.now()`，否则下午点"按时"会落一条 `onTime=false` 的记录；
-  2. `med_record` 有 `(plan_item_id, plan_time)` 部分唯一索引（06 的 2.7 规则 6），**同计划项的同计划时间只落一条**。devtools 种子只有 1 个计划项 × 每日 08:00，**槽位是有限资源** —— 因此服药类每次点击都通过持久化计数器（`utils/devtools.js` 的 `takeNextSlotOffset`，缓存 key `simSlotSeq`，刷新小程序不归零）**换一个新的日历天**，不会"点一次就废"。结果面板回显本次落在哪个槽，页面也预告下一个槽。
+  2. `med_record` 有 `(plan_item_id, plan_time)` 部分唯一索引（06 的 2.7 规则 6），**同计划项的同计划时间只落一条**。devtools 种子只有 1 个计划项 × 每日 08:00，**槽位是有限资源** —— 因此服药类每次点击都通过持久化计数器（`utils/devtools.js` 的 `takeNextSlotOffset`，缓存 key `simSlotSeq`，刷新客户端不归零）**换一个新的日历天**，不会"点一次就废"。结果面板回显本次落在哪个槽，页面也预告下一个槽。
 - Mock 后端（`tools/mock`）也已实现这两个端点（免登录，与真后端 `WebMvcConfig` 口径一致），`npm run test:e2e` 覆盖 9 项检查；但 Mock 不接 EMQX，只做参数校验与回显，**不落库、不推 WS**。
 
 ```js
@@ -97,7 +97,9 @@ resetServerHost()       // 清除运行时覆盖
 
 > 调试页需登录后才可用（不在 `store/guard.js` 白名单内），不按角色限制。
 
-## 浏览器联调（H5）
+## 浏览器联调（H5，仅本地）
+
+H5 只用于本地开发联调与快速回归，**不对外部署**；通知、文件保存等真机能力以 APK 验收为准。
 
 后端 REST **没有开 CORS**，而 H5 跑在 `:5173`、接口在 `:8080`，浏览器会因预检失败拦掉所有请求（`POST` + `application/json` 与带 `Authorization` 的 `GET` 都会触发预检）。解法是让 REST 走 **Vite dev server 反代**，`vite.config.js` 里已配好：
 
@@ -114,11 +116,11 @@ VITE_BASE_URL=/medbox/api/v1   # REST 拼成同源相对路径 → 由 dev serve
 
 然后 `npm run dev:h5`，用普通浏览器打开 <http://localhost:5173> 即可，**不需要**带 `--disable-web-security`。
 
-> **可以放心写在 `.env.local` 里，不会毒害小程序**（2026-10-20 起）：`VITE_BASE_URL` 是编译期常量，
-> 以前小程序产物也会带着它，把 REST 请求到自己（微信 / App）的 origin 上 —— 表现为"登录不了 / 网络异常"，
+> **可以放心写在 `.env.local` 里，不会毒害 App**（2026-10-20 起）：`VITE_BASE_URL` 是编译期常量，
+> 以前 App 产物也会带着它，把 REST 请求到自己（App）的 origin 上 —— 表现为"登录不了 / 网络异常"，
 > 与 IP 填错一模一样。现在 `src/config/index.js` 用 `process.env.UNI_PLATFORM === 'h5'` 做了平台隔离：
-> **只有 H5 认这个变量**，小程序 / App 一律忽略（配了却不在 H5 时控制台会给出告警）。
-> 所以一份 `.env.local` 可以同时喂 H5 与微信小程序，来回切不用改配置。
+> **只有 H5 认这个变量**，App 一律忽略（配了却不在 H5 时控制台会给出告警）。
+> 所以一份 `.env.local` 可以同时喂 H5 与 App，来回切不用改配置。
 >
 > `WS_URL` 永远走绝对地址：WebSocket 不受同源策略限制，没必要也不能走反代。
 
@@ -192,17 +194,10 @@ logout()            // 清 token + 用户资料 + reLaunch 登录页
 - **注册角色只有 `ELDER` / `GUARDIAN`**：护理 / 医生是 `guardian_relation.role`，由老人在确认监护关系时指定（见 `medbox-spec/06` 的 2.1 / 2.2），注册页不给这两个选项。
 - **当前首页的登录态卡片与"退出登录"是临时入口**，后续由 `feat/mp-ui-kit` / `feat/mp-profile` 接管。
 
-## 微信开发者工具设置
+## APK 打包前置（HBuilderX，局域网）
 
-- **详情 → 本地设置**：勾选「不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书」，否则局域网的 `http` / `ws` 请求会被工具拦截。
-- 该勾选保存在 `project.private.config.json`，属个人配置，**不要提交**。
-- **真机预览**默认强制校验域名：开发阶段用「真机调试（开发版）」模式，或改走 App 端（Android / iOS）直连局域网 IP。
-- `src/manifest.json` 的 `mp-weixin.appid` **两人共用同一个**（微信公众平台「成员管理」里把对方加为开发者 / 体验成员），不要各填各的测试号。
-
-## Android 真机联调（局域网，仅测试）
-
-> 目前只做"能装到 Android 上、连局域网后端测一遍"的最小配置，**不用于上线**。
-> 后端地址机制与微信小程序完全一致：编译期 `VITE_SERVER_HOST` + 运行时「开发调试」页覆盖，**装好 App 后改 IP 不必重编译**。
+> Android APK 是主交付端。命令行只能产出 App 资源，出 APK 必须在 HBuilderX 完成；真机能力以 APK 验收为准。
+> 后端地址机制与 H5 一致：编译期 `VITE_SERVER_HOST` + 运行时「开发调试」页覆盖，**装好 App 后改 IP 不必重编译**。
 
 **1. 配后端地址（二选一，推荐运行时）**
 
@@ -222,7 +217,7 @@ npm run build:app-plus     # 产物在 dist/build/app
 
 CLI 只能产出 App 资源，**出 APK 要在 HBuilderX 里做**：
 
-- 用 HBuilderX **打开本工程根目录**（CLI 工程直接打开 `medbox-miniapp/`，不是 `dist/`）；标准版需先在「工具 → 插件安装」装 App 开发插件；
+- 用 HBuilderX **打开本工程根目录**（CLI 工程直接打开 `medbox-app/`，不是 `dist/`）；标准版需先在「工具 → 插件安装」装 App 开发插件；
 - 首次打包：双击 `src/manifest.json` 可视化界面，AppID 一栏点「重新获取」用 DCloud 账号申请 `uni.xxxxxxx`（本项目实测值为 `__UNI__623AA83`），写回 `src/manifest.json` 后**提交入库**，以后打包免填；
 - 菜单 **发行 → 原生 App-云打包** → Android → 证书选「**使用云端证书（服务器生成）**」（「公共测试证书」已下线，勿用）；云端证书绑定 appid、自动填信息、有效期 100 年，开发阶段免配 JRE；
 - 打出的包默认允许 `http://` 明文，正合局域网 `http` 联调；产物在 `dist/release/apk/`；
@@ -240,19 +235,19 @@ CLI 只能产出 App 资源，**出 APK 要在 HBuilderX 里做**：
 
 ```bash
 npm run mock        # 起假后端，监听 8080（BASE_URL 端口固定，勿改；端口被占会直接报是谁占了）
-npm run test:e2e    # 端到端冒烟：自起服务（18099 端口）、65 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟：自起服务（18099 端口）、243 项检查、跑完即关
 npm run test:all    # 单元测试 + 端到端一次跑完（AI 完工时的标准动作，见 AGENTS.md 3.1）
 ```
 
 - 演示账号（密码统一 `123456`）：`13800001234` 监护人张伟（全读写）/ `13900000001` 老人张桂英（只读）/ `13800001235` 王芳（PENDING→40302）等，完整清单与场景见 `tools/mock/README.md`。
 - 接口形状、错误码、权限口径全部对照 `medbox-spec/02`；字段名假设（药品分页 `{list,total}`）后端定稿后两处一起收紧。
 - 重置数据：`curl -X POST http://127.0.0.1:8080/medbox/api/v1/__mock__/reset`。
-- ⚠️ 无 WebSocket：WS 状态条显示未连接属预期；**微信侧注意 WXSS 不支持通配符 `*`**（H5 测不出，小程序编译才报错）。
+- ⚠️ 无 WebSocket：WS 状态条显示未连接属预期（Mock 不推业务帧）。
 
 ## 目录结构
 
 ```
-medbox-miniapp/
+medbox-app/
 ├── src/
 │   ├── pages/        # 页面（含 devtools 开发调试页）
 │   ├── components/   # 复用组件（mp-ui-kit）

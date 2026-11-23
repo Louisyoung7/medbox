@@ -64,7 +64,7 @@ paths:
     get:
       operationId: getEnvHistory
       tags: [env]
-      summary: 历史曲线（小程序图表）【鉴权·READ_ENV】
+      summary: 历史曲线（客户端图表）【鉴权·READ_ENV】
       description: |
         - from / to **必填**（ISO-8601，含端点）；interval 可选（分钟，1~1440，分桶 avg() 聚合；缺省返回原始有序点）；
         - 按 sensorId 查询时只筛该传感器 device_id，否则按药箱 gateway_device_id 筛其下全部传感器；

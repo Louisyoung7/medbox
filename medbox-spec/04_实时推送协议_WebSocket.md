@@ -1,4 +1,4 @@
-# 04 · 实时推送协议（WebSocket，后端 → 小程序）
+# 04 · 实时推送协议（WebSocket，后端 → 客户端）
 
 > 用途：告警实时推送、设备在线状态、实时监测看板　|　局域网明文　|　变更历史看 `git log -- medbox-spec/`
 
@@ -59,4 +59,4 @@
 
 **REMINDER 生成规则**：后端定时扫描（默认 60s）取 `status='ENABLED' AND sync_state <> 'SYNC_FAILED'` 的计划，按设备本地时区在 `[now, now + lead-time-minutes]`（默认 10min）窗口展开"未来"服药槽，推 `REMINDER` 帧到 `elder:{elderId}`。设备本地声光提醒为主、云端 WS 为监护端兜底（默认不要求设备在线）。两道拦截：① 该槽已有 `med_record`（已服）跳过；② 去重表 `plan_reminder`（`dedup_key = REMINDER:{planId}:{cellNo}:{slotUTC}`）已存在则跳过。`REMINDER` 不是告警，不进 `alarm` 列表。
 
-**DEVICE_STATUS 推送规则**：触发点是 MQTT 侧的在线状态跃变（status / 遗嘱），推到 `elder:{elderId}` 主题（归属老人从 `device.elder_id` 取），不扩展 `device:` 主题。只在状态真的变了才推（主控每 60s 有心跳，每次上行都推会把小程序刷爆）；设备未登记（无归属老人）时无主题可推，静默跳过；`medbox.ws.enabled=false` 时推送静默跳过，不影响上行链路。
+**DEVICE_STATUS 推送规则**：触发点是 MQTT 侧的在线状态跃变（status / 遗嘱），推到 `elder:{elderId}` 主题（归属老人从 `device.elder_id` 取），不扩展 `device:` 主题。只在状态真的变了才推（主控每 60s 有心跳，每次上行都推会把客户端刷爆）；设备未登记（无归属老人）时无主题可推，静默跳过；`medbox.ws.enabled=false` 时推送静默跳过，不影响上行链路。

@@ -149,7 +149,7 @@ paths:
       tags: [devices]
       summary: 下发控制命令（重启/校准），转 MQTT QoS1【鉴权·仅 GUARDIAN】
       description: |
-        `cmd` 仅 `REBOOT` / `CALIBRATE`（声光 BUZZ / 开格 UNLOCK 由设备或小程序本地触发，后端不下发）。
+        `cmd` 仅 `REBOOT` / `CALIBRATE`（声光 BUZZ / 开格 UNLOCK 由设备或客户端本地触发，后端不下发）。
         请求体不收 operator——操作人由服务端取鉴权用户落库留痕。
 
         **判定表（顺序即优先级）**：
@@ -444,13 +444,13 @@ paths:
     get:
       operationId: getCaptureFile
       tags: [captures]
-      summary: 读取图片流（供小程序 <image src> 使用）【鉴权·query token】
+      summary: 读取图片流（供客户端 <image src> 使用）【鉴权·query token】
       description: |
         **直接返回二进制**（Content-Type 为图片、Cache-Control: no-store），**不走统一响应体包裹**。
         仅带图记录（UNTAKEN）有图可取；无图记录（TAKEN）返回 40401。
         首次读取自动写 viewed_at 并按「查看后过期公式」重算 expire_at（expire_at = MIN(captured_at + 30 天, viewed_at + 7 天)；查看只提前不延长）。
 
-        **为什么用 query 传 token**：小程序 <image src> 无法携带自定义 Header，故用后端签发的短期 fileToken（5 分钟有效）；不要把长期 JWT 放 URL。
+        **为什么用 query 传 token**：客户端 <image src> 无法携带自定义 Header，故用后端签发的短期 fileToken（5 分钟有效）；不要把长期 JWT 放 URL。
         **错误码**：token 缺失/非法/与路径不符 → 40001；token 签名无效/过期 → 40101；不存在/已清理 → 40401；监护关系不符（二次复核）→ 40301/40302。
       parameters:
         - $ref: '#/components/parameters/CaptureId'
@@ -615,7 +615,7 @@ components:
         cmd:
           type: string
           enum: [REBOOT, CALIBRATE]
-          description: 声光 BUZZ / 开格 UNLOCK 由设备或小程序本地触发，后端不下发
+          description: 声光 BUZZ / 开格 UNLOCK 由设备或客户端本地触发，后端不下发
         params:
           type: object
           additionalProperties: true

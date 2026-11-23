@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>medbox 小程序前端 · 组件架构图</title>
+<title>medbox 客户端前端 · 组件架构图</title>
 <style>
   :root {
     --fw: #475569;
@@ -78,8 +78,8 @@
 </head>
 <body>
 <header>
-  <h1>medbox 小程序前端 · 组件架构图</h1>
-  <p>uni-app + Vue3（Vite 构建）　|　自研 JS 模块式 store（无 Pinia）　|　据 <code>medbox-miniapp/src</code> 实际结构绘制</p>
+  <h1>medbox 客户端前端 · 组件架构图</h1>
+  <p>uni-app + Vue3（Vite 构建）　|　自研 JS 模块式 store（无 Pinia）　|　据 <code>medbox-app/src</code> 实际结构绘制</p>
 </header>
 
 <div class="layout">
@@ -189,7 +189,7 @@
           <text x="970" y="772" text-anchor="middle">配置层（config/）</text>
           <text class="sub" x="970" y="794" text-anchor="middle">index.js：BASE_URL / WS_URL / setServerHost（运行时改服务器 IP）</text>
           <text class="sub" x="970" y="812" text-anchor="middle">tabbar.js：底部栏 + 右侧抽屉入口配置</text>
-          <text class="sub" x="970" y="830" text-anchor="middle">无 MQTT_URL —— 小程序不直连设备，消息经后端中转</text>
+          <text class="sub" x="970" y="830" text-anchor="middle">无 MQTT_URL —— 客户端不直连设备，消息经后端中转</text>
         </g>
 
         <!-- 后端外部 -->
@@ -206,7 +206,7 @@
         <g class="node n-ext" id="ext-note" data-key="ext-note">
           <rect x="840" y="884" width="440" height="92" rx="10"/>
           <text x="1060" y="912" text-anchor="middle">设备消息经后端中转</text>
-          <text class="sub" x="1060" y="934" text-anchor="middle">小程序不直连 MQTT；摄像头/传感器由药箱主控 → 后端 → 推送</text>
+          <text class="sub" x="1060" y="934" text-anchor="middle">客户端不直连 MQTT；摄像头/传感器由药箱主控 → 后端 → 推送</text>
         </g>
       </g>
     </svg>
@@ -236,7 +236,7 @@
 </div>
 
 <footer>
-  数据来源：medbox-miniapp 前端源码结构（pages / components / store / api / utils / config）。本页为只读可视化，权威口径以代码与 medbox-spec 文档为准。
+  数据来源：medbox-app 前端源码结构（pages / components / store / api / utils / config）。本页为只读可视化，权威口径以代码与 medbox-spec 文档为准。
 </footer>
 
 <script>
@@ -247,10 +247,10 @@
     "store": { title:"状态与连接层（store/）", tag:"store", tagText:"状态", rows:[["形态","自研 JS 模块式（无 Pinia）"],["约束","token 唯一读写，避免半登录态"]], points:["token.js：access/refresh token 本地唯一读写","auth.js：login/register/logout/refreshAuth/setupAuth 编排","user.js：用户资料缓存 + ROLE(ELDER/GUARDIAN 统一单一角色)","guard.js：uni.addInterceptor 路由白名单拦截","ws.js：WebSocket 单例（连接/30s 心跳/指数退避重连/按 type 分发）","auth↔ws 为调用时引用，ESM 活绑定，安全"] },
     "api": { title:"接口层（api/）", tag:"api", tagText:"接口", rows:[["出口","request.js 唯一"],["业务","13 个领域 API"]], points:["request.js：拼 BASE_URL、注入 Bearer/X-Request-Id","40101 → auth.handleUnauthorized 续期并重发原请求","统一拆 code/message/data、分流错误码、loading 并发计数","业务 API：auth / user / device / env / medicine / plan / record / capture / alarm / guardian / report / ai / devtools","页面/模块一律走这里，不直接 uni.request"] },
     "utils": { title:"工具层（utils/）", tag:"util", tagText:"工具", rows:[["性质","纯函数"],["复用","被各层引用"]], points:["ws-frame.js：帧解析 / 分类（PONG/业务/RESYNC）","error.js：ApiError 与 CODE 错误码表","uuid.js：X-Request-Id 生成","permission.js：ENTRY_ROLES 入口角色表","datetime / device-status / plan / medicine"] },
-    "config": { title:"配置层（config/）", tag:"config", tagText:"配置", rows:[["原则","禁在页面写死 IP"],["扩展","运行时改服务器地址"]], points:["index.js：BASE_URL / WS_URL 统一出口","setServerHost / clearServerHost（真机调试改 IP）","tabbar.js：底部栏 + 右侧抽屉入口配置","无 MQTT_URL：小程序不直连设备，消息经后端中转"] },
+    "config": { title:"配置层（config/）", tag:"config", tagText:"配置", rows:[["原则","禁在页面写死 IP"],["扩展","运行时改服务器地址"]], points:["index.js：BASE_URL / WS_URL 统一出口","setServerHost / clearServerHost（真机调试改 IP）","tabbar.js：底部栏 + 右侧抽屉入口配置","无 MQTT_URL：客户端不直连设备，消息经后端中转"] },
     "ext-rest": { title:"后端 REST 接口", tag:"ext", tagText:"外部", rows:[["地址",":8080 /medbox/api/v1"],["协议","HTTP JSON（code/message/data）"]], points:["业务请求唯一出站点（api/request.js）","40101 触发本地续期重试","无 CORS：H5 联调靠 Vite 反代"] },
-    "ext-ws": { title:"后端 WebSocket", tag:"ext", tagText:"外部", rows:[["路径","/medbox/ws"],["握手","?token=&topics=&lastEventId="]], points:["实时推送唯一出站点（store/ws.js）","30s 心跳 / 指数退避重连 / 断线补推","小程序同时仅 1 条连接（单例）"] },
-    "ext-note": { title:"设备消息经后端中转", tag:"ext", tagText:"外部", rows:[["约束","小程序不直连 MQTT"]], points:["摄像头/传感器由药箱主控经 WiFi 聚合","设备消息一律走后端 MQTT → WS 中转给小程序","避免小程序持有设备 MQTT 凭据"] }
+    "ext-ws": { title:"后端 WebSocket", tag:"ext", tagText:"外部", rows:[["路径","/medbox/ws"],["握手","?token=&topics=&lastEventId="]], points:["实时推送唯一出站点（store/ws.js）","30s 心跳 / 指数退避重连 / 断线补推","客户端同时仅 1 条连接（单例）"] },
+    "ext-note": { title:"设备消息经后端中转", tag:"ext", tagText:"外部", rows:[["约束","客户端不直连 MQTT"]], points:["摄像头/传感器由药箱主控经 WiFi 聚合","设备消息一律走后端 MQTT → WS 中转给客户端","避免客户端持有设备 MQTT 凭据"] }
   };
 
   const svg = document.getElementById('topo');

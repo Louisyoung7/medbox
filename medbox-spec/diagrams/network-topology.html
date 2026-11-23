@@ -189,12 +189,12 @@
       <g id="nodes">
         <g class="node n-client" id="elder" data-key="elder">
           <rect x="60" y="90" width="210" height="66" rx="10" />
-          <text x="165" y="118" text-anchor="middle">老人端小程序</text>
+          <text x="165" y="118" text-anchor="middle">老人端APP</text>
           <text class="sub" x="165" y="138" text-anchor="middle">uni-app · 近场使用者</text>
         </g>
         <g class="node n-client" id="guardian" data-key="guardian">
           <rect x="60" y="190" width="210" height="66" rx="10" />
-          <text x="165" y="218" text-anchor="middle">监护端小程序</text>
+          <text x="165" y="218" text-anchor="middle">监护端APP</text>
           <text class="sub" x="165" y="238" text-anchor="middle">GUARDIAN（统一单一角色）</text>
         </g>
         <g class="node n-client" id="admin" data-key="admin">
@@ -260,7 +260,7 @@
 
   <div class="legend">
     <h3>图例</h3>
-    <div class="row"><span class="dot" style="background:var(--client)"></span> 客户端（小程序 / Web 后台）</div>
+    <div class="row"><span class="dot" style="background:var(--client)"></span> 客户端（APP / Web 后台）</div>
     <div class="row"><span class="dot" style="background:var(--backend)"></span> Java 后端</div>
     <div class="row"><span class="dot" style="background:var(--broker)"></span> EMQX 消息中间件</div>
     <div class="row"><span class="dot" style="background:var(--infra)"></span> 后端依赖（DB / 存储）</div>
@@ -291,18 +291,18 @@
 <script>
   const INFO = {
     elder: {
-      title: "老人端小程序", tag: "client", tagText: "小程序端",
+      title: "老人端APP", tag: "client", tagText: "APP端",
       rows: [["技术栈","uni-app（Vue3 + Vite）"],["角色","老人本人 · 近场使用者"],["地址","BASE_URL / WS_URL（仅两个，不配 MQTT_URL）"]],
       points: ["查看本人服药计划、AI 洞察、本地查看","只读本人数据，不直连 MQTT"]
     },
     guardian: {
-      title: "监护端小程序", tag: "client", tagText: "小程序端",
+      title: "监护端APP", tag: "client", tagText: "APP端",
       rows: [["角色","GUARDIAN（统一单一角色，含子女/护理/医生）"],["协议","HTTP REST + WebSocket(:8080/medbox/ws)"],["鉴权","JWT 握手 + elder:{elderId} 主题归属校验"]],
       points: ["接收告警、查看全部数据、配置计划与阈值","为老人配置大模型 API Key","不再区分家属/医生/护理形态（见文档 01 §5）"]
     },
     admin: {
       title: "Web 管理后台（medbox-admin）", tag: "client", tagText: "管理后台",
-      rows: [["技术栈","Vite + Web（本期 feat/admin-testdata-cleanup）"],["协议","HTTP REST → 后端 :8080"],["账号","独立 ADMIN 账号体系，不在小程序角色内"]],
+      rows: [["技术栈","Vite + Web（本期 feat/admin-testdata-cleanup）"],["协议","HTTP REST → 后端 :8080"],["账号","独立 ADMIN 账号体系，不在APP角色内"]],
       points: ["本期仅「测试数据清理」dev/QA 工具","设备准入审核等运营职责后续在此承载","需后端放行 CORS 或用 dev proxy"]
     },
     backend: {

@@ -88,4 +88,4 @@ medbox-admin/
 
 ## 持续集成
 
-`.github/workflows/ci-admin.yml`：路径过滤（仅 `medbox-admin/**` 或本文件变更触发），`setup-node` 锁 Node 24、`npm ci`、先 `npm test` 再 `npm run build`，产物上传 `admin-dist`。改后端/小程序不会触发本流。
+`.github/workflows/ci-admin.yml`：路径过滤（仅 `medbox-admin/**` 或本文件变更触发），`setup-node` 锁 Node 24、`npm ci`、先 `npm test` 再 `npm run build`，产物上传 `admin-dist`。改后端/客户端不会触发本流。

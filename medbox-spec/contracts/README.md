@@ -78,11 +78,11 @@ contracts/
 
 ```bash
 # 对 Mock（需先起 npm run mock，默认 8080；CI 用 18099）
-node medbox-miniapp/tools/contract/run.mjs \
+node medbox-app/tools/contract/run.mjs \
   --base http://127.0.0.1:8080/medbox/api/v1 --profile mock
 
 # 对真后端（需先起后端 + /_debug/seed?reset=true）
-node medbox-miniapp/tools/contract/run.mjs \
+node medbox-app/tools/contract/run.mjs \
   --base http://127.0.0.1:8080/medbox/api/v1 --profile real
 ```
 
