@@ -1,4 +1,4 @@
-// 统一配置出口（对齐 medbox-miniapp/src/config 思路：业务代码一律从这里取地址，禁止写死 IP）。
+// 统一配置出口（对齐 medbox-app/src/config 思路：业务代码一律从这里取地址，禁止写死 IP）。
 //
 // 开发期用 .env 的 VITE_BASE_URL（相对路径 /medbox/api/v1），由 Vite dev server 反代到后端 8080，
 // 绕开浏览器同源 / CORS 预检（见 medbox-spec/01 第 4 章）。生产/测试直连时改 VITE_BASE_URL 为绝对地址。

@@ -1,4 +1,4 @@
-# 单仓多目录：后端 medbox-server/（Java / Gradle）、小程序 medbox-miniapp/、
+# 单仓多目录：后端 medbox-server/（Java / Gradle）、客户端 medbox-app/、
 # Web 前端 medbox-admin/（Node）。本地配置规则见 medbox-spec/01 的 4.5。
 
 # ---------- Java / Gradle（medbox-server/） ----------
@@ -35,7 +35,7 @@ replay_pid*
 .factorypath
 .vscode/
 
-# ---------- Node / uni-app（medbox-miniapp/、medbox-admin/） ----------
+# ---------- Node / uni-app（medbox-app/、medbox-admin/） ----------
 node_modules/
 dist/
 .vite/

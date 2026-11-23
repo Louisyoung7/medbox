@@ -1,7 +1,7 @@
 # APK 迁移规划（小程序 → APK，保留 H5 联调）
 
-> 状态：4 项决策已确认（均按「建议」执行），P0 完成、待合入
-> 适用范围：`medbox-miniapp/`（P1 起改为 `medbox-app/`）、`medbox-server/`、`medbox-spec/`、CI 与全部文档
+> 状态：4 项决策已确认（均按「建议」执行），P0 已合入 main，P1 进行中
+> 适用范围：`medbox-app/`（原 `medbox-miniapp/`）、`medbox-server/`、`medbox-spec/`、CI 与全部文档
 > 原则：换壳不换业务。后端业务接口与判定逻辑不动。
 
 ---
@@ -86,15 +86,15 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 目标：能编出 APK 资源、H5 可登录、CI 改口。
 
-- [ ] 目录重命名 `medbox-miniapp/` → `medbox-app/`（决策 2 通过后执行）
-- [ ] 同步 CI 路径、契约命令、文档路径
-- [ ] `package.json` 脚本收敛：`dev:h5` / `build:h5` / `dev:app-plus` / `build:app-plus`
-- [ ] 删除 `mp-*` 脚本与 `@dcloudio/uni-mp-*` 依赖
-- [ ] `manifest.json`：删 `mp-weixin`；补 Android 权限、明文 HTTP、通知权限、图标与启动图
-- [ ] 删除 `ai.js` 的 `mpTransport` 与相关单测
-- [ ] 去掉 `getFileSystemManager` 的 mp 分支
-- [ ] `.github/workflows/ci-miniapp.yml` → `ci-app.yml`，构建改 `build:h5` + `build:app-plus`
-- [ ] 同步文档中已变更的路径与命令
+- [x] 目录重命名 `medbox-miniapp/` → `medbox-app/`
+- [x] 同步 CI 路径、契约命令、文档路径
+- [x] `package.json` 脚本收敛：`dev:h5` / `build:h5` / `dev:app-plus` / `build:app-plus`
+- [x] 删除 `mp-*` 脚本与 `@dcloudio/uni-mp-*` 依赖
+- [x] `manifest.json`：删 `mp-weixin`；补 Android 权限（含 Android 13 通知权限）、明文 HTTP、通知权限
+- [x] 删除 `ai.js` 的 `mpTransport` 与相关单测
+- [x] 去掉 `report.vue` 里 `getFileSystemManager` / `shareFileMessage` 的 mp 分支（下载错误体解析随 P2 导出改造一起换）
+- [x] `.github/workflows/ci-miniapp.yml` → `ci-app.yml`，构建改 `build:h5` + `build:app-plus`
+- [x] 同步文档中已变更的路径与命令
 
 验收：
 
@@ -195,8 +195,8 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 | 阶段 | 分支 | 状态 | 合并 commit | 备注 |
 |---|---|---|---|---|
-| P0 | `docs/app-migration` | 已完成（待合入） | — | 纯文档；目录重命名与代码改动在 P1 |
-| P1 | `feat/app-base` | 未开始 | — | 依赖决策 1、2 |
+| P0 | `docs/app-migration` | 已完成并合入 main | 68e4f8c | 纯文档；目录重命名与代码改动在 P1 |
+| P1 | `feat/app-base` | 进行中 | — | 依赖决策 1、2 |
 | P2 | `feat/app-runtime` | 未开始 | — | 依赖决策 3 |
 | P3 | `feat/backend-app-support` | 待定 | — | 按需 |
 | P4 | `feat/app-release` | 未开始 | — | 依赖 P1、P2 |

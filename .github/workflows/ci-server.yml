@@ -1,7 +1,7 @@
 name: CI · medbox-server
 
-# 只关心后端目录：改动 medbox-miniapp/ 不会触发本工作流（同理见 ci-miniapp.yml）
-# 契约场景与 runner 放在小程序侧（medbox-miniapp/tools/contract），后端 CI 的 real-e2e 会用到它们，
+# 只关心后端目录：改动 medbox-app/ 不会触发本工作流（同理见 ci-app.yml）
+# 契约场景与 runner 放在客户端侧（medbox-app/tools/contract），后端 CI 的 real-e2e 会用到它们，
 # 故这两个路径的改动也要触发本工作流。
 on:
   push:
@@ -9,13 +9,13 @@ on:
     paths:
       - 'medbox-server/**'
       - 'medbox-spec/contracts/**'
-      - 'medbox-miniapp/tools/contract/**'
+      - 'medbox-app/tools/contract/**'
       - '.github/workflows/ci-server.yml'
   pull_request:
     paths:
       - 'medbox-server/**'
       - 'medbox-spec/contracts/**'
-      - 'medbox-miniapp/tools/contract/**'
+      - 'medbox-app/tools/contract/**'
       - '.github/workflows/ci-server.yml'
   workflow_dispatch:
 
@@ -212,7 +212,7 @@ jobs:
           curl -fsS -X POST 'http://localhost:8080/medbox/api/v1/_debug/seed?reset=true'
 
       - name: 契约场景（对真实后端）
-        run: node medbox-miniapp/tools/contract/run.mjs --base http://127.0.0.1:8080/medbox/api/v1 --profile real
+        run: node medbox-app/tools/contract/run.mjs --base http://127.0.0.1:8080/medbox/api/v1 --profile real
 
       - name: 安装 device-sim 依赖
         working-directory: medbox-server/tools/device-sim

@@ -1,6 +1,6 @@
 name: CI · medbox-admin
 
-# 只关心前端管理后台目录：改动 medbox-server/ 或 medbox-miniapp/ 不会触发本工作流（同理见 ci-server.yml / ci-miniapp.yml）
+# 只关心前端管理后台目录：改动 medbox-server/ 或 medbox-app/ 不会触发本工作流（同理见 ci-server.yml / ci-app.yml）
 on:
   push:
     branches: [main]
