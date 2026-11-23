@@ -34,6 +34,7 @@
       </RoleGate>
     </view>
 
+    <MbDrawer />
     <MbTabBar />
   </view>
 </template>
@@ -43,6 +44,7 @@ import MbCard from '@/components/MbCard.vue'
 import MbCell from '@/components/MbCell.vue'
 import MbButton from '@/components/MbButton.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
+import MbDrawer from '@/components/MbDrawer.vue'
 import RoleGate from '@/components/RoleGate.vue'
 import WsStatusBar from '@/components/WsStatusBar.vue'
 import { getUserInfo, roleLabel } from '@/store/user.js'
@@ -50,7 +52,7 @@ import { getAlarmState, refreshUnreadCount } from '@/store/alarm.js'
 
 export default {
   name: 'HomePage',
-  components: { MbCard, MbCell, MbButton, MbTabBar, RoleGate, WsStatusBar },
+  components: { MbCard, MbCell, MbButton, MbTabBar, MbDrawer, RoleGate, WsStatusBar },
   data() {
     return {
       name: '',
@@ -160,6 +162,13 @@ export default {
   font-size: 26rpx;
   color: $mb-text-3;
   line-height: 1.6;
+}
+
+/* 顶部三横杠浮在状态条右上角，给状态条右侧的「重连 / 未读」留出位置 */
+.hero__ws {
+  :deep(.ws-bar__row) {
+    padding-right: 60rpx;
+  }
 }
 
 .guard-row {

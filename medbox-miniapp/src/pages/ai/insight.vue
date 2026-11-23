@@ -104,6 +104,7 @@
       </MbCard>
     </RoleGate>
 
+    <MbDrawer />
     <MbTabBar />
   </view>
 </template>
@@ -113,6 +114,7 @@ import MbCard from '@/components/MbCard.vue'
 import MbButton from '@/components/MbButton.vue'
 import MbEmpty from '@/components/MbEmpty.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
+import MbDrawer from '@/components/MbDrawer.vue'
 import RoleGate from '@/components/RoleGate.vue'
 import {
   streamInsight,
@@ -130,7 +132,7 @@ import { loadVisibleElderIds, getAlarmState } from '@/store/alarm.js'
 
 export default {
   name: 'AiInsightPage',
-  components: { MbCard, MbButton, MbEmpty, MbTabBar, RoleGate },
+  components: { MbCard, MbButton, MbEmpty, MbTabBar, MbDrawer, RoleGate },
   data() {
     return {
       elderId: '',
