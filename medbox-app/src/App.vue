@@ -1,6 +1,7 @@
 <script>
 import { setupAuth } from '@/store/auth.js'
 import { connect } from '@/store/ws.js'
+import { checkAndPromptUpdate } from '@/store/update.js'
 import {
   loadVisibleElderIds,
   refreshAfterForeground,
@@ -18,6 +19,8 @@ export default {
       // feat/mp-ws：已登录才起长连接；监护人需显式传可见老人（由设备列表推导）
       if (loggedIn) this.bootstrapRealtime()
     })
+    // feat/app-release：APK 启动静默查新版本，有更新才弹窗；H5 / 断网时不打扰
+    checkAndPromptUpdate()
   },
   onShow: function () {
     // 切后台系统会掐断长连接，回前台幂等补连；监护人传已知 elderIds，老人端由 ws 默认自己

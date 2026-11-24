@@ -11,7 +11,7 @@
  *   # MOCK_ACCESS_TTL_MS=15000 npm run mock   # access token 15s 过期，验证 40101 自动续期
  *
  * 端到端测试（AI 完工时自动跑，见 AGENTS.md 3.1）：
- *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 243 项检查、跑完即关
+ *   npm run test:e2e           # 自包含：自动在 18099 端口起服务、跑 247 项检查、跑完即关
  *
  * 用法：把 .env.local 的 VITE_SERVER_HOST 指向运行本脚本的机器 IP（127.0.0.1 亦可），
  * 客户端侧无需任何改动；H5 联调走既有的 Vite 反代（/medbox → 127.0.0.1:8080）。
@@ -249,6 +249,30 @@ async function handleRefresh(req, res, body) {
   // 轮换：旧 refresh 作废，发一对新的
   state.refreshTokens.delete(refreshToken)
   ok(res, issueTokens(user))
+}
+
+/**
+ * `GET /app/version`（02j §1.1，免登录）：版本比对 + APK 下载地址。
+ *
+ * <p>最新版本默认 1.0.0 / 100（与 `src/manifest.json` 同口径），用 `MOCK_APP_VERSION_CODE` /
+ * `MOCK_APP_VERSION_NAME` 可模拟"有新版本"。`versionCode` 不传按"无法比较"回 `upToDate=false`；
+ * 负数 / 非整数按 02j §1.3 回 40001。
+ */
+function handleAppVersion(req, res, query) {
+  const latestVersionCode = Number(process.env.MOCK_APP_VERSION_CODE || 100)
+  const raw = query.versionCode
+  let clientCode = null
+  if (raw !== undefined && raw !== '') {
+    if (!/^\d+$/.test(String(raw))) throw new BizError(40001, 'versionCode 必须为非负整数')
+    clientCode = Number(raw)
+  }
+  ok(res, {
+    latestVersionName: process.env.MOCK_APP_VERSION_NAME || '1.0.0',
+    latestVersionCode,
+    downloadUrl: `http://127.0.0.1:${PORT}/medbox/app/medbox-1.0.0.apk`,
+    releaseNotes: 'Mock 版本：修复已知问题，优化用药提醒。',
+    upToDate: clientCode !== null && clientCode >= latestVersionCode,
+  })
 }
 
 async function handleMe(req, res) {
@@ -1630,6 +1654,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && sub === '/auth/login') return await handleLogin(req, res, await readBody(req))
     if (req.method === 'POST' && sub === '/auth/register') return await handleRegister(req, res, await readBody(req))
     if (req.method === 'POST' && sub === '/auth/refresh') return await handleRefresh(req, res, await readBody(req))
+    // 免鉴权：客户端版本（APK 启动尚未登录也要能查，02j §1.1）
+    if (req.method === 'GET' && sub === '/app/version') return handleAppVersion(req, res, query)
 
     // 鉴权：用户
     if (req.method === 'GET' && sub === '/users/me') return await handleMe(req, res)

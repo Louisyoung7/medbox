@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "prompt": "template",
+  "title": "服务协议与隐私政策",
+  "message": "欢迎使用智能药箱。为了向你提供服务，我们需要处理你的账号信息、用药记录与设备数据，全部保存在家庭局域网内的服务器上。你可阅读<a href=\"static/privacy.html\">《服务协议与隐私政策》</a>了解详细信息。如果你同意，请点击下面按钮开始使用。",
+  "buttonAccept": "同意并继续",
+  "buttonRefuse": "暂不同意",
+  "backToExit": "false",
+  "second": {
+    "title": "温馨提示",
+    "message": "进入应用前，你需先同意<a href=\"static/privacy.html\">《服务协议与隐私政策》</a>，否则将退出应用。",
+    "buttonAccept": "同意并继续",
+    "buttonRefuse": "退出应用"
+  },
+  "styles": {
+    "backgroundColor": "#FFFFFF",
+    "borderRadius": "12px",
+    "title": {
+      "color": "#1F2D3D"
+    },
+    "buttonAccept": {
+      "color": "#11A09E"
+    },
+    "buttonRefuse": {
+      "color": "#8A94A6"
+    }
+  }
+}
