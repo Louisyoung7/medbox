@@ -1,6 +1,7 @@
-# APK 迁移规划（小程序 → APK，保留 H5 联调）
+# APK 迁移规划（小程序 → APK，保留 H5 联调）【已归档】
 
-> 状态：4 项决策已确认（均按「建议」执行），P0–P3 已合入 main，P4 代码与文档完成（待 PR 合入 + 真机验收）
+> 归档状态：P0–P4 已全部合入 main（P4 合并提交 `dff5059`），迁移完成，本文档冻结、不再更新。
+> 后续口径：发版看 `medbox-app/README.md`「APK 发版」，接口看 `medbox-spec/02j_客户端版本.md`；仅 P4 真机验收（安装 / 覆盖升级 / 局域网明文 HTTP）待人工完成。
 > 适用范围：`medbox-app/`（原 `medbox-miniapp/`）、`medbox-server/`、`medbox-spec/`、CI 与全部文档
 > 原则：换壳不换业务。后端业务接口与判定逻辑不动。
 
@@ -201,4 +202,4 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 | P1 | `feat/app-base` | 已完成并合入 main（已推送） | 1f0882a | 目录迁移与小程序耦合清理 |
 | P2 | `feat/app-runtime` | 已完成并合入 main（已推送） | 6cdb374 | AI 流式 / 导出 / 回前台补拉 |
 | P3 | `feat/backend-app-support` | 已完成并合入 main（已推送） | 1701a06 | 版本检查 / APK 静态分发 |
-| P4 | `feat/app-release` | 已完成（待 PR 合入 + 真机验收） | — | 图标 / 启动图 / 隐私弹窗 / 检查更新 / 证书与发版流程 |
+| P4 | `feat/app-release` | 已完成并合入 main（已推送） | dff5059 | 图标 / 启动图 / 隐私弹窗 / 检查更新 / 证书与发版流程；真机验收待做 |
