@@ -1,6 +1,6 @@
 # APK 迁移规划（小程序 → APK，保留 H5 联调）
 
-> 状态：4 项决策已确认（均按「建议」执行），P0–P2 已合入 main，P3 进行中
+> 状态：4 项决策已确认（均按「建议」执行），P0–P3 已合入 main，P4 代码与文档完成（待 PR 合入 + 真机验收）
 > 适用范围：`medbox-app/`（原 `medbox-miniapp/`）、`medbox-server/`、`medbox-spec/`、CI 与全部文档
 > 原则：换壳不换业务。后端业务接口与判定逻辑不动。
 
@@ -122,7 +122,7 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 目标：支撑 APK 分发与升级。无需求可跳过。
 
-- [x] `GET /app/version`：versionCode 比对 + 下载地址
+- [x] `GET /app/version`：versionCode 比对 + 下载地址（已合入 main，commit `1701a06`）
 - [x] APK 静态下载目录或对象存储（`medbox.app.download-dir` 映射 `/app/**`；对象存储填 `download-url`）
 - [x] H5 独立部署时才加 dev-only CORS（默认不做）
 - [x] 同步 `02j` / `06` / `08`，补集成测试
@@ -136,17 +136,19 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 目标：可安装、可升级。
 
-- [ ] 应用图标、启动图、隐私弹窗
-- [ ] 签名证书管理（不入库）
-- [ ] `versionCode` 规则（当前 100，按发版递增）
-- [ ] `docs/产品使用说明.md` 补安装与升级步骤
-- [ ] HBuilderX 云打包流程固化
+- [x] 应用图标、启动图、隐私弹窗（`src/static/app/*`、`src/static/privacy.html`、`src/androidPrivacy.json`）
+- [x] 应用内检查更新：启动静默检查 + 「我的 → 关于」手动检查（消费 `GET /app/version`，H5 不启用）
+- [x] 签名证书管理（不入库）：根 `.gitignore` 忽略证书，README 写明云端 / 本地证书流程
+- [x] `versionCode` 规则（当前 100，按发版递增）与包名固定 `com.medbox.app`
+- [x] `docs/产品使用说明.md` 补安装与升级步骤
+- [x] HBuilderX 云打包流程固化（`medbox-app/README.md`「APK 发版」）
+- [x] 发版配置自检单测（图标 / 启动图 / 隐私 / versionCode / 包名）
 
 验收：
 
-- 真机安装成功。
-- 覆盖安装升级成功。
-- 局域网连后端成功（明文 HTTP 场景）。
+- 真机安装成功。（待人工验收）
+- 覆盖安装升级成功。（待人工验收）
+- 局域网连后端成功（明文 HTTP 场景）。（待人工验收）
 
 ---
 
@@ -198,5 +200,5 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 | P0 | `docs/app-migration` | 已完成并合入 main（已推送） | 68e4f8c | 纯文档；目录重命名与代码改动在 P1 |
 | P1 | `feat/app-base` | 已完成并合入 main（已推送） | 1f0882a | 目录迁移与小程序耦合清理 |
 | P2 | `feat/app-runtime` | 已完成并合入 main（已推送） | 6cdb374 | AI 流式 / 导出 / 回前台补拉 |
-| P3 | `feat/backend-app-support` | 已完成（待 PR 合入） | — | 版本检查 / APK 静态分发 |
-| P4 | `feat/app-release` | 未开始 | — | 依赖 P1、P2 |
+| P3 | `feat/backend-app-support` | 已完成并合入 main（已推送） | 1701a06 | 版本检查 / APK 静态分发 |
+| P4 | `feat/app-release` | 已完成（待 PR 合入 + 真机验收） | — | 图标 / 启动图 / 隐私弹窗 / 检查更新 / 证书与发版流程 |

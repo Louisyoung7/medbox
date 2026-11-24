@@ -1,7 +1,7 @@
 /**
  * Mock 后端端到端冒烟测试（medbox-app/tools/mock/test）。
  *
- * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 243 项）、跑完即关，
+ * 自包含：自动在 18099 端口拉起 Mock 服务、跑完全部检查（当前约 247 项）、跑完即关，
  * 不依赖外部进程，也不占用 8080（真实后端 / 手动 npm run mock 都在 8080）。
  *
  * 运行：npm run test:e2e
@@ -80,6 +80,25 @@ async function waitReady() {
     check('假 token 40101', (await call('GET', '/users/me', { token: 'mock.u-2001.1.x' })).code === 40101)
     const me = await call('GET', '/users/me', { token: gw.token })
     check('GET /users/me', me.code === 0 && me.data.userId === 'u-2001' && me.data.name === '张伟')
+
+    console.log('== 客户端版本（02j） ==')
+    const verFresh = await call('GET', '/app/version?versionCode=100')
+    check(
+      'versionCode=100：免登录且已最新',
+      verFresh.code === 0 &&
+        verFresh.data.upToDate === true &&
+        verFresh.data.latestVersionCode === 100 &&
+        verFresh.data.latestVersionName === '1.0.0',
+    )
+    const verOld = await call('GET', '/app/version?versionCode=99')
+    check(
+      'versionCode 落后：upToDate=false 且带 APK 下载地址',
+      verOld.code === 0 &&
+        verOld.data.upToDate === false &&
+        /^http:\/\/.+\/medbox\/app\/medbox-1\.0\.0\.apk$/.test(verOld.data.downloadUrl),
+    )
+    check('不传 versionCode：视为有更新', (await call('GET', '/app/version')).data.upToDate === false)
+    check('versionCode 为负数：40001', (await call('GET', '/app/version?versionCode=-1')).code === 40001)
 
     console.log('== 设备 ==')
     const devices = await call('GET', '/devices', { token: gw.token })

@@ -8,7 +8,7 @@
 ```bash
 npm run mock        # 启动 Mock，默认监听 8080（src/config/index.js 的 BASE_URL 端口固定，勿改；
                     # 端口被 medbox-server 占用时会报错说明，不会静默失败）
-npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、243 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟测试：自起服务（18099 端口）、247 项检查、跑完即关
 npm run test:contract:mock  # 契约场景对 Mock 跑一遍（自起 18099，场景在 medbox-spec/contracts）
 npm run test:all    # 单元测试（vitest）+ 端到端（mock）+ 契约（mock）一次跑完
 ```
@@ -30,6 +30,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）+ 契约（mo
 
 ## 覆盖的接口（均按 02 的形状与错误码）
 
+- `GET /app/version`（免登录；`versionCode` 缺失按无法比较回 `upToDate=false`，负数/非整数 → **40001**；最新版本默认 1.0.0 / 100，可用 `MOCK_APP_VERSION_CODE=999 npm run mock` 模拟"有新版本"触发客户端弹窗）
 - `POST /auth/login`、`POST /auth/register`、`POST /auth/refresh`（轮换）、`GET /users/me`、`POST /users/me/delete`、`GET /users/{elderId}/profile`（老人基础信息，`feat/mp-profile`：本人或 ACTIVE 监护人可见；PENDING→40302；无关系/REVOKED/目标非老人→40301 防枚举；响应同 `/users/me`，`username` 选填省略）
 - `GET /devices`、`GET /devices/{id}`（含 `sensors[]`）
 - `GET /devices/{id}/events`（事件流水：分页、按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`detail` 对 FAULT 为故障码、对 COMMAND 为 `{commandId,cmd,state}`，`feat/mp-device-extra`：`REGISTERED`/`ONLINE`/`OFFLINE` 由 device-core 播种，`FAULT`/`COMMAND` 由 device-fault/device-command 续写，Mock 已播种样例）

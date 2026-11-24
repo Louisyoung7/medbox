@@ -9,7 +9,7 @@ npm install
 npm run dev:h5          # H5 联调，浏览器打开 http://localhost:5173
 npm run build:h5        # H5 产物（仅本地联调 / 回归）
 npm run dev:app-plus    # App 真机运行（HBuilderX 热更新用）
-npm run build:app-plus  # App 资源，产物在 dist/build/app；出 APK 见「APK 打包前置」
+npm run build:app-plus  # App 资源，产物在 dist/build/app；出 APK 见「APK 发版」
 ```
 
 ## 后端地址配置
@@ -194,40 +194,66 @@ logout()            // 清 token + 用户资料 + reLaunch 登录页
 - **注册角色只有 `ELDER` / `GUARDIAN`**：护理 / 医生是 `guardian_relation.role`，由老人在确认监护关系时指定（见 `medbox-spec/06` 的 2.1 / 2.2），注册页不给这两个选项。
 - **当前首页的登录态卡片与"退出登录"是临时入口**，后续由 `feat/mp-ui-kit` / `feat/mp-profile` 接管。
 
-## APK 打包前置（HBuilderX，局域网）
+## APK 发版（HBuilderX 云打包，`feat/app-release`）
 
-> Android APK 是主交付端。命令行只能产出 App 资源，出 APK 必须在 HBuilderX 完成；真机能力以 APK 验收为准。
-> 后端地址机制与 H5 一致：编译期 `VITE_SERVER_HOST` + 运行时「开发调试」页覆盖，**装好 App 后改 IP 不必重编译**。
+> Android APK 是主交付端。命令行只产出 App 资源（`dist/build/app`），**出包、签名、隐私弹窗在 HBuilderX 完成**；真机能力以 APK 验收为准。
+> 面向使用者的安装 / 升级步骤见 `docs/产品使用说明.md`。
 
-**1. 配后端地址（二选一，推荐运行时）**
+### 1. 发版资产（已入库）
 
-- 运行时（推荐，零重编译）：App 内「我的 → 开发调试 → 服务器地址」粘贴 `http://电脑局域网IP:8080/`，保存后**杀掉 App 重开**即生效（`setServerHost` 写本地缓存，见 `src/config/index.js`）。
-- 编译期：在 `.env.local` 写 `VITE_SERVER_HOST=192.168.1.x`，再走下面的 build。
+| 资产 | 路径 | 说明 |
+|------|------|------|
+| 应用图标 | `src/static/app/icon-{48,72,96,144,192}.png` | `manifest.json` → `distribute.icons.android` 按 mdpi…xxxhdpi 引用；`icon-512.png` 留给应用商店 |
+| 启动图 | `src/static/app/splash-{480x762,720x1242,1080x1882}.9.png` | 必须是 **9-patch**；`manifest.json` → `splashscreen.android` 引用 |
+| 登录页品牌图 | `src/static/logo.png` | 192×192 |
+| 隐私政策 | `src/static/privacy.html` + `src/androidPrivacy.json` | 弹窗模板与正文同源；改政策时**两处 `message` 一起改**，并把 `androidPrivacy.json` 的 `version` +1（会重新弹窗） |
 
-**2. 构建 App 资源**
+> `npm test` 的 `src/config/__tests__/release-config.test.js` 会校验上述路径、尺寸、`.9.png`、versionCode 与包名；删图或改错路径会直接红。
+
+### 2. 版本号规则
+
+- `versionCode`：**整数，从 100 起，每次发版 +1**（101、102…），不跳号、不复用；已发布的 versionCode 不能回退。
+- `versionName`：语义化版本（如 `1.0.0`），按功能 / 修复递增，与 versionCode 不必一一对应。
+- 发版时同步后端 `application.yml` 的 `medbox.app.version-code` / `version-name` / `release-notes`，`GET /app/version` 才会提示新版本（见 `medbox-spec/02j`）。
+- 覆盖安装只认**包名 + 签名**：包名固定 `com.medbox.app`，证书发布后不可更换。
+
+### 3. 签名证书（不入库）
+
+- 开发 / 内部试用：云打包选「使用云端证书（服务器生成）」，绑定 appid，无需本地文件。
+- 正式发布 / 需长期可控：用本地证书，**证书与口令都不入库**（根 `.gitignore` 已忽略 `*.jks` / `*.keystore` / `*.p12` 与 `medbox-app/certs/`）：
 
 ```bash
-npm install
-npm run build:app-plus     # 产物在 dist/build/app
+keytool -genkeypair -v -keystore ~/.medbox/medbox-release.jks \
+  -alias medbox -keyalg RSA -keysize 2048 -validity 36500
 ```
 
-> `dev:app-plus` 仅用于 HBuilderX 真机运行热更新；纯命令行出包用 `build:app-plus` 即可。
+  在 HBuilderX 云打包页选「使用自有证书」，填别名与口令；口令放团队密码管理器。
+- ⚠️ 证书丢失 = 同包名无法覆盖安装，只能卸载重装（App 本地缓存与登录态会丢）。
 
-**3. 打包安装 APK（需要 HBuilderX）**
+### 4. 出包步骤
 
-CLI 只能产出 App 资源，**出 APK 要在 HBuilderX 里做**：
+1. `npm run build:h5 && npm run build:app-plus`（与 CI 同款，先确认资源编译通过）。
+2. 用 HBuilderX **打开 `medbox-app/` 根目录**（不是 `dist/`）；标准版先在「工具 → 插件安装」装 App 开发插件。
+3. 首次打包：双击 `src/manifest.json` → 可视化 → AppID 点「重新获取」（当前 `__UNI__623AA83`），写回并提交入库，以后免填。
+4. 菜单「发行 → 原生 App-云打包」→ Android → 选证书 → 打包；产物在 `dist/release/apk/`。
+5. 装到真机，在「我的 → 开发调试 → 服务器地址」填 `http://电脑局域网IP:8080/`，**杀进程重开**后登录。
+6. 验收：登录 / 列表 / 详情 / AI 流式 / CSV 导出 / 告警；再用**上一版本覆盖安装**，确认可升级。
+7. APK 放后端下载目录（`medbox.app.download-dir`）或对象存储，并把 `versionCode` / `versionName` / `release-notes` 更新到后端配置。
 
-- 用 HBuilderX **打开本工程根目录**（CLI 工程直接打开 `medbox-app/`，不是 `dist/`）；标准版需先在「工具 → 插件安装」装 App 开发插件；
-- 首次打包：双击 `src/manifest.json` 可视化界面，AppID 一栏点「重新获取」用 DCloud 账号申请 `uni.xxxxxxx`（本项目实测值为 `__UNI__623AA83`），写回 `src/manifest.json` 后**提交入库**，以后打包免填；
-- 菜单 **发行 → 原生 App-云打包** → Android → 证书选「**使用云端证书（服务器生成）**」（「公共测试证书」已下线，勿用）；云端证书绑定 appid、自动填信息、有效期 100 年，开发阶段免配 JRE；
-- 打出的包默认允许 `http://` 明文，正合局域网 `http` 联调；产物在 `dist/release/apk/`；
-- 装到手机，按步骤 1 设 IP，重启 App，登录即可。
+> 后端地址也可在编译期写 `.env.local` 的 `VITE_SERVER_HOST=192.168.1.x`；但运行时改 IP 不必重新出包，推荐用「开发调试」页。
 
-**4. 排错**
+### 5. 应用内检查更新
 
-- 登录/请求报"网络异常"：先确认手机与电脑**同一 WiFi 网段**，且后端 `:8080` 在电脑上已起（可用电脑浏览器开 `http://电脑IP:8080/medbox/api/v1/...` 验证）。
+- 启动时静默调 `GET /app/version`（免登录），只有 `latestVersionCode > 本机 versionCode` 才弹窗；「我的 → 关于 → 检查更新」可手动查。
+- H5 联调版不参与更新（显示「H5 联调版」，不发请求）；下载交给系统浏览器，不内置下载器。
+- 联调：`MOCK_APP_VERSION_CODE=999 MOCK_APP_VERSION_NAME=1.0.1 npm run mock`，已装 100 的包启动即弹更新（点「去下载」跳 Mock 的假 APK 地址）。
+
+### 6. 排错
+
+- 登录/请求报「网络异常」：先确认手机与电脑**同一 WiFi 网段**，且后端 `:8080` 已起（电脑浏览器开 `http://电脑IP:8080/medbox/api/v1/...` 验证）。
 - 改了 IP 没生效：App 要**彻底杀进程重开**（缓存是启动时读取的快照）。
 - 明文被拦（极少，正式云打包偶发）：改用 HBuilderX「自定义调试基座」运行，或临时把 `VITE_TLS` 设为 `true`（需后端已配 TLS，局域网一般没有，故不推荐）。
+- 装不上 / 覆盖安装失败：确认包名与签名和上一版一致；换了证书只能先卸载。
 
 ## Mock 后端与端到端测试（`tools/mock`）
 
@@ -235,7 +261,7 @@ CLI 只能产出 App 资源，**出 APK 要在 HBuilderX 里做**：
 
 ```bash
 npm run mock        # 起假后端，监听 8080（BASE_URL 端口固定，勿改；端口被占会直接报是谁占了）
-npm run test:e2e    # 端到端冒烟：自起服务（18099 端口）、243 项检查、跑完即关
+npm run test:e2e    # 端到端冒烟：自起服务（18099 端口）、247 项检查、跑完即关
 npm run test:all    # 单元测试 + 端到端一次跑完（AI 完工时的标准动作，见 AGENTS.md 3.1）
 ```
 
@@ -255,9 +281,10 @@ medbox-app/
 │   ├── store/        # 全局状态（mp-auth）
 │   ├── config/       # 配置出口：BASE_URL / WS_URL
 │   ├── utils/        # 工具函数（时间格式化等）
-│   ├── static/       # 静态资源
+│   ├── static/       # 静态资源（app/ 为图标与启动图，privacy.html 为隐私政策）
 │   ├── pages.json    # 页面路由与导航栏
-│   ├── manifest.json # 应用配置（含 AppID）
+│   ├── androidPrivacy.json # Android 隐私弹窗（HBuilderX 3.2.1+）
+│   ├── manifest.json # 应用配置（AppID / 图标 / 启动图 / 包名 / 权限）
 │   └── uni.scss      # uni-app 内置样式变量
 ├── .env.development  # 入库
 ├── .env.example      # .env.local 模板

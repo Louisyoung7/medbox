@@ -14,14 +14,48 @@
             "alwaysShowBeforeRender" : true,
             "waiting" : true,
             "autoclose" : true,
-            "delay" : 0
+            "delay" : 0,
+            /* 自定义启动图（P4）：路径相对 src，云打包按分辨率取图 */
+            "android" : {
+                "hdpi" : "static/app/splash-480x762.9.png",
+                "xhdpi" : "static/app/splash-720x1242.9.png",
+                "xxhdpi" : "static/app/splash-1080x1882.9.png"
+            }
+        },
+        /* 隐私政策提示框（旧版 HBuilderX 兜底；3.2.1+ 以 androidPrivacy.json 为准） */
+        "privacy" : {
+            "prompt" : "template",
+            "template" : {
+                "title" : "服务协议与隐私政策",
+                "message" : "欢迎使用智能药箱。为了向你提供服务，我们需要处理你的账号信息、用药记录与设备数据，全部保存在家庭局域网内的服务器上。你可阅读<a href=\"static/privacy.html\">《服务协议与隐私政策》</a>了解详细信息。如果你同意，请点击下面按钮开始使用。",
+                "buttonAccept" : "同意并继续",
+                "buttonRefuse" : "暂不同意",
+                "second" : {
+                    "title" : "温馨提示",
+                    "message" : "进入应用前，你需先同意<a href=\"static/privacy.html\">《服务协议与隐私政策》</a>，否则将退出应用。",
+                    "buttonAccept" : "同意并继续",
+                    "buttonRefuse" : "退出应用"
+                }
+            }
         },
         /* 模块配置 */
         "modules" : {},
         /* 应用发布信息 */
         "distribute" : {
+            /* 应用图标（P4）：路径相对 src，云打包按密度取图 */
+            "icons" : {
+                "android" : {
+                    "mdpi" : "static/app/icon-48.png",
+                    "hdpi" : "static/app/icon-72.png",
+                    "xhdpi" : "static/app/icon-96.png",
+                    "xxhdpi" : "static/app/icon-144.png",
+                    "xxxhdpi" : "static/app/icon-192.png"
+                }
+            },
             /* android打包配置 */
             "android" : {
+                /* 包名一经发布不可更改：改了就是另一个应用，无法覆盖升级 */
+                "packagename" : "com.medbox.app",
                 "permissions" : [
                     /* 局域网 http/ws 联调必需：没有 INTERNET 权限任何网络请求都会直接失败 */
                     "<uses-permission android:name=\"android.permission.INTERNET\"/>",

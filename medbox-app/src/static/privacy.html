@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>服务协议与隐私政策</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px 18px calc(28px + env(safe-area-inset-bottom));
+      background: #F4F8FA;
+      color: #1F2D3D;
+      font: 16px/1.75 -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { margin: 8px 0 4px; font-size: 22px; line-height: 1.4; }
+    h2 { margin: 28px 0 8px; font-size: 17px; color: #0F7F8C; }
+    p, li { margin: 8px 0; }
+    ul { padding-left: 22px; }
+    .meta { margin: 0 0 18px; color: #6B7A88; font-size: 14px; }
+    .card {
+      padding: 18px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 10px rgba(17, 160, 158, 0.08);
+    }
+    .note {
+      margin-top: 24px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #E8F7F6;
+      color: #0F6F7A;
+      font-size: 14px;
+    }
+    a { color: #0F7F8C; }
+  </style>
+</head>
+<body>
+<main class="card">
+  <h1>服务协议与隐私政策</h1>
+  <p class="meta">版本 1 · 生效日期：2026-11-24</p>
+
+  <p>智能药箱（以下简称“本应用”）是一套在<strong>家庭局域网</strong>内使用的用药提醒与记录工具，由药箱设备、家庭服务器和本应用共同组成。请在使用前阅读并理解本协议。</p>
+
+  <h2>一、我们处理的信息</h2>
+  <p>为实现用药提醒、记录与家人看护功能，本应用会处理以下信息：</p>
+  <ul>
+    <li><strong>账号信息</strong>：手机号、密码（加密存储）、姓名、用户角色。</li>
+    <li><strong>用药数据</strong>：服药计划、格位时间、服药记录、补录与纠错记录。</li>
+    <li><strong>设备与环境数据</strong>：药箱与传感器的在线状态、温湿度与光照读数、设备事件。</li>
+    <li><strong>抓拍留证</strong>：设备上报“未取药”时由药箱摄像头拍下的图片，用于记录核对。</li>
+  </ul>
+  <p>本应用<strong>不采集</strong>通讯录、短信、通话记录、精确定位、相册内容，也不接入广告或第三方统计分析（已关闭 uni 统计）。</p>
+
+  <h2>二、存储与共享</h2>
+  <ul>
+    <li>上述数据保存在<strong>你家庭局域网内的服务器</strong>上，不上传公网、不做云端备份。</li>
+    <li>除你主动发起的家庭监护关系外，我们不会向任何第三方提供、出售或公开你的信息。</li>
+    <li>抓拍图片仅保存在家庭服务器，按记录的保留策略清理；导出文件由你自行保存。</li>
+  </ul>
+
+  <h2>三、系统权限说明</h2>
+  <ul>
+    <li><strong>网络</strong>：连接家庭局域网内的服务器，读取设备状态与推送提醒。</li>
+    <li><strong>通知</strong>：在你允许时显示用药提醒与告警通知。</li>
+    <li><strong>存储</strong>：将你主动导出的记录文件保存到手机下载目录。</li>
+  </ul>
+  <p>拒绝非必要权限不影响登录、查看计划与记录等核心功能。</p>
+
+  <h2>四、你的权利</h2>
+  <ul>
+    <li>你可以在“我的”页面查看账号资料，在记录页补录或纠错。</li>
+    <li>你可以随时退出登录；注销账号后账号立即停用、不可恢复，业务数据保留但不再可登录。</li>
+    <li>你可以联系家庭服务器的管理员删除数据或停止使用本应用。</li>
+  </ul>
+
+  <h2>五、未成年人</h2>
+  <p>本应用面向家庭中的老人及其监护人。未成年人应在监护人指导下使用。</p>
+
+  <h2>六、协议更新</h2>
+  <p>本协议随应用版本更新。涉及信息处理方式的重大变更时，应用会在启动时重新提示你阅读并确认。</p>
+
+  <h2>七、服务说明与免责</h2>
+  <ul>
+    <li>本应用是<strong>提醒与记录工具，不是医疗器械</strong>，不提供诊断、处方或用药建议。</li>
+    <li>AI 分析内容仅供参考，用药调整请遵医嘱并由监护人决策。</li>
+    <li>药箱到点的声光提醒由设备本地执行；手机断网、应用未运行或设备离线时，通知可能延迟或缺失。</li>
+    <li>请勿将本应用用于紧急医疗救助；如有紧急情况，请立即联系医疗机构。</li>
+  </ul>
+
+  <h2>八、联系我们</h2>
+  <p>如对本协议或个人信息处理有疑问，请联系为你部署药箱的家庭管理员，或通过项目仓库提交问题。</p>
+
+  <p class="note">本页面随安装包本地保存，打开时不会联网，也不会收集你的任何信息。</p>
+</main>
+</body>
+</html>

@@ -48,6 +48,15 @@ pnpm-debug.log*
 .npm/
 .pnpm-store/
 
+# ---------- Android 签名与安装包（P4，签名证书绝不入库） ----------
+# 证书放仓库外（如 ~/.medbox/），口令进团队密码管理器；丢失证书 = 同包名无法覆盖升级
+*.jks
+*.keystore
+*.p12
+medbox-app/certs/
+*.apk
+*.aab
+
 # ---------- 本地配置（不入库，各人填自己的 IP） ----------
 # 见 medbox-spec/01 4.5：入库的 application.yml 不含内网 IP，因人而异的值放本地文件
 medbox-server/src/main/resources/application-local.yml

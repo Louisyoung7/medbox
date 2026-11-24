@@ -44,6 +44,18 @@
       />
     </MbCard>
 
+    <!-- 关于（feat/app-release）：版本号 + 手动检查更新（APK 专属，H5 只展示“联调版”） -->
+    <MbCard title="关于">
+      <MbCell title="当前版本" :value="versionText" />
+      <MbCell
+        title="检查更新"
+        :label="checkingUpdate ? '正在检查…' : '有新版本时提示下载安装包'"
+        arrow
+        clickable
+        @click="onCheckUpdate"
+      />
+    </MbCard>
+
     <view class="profile-actions">
       <MbButton type="ghost" block @click="onLogout">退出登录</MbButton>
     </view>
@@ -101,6 +113,12 @@ import { getMe } from '@/api/auth.js'
 import { CODE } from '@/api/request.js'
 import { deleteAccount, logout } from '@/store/auth.js'
 import { getUserInfo, roleLabel, setUserInfo } from '@/store/user.js'
+import { checkUpdate, promptUpdate } from '@/store/update.js'
+import {
+  formatLocalVersion,
+  getLocalVersion,
+  isAppRuntime,
+} from '@/utils/app-version.js'
 import { needsProfileRefresh, profileFieldText, rolePermissionText } from '@/utils/profile.js'
 
 export default {
@@ -120,6 +138,9 @@ export default {
       password: '',
       deleteError: '',
       deleting: false,
+      // 关于 / 检查更新：版本文本在 onShow 刷新（H5 无安装包版本，显示“联调版”）
+      versionText: '',
+      checkingUpdate: false,
     }
   },
   computed: {
@@ -136,6 +157,9 @@ export default {
     },
   },
   onShow() {
+    this.versionText = isAppRuntime()
+      ? formatLocalVersion(getLocalVersion())
+      : 'H5 联调版'
     const info = getUserInfo()
     this.applyInfo(info)
     // 登录时 getMe 失败会留下缺 name/phone 的半份缓存：缺关键字段才静默补一次
@@ -195,6 +219,35 @@ export default {
      */
     onOpenDevtools() {
       uni.navigateTo({ url: '/pages/devtools/devtools' })
+    },
+
+    /**
+     * 手动检查更新（`feat/app-release`）：结果用 toast 说明，有新版本交给 `store/update` 弹窗。
+     *
+     * <p>H5 联调版没有安装包，直接说明不支持；网络 / 后端失败也不弹更新窗，避免误导。
+     */
+    async onCheckUpdate() {
+      if (this.checkingUpdate) {
+        return
+      }
+      this.checkingUpdate = true
+      uni.showLoading({ title: '检查更新', mask: true })
+      const result = await checkUpdate()
+      uni.hideLoading()
+      this.checkingUpdate = false
+      if (result.status === 'unsupported') {
+        uni.showToast({ title: 'H5 联调版不支持更新', icon: 'none' })
+        return
+      }
+      if (result.status === 'failed') {
+        uni.showToast({ title: '检查更新失败，请检查网络', icon: 'none' })
+        return
+      }
+      if (result.status === 'latest') {
+        uni.showToast({ title: '已是最新版本', icon: 'none' })
+        return
+      }
+      promptUpdate(result.info)
     },
 
     onLogout() {
