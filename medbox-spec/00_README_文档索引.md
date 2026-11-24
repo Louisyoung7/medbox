@@ -22,6 +22,7 @@
 | `contracts/`（**本目录子目录**） | **跨端契约场景（mock 与真后端双跑）**：`README.md` 定义场景格式与占位符，`baseline.mock.json` / `baseline.real.json` 隔离两端种子，`scenarios/core` 必须双跑全绿，`scenarios/mock-only` 放后端未落地场景 | 后端 / 客户端 |
 | `openapi/`（**本目录子目录**） | **REST 接口的 OpenAPI 机器可读版（已覆盖 02a~02h 全部模块 + AI 契约 02i + 客户端版本 02j）**：`common.yaml`（公共组件：统一响应 / 通用错误码响应 / 分页 / X-Request-Id，各分册跨文件 `$ref`）+ `02a-auth-users` `02b-devices` `02c-medicines` `02d-plans` `02e-records` `02f-alarms` `02g-env` `02h-admin` `02i-ai` `02j-app` 共 10 份契约 yaml（经 redocly lint 零告警）+ `api-docs-<模块>.html`（`npx @redocly/cli build-docs` 生成的人类可读 WebUI，可离线分享）+ `swagger-ui.html`（浏览器调试页，`npx serve .` 后访问 `swagger-ui.html?spec=<模块>.yaml`，Try it out 直连真实后端）+ `redocly.yaml`（lint 配置）。**契约（端点 / 字段 / 响应示例 / 错误码）以 YAML 为准**；`02a`~`02h`、`02j` 分册与 `05` 的接口章节只保留判定规则表、边界用例与口径说明（已按此精简），两者不一致即视为缺陷 | 后端 / 客户端 / 全员 |
 | `archive/07` / `archive/08` / `archive/09` | **首轮开发的特性分支清单（已归档，不再追加）**：后端 37 个、客户端 23 个、管理后台设计（`feat/admin-testdata-cleanup`）；查历史分支与依赖关系去归档 | 后端 / 客户端 / Web |
+| `archive/10_APK迁移规划.md` | **APK 迁移（小程序 → APK）阶段记录（已归档）**：P0–P4 决策、分支、测试与发版口径；发版操作以 `medbox-app/README.md` 为准 | 全员 |
 | `archive/CHANGELOG.md` | **历史归档（已冻结，不再追加）**：变更历程以 `git log -- medbox-spec/` 为准 | 全员 |
 | `diagrams/`（**本目录子目录**） | 架构与拓扑图：`backend-architecture.html`（后端架构）、`frontend-architecture.html`（前端组件架构）、`network-topology.html`（网络拓扑，源文件已废弃改用 HTML 维护） | 全员 |
 | `AGENTS.md`（**仓库根**，不在本目录） | **给 AI 助手的工作约定**：目录约定、特性分支流程、开工 pull / 完工同步文档（与代码同 PR）、远程更新 rebase、AI 的提醒义务 | AI 助手 / 全员 |
