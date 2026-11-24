@@ -1,0 +1,85 @@
+openapi: 3.0.3
+info:
+  title: medbox · 客户端版本（02j OpenAPI 版）
+  description: |
+    `medbox-spec/02j_客户端版本.md` 的机器可读版。通用约定见 `common.yaml`。
+    版本信息来自后端配置 `medbox.app.*`，不落库；本接口免登录。
+    APK 静态下载为 `GET /medbox/app/{apkFileName}`（不在 /api/v1 下，不套统一响应体）。
+  version: 1.0.0
+
+servers:
+  - url: http://{host}:8080/medbox/api/v1
+    variables:
+      host: { default: 192.168.1.10 }
+
+security: []
+
+tags:
+  - name: app
+    description: 客户端版本检查（免登录）
+
+paths:
+  /app/version:
+    get:
+      operationId: getAppVersion
+      tags: [app]
+      summary: 客户端版本检查（免登录）
+      description: |
+        比较客户端 versionCode 与后端配置的最新 versionCode：
+        - 不传 versionCode：upToDate=false（App 启动即查最新版）；
+        - versionCode >= latestVersionCode：upToDate=true；
+        - versionCode < latestVersionCode：upToDate=false；
+        - versionCode 为负数 → 40001。
+
+        downloadUrl 优先取配置 `medbox.app.download-url`；留空时按
+        `http://{medbox.host}:{medbox.ports.http}/medbox/app/{apkFileName}` 推导，
+        apkFileName 留空时按 `medbox-{version-name}.apk` 推导。
+      parameters:
+        - name: versionCode
+          in: query
+          required: false
+          description: 客户端当前 versionCode（Android manifest 同口径）
+          schema: { type: integer, minimum: 0 }
+          example: 100
+      responses:
+        '200':
+          description: 版本信息（code=0）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AppVersionResponse'
+        '400':
+          $ref: './common.yaml#/components/responses/BadRequest'
+
+components:
+  schemas:
+    AppVersionResponse:
+      type: object
+      required: [latestVersionName, latestVersionCode, downloadUrl, upToDate]
+      properties:
+        latestVersionName:
+          type: string
+          description: 最新版本名（展示用）
+          example: 1.0.0
+        latestVersionCode:
+          type: integer
+          description: 最新 versionCode（Android manifest 同口径，整数递增）
+          example: 100
+        downloadUrl:
+          type: string
+          description: APK 下载地址（配置覆盖或按后端地址推导）
+          example: http://192.168.1.10:8080/medbox/app/medbox-1.0.0.apk
+        releaseNotes:
+          type: string
+          nullable: true
+          description: 更新说明，未配置时不出现
+          example: 修复若干问题
+        upToDate:
+          type: boolean
+          description: 客户端 versionCode 是否已不低于最新；未传客户端版本时为 false
+          example: false

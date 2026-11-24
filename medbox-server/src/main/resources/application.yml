@@ -92,6 +92,17 @@ medbox:
       cron: "0 0 4 * * *"          # 每日 04:00（6 段：秒 分 时 日 月 周）
       batch-size: 500             # 每轮批量删除上限，防长事务锁表
 
+  # —— 客户端版本检查与 APK 分发（feat/backend-app-support，见文档 02j / 08）——
+  # 发版时改 version-name / version-code 并把 APK 放进 download-dir（或改用对象存储填 download-url）。
+  app:
+    version-name: 1.0.0              # 最新版本名（展示用）
+    version-code: 100                # 最新 versionCode，与 Android manifest 同口径、整数递增
+    apk-file-name: medbox-1.0.0.apk  # 留空时按 medbox-{version-name}.apk 推导
+    # 下载地址完整覆盖；留空时按 http://{medbox.host}:{medbox.ports.http}/medbox/app/{apk-file-name} 推导
+    download-url: ${MEDBOX_APP_DOWNLOAD_URL:}
+    release-notes: ""                # 更新说明，可为空
+    download-dir: ${MEDBOX_APP_DOWNLOAD_DIR:/var/medbox/apk}  # APK 本地静态目录，映射到 /medbox/app/**
+
   # —— 设备注册与事件流水（feat/device-core，见文档 02 第 4 章 / 06 的 2.16）——
   device:
     default-product-key: medbox-box    # 注册请求没填 productKey 时的兜底值；它是 Topic 第 2 层，不能为空

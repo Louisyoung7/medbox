@@ -12,7 +12,7 @@
 | `QUICKSTART.md` | **速览单页**：项目是什么、怎么开工、查东西去哪（新读者只看这一页即可） | 全员 |
 | `00_README_文档索引.md` | 本索引（完整目录与约定） | 全员 |
 | `01_系统架构与产品定义.md` | **统一约定与全局口径**：项目背景与产品定位、药箱物理形态（带锁分层）与工作原理 / 后端极简职责边界、功能范围（4 业务 + 1 底座）、协议分工、角色权限（RBAC + 数据归属）、局域网部署与地址规划（IP/端口规划，本地配置细节见各子项目 README）、关键业务流程串联 | 全员 |
-| `02_REST接口设计.md` | REST **通用约定**（统一响应 / 错误码 / 权限默认规则）、**核心数据模型**、**模块索引**；业务模块接口已拆为 8 个分册：`02a_认证与用户` / `02b_设备管理` / `02c_药品档案` / `02d_服药计划与提醒` / `02e_服药记录与依从性` / `02f_告警` / `02g_环境监测` / `02h_管理员接口`（均在本目录） | 后端 / 客户端 |
+| `02_REST接口设计.md` | REST **通用约定**（统一响应 / 错误码 / 权限默认规则）、**核心数据模型**、**模块索引**；业务模块接口已拆为 9 个分册：`02a_认证与用户` / `02b_设备管理` / `02c_药品档案` / `02d_服药计划与提醒` / `02e_服药记录与依从性` / `02f_告警` / `02g_环境监测` / `02h_管理员接口` / `02j_客户端版本`（均在本目录） | 后端 / 客户端 |
 | `03_设备接入协议_MQTT.md` | EMQX 连接鉴权、Topic 规范、上下行 Payload 示例 | 后端 / 嵌入式 |
 | `04_实时推送协议_WebSocket.md` | 连接鉴权、消息帧结构、推送事件类型 | 后端 / 客户端 |
 | `05_AI大模型与洞察层方案.md` | 大模型接入（洞察层）：分析 / 预测 / 建议接口、LLM 配置（BYOK，监护人代配 Key）；后端不托管大模型、不做 RAG | 后端 |
@@ -20,7 +20,7 @@
 | `07_业务规则.md` | **判定与生成类业务规则**：med_record 服药判定、MISS/ENV 告警判定、REMINDER 提醒生成、漏服/时区/容忍公共口径（库表字段与 DDL 见 `06`） | 后端 |
 | `08_测试体系与CI.md` | **测试分层与 CI 口径**：单元 / Mock / 契约 / 真实依赖集成 / 跨进程 E2E 五层职责与命令；`./gradlew test` 与 `./gradlew infraTest` 的边界；ci-app / ci-server 的 job 编排 | 后端 / 客户端 |
 | `contracts/`（**本目录子目录**） | **跨端契约场景（mock 与真后端双跑）**：`README.md` 定义场景格式与占位符，`baseline.mock.json` / `baseline.real.json` 隔离两端种子，`scenarios/core` 必须双跑全绿，`scenarios/mock-only` 放后端未落地场景 | 后端 / 客户端 |
-| `openapi/`（**本目录子目录**） | **REST 接口的 OpenAPI 机器可读版（已覆盖 02a~02h 全部模块 + AI 契约 02i）**：`common.yaml`（公共组件：统一响应 / 通用错误码响应 / 分页 / X-Request-Id，各分册跨文件 `$ref`）+ `02a-auth-users` `02b-devices` `02c-medicines` `02d-plans` `02e-records` `02f-alarms` `02g-env` `02h-admin` `02i-ai` 共 9 份契约 yaml（经 redocly lint 零告警）+ `api-docs-<模块>.html`（`npx @redocly/cli build-docs` 生成的人类可读 WebUI，可离线分享）+ `swagger-ui.html`（浏览器调试页，`npx serve .` 后访问 `swagger-ui.html?spec=<模块>.yaml`，Try it out 直连真实后端）+ `redocly.yaml`（lint 配置）。**契约（端点 / 字段 / 响应示例 / 错误码）以 YAML 为准**；`02a`~`02h` 分册与 `05` 的接口章节只保留判定规则表、边界用例与口径说明（已按此精简），两者不一致即视为缺陷 | 后端 / 客户端 / 全员 |
+| `openapi/`（**本目录子目录**） | **REST 接口的 OpenAPI 机器可读版（已覆盖 02a~02h 全部模块 + AI 契约 02i + 客户端版本 02j）**：`common.yaml`（公共组件：统一响应 / 通用错误码响应 / 分页 / X-Request-Id，各分册跨文件 `$ref`）+ `02a-auth-users` `02b-devices` `02c-medicines` `02d-plans` `02e-records` `02f-alarms` `02g-env` `02h-admin` `02i-ai` `02j-app` 共 10 份契约 yaml（经 redocly lint 零告警）+ `api-docs-<模块>.html`（`npx @redocly/cli build-docs` 生成的人类可读 WebUI，可离线分享）+ `swagger-ui.html`（浏览器调试页，`npx serve .` 后访问 `swagger-ui.html?spec=<模块>.yaml`，Try it out 直连真实后端）+ `redocly.yaml`（lint 配置）。**契约（端点 / 字段 / 响应示例 / 错误码）以 YAML 为准**；`02a`~`02h`、`02j` 分册与 `05` 的接口章节只保留判定规则表、边界用例与口径说明（已按此精简），两者不一致即视为缺陷 | 后端 / 客户端 / 全员 |
 | `archive/07` / `archive/08` / `archive/09` | **首轮开发的特性分支清单（已归档，不再追加）**：后端 37 个、客户端 23 个、管理后台设计（`feat/admin-testdata-cleanup`）；查历史分支与依赖关系去归档 | 后端 / 客户端 / Web |
 | `archive/CHANGELOG.md` | **历史归档（已冻结，不再追加）**：变更历程以 `git log -- medbox-spec/` 为准 | 全员 |
 | `diagrams/`（**本目录子目录**） | 架构与拓扑图：`backend-architecture.html`（后端架构）、`frontend-architecture.html`（前端组件架构）、`network-topology.html`（网络拓扑，源文件已废弃改用 HTML 维护） | 全员 |

@@ -19,6 +19,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  *        —— {@code DevtoolsController} 的联调辅助端点（feat/backend-devtools）。它们**不要求登录**，因为端点本身由
  *        {@code medbox.devtools.enabled} 门禁控制：该属性为 false 时 {@code DevtoolsController} 根本不装配
  *        （访问即 40401），生产零暴露面；开启即代表「本地开发模式」，再加上登录纯属冗余摩擦。</li>
+ *   <li>{@code /api/v1/app/**} —— 客户端版本检查（feat/backend-app-support）：APK 首次启动、尚未登录时
+ *        就要能查最新版本，故免登录。</li>
  *   <li><b>注意</b>：同前缀的 {@code WsDebugController}（{@code /api/v1/_debug/ws/**}）调试推送端点<b>必须登录</b>——
  *        它要经 {@code AccessService.require(elderId, READ_ALARM)} 做归属校验（越权照样 40301），而该校验依赖
  *        {@code AuthInterceptor} 写入的 {@code AuthContext}。因此不能把整个 {@code /api/v1/_debug/**} 一刀切免登录，
@@ -54,6 +56,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/v1/_debug/seed", "/api/v1/_debug/mqtt/**",
                         "/api/v1/_debug/plan-reminder/trigger",
                         "/api/v1/devices/*/captures",   // 抓拍上传走设备身份 Header，不走用户 JWT
+                        "/api/v1/app/**",               // 版本检查免登录（APK 启动即查）
                         "/actuator/**");
 
         // 限流拦截器：必须排在 AuthInterceptor 之后，AI 洞察维度才能取到其写入的 userId（见 feat/ai-limit）。

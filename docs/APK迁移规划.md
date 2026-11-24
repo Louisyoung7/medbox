@@ -1,6 +1,6 @@
 # APK 迁移规划（小程序 → APK，保留 H5 联调）
 
-> 状态：4 项决策已确认（均按「建议」执行），P0 已合入 main，P1 进行中
+> 状态：4 项决策已确认（均按「建议」执行），P0–P2 已合入 main，P3 进行中
 > 适用范围：`medbox-app/`（原 `medbox-miniapp/`）、`medbox-server/`、`medbox-spec/`、CI 与全部文档
 > 原则：换壳不换业务。后端业务接口与判定逻辑不动。
 
@@ -122,10 +122,10 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 
 目标：支撑 APK 分发与升级。无需求可跳过。
 
-- [ ] `GET /app/version`：versionCode 比对 + 下载地址
-- [ ] APK 静态下载目录或对象存储
-- [ ] H5 独立部署时才加 dev-only CORS（默认不做）
-- [ ] 同步 `02` / `06` / `08`，补集成测试
+- [x] `GET /app/version`：versionCode 比对 + 下载地址
+- [x] APK 静态下载目录或对象存储（`medbox.app.download-dir` 映射 `/app/**`；对象存储填 `download-url`）
+- [x] H5 独立部署时才加 dev-only CORS（默认不做）
+- [x] 同步 `02j` / `06` / `08`，补集成测试
 
 验收：
 
@@ -197,6 +197,6 @@ H5 不对外部署。H5 测不了通知、文件保存等真机能力，相关�
 |---|---|---|---|---|
 | P0 | `docs/app-migration` | 已完成并合入 main（已推送） | 68e4f8c | 纯文档；目录重命名与代码改动在 P1 |
 | P1 | `feat/app-base` | 已完成并合入 main（已推送） | 1f0882a | 目录迁移与小程序耦合清理 |
-| P2 | `feat/app-runtime` | 已完成（待 PR 合入） | — | AI 流式 / 导出 / 回前台补拉 |
-| P3 | `feat/backend-app-support` | 待定 | — | 按需 |
+| P2 | `feat/app-runtime` | 已完成并合入 main（已推送） | 6cdb374 | AI 流式 / 导出 / 回前台补拉 |
+| P3 | `feat/backend-app-support` | 已完成（待 PR 合入） | — | 版本检查 / APK 静态分发 |
 | P4 | `feat/app-release` | 未开始 | — | 依赖 P1、P2 |
