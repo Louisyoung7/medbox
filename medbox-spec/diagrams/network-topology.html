@@ -93,7 +93,6 @@
   .e-http { stroke: #2563eb; }
   .e-ws { stroke: #7c3aed; }
   .e-mqtt { stroke: #ea580c; }
-  .e-wifi { stroke: #0891b2; }
   .e-jdbc { stroke: #16a34a; }
   .e-storage { stroke: #64748b; }
   .e-net { stroke: #dc2626; stroke-dasharray: 7 5; }
@@ -102,7 +101,6 @@
     font-size: 10.5px; fill: #334155; text-anchor: middle;
     paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round;
   }
-  .edash { stroke-dasharray: 3 4; opacity: .7; }
 
   /* dim / highlight states */
   svg.focus .node:not(.active) rect { opacity: .25; }
@@ -145,9 +143,6 @@
         <!-- emqx <-> main (MQTT 1883) -->
         <path class="edge e-mqtt" data-from="emqx" data-to="main"
               d="M430,506 C300,560 260,590 245,620" marker-end="url(#arrow)" />
-        <!-- cam -> main (WiFi) -->
-        <path class="edge e-wifi" data-from="cam" data-to="main"
-              d="M650,662 C560,690 470,690 370,690" marker-end="url(#arrow)" />
         <!-- cam -> backend (HTTP multipart) -->
         <path class="edge e-http" data-from="cam" data-to="backend"
               d="M770,662 C880,640 880,520 720,300 C700,260 660,220 590,200" marker-end="url(#arrow)" />
@@ -163,11 +158,6 @@
         <!-- admin <-> backend (HTTP REST) -->
         <path class="edge e-http" data-from="admin" data-to="backend"
               d="M165,356 C260,360 360,300 470,200" marker-end="url(#arrow)" />
-        <!-- sub-device dashed (no MQTT) -->
-        <path class="edge edash" data-from="th" data-to="main"
-              d="M420,628 C360,640 330,650 320,668" />
-        <path class="edge edash" data-from="lx" data-to="main"
-              d="M420,700 C360,700 330,700 320,700" />
       </g>
 
       <!-- ================= EDGE LABELS ================= -->
@@ -176,13 +166,12 @@
         <text class="elabel" x="360" y="210">REST + WebSocket</text>
         <text class="elabel" x="520" y="350">MQTT 订阅 up/# · 发布 down/#</text>
         <text class="elabel" x="320" y="585">MQTT :1883（匿名 clientId=deviceId）</text>
-        <text class="elabel" x="510" y="700">WiFi 识别结果聚合</text>
-        <text class="elabel" x="850" y="430">HTTP multipart 抓拍图片直传</text>
+        <text class="elabel" x="510" y="700">温湿 / 光照由主控直接上报</text>
+        <text class="elabel" x="850" y="430">HTTP multipart 取药结论直传（仅 UNTAKEN 附图）</text>
         <text class="elabel" x="810" y="190">JDBC :5432</text>
         <text class="elabel" x="845" y="110">HTTPS 出网（大模型 Chat）</text>
         <text class="elabel" x="860" y="500">本地目录 /var/medbox/captures</text>
         <text class="elabel" x="300" y="335" style="font-size:9.5px;fill:#2563eb">HTTP REST（本期仅测试数据清理）</text>
-        <text class="elabel" x="375" y="650" style="font-size:9.5px;fill:#94a3b8">子设备（无 MQTT 连接，主控转发）</text>
       </g>
 
       <!-- ================= NODES ================= -->
@@ -237,22 +226,12 @@
           <rect x="120" y="620" width="250" height="86" rx="10" />
           <text x="245" y="652" text-anchor="middle">药箱主控（单片机）</text>
           <text class="sub" x="245" y="672" text-anchor="middle">MAIN · 唯一 MQTT 连接</text>
-          <text class="sub" x="245" y="690" text-anchor="middle">聚合 / 到点解锁对应格 / 蜂鸣</text>
-        </g>
-        <g class="node n-device" id="th" data-key="th">
-          <rect x="420" y="600" width="190" height="56" rx="10" />
-          <text x="515" y="625" text-anchor="middle">温湿度传感器</text>
-          <text class="sub" x="515" y="643" text-anchor="middle">子设备 · 无 MQTT</text>
-        </g>
-        <g class="node n-device" id="lx" data-key="lx">
-          <rect x="420" y="672" width="190" height="56" rx="10" />
-          <text x="515" y="697" text-anchor="middle">光照传感器</text>
-          <text class="sub" x="515" y="715" text-anchor="middle">子设备 · 无 MQTT</text>
+          <text class="sub" x="245" y="690" text-anchor="middle">到点解锁 / 蜂鸣 / 温湿光直报</text>
         </g>
         <g class="node n-device" id="cam" data-key="cam">
           <rect x="650" y="630" width="240" height="64" rx="10" />
           <text x="770" y="658" text-anchor="middle">摄像头</text>
-          <text class="sub" x="770" y="678" text-anchor="middle">识别推理 + 全量抓拍</text>
+          <text class="sub" x="770" y="678" text-anchor="middle">端侧判定取药结论 + 仅未取药附图</text>
         </g>
       </g>
     </svg>
@@ -264,18 +243,17 @@
     <div class="row"><span class="dot" style="background:var(--backend)"></span> Java 后端</div>
     <div class="row"><span class="dot" style="background:var(--broker)"></span> EMQX 消息中间件</div>
     <div class="row"><span class="dot" style="background:var(--infra)"></span> 后端依赖（DB / 存储）</div>
-    <div class="row"><span class="dot" style="background:var(--device)"></span> 设备 / 子设备</div>
+    <div class="row"><span class="dot" style="background:var(--device)"></span> 设备（药箱主控 / 摄像头）</div>
     <div class="row"><span class="dot" style="background:var(--external)"></span> 公网（出网）</div>
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0" />
     <h3>协议 / 链路</h3>
     <div class="row"><span class="swatch" style="background:#2563eb"></span> HTTP REST / 图片上传</div>
     <div class="row"><span class="swatch" style="background:#7c3aed"></span> WebSocket 推送</div>
     <div class="row"><span class="swatch" style="background:#ea580c"></span> MQTT（EMQX）</div>
-    <div class="row"><span class="swatch" style="background:#0891b2"></span> WiFi（摄像头→单片机）</div>
     <div class="row"><span class="swatch" style="background:#16a34a"></span> JDBC（PostgreSQL）</div>
     <div class="row"><span class="swatch" style="background:#64748b"></span> 本地文件存储</div>
     <div class="row"><span class="swatch" style="background:#dc2626"></span> 出网 HTTPS（虚线）</div>
-    <small>虚线细线 = 子设备无独立连接，由主控经 MQTT 转发。</small>
+    <small>摄像头经 HTTP 直连后端上报取药结论，不经 MQTT、也不经主控聚合。</small>
   </div>
 
   <div class="details" id="details">
@@ -327,27 +305,17 @@
     },
     capture: {
       title: "抓拍图片存储", tag: "infra", tagText: "存储",
-      rows: [["目录","/var/medbox/captures/YYYY-MM-DD/"],["策略","全量抓拍（正常也拍）"],["过期","未读30天 / 已读7天"]],
+      rows: [["目录","/var/medbox/captures/YYYY-MM-DD/"],["策略","仅 UNTAKEN 留证图（TAKEN 不上图）"],["过期","未读30天 / 已读7天"]],
       points: ["读取经短期 fileToken 鉴权","仅老人本人与 ACTIVE 监护人可见"]
     },
     main: {
       title: "药箱主控（单片机）", tag: "device", tagText: "设备",
-      rows: [["类型","MAIN · 唯一 MQTT 客户端"],["clientId","= deviceId（必填）"],["职责","聚合子设备、打时间戳、蜂鸣提醒"]],
-      points: ["摄像头识别结果经 WiFi 交它聚合后上报","传感器心跳每 60s 汇总一次"]
-    },
-    th: {
-      title: "温湿度传感器", tag: "device", tagText: "子设备",
-      rows: [["类型","TEMP_HUMI（子设备）"],["连接","无独立 MQTT，靠主控转发"],["上报","up/telemetry 各发一条字段"]],
-      points: ["在线状态由主控 heartbeat 汇总","离线判定：连续 3 周期(180s)未上报"]
-    },
-    lx: {
-      title: "光照传感器", tag: "device", tagText: "子设备",
-      rows: [["类型","LIGHT（子设备）"],["连接","无独立 MQTT，靠主控转发"],["上报","up/telemetry 带 lux"]],
-      points: ["阈值由老人级 alarm_setting.env_threshold 判定"]
+      rows: [["类型","MAIN · 唯一 MQTT 客户端"],["clientId","= deviceId（必填）"],["职责","到点解锁对应格 / 蜂鸣提醒 / 温湿光遥测直报"]],
+      points: ["温湿度与光照由主控经 up/telemetry 直接上报","在线状态按 MQTT retained status / 遗嘱 + KeepAlive 判定"]
     },
     cam: {
       title: "摄像头", tag: "device", tagText: "设备",
-      rows: [["职责","端侧判定格子是否被取走（取药结论）+ 仅未取药附抓拍原图"],["链路","取药结论→HTTP 直传（UNTAKEN 附原图、TAKEN 不上图）"],["不直连","既不连 EMQX，也不参与判定"]],
+      rows: [["职责","端侧判定格子是否被取走（取药结论）+ 仅未取药附抓拍原图"],["链路","取药结论→HTTP 直传（UNTAKEN 附原图、TAKEN 不上图）"],["不直连","不连 EMQX，也不经主控聚合"]],
       points: ["取药结论走 HTTP multipart，不过单片机","TAKEN 不上图 / UNTAKEN 附原图作留证","后端不运行图像识别（见文档 01 §2.2 / 02b §1.1）"]
     }
   };

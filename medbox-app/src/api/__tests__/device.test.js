@@ -90,3 +90,39 @@ describe('device —— sendDeviceCommand 请求层', () => {
     expect(err.code).toBe(CODE.CONFLICT)
   })
 })
+
+describe('device —— registerDevice 请求层', () => {
+  it('POST /devices/register 带 deviceId/elderId、Bearer 与 X-Request-Id，兑现响应', async () => {
+    const { device } = await loadApi()
+    scripts = [{
+      body: {
+        code: 0,
+        data: { deviceId: 'BOXA-NEW01', elderId: 'u-1001', onlineState: 'OFFLINE' },
+      },
+    }]
+
+    const data = await device.registerDevice({ deviceId: 'BOXA-NEW01', elderId: 'u-1001' })
+
+    expect(data.deviceId).toBe('BOXA-NEW01')
+    expect(data.onlineState).toBe('OFFLINE')
+    expect(sent[0].method).toBe('POST')
+    expect(sent[0].url).toContain('/medbox/api/v1/devices/register')
+    expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
+    expect(sent[0].header['X-Request-Id']).toBeDefined()
+    expect(sent[0].data).toEqual({ deviceId: 'BOXA-NEW01', elderId: 'u-1001' })
+  })
+
+  it('重复登记 40901 兑现 CONFLICT', async () => {
+    const { device, CODE } = await loadApi()
+    scripts = [{ body: { code: 40901, message: '该设备编号已登记' } }]
+    const err = await device.registerDevice({ deviceId: 'BOXA-NEW01', elderId: 'u-1001' }).catch((e) => e)
+    expect(err.code).toBe(CODE.CONFLICT)
+  })
+
+  it('监护关系未生效 40302 兑现 GUARDIAN_PENDING', async () => {
+    const { device, CODE } = await loadApi()
+    scripts = [{ body: { code: 40302, message: '监护关系未生效' } }]
+    const err = await device.registerDevice({ deviceId: 'BOXA-NEW01', elderId: 'u-1001' }).catch((e) => e)
+    expect(err.code).toBe(CODE.GUARDIAN_PENDING)
+  })
+})
