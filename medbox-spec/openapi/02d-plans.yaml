@@ -10,6 +10,8 @@ info:
     2. 漏服容忍时长优先级：`missAlarmAfterMin`（计划级）> `alarm_setting.missTolerateMin`（老人级）> 系统默认 15 分钟，计划级留空即沿用上一级。
 
     **一老人一计划、三个固定格位**：药箱格号 1/2/3 由固件固定对应早/中/晚，计划只用 `slots` 描述「几点开几号格」，**不含药品信息**；同一 `elderId` 至多一个计划（重复创建 40901）。漏服判定以「该格该槽是否有服药记录」为准。
+
+    **手动同步**：`POST /plans/{planId}/sync` 强制重发一次 `UPSERT`，**不去重**（即使已 `SYNCED_TO_DEVICE` 仍真实下发）、**不写 `sync_state`**（状态不闪回 `PENDING`）；状态回执落库后推 `PLAN_SYNC` 帧（见 04）。
   version: 1.0.0
 
 servers:
@@ -22,7 +24,7 @@ security:
 
 tags:
   - name: plans
-    description: 服药计划 CRUD / 启停 / 时间线
+    description: 服药计划 CRUD / 启停 / 手动同步 / 时间线
 
 paths:
   /plans:
@@ -222,6 +224,37 @@ paths:
                         $ref: '#/components/schemas/Plan'
         '400':
           $ref: './common.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: './common.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: './common.yaml#/components/responses/Forbidden'
+        '404':
+          $ref: './common.yaml#/components/responses/NotFound'
+
+  /plans/{planId}/sync:
+    post:
+      operationId: syncPlan
+      tags: [plans]
+      summary: 手动同步计划到设备【鉴权·WRITE_PLAN（仅 GUARDIAN）】
+      description: |
+        - 强制下发一次 down/schedule op=UPSERT；**不去重**：即使当前 syncState 已是 SYNCED_TO_DEVICE 仍真实下发（每次独立 msgId 与回执），供调试 / 演示确认对端确实收到；
+        - **不写 sync_state**：调用后状态保持原值、不闪回 PENDING，只有设备真实 ACK 才翻终态，状态落库后推 PLAN_SYNC 帧（见 04）；
+        - 连点多次均允许；无老人 MAIN 设备 / MQTT 禁用时保持原状态。
+      parameters:
+        - $ref: '#/components/parameters/PlanId'
+        - $ref: './common.yaml#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: 已下发（code=0，data 为计划现状，syncState 保持调用前的值）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './common.yaml#/components/schemas/R'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Plan'
         '401':
           $ref: './common.yaml#/components/responses/Unauthorized'
         '403':

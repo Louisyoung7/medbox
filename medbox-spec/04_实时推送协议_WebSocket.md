@@ -20,7 +20,7 @@
 ## 2. 消息帧结构
 
 ```json
-{ "type":"ALARM|DEVICE_STATUS|REMINDER|AI_STREAM|AI_INSIGHT|PONG|RESYNC",
+{ "type":"ALARM|DEVICE_STATUS|REMINDER|PLAN_SYNC|AI_STREAM|AI_INSIGHT|PONG|RESYNC",
   "id":"evt-9a1c",           // evt- + 单调递增序号的十六进制，用于断线补推
   "topic":"elder:e-1001",
   "ts":1759474520000,        // epoch **毫秒**（与 REST 响应体 R.timestamp 的秒不同）
@@ -40,6 +40,7 @@
 | AI_STREAM | AI 流式回答分片（**本期不使用**：按需洞察的流式统一走 HTTP SSE，见文档 05 第 2.2 章） | sessionId, delta |
 | AI_INSIGHT | 周期洞察推送（系统定时生成的 COMPREHENSIVE 洞察，详见文档 05 第 2.3 章） | insightId, elderId, type, content, citations, disclaimer |
 | RESYNC | 补推窗口已过期，客户端应改走 REST 拉全量 | `reason=WINDOW_EXPIRED`、`latestEventId` |
+| PLAN_SYNC | 服药计划同步状态在设备回执结算后落库（含手动同步触发的回执） | planId, elderId, syncState（`SYNCED_TO_DEVICE` / `SYNC_FAILED`） |
 
 > **DEVICE_STATUS 只覆盖主控**：药箱离线/上线各推一条，不再有传感器子设备状态帧（`deviceType` / `parentDeviceId` 字段已删除）。
 
@@ -61,3 +62,12 @@
 **REMINDER 生成规则**：后端定时扫描（默认 60s）取 `status='ENABLED' AND sync_state <> 'SYNC_FAILED'` 的计划，按设备本地时区在 `[now, now + lead-time-minutes]`（默认 10min）窗口展开"未来"服药槽，推 `REMINDER` 帧到 `elder:{elderId}`。设备本地声光提醒为主、云端 WS 为监护端兜底（默认不要求设备在线）。两道拦截：① 该槽已有 `med_record`（已服）跳过；② 去重表 `plan_reminder`（`dedup_key = REMINDER:{planId}:{cellNo}:{slotUTC}`）已存在则跳过。`REMINDER` 不是告警，不进 `alarm` 列表。
 
 **DEVICE_STATUS 推送规则**：触发点是 MQTT 侧的在线状态跃变（status / 遗嘱），推到 `elder:{elderId}` 主题（归属老人从 `device.elder_id` 取），不扩展 `device:` 主题。只在状态真的变了才推（主控每 60s 有心跳，每次上行都推会把客户端刷爆）；设备未登记（无归属老人）时无主题可推，静默跳过；`medbox.ws.enabled=false` 时推送静默跳过，不影响上行链路。
+
+**PLAN_SYNC 推送规则**：触发点是设备 `up/ack` 结算后 `med_plan.sync_state` 落库（回执 `OK` → `SYNCED_TO_DEVICE`，`FAILED` / 重试耗尽 → `SYNC_FAILED`），推到 `elder:{elderId}` 主题。手动同步 `POST /plans/{planId}/sync`（见 `02d`）走同一回执链路，故同样会推；该接口不写 `sync_state`，状态不闪回 `PENDING`、只有真实 ACK 才翻终态，无 MAIN 设备 / MQTT 禁用时状态保持原值、不推。客户端收到后按 `planId` 局部更新列表项的 `syncState`，不整页重拉。`medbox.ws.enabled=false` 时静默跳过，不影响计划同步链路。
+
+**示例：推送计划同步状态**
+```json
+{ "type":"PLAN_SYNC","id":"evt-9a1e","topic":"elder:e-1001",
+  "ts":1759474600000,
+  "payload":{ "planId":"p-3301","elderId":"u-1001","syncState":"SYNCED_TO_DEVICE" } }
+```
