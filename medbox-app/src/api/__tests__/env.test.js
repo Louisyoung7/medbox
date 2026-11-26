@@ -45,15 +45,15 @@ async function loadApi({ token = 'TOKEN' } = {}) {
 }
 
 describe('env —— getEnvRealtime 请求层（feat/mp-env）', () => {
-  it('GET /env/realtime 带 deviceId(必填) 与 sensorId(可选)、Bearer，无 X-Request-Id', async () => {
+  it('GET /env/realtime 带 deviceId(必填)、Bearer，无 X-Request-Id', async () => {
     const { env } = await loadApi()
     scripts = [{ body: { code: 0, data: { temperature: 22, humidity: 55, lux: 300, sampleTime: '2026-10-30T01:00:00Z' } } }]
-    const data = await env.getEnvRealtime('BOXA1001', { sensorId: 'BOXA1001-S-TH01' })
+    const data = await env.getEnvRealtime('BOXA1001')
     expect(data.temperature).toBe(22)
     expect(sent[0].method).toBe('GET')
     expect(sent[0].url).toContain('/medbox/api/v1/env/realtime')
     expect(sent[0].url).toContain('deviceId=BOXA1001')
-    expect(sent[0].url).toContain('sensorId=BOXA1001-S-TH01')
+    expect(sent[0].url).not.toContain('sensorId')
     expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
     expect(sent[0].header['X-Request-Id']).toBeUndefined()
   })

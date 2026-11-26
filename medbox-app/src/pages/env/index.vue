@@ -42,15 +42,6 @@
         <view class="filter-row">
           <view class="seg">
             <text
-              v-for="s in SENSORS"
-              :key="s.value"
-              class="seg__item"
-              :class="{ 'seg__item--on': sensorFilter === s.value }"
-              @click="onSensor(s.value)"
-            >{{ s.label }}</text>
-          </view>
-          <view class="seg">
-            <text
               v-for="i in INTERVALS"
               :key="i.value"
               class="seg__item"
@@ -122,7 +113,6 @@ export default {
       threshold: null,
       // 历史筛选
       rangeDays: 7,
-      sensorFilter: 'ALL',
       interval: 0,
       history: [],
       historyError: '',
@@ -130,11 +120,6 @@ export default {
         { label: '近1天', value: 1 },
         { label: '近7天', value: 7 },
         { label: '近30天', value: 30 },
-      ],
-      SENSORS: [
-        { label: '全部', value: 'ALL' },
-        { label: '温湿度', value: 'TEMP_HUMI' },
-        { label: '光照', value: 'LIGHT' },
       ],
       INTERVALS: [
         { label: '原始', value: 0 },
@@ -170,10 +155,8 @@ export default {
         }
       })
     },
-    // 当前传感器筛选下要绘制的指标
+    // 药箱直接上报温湿度与光照，图表固定绘制三项
     chartMetrics() {
-      if (this.sensorFilter === 'TEMP_HUMI') return ['temperature', 'humidity']
-      if (this.sensorFilter === 'LIGHT') return ['lux']
       return ['temperature', 'humidity', 'lux']
     },
   },
@@ -196,7 +179,7 @@ export default {
       this.loading = true
       this.loadError = ''
       try {
-        // 先取设备（拿到 elderId + 传感器列表），再并发实时 + 阈值
+        // 先取设备（拿到 elderId），再并发实时 + 阈值
         this.device = await getDevice(this.deviceId)
         this.elderId = this.device.elderId || ''
         await Promise.all([this.loadRealtime(), this.loadThreshold()])
@@ -235,10 +218,8 @@ export default {
       this.historyError = ''
       const to = new Date()
       const from = new Date(to.getTime() - this.rangeDays * 86400000)
-      const sensorId = this.buildSensorId()
       try {
         const data = await getEnvHistory(this.deviceId, {
-          sensorId,
           from: from.toISOString(),
           to: to.toISOString(),
           interval: this.interval || undefined,
@@ -254,19 +235,8 @@ export default {
               : '历史数据加载失败'
       }
     },
-    buildSensorId() {
-      if (this.sensorFilter === 'ALL') return undefined
-      const sensor = (this.device.sensors || []).find(
-        (s) => s.deviceType === this.sensorFilter,
-      )
-      return sensor ? sensor.deviceId : undefined
-    },
     onRange(v) {
       this.rangeDays = v
-      this.loadHistory()
-    },
-    onSensor(v) {
-      this.sensorFilter = v
       this.loadHistory()
     },
     onInterval(v) {

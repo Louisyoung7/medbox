@@ -42,42 +42,17 @@ function createSeed() {
     { relationId: 'gr-4', guardianId: 'u-2003', elderId: 'u-1001', status: 'REVOKED', createdAt: isoOffset(-10 * DAY) },
   ]
 
-  // 设备（06 的 2.3）：MAIN 主控 + 传感器子设备；子设备 elderId 与父一致
+  // 设备（06 的 2.3）：系统只建模药箱主控一种设备，不再有传感器子设备记录
   const devices = [
     {
-      deviceId: 'BOXA1001', deviceType: 'MAIN', elderId: 'u-1001',
+      deviceId: 'BOXA1001', elderId: 'u-1001',
       productKey: 'medbox-box', timezone: 'Asia/Shanghai',
       onlineState: 'ONLINE', lastHeartbeat: isoOffset(-2 * MINUTE),
       createdAt: isoOffset(-30 * DAY),
     },
     {
-      deviceId: 'BOXA1001-S-TH01', deviceType: 'TEMP_HUMI', parentDeviceId: 'BOXA1001', elderId: 'u-1001',
-      onlineState: 'ONLINE', lastHeartbeat: isoOffset(-2 * MINUTE),
-      createdAt: isoOffset(-30 * DAY),
-    },
-    {
-      deviceId: 'BOXA1001-S-LGT01', deviceType: 'LIGHT', parentDeviceId: 'BOXA1001', elderId: 'u-1001',
-      onlineState: 'OFFLINE', lastHeartbeat: isoOffset(-3 * HOUR),
-      createdAt: isoOffset(-30 * DAY),
-    },
-    {
-      deviceId: 'BOXA1001-S-CAM01', deviceType: 'CAMERA', parentDeviceId: 'BOXA1001', elderId: 'u-1001',
-      onlineState: 'ONLINE', lastHeartbeat: isoOffset(-2 * MINUTE),
-      createdAt: isoOffset(-30 * DAY),
-    },
-    {
-      deviceId: 'BOXA1002', deviceType: 'MAIN', elderId: 'u-1002',
+      deviceId: 'BOXA1002', elderId: 'u-1002',
       productKey: 'medbox-box', timezone: 'Asia/Shanghai',
-      onlineState: 'OFFLINE', lastHeartbeat: isoOffset(-3 * HOUR),
-      createdAt: isoOffset(-20 * DAY),
-    },
-    {
-      deviceId: 'BOXA1002-S-TH01', deviceType: 'TEMP_HUMI', parentDeviceId: 'BOXA1002', elderId: 'u-1002',
-      onlineState: 'OFFLINE', lastHeartbeat: isoOffset(-3 * HOUR),
-      createdAt: isoOffset(-20 * DAY),
-    },
-    {
-      deviceId: 'BOXA1002-S-CAM01', deviceType: 'CAMERA', parentDeviceId: 'BOXA1002', elderId: 'u-1002',
       onlineState: 'OFFLINE', lastHeartbeat: isoOffset(-3 * HOUR),
       createdAt: isoOffset(-20 * DAY),
     },
@@ -89,9 +64,7 @@ function createSeed() {
   // up/event/error，Mock 不接 EMQX，只给样例；命令下发（POST /commands）会即时追加一条 COMMAND 事件。
   const events = []
   // 每台 MAIN 主控：登记 + 上线/离线（用 lastHeartbeat 作时间，与设备状态一致）
-  devices
-    .filter((d) => d.deviceType === 'MAIN')
-    .forEach((d) => {
+  devices.forEach((d) => {
       events.push({ eventId: `ev-${d.deviceId}-reg`, deviceId: d.deviceId, eventType: 'REGISTERED', detail: null, createdAt: d.createdAt })
       events.push({
         eventId: `ev-${d.deviceId}-ol`,
@@ -231,27 +204,27 @@ function createSeed() {
   // 关联 rec-9005（u-1002）的可视原图。
   const captures = [
     {
-      captureId: 'cap-5001', deviceId: 'BOXA1002-S-CAM01', elderId: 'u-1002',
+      captureId: 'cap-5001', deviceId: 'BOXA1002', elderId: 'u-1002',
       cellNo: 1, planId: 'p-3303', reason: 'NORMAL',
       mime: 'image/png', sizeBytes: 48213, takenResult: 'UNTAKEN',
       capturedAt: isoOffset(-1 * DAY - 8 * HOUR), viewedAt: null, expireAt: isoOffset(29 * DAY),
     },
     {
       // 监护人主动留证（异常排查）：reason=MANUAL，可不带格号
-      captureId: 'cap-5002', deviceId: 'BOXA1002-S-CAM01', elderId: 'u-1002',
+      captureId: 'cap-5002', deviceId: 'BOXA1002', elderId: 'u-1002',
       cellNo: null, planId: '', reason: 'MANUAL',
       mime: 'image/png', sizeBytes: 39120, takenResult: '',
       capturedAt: isoOffset(-3 * DAY), viewedAt: null, expireAt: isoOffset(27 * DAY),
     },
     {
-      captureId: 'cap-5003', deviceId: 'BOXA1001-S-CAM01', elderId: 'u-1001',
+      captureId: 'cap-5003', deviceId: 'BOXA1001', elderId: 'u-1001',
       cellNo: 2, planId: 'p-3301', reason: 'NORMAL',
       mime: 'image/jpeg', sizeBytes: 51234, takenResult: 'UNTAKEN',
       capturedAt: isoOffset(-2 * DAY), viewedAt: null, expireAt: isoOffset(28 * DAY),
     },
     {
       // 已过期样例：expireAt 已在过去，/file 返回 404/401，前端提示"原图已过期"
-      captureId: 'cap-5004', deviceId: 'BOXA1001-S-CAM01', elderId: 'u-1001',
+      captureId: 'cap-5004', deviceId: 'BOXA1001', elderId: 'u-1001',
       cellNo: null, planId: '', reason: 'MANUAL',
       mime: 'image/png', sizeBytes: 12030, takenResult: '',
       capturedAt: isoOffset(-40 * DAY), viewedAt: null, expireAt: isoOffset(-10 * DAY),
@@ -313,12 +286,11 @@ function createSeed() {
 }
 
 /**
- * 环境遥测种子（06 的 2.8 env_sample；feat/mp-env 联调用）：给 BOXA1001 的温湿度
- * （BOXA1001-S-TH01）与光照（BOXA1001-S-LGT01）子设备生成近 30 天、每小时一条的样本，
- * 温湿度随昼夜正弦波动、光照白天有值夜间为 0，使实时读数 / 历史曲线可读。真实 env-core 按
- * MQTT 上报入库（env-core 已落地），Mock 不接 EMQX，只给样例（仅演示用途）。
+ * 环境遥测种子（06 的 2.8 env_sample；feat/mp-env 联调用）：给主控 BOXA1001 生成
+ * 近 30 天、每小时一条的温湿度与光照样本，温湿度随昼夜正弦波动、光照白天有值夜间为 0，
+ * 使实时读数 / 历史曲线可读。真实 env-core 按 MQTT 上报入库，Mock 不接 EMQX，只给样例。
  *
- * @returns {Array} env_sample 行（device_id=传感器自身、gateway_device_id=主控）
+ * @returns {Array} env_sample 行（device_id=药箱主控）
  */
 function seedEnvSamples() {
   const HOUR = 60 * 60 * 1000
@@ -334,8 +306,7 @@ function seedEnvSamples() {
     const humidity = Number((50 + phase * 10 + (Math.random() - 0.5) * 5).toFixed(2))
     samples.push({
       sampleId: `es-th-${i}`,
-      deviceId: 'BOXA1001-S-TH01',
-      gatewayDeviceId: 'BOXA1001',
+      deviceId: 'BOXA1001',
       elderId: 'u-1001',
       temperature,
       humidity,
@@ -348,8 +319,7 @@ function seedEnvSamples() {
         : 0
     samples.push({
       sampleId: `es-lgt-${i}`,
-      deviceId: 'BOXA1001-S-LGT01',
-      gatewayDeviceId: 'BOXA1001',
+      deviceId: 'BOXA1001',
       elderId: 'u-1001',
       temperature: null,
       humidity: null,

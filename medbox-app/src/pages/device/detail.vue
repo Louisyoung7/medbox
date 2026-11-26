@@ -7,7 +7,6 @@
     <template v-else-if="device">
       <MbCard title="设备档案">
         <MbCell title="设备编号" :value="device.deviceId" />
-        <MbCell title="设备类型" :value="deviceTypeLabel(device.deviceType)" />
         <MbCell title="产品 Key" :value="device.productKey || '-'" />
         <MbCell title="时区" :value="device.timezone || '-'" />
         <MbCell title="登记时间" :value="formatDateTime(device.createdAt)" />
@@ -25,24 +24,6 @@
           title="最后心跳"
           :value="device.lastHeartbeat ? formatRelative(device.lastHeartbeat) : '从未上线'"
         />
-      </MbCard>
-
-      <MbCard title="传感器子设备">
-        <template v-if="sensors.length">
-          <MbCell
-            v-for="sensor in sensors"
-            :key="sensor.deviceId"
-            :title="sensor.deviceId"
-            :label="deviceTypeLabel(sensor.deviceType)"
-          >
-            <template #extra>
-              <text class="state" :class="sensor.onlineState === 'ONLINE' ? 'state--on' : 'state--off'">
-                {{ sensor.onlineState === 'ONLINE' ? '在线' : '离线' }}
-              </text>
-            </template>
-          </MbCell>
-        </template>
-        <MbEmpty v-else text="暂无传感器" />
       </MbCard>
 
       <MbCard title="环境监测">
@@ -99,7 +80,6 @@ import RoleGate from '@/components/RoleGate.vue'
 import { getDevice, getDeviceEvents, sendDeviceCommand } from '@/api/device.js'
 import { CODE } from '@/api/request.js'
 import { onEvent, onResync, WS_EVENT } from '@/store/ws.js'
-import { deviceTypeLabel } from '@/utils/ws-frame.js'
 import { applyStatus } from '@/utils/device-status.js'
 import { CMD_LIST, cmdLabel, commandStateLabel, parseEventsPage, toEventView } from '@/utils/device.js'
 import { formatDateTime, formatRelative } from '@/utils/datetime.js'
@@ -125,9 +105,6 @@ export default {
     }
   },
   computed: {
-    sensors() {
-      return (this.device && this.device.sensors) || []
-    },
     // 命令枚举（蜂鸣/解锁/校准/重启），供卡片渲染
     CMD_LIST() {
       return CMD_LIST
@@ -145,7 +122,6 @@ export default {
     if (this.offResync) this.offResync()
   },
   methods: {
-    deviceTypeLabel,
     formatDateTime,
     formatRelative,
     cmdLabel,
@@ -160,7 +136,7 @@ export default {
       try {
         this.device = await getDevice(this.deviceId)
       } catch (err) {
-        // 不存在 / 他人设备 / 传了子设备编号，后端一律 40301（不返回 40401）
+        // 不存在 / 他人设备，后端一律 40301（不返回 40401）
         this.error = err && err.code === CODE.FORBIDDEN ? '无权访问或设备不存在' : (err && err.message) || '加载失败'
       } finally {
         this.loading = false
@@ -171,8 +147,6 @@ export default {
       const payload = (frame && frame.payload) || {}
       if (payload.deviceId === this.device.deviceId) {
         this.device = applyStatus(this.device, frame)
-      } else {
-        this.device = { ...this.device, sensors: applyStatus(this.device.sensors || [], frame) }
       }
     },
     handleResync() {

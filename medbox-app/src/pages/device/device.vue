@@ -2,8 +2,19 @@
   <view class="page">
     <view class="head">
       <text class="head__title">我的设备</text>
-      <text class="head__sub">药箱主控与温湿度 / 光照 / 摄像头子设备</text>
+      <text class="head__sub">药箱主控（设备自生成 ID，监护人登记）</text>
     </view>
+
+    <MbCard v-if="isGuardian" title="登记药箱">
+      <view class="form-row">
+        <input v-model="newDeviceId" class="form-input" placeholder="设备自生成 ID（如 BOXA1001）" />
+      </view>
+      <view class="form-row">
+        <input v-model="newElderId" class="form-input" placeholder="老人用户 ID" />
+      </view>
+      <MbButton type="primary" size="small" :loading="registering" @click="onRegister">登记设备</MbButton>
+      <text v-if="registerHint" class="register-hint">{{ registerHint }}</text>
+    </MbCard>
 
     <MbLoading v-if="loading" fullscreen text="加载中" />
 
@@ -42,16 +53,16 @@ import MbEmpty from '@/components/MbEmpty.vue'
 import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import MbDrawer from '@/components/MbDrawer.vue'
-import { listDevices } from '@/api/device.js'
+import MbButton from '@/components/MbButton.vue'
+import { listDevices, registerDevice } from '@/api/device.js'
 import { connect, onEvent, onResync, WS_EVENT } from '@/store/ws.js'
 import { getRole, ROLE } from '@/store/user.js'
-import { deviceTypeLabel } from '@/utils/ws-frame.js'
 import { applyStatus } from '@/utils/device-status.js'
 import { formatRelative } from '@/utils/datetime.js'
 
 export default {
   name: 'DevicePage',
-  components: { MbCard, MbCell, MbEmpty, MbLoading, MbTabBar, MbDrawer },
+  components: { MbCard, MbCell, MbEmpty, MbLoading, MbTabBar, MbDrawer, MbButton },
   data() {
     return {
       devices: [],
@@ -59,7 +70,16 @@ export default {
       error: '',
       offStatus: null,
       offResync: null,
+      newDeviceId: '',
+      newElderId: '',
+      registering: false,
+      registerHint: '',
     }
+  },
+  computed: {
+    isGuardian() {
+      return getRole() === ROLE.GUARDIAN
+    },
   },
   onLoad() {
     this.offStatus = onEvent(WS_EVENT.DEVICE_STATUS, this.onDeviceStatus)
@@ -99,9 +119,28 @@ export default {
       this.load()
     },
     deviceLabel(device) {
-      const parts = [`${deviceTypeLabel(device.deviceType)} · ${device.sensorCount} 个传感器`]
+      const parts = [device.elderId ? `老人 ${device.elderId}` : '药箱主控']
       if (device.lastHeartbeat) parts.push(`心跳 ${formatRelative(device.lastHeartbeat)}`)
       return parts.join(' · ')
+    },
+    async onRegister() {
+      if (!this.newDeviceId.trim() || !this.newElderId.trim()) {
+        this.registerHint = '请填写设备 ID 和老人用户 ID'
+        return
+      }
+      this.registering = true
+      this.registerHint = ''
+      try {
+        await registerDevice({ deviceId: this.newDeviceId.trim(), elderId: this.newElderId.trim() })
+        this.registerHint = '登记成功，设备初始为离线'
+        this.newDeviceId = ''
+        this.newElderId = ''
+        await this.load()
+      } catch (err) {
+        this.registerHint = err && err.code === 40901 ? '该设备编号已登记' : (err && err.message) || '登记失败'
+      } finally {
+        this.registering = false
+      }
     },
     goDetail(device) {
       uni.navigateTo({ url: `/pages/device/detail?deviceId=${encodeURIComponent(device.deviceId)}` })
@@ -133,6 +172,28 @@ export default {
     font-size: 26rpx;
     color: $mb-text-3;
   }
+}
+
+.form-row {
+  margin-bottom: 16rpx;
+}
+
+.form-input {
+  width: 100%;
+  padding: 16rpx 20rpx;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1rpx solid $mb-border;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  color: $mb-text;
+}
+
+.register-hint {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: $mb-text-3;
 }
 
 .status {

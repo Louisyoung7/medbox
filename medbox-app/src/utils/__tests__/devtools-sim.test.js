@@ -11,8 +11,8 @@ import {
 } from '@/utils/devtools-sim.js'
 
 describe('SIM_EVENT_PRESETS（固定药格模型：服药报文带 cellNo）', () => {
-  it('预设 5 项，MQTT 预设全部仅记日志', () => {
-    expect(SIM_EVENT_PRESETS).toHaveLength(5)
+  it('预设 4 项，MQTT 预设全部仅记日志', () => {
+    expect(SIM_EVENT_PRESETS).toHaveLength(4)
     expect(SIM_EVENT_PRESETS.every((p) => p.effect === 'log')).toBe(true)
   })
   it('服药预设只带 cellNo + takenResult，不含药品 / 剂量 / 计划项', () => {
@@ -57,7 +57,8 @@ describe('buildSimRequest / buildSimPayload', () => {
     expect(req.slotDate).toBe('')
     // msgId 每次调用自增，故只校验形态而不比较两次调用的整串
     const payload = JSON.parse(buildSimPayload('telemetry', SIM_DEFAULT_DEVICE_ID))
-    expect(payload.sensorId).toBe('BOXA-DEBUG-01-S-TH01')
+    expect(payload.sensorId).toBeUndefined()
+    expect(payload.temperature).toBe(24.6)
     expect(payload.msgId).toMatch(/^BOXA-DEBUG-01-\d{10}$/)
     expect(payload.cellNo).toBeUndefined()
   })

@@ -104,9 +104,11 @@ async function waitReady() {
     const devices = await call('GET', '/devices', { token: gw.token })
     check('监护人可见 2 台主控', devices.code === 0 && devices.data.length === 2)
     const detail = await call('GET', '/devices/BOXA1001', { token: gw.token })
-    check('详情含 3 个传感器', detail.code === 0 && detail.data.sensors.length === 3 && detail.data.sensorCount === 3)
+    check('设备详情 200 且无子设备数组', detail.code === 0 && detail.data.deviceId === 'BOXA1001' && !detail.data.sensors && !detail.data.sensorCount)
     check('他人/不存在设备 40301', (await call('GET', '/devices/BOXA9999', { token: gw.token })).code === 40301)
-    check('子设备编号 40301', (await call('GET', '/devices/BOXA1001-S-CAM01', { token: gw.token })).code === 40301)
+    const deviceReg = await call('POST', '/devices/register', { token: gw.token, body: { deviceId: 'BOXA-NEW01', elderId: 'u-1001' } })
+    check('监护人登记自生成 ID 的设备 → 200 且初始离线', deviceReg.code === 0 && deviceReg.data.onlineState === 'OFFLINE')
+    check('重复登记 → 40901', (await call('POST', '/devices/register', { token: gw.token, body: { deviceId: 'BOXA-NEW01', elderId: 'u-1001' } })).code === 40901)
     const revokedDevices = await call('GET', '/devices', { token: revoked.token })
     check('REVOKED 关系看不到设备', revokedDevices.code === 0 && revokedDevices.data.length === 0)
     const pendingDevice = await call('GET', '/devices/BOXA1001', { token: pending.token })
@@ -119,7 +121,6 @@ async function waitReady() {
     check('离线设备下发 40901', (await call('POST', '/devices/BOXA1002/commands', { token: gw.token, body: { cmd: 'BUZZ' } })).code === 40901)
     check('老人（无 WRITE_DEVICE）下发 40301', (await call('POST', '/devices/BOXA1001/commands', { token: elder.token, body: { cmd: 'BUZZ' } })).code === 40301)
     check('非法 cmd 40001', (await call('POST', '/devices/BOXA1001/commands', { token: gw.token, body: { cmd: 'FLY' } })).code === 40001)
-    check('子设备编号下发 40301', (await call('POST', '/devices/BOXA1001-S-CAM01/commands', { token: gw.token, body: { cmd: 'BUZZ' } })).code === 40301)
     check('未登录下发 40101', (await call('POST', '/devices/BOXA1001/commands', { body: { cmd: 'BUZZ' } })).code === 40101)
     // 事件流水：倒序分页；FAULT/COMMAND 由 device-fault/device-command 续写（Mock 已播种 + 刚下发产生 COMMAND）
     const events = await call('GET', '/devices/BOXA1001/events', { token: gw.token })
@@ -131,7 +132,6 @@ async function waitReady() {
     check('分页 size=2 返回 2 条且倒序', page2.code === 0 && page2.data.list.length === 2 && page2.data.list[0].createdAt >= page2.data.list[1].createdAt)
     check('page=0 → 40001', (await call('GET', '/devices/BOXA1001/events?page=0', { token: gw.token })).code === 40001)
     check('老人可读事件（READ_DEVICE 双方）', (await call('GET', '/devices/BOXA1001/events', { token: elder.token })).code === 0)
-    check('子设备编号事件 40301', (await call('GET', '/devices/BOXA1001-S-CAM01/events', { token: gw.token })).code === 40301)
 
     console.log('== 告警（02 第 8 章；feat/mp-alarm；alarm-core 已落地，Mock 先行） ==')
     // 列表分页（u-1001 种子 3 条：2 未读 + 1 已读；WRONG_DRUG 类告警已随后端删除，本期不播）
@@ -285,13 +285,8 @@ async function waitReady() {
     // 实时：合并温湿度（TEMP_HUMI）+ 光照（LIGHT）
     const rt = await call('GET', '/env/realtime?deviceId=BOXA1001', { token: gw.token })
     check('GET /env/realtime 200 且三项数值 + sampleTime', rt.code === 0 && typeof rt.data.temperature === 'number' && typeof rt.data.humidity === 'number' && typeof rt.data.lux === 'number' && typeof rt.data.sampleTime === 'string')
-    const rtTh = await call('GET', '/env/realtime?deviceId=BOXA1001&sensorId=BOXA1001-S-TH01', { token: gw.token })
-    check('按温湿度传感器：temp/humidity 数值、lux 为 null', rtTh.code === 0 && typeof rtTh.data.temperature === 'number' && typeof rtTh.data.humidity === 'number' && rtTh.data.lux === null)
-    const rtLgt = await call('GET', '/env/realtime?deviceId=BOXA1001&sensorId=BOXA1001-S-LGT01', { token: gw.token })
-    check('按光照传感器：lux 数值、temp/humidity 为 null', rtLgt.code === 0 && typeof rtLgt.data.lux === 'number' && rtLgt.data.temperature === null && rtLgt.data.humidity === null)
     check('实时缺 deviceId → 40001', (await call('GET', '/env/realtime', { token: gw.token })).code === 40001)
     check('实时未知设备 → 40301', (await call('GET', '/env/realtime?deviceId=BOXA9999', { token: gw.token })).code === 40301)
-    check('实时子设备编号作 deviceId → 40301', (await call('GET', '/env/realtime?deviceId=BOXA1001-S-CAM01', { token: gw.token })).code === 40301)
     check('实时未登录 → 40101', (await call('GET', '/env/realtime?deviceId=BOXA1001')).code === 40101)
     check('老人读实时 200（READ_ENV 全角色）', (await call('GET', '/env/realtime?deviceId=BOXA1001', { token: elder.token })).code === 0)
     // 历史：近 7 天原始
@@ -303,9 +298,6 @@ async function waitReady() {
     const histB = await call('GET', `/env/history?deviceId=BOXA1001&from=${from7}&to=${toNow}&interval=60`, { token: gw.token })
     check('分桶(1h) 点数 < 原始 且 三项全为数值（avg 忽略 null）', histB.code === 0 && Array.isArray(histB.data.points) && histB.data.points.length > 0 && histB.data.points.length < hist.data.points.length && histB.data.points.every((p) => typeof p.temperature === 'number' && typeof p.humidity === 'number' && typeof p.lux === 'number'))
     check('分桶 sampleTime 升序', histB.data.points.every((p, i) => i === 0 || histB.data.points[i - 1].sampleTime <= p.sampleTime))
-    // 历史按传感器：光照
-    const histLgt = await call('GET', `/env/history?deviceId=BOXA1001&sensorId=BOXA1001-S-LGT01&from=${from7}&to=${toNow}`, { token: gw.token })
-    check('按光照传感器：lux 数值、temp/humidity 为 null', histLgt.code === 0 && histLgt.data.points.every((p) => typeof p.lux === 'number' && p.temperature == null && p.humidity == null))
     // 历史校验分支
     check('历史缺 from → 40001', (await call('GET', `/env/history?deviceId=BOXA1001&to=${toNow}`, { token: gw.token })).code === 40001)
     check('历史 from>to → 40001', (await call('GET', `/env/history?deviceId=BOXA1001&from=${toNow}&to=${from7}`, { token: gw.token })).code === 40001)

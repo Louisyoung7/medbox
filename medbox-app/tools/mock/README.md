@@ -32,7 +32,7 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）+ 契约（mo
 
 - `GET /app/version`（免登录；`versionCode` 缺失按无法比较回 `upToDate=false`，负数/非整数 → **40001**；最新版本默认 1.0.0 / 100，可用 `MOCK_APP_VERSION_CODE=999 npm run mock` 模拟"有新版本"触发客户端弹窗）
 - `POST /auth/login`、`POST /auth/register`、`POST /auth/refresh`（轮换）、`GET /users/me`、`POST /users/me/delete`、`GET /users/{elderId}/profile`（老人基础信息，`feat/mp-profile`：本人或 ACTIVE 监护人可见；PENDING→40302；无关系/REVOKED/目标非老人→40301 防枚举；响应同 `/users/me`，`username` 选填省略）
-- `GET /devices`、`GET /devices/{id}`（含 `sensors[]`）
+- `POST /devices/register`（监护人登记设备自生成 ID）、`GET /devices`、`GET /devices/{id}`（无子设备数组）
 - `GET /devices/{id}/events`（事件流水：分页、按 `created_at` 倒序、`page`/`size` < 1 → **40001**；`detail` 对 FAULT 为故障码、对 COMMAND 为 `{commandId,cmd,state}`，`feat/mp-device-extra`：`REGISTERED`/`ONLINE`/`OFFLINE` 由 device-core 播种，`FAULT`/`COMMAND` 由 device-fault/device-command 续写，Mock 已播种样例）
 - `POST /devices/{id}/commands`（下发控制命令：异步受理回 `{commandId,state:PENDING}`，`cmd` ∈ `BUZZ`/`UNLOCK`/`CALIBRATE`/`REBOOT`；设备离线 → **40901**；`cmd` 非法 → **40001**；仅监护人（WRITE_DEVICE 仅 GUARDIAN）→ **40301**；子设备编号 → **40301**；Mock 同步落一条 COMMAND 事件（state=SUCCESS）模拟设备 ack）
 - `GET /medicines`（分页 + keyword，返回 `{list,total}`）、`GET /medicines/{id}`、`POST /medicines`（新建/更新同一入口）、`DELETE /medicines/{id}`（纯档案记录，直接删，无引用校验）
@@ -40,8 +40,8 @@ npm run test:all    # 单元测试（vitest）+ 端到端（mock）+ 契约（mo
   - 业务校验照 02d：`slots` 为空 / 超过 3 项 / 格号越界或重复 / 时间格式错 → **40001**；同一 `elderId` 重复创建 → **40901**；老人写操作 → **40301**；PENDING 监护 → **40302**。计划不校验药品
   - 种子含 3 个计划（覆盖 ENABLED/DISABLED、1~3 个格位、两位老人）；`slots[].time` 为设备本地墙钟，格号 1/2/3 固定对应早/中/晚，回显按格号升序（前端 `normalizeSlots` 归一化）
 - `GET /plans/{id}/next-doses`（未来待服时间线，按格展开；**响应 `data` 为裸数组**，与真后端 `R<List>` 一致；`days` 默认 7 上限 60，越界 → **40001**；`scheduledTimeLocal` 按设备本地墙钟（Mock 用本地日期）；停用计划返回空；每条含 `cellNo`，**不含药品信息**；未知计划与无权同码 **40301**（防枚举）；权限同计划：越权 → **40301**、PENDING → **40302**、未登录 → **40101**）
-- `GET /env/realtime`（`feat/mp-env`：最新温湿光读数，合并各传感器最新非空读数；`deviceId` 必填、`sensorId` 可选按传感器查；`requireDevice(deviceId, READ_ENV)`，越权 / 子设备编号 / 不存在 → **40301**、`deviceId` 缺 → **40001**、未登录 → **40101**；温湿度与光照分两条 `env_sample` 入库，本接口合并两者最新非空读数，`sampleTime` 取较新者）
-- `GET /env/history`（`feat/mp-env`：历史曲线；`deviceId` 必填、`from`/`to` 必填（ISO-8601 UTC，含端点）、`interval` 可选（分钟 1~1440，分桶 `avg()` 聚合，缺省返回原始有序点）；按 `sensorId` 查只筛该传感器 `device_id`，否则按 `gateway_device_id` 筛其下全部传感器；`from`/`to` 缺省 / `from>to` / `interval` 越界 / 跨度 >30 天 → **40001**；权限同实时 → **40301**/**40101**；响应 `{ points: [{ sampleTime, temperature, humidity, lux }] }`，原始模式单行只带一类数值其余 `null`、分桶模式 `avg()` 忽略 `null`）
+- `GET /env/realtime`（最新温湿光读数，按主控 `deviceId` 合并最新非空读数；`deviceId` 必填、无 `sensorId`；`requireDevice(deviceId, READ_ENV)`，越权 / 不存在 → **40301**、`deviceId` 缺 → **40001**、未登录 → **40101**）
+- `GET /env/history`（历史曲线；`deviceId` 必填、`from`/`to` 必填（ISO-8601 UTC，含端点）、`interval` 可选（分钟 1~1440，分桶 `avg()` 聚合，缺省返回原始有序点）；统一按 `env_sample.device_id = deviceId` 查询；`from`/`to` 缺省 / `from>to` / `interval` 越界 / 跨度 >30 天 → **40001**；权限同实时 → **40301**/**40101**）
 - `POST /ai/insight`（`feat/mp-ai-insight`：按需洞察同步，05 第 2.2 章；`body`：`{elderId, type, range{from,to}, deviceId?}`，`type` ∈ `ADHERENCE/ENV_CORRELATION/TREND/COMPREHENSIVE`；`requireElder`，缺 `elderId` → **40001**、越权/他人 → **40301**、PENDING → **40302**、未登录 → **40101**、`range` 跨度 >30 天 → **40001**；未配 LLM Key（05 第 2.1，`llm_config` 未启用）→ **50310**；响应 `{elderId,type,range,content,citations[],disclaimer}`，不落库、仅供参考）
 - `POST /ai/insight/stream`（同契约的**流式**版：SSE `text/event-stream`，逐帧 `data: {"type":"delta","content":"…"}` 累计文本，收尾 `data: {"type":"done","citations":[…],"disclaimer":"…"}`（`data:` 前缀 + 空行分隔，与真后端 `SseEmitter` 对齐）；未配 Key 时直接返回 **50310** 错误 JSON，前端按整段错误解析）
 - `GET /ai/insight/schedule?elderId=`（周期洞察设置查询，05 第 2.3 章；`requireElder`；默认 `{enabled:false,cadence:"DAILY"}`）

@@ -22,14 +22,6 @@ export const WS_EVENT = {
 /** 会推进 `lastEventId` 的业务帧（PONG 不在此列）。 */
 const BUSINESS_TYPES = [WS_EVENT.ALARM, WS_EVENT.DEVICE_STATUS, WS_EVENT.REMINDER, WS_EVENT.AI_INSIGHT]
 
-/** 子设备类型中文名。 */
-const DEVICE_TYPE_LABEL = {
-  MAIN: '药箱主控',
-  TEMP_HUMI: '温湿度传感器',
-  LIGHT: '光照传感器',
-  CAMERA: '摄像头',
-}
-
 /** 固定格位中文标签（1 早间 / 2 午间 / 3 晚间）。 */
 function cellLabel(cellNo) {
   const no = Number(cellNo)
@@ -76,11 +68,6 @@ export function isResyncFrame(frame) {
   return !!frame && frame.type === WS_EVENT.RESYNC
 }
 
-/** 取设备类型中文名（未知原样返回）。 */
-export function deviceTypeLabel(deviceType) {
-  return DEVICE_TYPE_LABEL[deviceType] || deviceType || '设备'
-}
-
 /**
  * 把一帧转成一行可读摘要（状态条 / 通知用）；只取展示字段，不打整包。
  * REMINDER 按格号提示，缺格号时兜底「请按时服药」。
@@ -93,7 +80,7 @@ export function describeFrame(frame) {
     case WS_EVENT.ALARM:
       return payload.message || `告警（${payload.level || '未分级'}）`
     case WS_EVENT.DEVICE_STATUS:
-      return `${deviceTypeLabel(payload.deviceType)}${payload.online ? '已上线' : '已离线'}`
+      return `药箱${payload.deviceId ? ' ' + payload.deviceId : ''}${payload.online ? '已上线' : '已离线'}`
     case WS_EVENT.REMINDER: {
       const label = cellLabel(payload.cellNo)
       return label ? `服药提醒：${label}` : '服药提醒：请按时服药'
