@@ -1,37 +1,35 @@
 /**
  * 环境监测接口（medbox-spec/02g_环境监测.md 第 1 章）—— 全部需鉴权（默认 `auth: true`，不带 Bearer 会 40101）。
  *
- * <p>`feat/mp-env` 落地「实时温湿光读数」与「历史曲线」；后端 `env-core`（`feat/env-core`）已落地（07），
- * `alarm-core` 的 `envThreshold` 阈值仅供前端**高亮读取**、不在此配置。本文件只消费，不告警、不推 WS。
+ * <p>环境阈值仅供前端高亮读取、不在此配置。系统只建模药箱主控一种设备：
+ * 温湿度 / 光照由主控直接上报，查询按主控 `deviceId`，不再有 `sensorId`。
  *
- * <p>权限矩阵（02 第 9 章）：`/env/realtime`、`/env/history` 走 `requireDevice(deviceId, READ_ENV)`，
- * `READ_ENV` 老人本人 + 监护人全角色只读，前端不拦。越权 / 设备查不到一律 40301（防设备编号枚举）；
- * 子设备编号（如 `BOXA1001-S-TH01`）当 `deviceId` 传也按 40301 处理。
+ * <p>权限：`/env/realtime`、`/env/history` 走 `requireDevice(deviceId, READ_ENV)`；
+ * 越权 / 设备查不到一律 40301。
  */
 
 import { get } from '@/api/request.js'
 
 /**
- * 最新温湿光读数（合并各传感器最新非空读数）。
+ * 最新温湿光读数（合并最新非空读数）。
  *
  * @param {string} deviceId 药箱主控（必填）
- * @param {{sensorId?:string}} [options] sensorId 可选，按传感器查
- * @returns {Promise<Object>} `{ temperature, humidity, lux, sampleTime }`（某传感器无数据则该字段 `null`）
- * @throws {ApiError} 40101 / 40301（越权/不存在）/ -1
+ * @returns {Promise<Object>} `{ temperature, humidity, lux, sampleTime }`（无数据的字段为 `null`）
+ * @throws {ApiError} 40101 / 40301 / -1
  */
-export function getEnvRealtime(deviceId, { sensorId } = {}) {
-  return get('/env/realtime', { deviceId, sensorId })
+export function getEnvRealtime(deviceId) {
+  return get('/env/realtime', { deviceId })
 }
 
 /**
  * 历史曲线（环境监测图表）。
  *
  * @param {string} deviceId 药箱主控（必填）
- * @param {{sensorId?:string, from:string, to:string, interval?:number}} options
+ * @param {{from:string, to:string, interval?:number}} options
  *   `from` / `to` 必填（ISO-8601 UTC，含端点）；`interval` 可选（分钟，1~1440，分桶 avg 聚合；缺省原始有序点）。
- * @returns {Promise<Object>} `{ points: [{ sampleTime, temperature, humidity, lux }] }`（单行可能只带一类数值、其余为 `null`）
- * @throws {ApiError} 40001（from/to 缺省 / from>to / interval 越界 / 跨度 >30 天）/ 40101 / 40301 / -1
+ * @returns {Promise<Object>} `{ points: [{ sampleTime, temperature, humidity, lux }] }`
+ * @throws {ApiError} 40001 / 40101 / 40301 / -1
  */
-export function getEnvHistory(deviceId, { sensorId, from, to, interval } = {}) {
-  return get('/env/history', { deviceId, sensorId, from, to, interval })
+export function getEnvHistory(deviceId, { from, to, interval } = {}) {
+  return get('/env/history', { deviceId, from, to, interval })
 }

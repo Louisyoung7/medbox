@@ -14,10 +14,6 @@ import { CODE } from '@/utils/error.js'
 export const SIM_DEFAULT_DEVICE_ID = 'BOXA-DEBUG-01'
 
 const SIM_PLAN_ID = 'p-3301'
-/** 传感器 ID 由主控 deviceId 派生。 */
-const SIM_SENSOR_TH = 'BOXA-DEBUG-01-S-TH01'
-const SIM_SENSOR_LX = 'BOXA-DEBUG-01-S-LX01'
-const SIM_SENSOR_CAM = 'BOXA-DEBUG-01-S-CAM01'
 
 /** `msgId` 自增序号：`{deviceId}-{10位递增序号}`，取随机高位起点避免与后端持久化序号撞车。 */
 let msgSeq = Math.floor(Math.random() * 9000000000) + 1000000000
@@ -109,26 +105,8 @@ export const SIM_EVENT_PRESETS = [
     build: (deviceId) => ({
       msgId: nextSimMsgId(deviceId),
       ts: Date.now(),
-      sensorId: SIM_SENSOR_TH,
       temperature: 24.6,
       humidity: 52.1,
-    }),
-  },
-  {
-    key: 'sensor-heartbeat',
-    label: '传感器心跳',
-    subTopic: 'sensor/heartbeat',
-    desc: '汇总上报各子设备在线状态（摄像头置为离线）',
-    effect: 'log',
-    effectNote: '后端仅记日志，不写任何数据',
-    build: (deviceId) => ({
-      msgId: nextSimMsgId(deviceId),
-      ts: Date.now(),
-      sensors: [
-        { sensorId: SIM_SENSOR_TH, online: true },
-        { sensorId: SIM_SENSOR_LX, online: true },
-        { sensorId: SIM_SENSOR_CAM, online: false },
-      ],
     }),
   },
   {

@@ -17,8 +17,8 @@ export function toOnlineState(online) {
 }
 
 /**
- * 把一条 `DEVICE_STATUS` 帧合并进设备数组 / 单个设备对象（**按 `deviceId` 匹配**，不要用
- * `deviceType` —— 同类型可有多台）。返回**新引用**、不原地改，便于页面
+ * 把一条 `DEVICE_STATUS` 帧合并进设备数组 / 单个设备对象（**按 `deviceId` 匹配**）。
+ * 返回**新引用**、不原地改，便于页面
  * `this.devices = applyStatus(this.devices, frame)` 触发渲染。
  *
  * <p>未命中（帧里的设备不在这份数据里）或 `payload` 缺 `deviceId` 时**原样返回**，

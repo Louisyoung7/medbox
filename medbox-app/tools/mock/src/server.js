@@ -153,10 +153,10 @@ function visibleElderIds(user) {
   return state.relations.filter((r) => r.guardianId === user.userId && r.status === 'ACTIVE').map((r) => r.elderId)
 }
 
-/** 设备维度：不存在 / 他人设备 / 传子设备编号一律 40301（02 第 4 章 device-core 口径）。 */
+/** 设备维度：不存在 / 他人设备一律 40301（02b 口径）。 */
 function requireDevice(user, deviceId) {
   const device = state.devices.find((d) => d.deviceId === deviceId)
-  if (!device || device.deviceType !== 'MAIN') throw new BizError(40301, '无权限访问该资源')
+  if (!device) throw new BizError(40301, '无权限访问该资源')
   const access = elderAccess(user, device.elderId)
   if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
   if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
@@ -191,7 +191,6 @@ function requireElder(user, elderId) {
 function toDeviceSummary(device) {
   const summary = {
     deviceId: device.deviceId,
-    deviceType: device.deviceType,
     elderId: device.elderId,
     productKey: device.productKey,
     timezone: device.timezone,
@@ -199,7 +198,6 @@ function toDeviceSummary(device) {
   }
   // 从未上线则整个字段缺失（mp-device 的 JSDoc 口径）
   if (device.lastHeartbeat) summary.lastHeartbeat = device.lastHeartbeat
-  summary.sensorCount = state.devices.filter((d) => d.parentDeviceId === device.deviceId).length
   return summary
 }
 
@@ -310,11 +308,35 @@ async function handleGetUserProfile(req, res, elderId) {
   ok(res, profile)
 }
 
+/** 监护人登记药箱：deviceId 由设备自生成，监护人扫码/手填；只登记主控一种设备。 */
+async function handleRegisterDevice(req, res, body) {
+  const user = requireUser(req)
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  const deviceId = String(body.deviceId || '').trim()
+  const elderId = String(body.elderId || '').trim()
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(deviceId) || !elderId) throw new BizError(40001, 'deviceId / elderId 不合法')
+  requireWrite(user, elderId)
+  if (state.devices.some((d) => d.deviceId === deviceId)) throw new BizError(40901, '该设备编号已登记')
+  const device = {
+    deviceId,
+    elderId,
+    productKey: String(body.productKey || 'medbox-box').trim() || 'medbox-box',
+    timezone: String(body.timezone || 'Asia/Shanghai').trim() || 'Asia/Shanghai',
+    onlineState: 'OFFLINE',
+    createdAt: new Date().toISOString(),
+  }
+  state.devices.push(device)
+  state.events.push({
+    eventId: `ev-${deviceId}-reg`, deviceId, eventType: 'REGISTERED', detail: null, createdAt: device.createdAt,
+  })
+  ok(res, toDeviceSummary(device))
+}
+
 async function handleListDevices(req, res) {
   const user = requireUser(req)
   const visible = visibleElderIds(user)
   const list = state.devices
-    .filter((d) => d.deviceType === 'MAIN' && visible.indexOf(d.elderId) !== -1)
+    .filter((d) => visible.indexOf(d.elderId) !== -1)
     .map(toDeviceSummary)
   ok(res, list)
 }
@@ -323,13 +345,6 @@ async function handleGetDevice(req, res, deviceId) {
   const user = requireUser(req)
   const device = requireDevice(user, deviceId)
   const detail = { ...toDeviceSummary(device), createdAt: device.createdAt }
-  detail.sensors = state.devices
-    .filter((d) => d.parentDeviceId === device.deviceId)
-    .map((s) => {
-      const sensor = { deviceId: s.deviceId, deviceType: s.deviceType, onlineState: s.onlineState }
-      if (s.lastHeartbeat) sensor.lastHeartbeat = s.lastHeartbeat
-      return sensor
-    })
   ok(res, detail)
 }
 
@@ -341,7 +356,7 @@ async function handleGetDevice(req, res, deviceId) {
  */
 async function handleListEvents(req, res, deviceId, query) {
   const user = requireUser(req)
-  requireDevice(user, deviceId) // 40301 / 40302 / 子设备 40301
+  requireDevice(user, deviceId) // 40301 / 40302
   const rawPage = Number(query.page)
   const rawSize = Number(query.size)
   if (
@@ -792,18 +807,15 @@ function defaultAlarmSettings(elderId) {
 // ---------------------------------------------------------------- 环境监测（02 第 9 章；env-core 已落地，Mock 先行）
 
 /**
- * 最新温湿光读数（GET /env/realtime）：合并各传感器最新非空读数。
- * requireDevice（40301 / 40302 / 子设备编号 40301）；deviceId 必填；sensorId 可选（按传感器查）。
- * 温湿度与光照分两条 env_sample 入库，本接口合并两者最新非空读数（sampleTime 取较新者）。
+ * 最新温湿光读数（GET /env/realtime）：按主控 deviceId 合并最新非空读数。
+ * requireDevice（40301 / 40302）；deviceId 必填，不再有 sensorId。
  */
 async function handleGetEnvRealtime(req, res, query) {
   const user = requireUser(req)
   const deviceId = String(query.deviceId || '').trim()
   if (!deviceId) throw new BizError(40001, 'deviceId 不能为空')
-  requireDevice(user, deviceId) // 40301 / 40302 / 子设备 40301
-  const sensorId = String(query.sensorId || '').trim()
-  let rows = state.envSamples.filter((s) => s.gatewayDeviceId === deviceId)
-  if (sensorId) rows = rows.filter((s) => s.deviceId === sensorId)
+  requireDevice(user, deviceId)
+  const rows = state.envSamples.filter((s) => s.deviceId === deviceId)
   const pickLatest = (key) => {
     let best = null
     for (const s of rows) {
@@ -826,7 +838,7 @@ async function handleGetEnvRealtime(req, res, query) {
 
 /**
  * 历史曲线（GET /env/history）：参数校验（02 第 9.2）→ 40001（from/to 缺省 / from>to /
- * interval 越界 1~1440 / 跨度 >30 天）；按 sensorId 或 gateway 筛；interval 分桶 avg，否则原始有序点。
+ * interval 越界 1~1440 / 跨度 >30 天）；按主控 deviceId 筛；interval 分桶 avg，否则原始有序点。
  */
 async function handleGetEnvHistory(req, res, query) {
   const user = requireUser(req)
@@ -834,7 +846,7 @@ async function handleGetEnvHistory(req, res, query) {
   const from = String(query.from || '').trim()
   const to = String(query.to || '').trim()
   if (!deviceId) throw new BizError(40001, 'deviceId 不能为空')
-  requireDevice(user, deviceId) // 40301 / 40302 / 子设备 40301
+  requireDevice(user, deviceId)
   if (!from || !to) throw new BizError(40001, 'from / to 不能为空')
   const fromMs = Date.parse(from)
   const toMs = Date.parse(to)
@@ -845,10 +857,7 @@ async function handleGetEnvHistory(req, res, query) {
   if (interval !== 0 && (!Number.isInteger(interval) || interval < 1 || interval > 1440)) {
     throw new BizError(40001, 'interval 超出范围(1~1440)')
   }
-  const sensorId = String(query.sensorId || '').trim()
-  let rows = state.envSamples.filter((s) => s.gatewayDeviceId === deviceId)
-  if (sensorId) rows = rows.filter((s) => s.deviceId === sensorId)
-  rows = rows.filter((s) => {
+  const rows = state.envSamples.filter((s) => s.deviceId === deviceId).filter((s) => {
     const ms = Date.parse(s.sampleTime)
     return Number.isFinite(ms) && ms >= fromMs && ms <= toMs
   })
@@ -1357,7 +1366,7 @@ async function handleConfirmRecord(req, res, recordId, body) {
   const plan = state.plans.find((p) => p.planId === planId)
   if (!plan) throw new BizError(40401, `计划不存在: ${planId}`)
   const slot = (Array.isArray(plan.slots) ? plan.slots : []).find((s) => s.cellNo === cellNo)
-  const main = state.devices.find((d) => d.elderId === elderId && d.deviceType === 'MAIN')
+  const main = state.devices.find((d) => d.elderId === elderId)
   const created = {
     recordId: `rec-${Date.now().toString(36)}`,
     elderId,
@@ -1581,7 +1590,7 @@ function handleSeed(req, res, query) {
   }
   const guardian = state.users.find((u) => u.userId === 'u-2001') || state.users[0]
   const elder = state.users.find((u) => u.role === 'ELDER') || state.users[0]
-  const device = state.devices.find((d) => d.deviceType === 'MAIN')
+  const device = state.devices[0]
   const plan = state.plans[0]
   const guardianTokens = issueTokens(guardian)
   const elderTokens = issueTokens(elder)
@@ -1667,6 +1676,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     // 鉴权：设备
+    if (req.method === 'POST' && sub === '/devices/register') {
+      return await handleRegisterDevice(req, res, await readBody(req))
+    }
     if (req.method === 'GET' && sub === '/devices') return await handleListDevices(req, res)
     let matched = /^\/devices\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetDevice(req, res, decodeURIComponent(matched[1]))

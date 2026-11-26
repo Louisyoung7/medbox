@@ -1,19 +1,29 @@
 /**
  * 设备域接口（medbox-spec/02 第 4 章）—— 全部需鉴权（默认 `auth: true`，不带 Bearer 会 40101）。
  *
- * <p>`feat/mp-device` 落地列表与详情两个读取；`feat/mp-device-extra` 在此补事件流水（`/events`）
- * 与命令下发（`POST /commands`），实时状态（`/status`）与注册（`POST /devices/register`）本期页面
- * 用不到，故不在此导出。
+ * <p>`feat/mp-device` 落地列表与详情两个读取；`feat/mp-device-extra` 补事件流水与命令下发；
+ * 本分支新增 `registerDevice`（`POST /devices/register`），由监护人输入设备自生成 ID 登记。
  */
 
 import { get, post } from '@/api/request.js'
 
 /**
+ * 登记药箱（仅监护人）：`deviceId` 由设备固件生成并提供，监护人扫码 / 手填。
+ *
+ * @param {{deviceId:string, elderId:string, productKey?:string, timezone?:string}} payload
+ * @returns {Promise<Object>} DeviceRegisterResponse
+ * @throws {ApiError} 40001（编号/时区非法）/ 40101 / 40301 / 40302 / 40901（编号已登记）
+ */
+export function registerDevice(payload) {
+  return post('/devices/register', payload)
+}
+
+/**
  * 设备列表：当前用户可见的药箱主控（**纯数组**，后端未分页，不要按 PageResult 解析）。
  *
- * @returns {Promise<Array<Object>>} `DeviceSummaryResponse[]`：`deviceId` / `deviceType`(恒 MAIN) /
- *   `elderId` / `productKey` / `timezone` / `onlineState`("ONLINE"|"OFFLINE") /
- *   `lastHeartbeat`(UTC，从未上线则**整个字段缺失**) / `sensorCount`
+ * @returns {Promise<Array<Object>>} `DeviceSummaryResponse[]`：`deviceId` / `elderId` /
+ *   `productKey` / `timezone` / `onlineState`("ONLINE"|"OFFLINE") /
+ *   `lastHeartbeat`(UTC，从未上线则**整个字段缺失**)
  * @throws {ApiError} 40101 / -1（网络）
  */
 export function listDevices() {
@@ -21,12 +31,11 @@ export function listDevices() {
 }
 
 /**
- * 设备详情：含传感器子设备数组（**后端没有 `GET /devices/{id}/sensors`**，子设备从这里取）。
+ * 设备详情：档案 + 最新遥测（**无传感器子设备数组**）。
  *
- * @param {string} deviceId 药箱**主控**编号（传子设备编号会 40301）
- * @returns {Promise<Object>} `DeviceDetailResponse`：列表字段 + `createdAt` + `sensors[]`
- *   （每项 `deviceId` / `deviceType`("TEMP_HUMI"|"LIGHT"|"CAMERA") / `onlineState` / `lastHeartbeat`）
- * @throws {ApiError} 40001 / 40101 / 40301（不存在、他人设备、子设备编号）/ 40302 / -1
+ * @param {string} deviceId 药箱主控编号
+ * @returns {Promise<Object>} `DeviceDetailResponse`：列表字段 + `createdAt` + `latestTelemetry`
+ * @throws {ApiError} 40001 / 40101 / 40301（不存在、他人设备）/ 40302 / -1
  */
 export function getDevice(deviceId) {
   return get(`/devices/${deviceId}`)
@@ -38,7 +47,7 @@ export function getDevice(deviceId) {
  * <p>分页、按 `created_at` 倒序（最新在前）、`page` 从 1 起、默认 size 20（详见 `utils/device.js`
  * 的 `parseEventsPage` 容错 `{list,total}` / `{records,total}` / `{items,total}` / 裸数组）。
  *
- * @param {string} deviceId 药箱**主控**编号（子设备编号 → 40301）
+ * @param {string} deviceId 药箱**主控**编号
  * @param {{page?:number, size?:number}} [query] 分页参数（`page`/`size` < 1 → 40001）
  * @returns {Promise<{list:Array, total:number}>}
  * @throws {ApiError} 40001 / 40101 / 40301（不存在、他人设备、子设备编号）/ 40302 / -1
@@ -55,7 +64,7 @@ export function getDeviceEvents(deviceId, query) {
  * `cmd` ∈ 蜂鸣 BUZZ / 解锁 UNLOCK / 校准 CALIBRATE / 重启 REBOOT（03 第 2 章 `down/command`）；
  * 设备离线 → 40901。写操作，自动注入 `X-Request-Id`。
  *
- * @param {string} deviceId 药箱**主控**编号（子设备编号 → 40301）
+ * @param {string} deviceId 药箱**主控**编号
  * @param {string} cmd 命令枚举
  * @param {Object} [params] 命令参数（如蜂鸣 `{durationSec:5}`）
  * @param {string} [operator] 操作人（当前用户 ID；后端只作留痕，缺省时按上下文补）

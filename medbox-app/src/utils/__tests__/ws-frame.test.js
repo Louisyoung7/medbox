@@ -5,7 +5,6 @@ import {
   isBusinessType,
   isBusinessFrame,
   isResyncFrame,
-  deviceTypeLabel,
   describeFrame,
 } from '@/utils/ws-frame.js'
 
@@ -36,10 +35,6 @@ describe('业务帧判定', () => {
     expect(isBusinessFrame({ type: 'DEVICE_STATUS' })).toBe(true)
     expect(isResyncFrame({ type: 'RESYNC' })).toBe(true)
   })
-  it('设备类型文案', () => {
-    expect(deviceTypeLabel('MAIN')).toBe('药箱主控')
-    expect(deviceTypeLabel('UNKNOWN')).toBe('UNKNOWN')
-  })
 })
 
 describe('describeFrame（04：REMINDER 按格，ALARM 不带 medicineIds）', () => {
@@ -58,7 +53,7 @@ describe('describeFrame（04：REMINDER 按格，ALARM 不带 medicineIds）', (
       .toBe('08:00 2 号格（午间）未按时取药')
   })
   it('其它帧摘要', () => {
-    expect(describeFrame({ type: 'DEVICE_STATUS', payload: { deviceType: 'MAIN', online: true } })).toBe('药箱主控已上线')
+    expect(describeFrame({ type: 'DEVICE_STATUS', payload: { deviceId: 'BOXA1001', online: true } })).toBe('药箱 BOXA1001已上线')
     expect(describeFrame({ type: 'AI_INSIGHT', payload: { content: '近 7 天漏服集中在晚间' } })).toBe('AI 健康洞察已更新')
     expect(describeFrame({ type: 'RESYNC' })).toBe('离线期间事件已过期，请刷新列表')
     expect(describeFrame({ type: 'PONG' })).toBe('心跳正常')

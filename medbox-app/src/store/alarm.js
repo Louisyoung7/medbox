@@ -114,7 +114,6 @@ export async function loadVisibleElderIds() {
     const ids = Array.from(
       new Set(
         (devices || [])
-          .filter((d) => d.deviceType === 'MAIN')
           .map((d) => d.elderId)
           .filter(Boolean),
       ),
