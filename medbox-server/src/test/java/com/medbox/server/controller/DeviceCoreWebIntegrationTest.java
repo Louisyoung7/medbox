@@ -20,7 +20,6 @@ import com.medbox.server.domain.DeviceEvent;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
 import com.medbox.server.domain.enums.DeviceEventType;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
@@ -93,8 +92,6 @@ class DeviceCoreWebIntegrationTest {
     private static final String GUARDIAN_ID = "u-2001";
     private static final String STRANGER_ID = "u-9999";
     private static final String DEVICE_ID = "BOXA1001";
-    private static final String SENSOR_TH = "BOXA1001-S-TH01";
-    private static final String SENSOR_CAM = "BOXA1001-S-CAM01";
 
     @Autowired
     private MockMvc mockMvc;
@@ -126,8 +123,8 @@ class DeviceCoreWebIntegrationTest {
         when(userMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<User>>any()))
                 .thenReturn(elder(ELDER_ID));
         when(deviceMapper.selectCount(ArgumentMatchers.<LambdaQueryWrapper<Device>>any())).thenReturn(0L);
-        when(envSampleMapper.selectLatestTempHumi(ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(null);
-        when(envSampleMapper.selectLatestLux(ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(null);
+        when(envSampleMapper.selectLatestTempHumi(ArgumentMatchers.any())).thenReturn(null);
+        when(envSampleMapper.selectLatestLux(ArgumentMatchers.any())).thenReturn(null);
     }
 
     @AfterEach
@@ -138,36 +135,29 @@ class DeviceCoreWebIntegrationTest {
     // ————————————————— 注册 —————————————————
 
     @Test
-    @DisplayName("家属代老人注册：主控 + 2 个子设备一起落库，各写 1 条 REGISTERED 事件")
-    void 注册主控与子设备() throws Exception {
+    @DisplayName("家属代老人注册：只落 1 条主控设备 + 1 条 REGISTERED 事件")
+    void 注册主控() throws Exception {
         givenActiveRelation();
 
         mockMvc.perform(post("/api/v1/devices/register")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"deviceId":"BOXA1001","elderId":"u-1001",
-                                 "sensors":[{"deviceId":"BOXA1001-S-TH01","deviceType":"TEMP_HUMI"},
-                                            {"deviceId":"BOXA1001-S-CAM01","deviceType":"CAMERA"}]}"""))
+                                {"deviceId":"BOXA1001","elderId":"u-1001"}"""))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deviceId").value(DEVICE_ID))
                 .andExpect(jsonPath("$.data.productKey").value("medbox-box"))
                 .andExpect(jsonPath("$.data.timezone").value("Asia/Shanghai"))
-                .andExpect(jsonPath("$.data.sensors.length()").value(2));
+                .andExpect(jsonPath("$.data.onlineState").value("OFFLINE"))
+                .andExpect(jsonPath("$.data.sensors").doesNotExist());
 
-        // 主控 1 条 + 子设备 2 条
-        verify(deviceMapper, times(3)).insert(any(Device.class));
-        verify(deviceEventMapper, times(3)).insert(any(DeviceEvent.class));
+        verify(deviceMapper, times(1)).insert(any(Device.class));
+        verify(deviceEventMapper, times(1)).insert(any(DeviceEvent.class));
 
         ArgumentCaptor<Device> inserted = ArgumentCaptor.forClass(Device.class);
-        verify(deviceMapper, times(3)).insert(inserted.capture());
-        List<Device> all = inserted.getAllValues();
-        org.junit.jupiter.api.Assertions.assertEquals(DeviceType.MAIN, all.get(0).getDeviceType());
-        org.junit.jupiter.api.Assertions.assertNull(all.get(0).getParentDeviceId());
-        // 子设备要指回主控，且 elder_id 与父设备一致（行级权限与按老人查询都靠它）
-        org.junit.jupiter.api.Assertions.assertEquals(DEVICE_ID, all.get(1).getParentDeviceId());
-        org.junit.jupiter.api.Assertions.assertEquals(ELDER_ID, all.get(1).getElderId());
-        org.junit.jupiter.api.Assertions.assertEquals(ELDER_ID, all.get(2).getElderId());
+        verify(deviceMapper).insert(inserted.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(DEVICE_ID, inserted.getValue().getDeviceId());
+        org.junit.jupiter.api.Assertions.assertEquals(ELDER_ID, inserted.getValue().getElderId());
     }
 
     @Test
@@ -186,36 +176,6 @@ class DeviceCoreWebIntegrationTest {
 
         verify(deviceMapper, never()).insert(any(Device.class));
         verify(deviceEventMapper, never()).insert(any(DeviceEvent.class));
-    }
-
-    @Test
-    @DisplayName("子设备类型填 MAIN → 40001")
-    void 子设备类型不可为主控() throws Exception {
-        givenActiveRelation();
-
-        mockMvc.perform(post("/api/v1/devices/register")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"deviceId":"BOXA1001","elderId":"u-1001",
-                                 "sensors":[{"deviceId":"BOXA1002","deviceType":"MAIN"}]}"""))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40001));
-    }
-
-    @Test
-    @DisplayName("子设备编号与主控重复 → 40001")
-    void 子设备编号重复返回_40001() throws Exception {
-        givenActiveRelation();
-
-        mockMvc.perform(post("/api/v1/devices/register")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"deviceId":"BOXA1001","elderId":"u-1001",
-                                 "sensors":[{"deviceId":"BOXA1001","deviceType":"TEMP_HUMI"}]}"""))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40001));
     }
 
     @Test
@@ -277,25 +237,19 @@ class DeviceCoreWebIntegrationTest {
     // ————————————————— 四个查询 —————————————————
 
     @Test
-    @DisplayName("设备列表：只返回我监护老人的主控，并带上子设备数量")
-    void 设备列表带子设备数量() throws Exception {
+    @DisplayName("设备列表：只返回我监护老人的设备")
+    void 设备列表() throws Exception {
         when(guardianRelationMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<GuardianRelation>>any()))
                 .thenReturn(List.of(relation(ELDER_ID, GUARDIAN_ID, RelationStatus.ACTIVE)));
-        // 第一次 selectList 取主控，第二次取子设备（Service 里刻意只查两次，避免 N+1）
         when(deviceMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
-                .thenReturn(List.of(mainDevice(DEVICE_ID, ELDER_ID), mainDevice("BOXA1002", ELDER_ID)))
-                .thenReturn(List.of(sensor(SENSOR_TH, DEVICE_ID, ELDER_ID),
-                        sensor(SENSOR_CAM, DEVICE_ID, ELDER_ID),
-                        sensor("BOXA1002-S-TH01", "BOXA1002", ELDER_ID)));
+                .thenReturn(List.of(mainDevice(DEVICE_ID, ELDER_ID), mainDevice("BOXA1002", ELDER_ID)));
 
         mockMvc.perform(get("/api/v1/devices")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].deviceId").value(DEVICE_ID))
-                .andExpect(jsonPath("$.data[0].sensorCount").value(2))
-                .andExpect(jsonPath("$.data[1].deviceId").value("BOXA1002"))
-                .andExpect(jsonPath("$.data[1].sensorCount").value(1));
+                .andExpect(jsonPath("$.data[1].deviceId").value("BOXA1002"));
     }
 
     @Test
@@ -313,22 +267,19 @@ class DeviceCoreWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("设备详情：档案 + 子设备清单及各自在线状态")
-    void 设备详情含子设备() throws Exception {
+    @DisplayName("设备详情：档案 + 在线状态（无子设备数组）")
+    void 设备详情() throws Exception {
         Device main = mainDevice(DEVICE_ID, ELDER_ID);
         main.setOnlineState(OnlineState.ONLINE);
         main.setLastHeartbeat(OffsetDateTime.parse("2026-10-13T01:00:00Z"));
         when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any())).thenReturn(main);
-        when(deviceMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
-                .thenReturn(List.of(sensor(SENSOR_TH, DEVICE_ID, ELDER_ID)));
 
         mockMvc.perform(get("/api/v1/devices/{deviceId}", DEVICE_ID)
                         .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deviceId").value(DEVICE_ID))
                 .andExpect(jsonPath("$.data.onlineState").value("ONLINE"))
-                .andExpect(jsonPath("$.data.sensors.length()").value(1))
-                .andExpect(jsonPath("$.data.sensors[0].deviceId").value(SENSOR_TH));
+                .andExpect(jsonPath("$.data.sensors").doesNotExist());
     }
 
     @Test
@@ -363,18 +314,6 @@ class DeviceCoreWebIntegrationTest {
         when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any())).thenReturn(null);
 
         mockMvc.perform(get("/api/v1/devices/{deviceId}", "NOT-EXIST")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
-    }
-
-    @Test
-    @DisplayName("传子设备编号查详情 → 40301（deviceId 只接受药箱主控）")
-    void 传子设备编号返回_40301() throws Exception {
-        when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any()))
-                .thenReturn(sensor(SENSOR_TH, DEVICE_ID, ELDER_ID));
-
-        mockMvc.perform(get("/api/v1/devices/{deviceId}", SENSOR_TH)
                         .header(HttpHeaders.AUTHORIZATION, bearer(ELDER_ID, "ELDER")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(40301));
@@ -453,22 +392,11 @@ class DeviceCoreWebIntegrationTest {
     private static Device mainDevice(String deviceId, String elderId) {
         Device device = new Device();
         device.setDeviceId(deviceId);
-        device.setDeviceType(DeviceType.MAIN);
         device.setElderId(elderId);
         device.setProductKey("medbox-box");
         device.setTimezone("Asia/Shanghai");
         device.setOnlineState(OnlineState.OFFLINE);
         device.setCreatedAt(OffsetDateTime.parse("2026-10-12T00:00:00Z"));
-        return device;
-    }
-
-    private static Device sensor(String deviceId, String parentDeviceId, String elderId) {
-        Device device = new Device();
-        device.setDeviceId(deviceId);
-        device.setDeviceType(DeviceType.TEMP_HUMI);
-        device.setParentDeviceId(parentDeviceId);
-        device.setElderId(elderId);
-        device.setOnlineState(OnlineState.OFFLINE);
         return device;
     }
 

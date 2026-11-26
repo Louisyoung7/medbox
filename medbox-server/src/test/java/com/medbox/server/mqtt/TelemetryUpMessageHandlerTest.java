@@ -20,9 +20,8 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * {@link TelemetryUpMessageHandler} 的纯单测（不走 Spring）：只验证"反序列化 → 转发"这一薄适配层，
- * 落库与归属判定在 {@code EnvSampleServiceTest} 覆盖。保证畸形 / 缺字段不向外抛异常（Paho 回调线程不能被打断）。
- * 同时验证：ingest 返回非 null 样本时发布 {@link EnvSampleRecordedEvent}（供 env-alarm 判定）。
+ * {@link TelemetryUpMessageHandler} 的纯单测（不走 Spring）：只验证反序列化 → 转发这一薄适配层，
+ * 保证畸形 / 缺字段不向外抛异常（Paho 回调线程不能被打断）。
  */
 class TelemetryUpMessageHandlerTest {
 
@@ -46,7 +45,7 @@ class TelemetryUpMessageHandlerTest {
     void forwardsValidPayload() {
         String json = """
             { "msgId":"BOXA1001-000123", "ts":1759474487000,
-              "sensorId":"BOXA1001-S-TH01", "temperature":24.6, "humidity":52.1 }
+              "temperature":24.6, "humidity":52.1 }
             """;
 
         handler.handle(DEVICE_ID, TOPIC, json);
@@ -54,7 +53,6 @@ class TelemetryUpMessageHandlerTest {
         ArgumentCaptor<TelemetryPayload> captor = ArgumentCaptor.forClass(TelemetryPayload.class);
         verify(envSampleService).ingest(eq(DEVICE_ID), captor.capture());
         TelemetryPayload payload = captor.getValue();
-        Assertions.assertThat(payload.getSensorId()).isEqualTo("BOXA1001-S-TH01");
         Assertions.assertThat(payload.getTemperature()).isEqualTo(24.6);
         Assertions.assertThat(payload.getHumidity()).isEqualTo(52.1);
     }
@@ -64,12 +62,12 @@ class TelemetryUpMessageHandlerTest {
     void publishesEventWhenIngested() {
         EnvSample sample = new EnvSample();
         sample.setElderId("u-1001");
-        sample.setDeviceId("BOXA1001-S-TH01");
+        sample.setDeviceId(DEVICE_ID);
         when(envSampleService.ingest(eq(DEVICE_ID), any())).thenReturn(sample);
 
         String json = """
             { "msgId":"BOXA1001-000123", "ts":1759474487000,
-              "sensorId":"BOXA1001-S-TH01", "temperature":24.6, "humidity":52.1 }
+              "temperature":24.6, "humidity":52.1 }
             """;
 
         handler.handle(DEVICE_ID, TOPIC, json);
@@ -84,12 +82,9 @@ class TelemetryUpMessageHandlerTest {
     void noEventWhenSkipped() {
         when(envSampleService.ingest(eq(DEVICE_ID), any())).thenReturn(null);
 
-        String json = """
-            { "msgId":"BOXA1001-000123", "ts":1759474487000,
-              "sensorId":"BOXA1001-S-TH01", "temperature":24.6 }
-            """;
-
-        handler.handle(DEVICE_ID, TOPIC, json);
+        handler.handle(DEVICE_ID, TOPIC, """
+            { "msgId":"BOXA1001-000123", "ts":1759474487000, "temperature":24.6 }
+            """);
 
         verify(publisher, never()).publishEvent(any());
     }
@@ -105,8 +100,7 @@ class TelemetryUpMessageHandlerTest {
     @DisplayName("多带未知字段不报错（Boot 默认 FAIL_ON_UNKNOWN_PROPERTIES=false）")
     void extraFieldsIgnored() {
         String json = """
-            { "msgId":"BOXA1001-000124", "ts":1759474488000,
-              "sensorId":"BOXA1001-S-LX01", "lux":120, "futureField":1 }
+            { "msgId":"BOXA1001-000124", "ts":1759474488000, "lux":120, "futureField":1 }
             """;
         handler.handle(DEVICE_ID, TOPIC, json);
         verify(envSampleService).ingest(eq(DEVICE_ID), any());

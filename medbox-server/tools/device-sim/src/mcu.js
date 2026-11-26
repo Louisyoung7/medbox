@@ -6,7 +6,6 @@ import {
   errorEvent,
   luxTelemetry,
   parseDownlink,
-  sensorHeartbeat,
   telemetry,
 } from './payloads.js';
 
@@ -34,10 +33,10 @@ function waitForStop(durationMs, signal) {
 }
 
 /**
- * 模拟药箱主控（MAIN）：唯一建立 MQTT 连接的设备。
+ * 模拟药箱主控：唯一建立 MQTT 连接的设备。
  *
- * <p>严格按 spec 03：clientId = deviceId、retained 上线 + LWT、订阅 down/#、按场景回 up/ack；
- * 温湿与光照各发一条遥测，传感器心跳由主控汇总上报。--offline 时完全不连 broker。
+ * 严格按 spec 03：clientId = deviceId、retained 上线 + LWT、订阅 down/#、按场景回 up/ack；
+ * 温湿与光照各发一条遥测（主控直接上报，无 sensorId）；不再有传感器心跳。--offline 时完全不连 broker。
  */
 export async function runMcu(config, { signal } = {}) {
   const { deviceId, productKey, topicPrefix } = config;
@@ -80,25 +79,12 @@ export async function runMcu(config, { signal } = {}) {
   const emitTelemetry = () => {
     publishUp(up('telemetry'), telemetry({
       msgId: nextMsgId(deviceId, config.stateDir),
-      sensorId: config.sensorTh,
       temperature: 24.6,
       humidity: 52.1,
     }));
     publishUp(up('telemetry'), luxTelemetry({
       msgId: nextMsgId(deviceId, config.stateDir),
-      sensorId: config.sensorLx,
       lux: 120,
-    }));
-  };
-
-  const emitHeartbeat = () => {
-    publishUp(up('sensor/heartbeat'), sensorHeartbeat({
-      msgId: nextMsgId(deviceId, config.stateDir),
-      sensors: [
-        { sensorId: config.sensorTh, online: true },
-        { sensorId: config.sensorLx, online: true },
-        { sensorId: config.sensorCam, online: true },
-      ],
     }));
   };
 
@@ -119,7 +105,6 @@ export async function runMcu(config, { signal } = {}) {
   });
 
   emitTelemetry();
-  emitHeartbeat();
   if (config.errorType) {
     publishUp(up('event/error'), errorEvent({
       msgId: nextMsgId(deviceId, config.stateDir),
@@ -129,10 +114,8 @@ export async function runMcu(config, { signal } = {}) {
   }
 
   const telemetryTimer = setInterval(emitTelemetry, config.telemetryIntervalMs);
-  const heartbeatTimer = setInterval(emitHeartbeat, config.heartbeatIntervalMs);
   await waitForStop(config.durationMs, signal);
   clearInterval(telemetryTimer);
-  clearInterval(heartbeatTimer);
   client.end(true);
   return { offline: false };
 }

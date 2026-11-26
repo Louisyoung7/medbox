@@ -13,9 +13,6 @@ import org.springframework.stereotype.Component;
  * <b>零侵入</b>接入两条触发路径：① LWT 即时离线（{@code DeviceStatusService.markOffline}）；
  * ② 定时扫描离线（{@code DeviceOfflineScanService}）。
  *
- * <p><b>传感器隔离</b>：非 MAIN（传感器子设备）离线时，{@code DeviceOfflineAlarmService.raise} 内部首行返回，
- * 严格满足"传感器不生成 DEVICE_OFFLINE 告警"。
- *
  * <p><b>必须自己兜异常</b>：本回调跑在 MQTT 消息处理线程，抛出去会打断整条上行链路；
  * 事件流水与 WS 状态推送由 {@code DeviceStatusEventBridge} 负责，本类只管告警。
  */

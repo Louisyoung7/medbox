@@ -7,7 +7,6 @@ import com.medbox.server.common.security.Permission;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.MedRecord;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.dto.PageResult;
 import com.medbox.server.dto.record.RecordConfirmRequest;
 import com.medbox.server.dto.record.RecordResponse;
@@ -218,8 +217,7 @@ public class RecordService {
 
     private String resolveMainDeviceId(String elderId) {
         Device device = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
-                .eq(Device::getElderId, elderId)
-                .eq(Device::getDeviceType, DeviceType.MAIN));
+                .eq(Device::getElderId, elderId));
         return device == null ? null : device.getDeviceId();
     }
 

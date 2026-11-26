@@ -12,7 +12,6 @@ package com.medbox.server.mqtt;
  * up/telemetry        → supports() = telemetry            → feat/env-core
  * up/event/dispense   → supports() = event/dispense       → feat/dispense-consume
  * up/event/error      → supports() = event/error          → feat/device-fault
- * up/sensor/heartbeat → supports() = sensor/heartbeat     → feat/device-sensor
  * up/ack              → supports() = ack                  → 本分支（下行回执结算）
  * </pre>
  *

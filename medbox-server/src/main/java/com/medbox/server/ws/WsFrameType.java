@@ -18,7 +18,7 @@ public enum WsFrameType {
     /** 告警（漏服 / 环境 / 设备离线 / 设备故障）。 */
     ALARM,
 
-    /** 设备在线状态（含传感器子设备）。 */
+    /** 药箱主控在线状态。 */
     DEVICE_STATUS,
 
     /** 服药提醒（触发逻辑在 {@code feat/plan-reminder}，本分支只登记类型）。 */

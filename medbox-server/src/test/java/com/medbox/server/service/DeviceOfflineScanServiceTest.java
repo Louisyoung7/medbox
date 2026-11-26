@@ -14,7 +14,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.medbox.server.config.DeviceProperties;
 import com.medbox.server.domain.Device;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mqtt.DeviceStatusChangeListener;
@@ -35,7 +34,7 @@ import org.mockito.ArgumentMatchers;
  *
  * <p>核心要验的几点（与 {@code SensorStatusServiceTest} 同范式）：
  * <ul>
- *   <li><b>只动 MAIN</b>：查询条件即 {@code eq(MAIN)}，传感器子设备离线不归本类管、也不告警；</li>
+ *   <li><b>只扫药箱主控</b>：系统只有主控一种设备记录；</li>
  *   <li><b>只动 ONLINE</b>：已 OFFLINE 不重复写库 / 不重复回调（幂等）；</li>
  *   <li><b>心跳超阈值或 NULL 才判离线</b>；判离线只置 {@code online_state}、不刷心跳；</li>
  *   <li>跃变才回调监听者（{@code DeviceStatusEventBridge} 写流水 + 推状态、{@code DeviceOfflineAlarmListener} 生成告警）。</li>
@@ -70,7 +69,6 @@ class DeviceOfflineScanServiceTest {
     private Device main(OnlineState state) {
         Device d = new Device();
         d.setDeviceId(MAIN_ID);
-        d.setDeviceType(DeviceType.MAIN);
         d.setElderId("u-1001");
         d.setOnlineState(state);
         return d;
@@ -127,7 +125,7 @@ class DeviceOfflineScanServiceTest {
     }
 
     @Test
-    @DisplayName("扫描查询口径：仅 MAIN + ONLINE + 心跳超时（设备类型/在线态/心跳三条件都在）")
+    @DisplayName("扫描查询口径：ONLINE + 心跳超时（系统只有主控一种设备）")
     void scanQueryFilter() {
         when(deviceMapper.selectList(any())).thenReturn(List.of());
 
@@ -138,7 +136,6 @@ class DeviceOfflineScanServiceTest {
         String sql = captor.getValue().getCustomSqlSegment();
         assertNotNull(sql);
         String normalized = sql.toLowerCase();
-        assertTrue(normalized.contains("device_type"), "必须限定 MAIN 主控");
         assertTrue(normalized.contains("online_state"), "必须只扫 ONLINE");
         assertTrue(normalized.contains("last_heartbeat"), "必须按心跳超时过滤");
     }

@@ -12,7 +12,6 @@ import com.medbox.server.domain.Alarm;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.DeviceEvent;
 import com.medbox.server.domain.enums.DeviceEventType;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.mapper.AlarmMapper;
 import com.medbox.server.mapper.DeviceEventMapper;
 import com.medbox.server.mapper.DeviceMapper;
@@ -84,7 +83,6 @@ class DeviceFaultIntegrationTest {
 
         Device main = new Device();
         main.setDeviceId(DEVICE);
-        main.setDeviceType(DeviceType.MAIN);
         main.setElderId(ELDER);
         when(deviceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(main);
     }

@@ -22,9 +22,6 @@ import org.slf4j.LoggerFactory;
  *       设备固件若没实现 status retained，靠这条也能维持在线态。</li>
  * </ol>
  *
- * <p><b>传感器子设备不在这里管</b>：它们没有 MQTT 连接，由 {@code up/sensor/heartbeat}
- * 每 60s 汇总上报，180s 未上报判离线 —— 那是 {@code feat/device-sensor} 的活。
- *
  * <p>设备没登记时（还没走 {@code POST /devices/register}）只 DEBUG 不抛：
  * 局域网上任何 clientId 都能连，未登记设备发消息是常态，不该刷 ERROR 日志。
  *

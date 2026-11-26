@@ -28,16 +28,6 @@ public class DeviceProperties {
     /** 事件流水的每页上限：防深分页拖垮数据库，也防客户端一次拉全量。 */
     private int eventMaxPageSize = 100;
 
-    /**
-     * 传感器子设备离线判定阈值（毫秒）：连续这么久没出现在主控的
-     * {@code up/sensor/heartbeat} 汇总里即判离线（文档 03 第 3 章：60s × 3 个周期 = 180s）。
-     * 子设备超时<b>不生成 DEVICE_OFFLINE 告警</b>，只更新 {@code online_state}。
-     */
-    private long sensorOfflineAfterMs = 180_000L;
-
-    /** 传感器子设备离线扫描间隔（毫秒）。 */
-    private long sensorScanIntervalMs = 60_000L;
-
     public String getDefaultProductKey() {
         return defaultProductKey;
     }
@@ -70,26 +60,10 @@ public class DeviceProperties {
         this.eventMaxPageSize = eventMaxPageSize;
     }
 
-    public long getSensorOfflineAfterMs() {
-        return sensorOfflineAfterMs;
-    }
-
-    public void setSensorOfflineAfterMs(long sensorOfflineAfterMs) {
-        this.sensorOfflineAfterMs = sensorOfflineAfterMs;
-    }
-
-    public long getSensorScanIntervalMs() {
-        return sensorScanIntervalMs;
-    }
-
-    public void setSensorScanIntervalMs(long sensorScanIntervalMs) {
-        this.sensorScanIntervalMs = sensorScanIntervalMs;
-    }
-
     /**
      * 主控设备离线判定阈值（毫秒）：连续这么久没刷新心跳（{@code last_heartbeat}）即判离线，
      * 触发 DEVICE_OFFLINE 告警（文档 03 第 1 章 KeepAlive 60s，取 3 倍 = 180s 留余量）。
-     * 仅作用于 MAIN；传感器子设备离线在 {@code SensorStatusService} 处理且不告警。
+     * 只作用于药箱主控（系统只有主控一种设备记录）。
      */
     private long mainOfflineAfterMs = 180_000L;
 

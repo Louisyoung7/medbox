@@ -72,12 +72,10 @@ public class DeviceStatusEventBridge implements DeviceStatusChangeListener {
             return;
         }
 
-        // payload 字段按文档 04 第 3 章：deviceId / deviceType / online / parentDeviceId（子设备时）
+        // payload 字段按文档 04 第 3 章：deviceId / online（不再有子设备类型与父设备编号）
         pusher.publish(WsTopic.elder(elderId), WsFrameType.DEVICE_STATUS, Map.of(
                 "deviceId", device.getDeviceId(),
-                "deviceType", device.getDeviceType() == null ? "" : device.getDeviceType().name(),
-                "online", newState == OnlineState.ONLINE,
-                "parentDeviceId", device.getParentDeviceId() == null ? "" : device.getParentDeviceId()));
+                "online", newState == OnlineState.ONLINE));
     }
 
     private static DeviceEventType eventTypeOf(OnlineState state) {

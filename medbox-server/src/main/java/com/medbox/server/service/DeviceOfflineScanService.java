@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.medbox.server.config.DeviceProperties;
 import com.medbox.server.domain.Device;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mqtt.DeviceStatusChangeListener;
@@ -36,7 +35,7 @@ import org.springframework.stereotype.Service;
  * </ol>
  *
  * <p><b>只查 MAIN</b>：与 {@code SensorStatusService}（只查 {@code ne(MAIN)}）互补，互不干扰；
- * 子设备离线仍由 {@code SensorStatusService} 负责且不告警。
+ * 系统只有主控一种设备记录。
  *
  * <p><b>只有跃变才通知监听者</b>：已 OFFLINE 的设备再次扫到不会再 notify（幂等），避免重复告警。
  */
@@ -85,7 +84,6 @@ public class DeviceOfflineScanService {
         OffsetDateTime threshold = OffsetDateTime.now(scanClock)
                 .minus(props.getMainOfflineAfterMs(), ChronoUnit.MILLIS);
         List<Device> stale = deviceMapper.selectList(new LambdaQueryWrapper<Device>()
-                .eq(Device::getDeviceType, DeviceType.MAIN)
                 .eq(Device::getOnlineState, OnlineState.ONLINE)
                 .and(w -> w.lt(Device::getLastHeartbeat, threshold)
                         .or()

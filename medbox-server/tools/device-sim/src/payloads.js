@@ -4,16 +4,14 @@ export function buildTopic(prefix, productKey, deviceId, suffix) {
   return [prefix, productKey, deviceId, suffix].join('/');
 }
 
-export function telemetry({ msgId, ts = Date.now(), sensorId, temperature, humidity }) {
-  return JSON.stringify({ msgId, ts, sensorId, temperature, humidity });
+/** 温湿度遥测：主控直接上报，不带 sensorId。 */
+export function telemetry({ msgId, ts = Date.now(), temperature, humidity }) {
+  return JSON.stringify({ msgId, ts, temperature, humidity });
 }
 
-export function luxTelemetry({ msgId, ts = Date.now(), sensorId, lux }) {
-  return JSON.stringify({ msgId, ts, sensorId, lux });
-}
-
-export function sensorHeartbeat({ msgId, ts = Date.now(), sensors }) {
-  return JSON.stringify({ msgId, ts, sensors });
+/** 光照遥测：主控直接上报，不带 sensorId。 */
+export function luxTelemetry({ msgId, ts = Date.now(), lux }) {
+  return JSON.stringify({ msgId, ts, lux });
 }
 
 export function errorEvent({ msgId, ts = Date.now(), type, detail }) {

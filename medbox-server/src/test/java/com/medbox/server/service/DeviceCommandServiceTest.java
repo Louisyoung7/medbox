@@ -20,7 +20,6 @@ import com.medbox.server.common.security.Permission;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.DeviceCommand;
 import com.medbox.server.domain.enums.DeviceEventType;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.dto.device.CommandSendRequest;
 import com.medbox.server.dto.device.CommandSendResponse;
@@ -43,7 +42,7 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>重点验：
  * <ul>
- *   <li>判定顺序与错误码：40301（不存在/子设备）→ 40001（未知 cmd）→ 40901（离线）→ 50000（MQTT 未启用/发布失败）；</li>
+ *   <li>判定顺序与错误码：40301（不存在/越权）→ 40001（未知 cmd）→ 40901（离线）→ 50000（MQTT 未启用/发布失败）；</li>
  *   <li>正常路径：PENDING 落库 → QoS1 needAck 下发 → 回填 msg_id → 写 COMMAND 事件（detail 为契约 JSON）；</li>
  *   <li>回执结算：按 msg_id 匹配、终态只翻一次、不写告警。</li>
  * </ul>
@@ -51,7 +50,6 @@ import tools.jackson.databind.json.JsonMapper;
 class DeviceCommandServiceTest {
 
     private static final String DEVICE_ID = "BOXA1001";
-    private static final String SENSOR_ID = "BOXA1001-S-TH01";
     private static final String ELDER_ID = "u-1001";
     private static final String GUARDIAN_ID = "u-2001";
 
@@ -130,19 +128,6 @@ class DeviceCommandServiceTest {
         when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any())).thenReturn(null);
 
         BizException ex = assertThrows(BizException.class, () -> service.send(DEVICE_ID, buzz()));
-        assertEquals(ErrorCode.FORBIDDEN.code(), ex.code());
-    }
-
-    @Test
-    @DisplayName("传子设备编号 → 40301（防编号枚举）")
-    void 子设备编号_40301() {
-        Device sensor = new Device();
-        sensor.setDeviceId(SENSOR_ID);
-        sensor.setDeviceType(DeviceType.TEMP_HUMI);
-        sensor.setElderId(ELDER_ID);
-        when(deviceMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<Device>>any())).thenReturn(sensor);
-
-        BizException ex = assertThrows(BizException.class, () -> service.send(SENSOR_ID, buzz()));
         assertEquals(ErrorCode.FORBIDDEN.code(), ex.code());
     }
 
@@ -267,7 +252,6 @@ class DeviceCommandServiceTest {
     private static Device mainDevice(OnlineState state) {
         Device device = new Device();
         device.setDeviceId(DEVICE_ID);
-        device.setDeviceType(DeviceType.MAIN);
         device.setElderId(ELDER_ID);
         device.setOnlineState(state);
         return device;

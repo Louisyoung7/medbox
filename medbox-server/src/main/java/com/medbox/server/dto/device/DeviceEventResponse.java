@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
  * 因此直接返回自增主键作为 {@code eventId}，不额外造 {@code event_id} 业务列。
  *
  * @param eventId    自增主键
- * @param deviceId   设备编号（子设备记自己的编号，不折算成主控）
+ * @param deviceId   药箱主控编号
  * @param eventType  事件类型
  * @param detail     补充描述，无则为 null（受全局 {@code non_null} 影响不出现在 JSON 里）
  * @param createdAt  事件发生时间（UTC）

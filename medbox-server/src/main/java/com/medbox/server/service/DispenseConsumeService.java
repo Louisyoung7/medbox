@@ -71,36 +71,30 @@ public class DispenseConsumeService {
     @Transactional
     public Optional<MedRecord> consume(CaptureDispenseInput input) {
         if (input == null || isBlank(input.getPlanId()) || !PlanSlotResolver.isValidCellNo(input.getCellNo())) {
-            log.warn("dispense 丢弃：input 缺失 planId/cellNo 或格号越界 camera={} capture={}",
-                    input == null ? "<null>" : input.getCameraDeviceId(),
+            log.warn("dispense 丢弃：input 缺失 planId/cellNo 或格号越界 device={} capture={}",
+                    input == null ? "<null>" : input.getDeviceId(),
                     input == null ? "<null>" : input.getCaptureId());
             return Optional.empty();
         }
 
-        // —— 1. 由摄像头子设备反查 MAIN 药箱 ——
-        Device camera = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
-                .eq(Device::getDeviceId, input.getCameraDeviceId()));
-        if (camera == null) {
-            log.warn("dispense 丢弃：摄像头设备不存在 camera={}", input.getCameraDeviceId());
-            return Optional.empty();
-        }
-        String mainDeviceId = firstNonBlank(camera.getParentDeviceId(), input.getCameraDeviceId());
-        Device main = deviceMapper.selectOne(new LambdaQueryWrapper<Device>().eq(Device::getDeviceId, mainDeviceId));
+        // —— 1. 直接按主控 deviceId 查归属老人（不再有摄像头子设备反查）——
+        String mainDeviceId = input.getDeviceId();
+        Device main = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
+                .eq(Device::getDeviceId, mainDeviceId));
         if (main == null || isBlank(main.getElderId())) {
-            log.warn("dispense 丢弃：MAIN 药箱不存在或无归属老人 camera={} main={}",
-                    input.getCameraDeviceId(), mainDeviceId);
+            log.warn("dispense 丢弃：设备不存在或无归属老人 device={}", mainDeviceId);
             return Optional.empty();
         }
 
         MedPlan plan = medPlanMapper.selectOne(
                 new LambdaQueryWrapper<MedPlan>().eq(MedPlan::getPlanId, input.getPlanId()));
         if (plan == null) {
-            log.warn("dispense 丢弃：计划不存在 camera={} planId={}", input.getCameraDeviceId(), input.getPlanId());
+            log.warn("dispense 丢弃：计划不存在 device={} planId={}", mainDeviceId, input.getPlanId());
             return Optional.empty();
         }
         if (!main.getElderId().equals(plan.getElderId())) {
-            log.warn("dispense 丢弃：计划与药箱归属老人不一致 camera={} planId={} mainElder={} planElder={}",
-                    input.getCameraDeviceId(), input.getPlanId(), main.getElderId(), plan.getElderId());
+            log.warn("dispense 丢弃：计划与药箱归属老人不一致 device={} planId={} mainElder={} planElder={}",
+                    mainDeviceId, input.getPlanId(), main.getElderId(), plan.getElderId());
             return Optional.empty();
         }
 
@@ -138,8 +132,8 @@ public class DispenseConsumeService {
         // UnexpectedRollbackException，连 capture 都落不了库。
         int inserted = medRecordMapper.insertIfAbsent(record);
         if (inserted == 0) {
-            log.info("dispense 幂等命中：跳过写记录 camera={} planId={} cellNo={} planTime={}",
-                    input.getCameraDeviceId(), input.getPlanId(), input.getCellNo(), planTime);
+            log.info("dispense 幂等命中：跳过写记录 device={} planId={} cellNo={} planTime={}",
+                    mainDeviceId, input.getPlanId(), input.getCellNo(), planTime);
             return Optional.empty();
         }
 

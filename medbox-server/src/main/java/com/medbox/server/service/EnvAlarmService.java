@@ -33,7 +33,7 @@ import org.springframework.stereotype.Component;
  * <p><b>指标级告警</b>：一条样本每个越界指标各生成 1 条 ENV 告警（{@code type=ENV}、{@code level=WARN}），
  * 独立去重；{@code device_id} 记传感器自身（与 {@code env_sample.device_id} 同源）。
  *
- * <p><b>去重</b>：{@code dedup_key = ENV:{elderId}:{sensorId}:{metric}:{bucket}}，{@code bucket} 由
+ * <p><b>去重</b>：{@code dedup_key = ENV:{elderId}:{deviceId}:{metric}:{bucket}}，{@code bucket} 由
  * {@code sampleTime} 按 {@code dedup-window-minutes} 截断；命中 {@code uk_alarm_dedup_key}（
  * {@code DuplicateKeyException}）→ 静默跳过，不重复落库、不重复推 WS。
  *
@@ -86,40 +86,40 @@ public class EnvAlarmService {
             return;
         }
 
-        String sensorId = sample.getDeviceId();
+        String deviceId = sample.getDeviceId();
         OffsetDateTime sampleTime = sample.getSampleTime() != null ? sample.getSampleTime() : OffsetDateTime.now();
 
-        evaluate(elderId, sensorId, sampleTime, "温度", "TEMP", sample.getTemperature(),
+        evaluate(elderId, deviceId, sampleTime, "温度", "TEMP", sample.getTemperature(),
                 threshold.tempMin(), threshold.tempMax(), "℃");
-        evaluate(elderId, sensorId, sampleTime, "湿度", "HUMI", sample.getHumidity(),
+        evaluate(elderId, deviceId, sampleTime, "湿度", "HUMI", sample.getHumidity(),
                 threshold.humiMin(), threshold.humiMax(), "%");
         // 光照仅上限
-        evaluate(elderId, sensorId, sampleTime, "光照", "LUX", sample.getLux(),
+        evaluate(elderId, deviceId, sampleTime, "光照", "LUX", sample.getLux(),
                 null, threshold.luxMax(), "lux");
     }
 
-    private void evaluate(String elderId, String sensorId, OffsetDateTime sampleTime,
+    private void evaluate(String elderId, String deviceId, OffsetDateTime sampleTime,
                           String label, String metric, BigDecimal value,
                           Integer min, Integer max, String unit) {
         if (value == null) {
             return; // 该指标本行未上报
         }
         if (min != null && value.compareTo(BigDecimal.valueOf(min)) < 0) {
-            raise(elderId, sensorId, sampleTime, label, metric, value, unit, "低于下限 " + min + unit);
+            raise(elderId, deviceId, sampleTime, label, metric, value, unit, "低于下限 " + min + unit);
         } else if (max != null && value.compareTo(BigDecimal.valueOf(max)) > 0) {
-            raise(elderId, sensorId, sampleTime, label, metric, value, unit, "超出上限 " + max + unit);
+            raise(elderId, deviceId, sampleTime, label, metric, value, unit, "超出上限 " + max + unit);
         }
     }
 
-    private void raise(String elderId, String sensorId, OffsetDateTime sampleTime,
+    private void raise(String elderId, String deviceId, OffsetDateTime sampleTime,
                        String label, String metric, BigDecimal value, String unit, String reason) {
         String message = label + " " + value.stripTrailingZeros().toPlainString() + unit + " " + reason;
-        String dedupKey = buildDedupKey(elderId, sensorId, metric, sampleTime);
+        String dedupKey = buildDedupKey(elderId, deviceId, metric, sampleTime);
 
         Alarm alarm = new Alarm();
         alarm.setAlarmId(alarmMapper.nextAlarmId());
         alarm.setElderId(elderId);
-        alarm.setDeviceId(sensorId);
+        alarm.setDeviceId(deviceId);
         alarm.setPlanId(null);
         alarm.setCellNo(null);
         alarm.setType(TYPE_ENV);
@@ -142,11 +142,11 @@ public class EnvAlarmService {
     }
 
     /** 去重键：老人 + 传感器 + 指标 + 按窗口截断的 bucket 起始瞬时。 */
-    private String buildDedupKey(String elderId, String sensorId, String metric, OffsetDateTime sampleTime) {
+    private String buildDedupKey(String elderId, String deviceId, String metric, OffsetDateTime sampleTime) {
         long epochMin = sampleTime.toInstant().getEpochSecond() / 60L;
         long bucketIndex = epochMin / envAlarmProperties.getDedupWindowMinutes();
         Instant bucketStart = Instant.ofEpochSecond(bucketIndex * envAlarmProperties.getDedupWindowMinutes() * 60L);
-        return "ENV:" + elderId + ":" + sensorId + ":" + metric + ":" + bucketStart;
+        return "ENV:" + elderId + ":" + deviceId + ":" + metric + ":" + bucketStart;
     }
 
     private void pushWs(Alarm alarm, String elderId) {

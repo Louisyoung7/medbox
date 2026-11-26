@@ -3,7 +3,6 @@ package com.medbox.server.mqtt;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.medbox.server.mqtt.payload.AckPayload;
-import com.medbox.server.mqtt.payload.SensorHeartbeatPayload;
 import com.medbox.server.mqtt.payload.StatusPayload;
 import com.medbox.server.mqtt.payload.TelemetryPayload;
 import org.junit.jupiter.api.DisplayName;
@@ -14,19 +13,17 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 用文档 03 第 3 章的 payload 示例做解析回归（无依赖、CI 可跑）。
  *
- * <p>守的是"字段名一个字母都不能差"：驼峰名写错（如 {@code temprature} 漏写 e）在 JSON 侧不会报错，
- * 只会静默变成 {@code null}，等到业务逻辑里才发现 —— 那时已经分不清是设备没发还是我们读错。
+ * <p>守的是"字段名一个字母都不能差"：驼峰名写错在 JSON 侧不会报错，只会静默变成 {@code null}。
  */
 class UpPayloadParseTest {
 
     private final ObjectMapper objectMapper = new JsonMapper();
 
     @Test
-    @DisplayName("遥测：温湿度传感器只带 temperature / humidity，lux 为 null")
+    @DisplayName("遥测：主控直接上报温湿度，读数字段命名固定")
     void parseTelemetry() throws Exception {
         String json = """
             { "msgId":"BOXA1001-000123", "ts":1759474487000,
-              "sensorId":"BOXA1001-S-TH01",
               "temperature":24.6, "humidity":52.1 }
             """;
 
@@ -34,28 +31,22 @@ class UpPayloadParseTest {
 
         assertThat(payload.getMsgId()).isEqualTo("BOXA1001-000123");
         assertThat(payload.getTs()).isEqualTo(1759474487000L);
-        assertThat(payload.getSensorId()).isEqualTo("BOXA1001-S-TH01");
         assertThat(payload.getTemperature()).isEqualTo(24.6);
         assertThat(payload.getHumidity()).isEqualTo(52.1);
         assertThat(payload.getLux()).isNull();
     }
 
     @Test
-    @DisplayName("传感器心跳：sensors 数组含 sensorId 与 online")
-    void parseSensorHeartbeat() throws Exception {
+    @DisplayName("遥测：光照上报 lux，不带 sensorId 概念")
+    void parseLuxTelemetry() throws Exception {
         String json = """
-            { "msgId":"BOXA1001-000128", "ts":1759474540000,
-              "sensors":[ { "sensorId":"BOXA1001-S-TH01","online":true },
-                          { "sensorId":"BOXA1001-S-CAM01","online":false } ] }
+            { "msgId":"BOXA1001-000124", "ts":1759474488000, "lux":120 }
             """;
 
-        SensorHeartbeatPayload payload = objectMapper.readValue(json, SensorHeartbeatPayload.class);
+        TelemetryPayload payload = objectMapper.readValue(json, TelemetryPayload.class);
 
-        assertThat(payload.getSensors()).hasSize(2);
-        assertThat(payload.getSensors().get(0).getSensorId()).isEqualTo("BOXA1001-S-TH01");
-        assertThat(payload.getSensors().get(0).getOnline()).isTrue();
-        assertThat(payload.getSensors().get(1).getSensorId()).isEqualTo("BOXA1001-S-CAM01");
-        assertThat(payload.getSensors().get(1).getOnline()).isFalse();
+        assertThat(payload.getLux()).isEqualTo(120.0);
+        assertThat(payload.getTemperature()).isNull();
     }
 
     @Test
@@ -74,7 +65,7 @@ class UpPayloadParseTest {
     }
 
     @Test
-    @DisplayName("回执：result 缺失或不是 OK 一律不算成功（避免静默忽略失败）")
+    @DisplayName("回执：result 缺失或不是 OK 一律不算成功")
     void ackFailsClosed() throws Exception {
         AckPayload failed = objectMapper.readValue("{\"ackFor\":\"d-001\",\"result\":\"FAILED\"}", AckPayload.class);
         AckPayload blank = objectMapper.readValue("{\"ackFor\":\"d-001\"}", AckPayload.class);
@@ -84,7 +75,7 @@ class UpPayloadParseTest {
     }
 
     @Test
-    @DisplayName("遗嘱状态 payload 固定 {\"online\":false}：msgId 不是它的字段，去重也不能套在它身上")
+    @DisplayName("遗嘱状态 payload 固定 {\"online\":false}")
     void parseStatus() throws Exception {
         StatusPayload payload = objectMapper.readValue("{\"online\":false}", StatusPayload.class);
 

@@ -6,7 +6,6 @@ import com.medbox.server.dto.R;
 import com.medbox.server.dto.capture.CaptureResponse;
 import com.medbox.server.dto.capture.CaptureUploadResponse;
 import com.medbox.server.service.CaptureService;
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.OffsetDateTime;
 import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -45,12 +44,11 @@ public class CaptureController {
     }
 
     /**
-     * 设备上传抓拍：摄像头子设备走设备身份（{@code X-Device-Id} + 库内登记归属），不走用户 JWT。
-     * 路径 deviceId 必须与 Header {@code X-Device-Id} 一致。
+     * 设备上传抓拍：路径 {@code deviceId} 为药箱主控 ID，后端按它解析归属老人，不走用户 JWT。
+     * 不再有摄像头子设备 ID 与 {@code X-Device-Id} 校验。
      */
     @PostMapping("/devices/{deviceId}/captures")
     public R<CaptureUploadResponse> upload(@PathVariable("deviceId") String deviceId,
-                                          HttpServletRequest request,
                                           @RequestParam(value = "file", required = false) MultipartFile file,
                                           @RequestParam(value = "reason", required = false) String reason,
                                           @RequestParam(value = "planId", required = false) String planId,
@@ -58,9 +56,6 @@ public class CaptureController {
                                           @RequestParam(value = "takenResult", required = false) String takenResult,
                                           @RequestParam(value = "capturedAt", required = false)
                                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime capturedAt) {
-        String headerDeviceId = request.getHeader("X-Device-Id");
-        BizAssert.badRequestIf(headerDeviceId == null || !headerDeviceId.equals(deviceId),
-                "X-Device-Id 与路径 deviceId 不一致");
         return R.ok(captureService.upload(deviceId, file, reason, planId, cellNo, takenResult, capturedAt));
     }
 

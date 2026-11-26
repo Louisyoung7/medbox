@@ -2,6 +2,7 @@ package com.medbox.server.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -12,7 +13,6 @@ import static org.mockito.Mockito.when;
 
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.enums.DeviceEventType;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.ws.WsFrameType;
 import com.medbox.server.ws.WsPushService;
@@ -65,9 +65,9 @@ class DeviceStatusEventBridgeTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> frame = (Map<String, Object>) payload.getValue();
         assertEquals(DEVICE_ID, frame.get("deviceId"));
-        assertEquals("MAIN", frame.get("deviceType"));
         assertEquals(Boolean.TRUE, frame.get("online"));
-        assertEquals("", frame.get("parentDeviceId"));
+        assertFalse(frame.containsKey("deviceType"));
+        assertFalse(frame.containsKey("parentDeviceId"));
     }
 
     @Test
@@ -80,22 +80,6 @@ class DeviceStatusEventBridgeTest {
         ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(wsPushService).publish(eq("elder:" + ELDER_ID), eq(WsFrameType.DEVICE_STATUS), payload.capture());
         assertEquals(Boolean.FALSE, ((Map<?, ?>) payload.getValue()).get("online"));
-    }
-
-    @Test
-    @DisplayName("子设备：推送时带上 parentDeviceId（文档 04 第 3 章）")
-    void 子设备带父设备编号() {
-        Device sensor = new Device();
-        sensor.setDeviceId("BOXA1001-S-CAM01");
-        sensor.setDeviceType(DeviceType.CAMERA);
-        sensor.setParentDeviceId(DEVICE_ID);
-        sensor.setElderId(ELDER_ID);
-
-        bridge.onStatusChanged(sensor, OnlineState.ONLINE);
-
-        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
-        verify(wsPushService).publish(eq("elder:" + ELDER_ID), eq(WsFrameType.DEVICE_STATUS), payload.capture());
-        assertEquals(DEVICE_ID, ((Map<?, ?>) payload.getValue()).get("parentDeviceId"));
     }
 
     @Test
@@ -138,7 +122,6 @@ class DeviceStatusEventBridgeTest {
     private static Device main(String elderId) {
         Device device = new Device();
         device.setDeviceId(DEVICE_ID);
-        device.setDeviceType(DeviceType.MAIN);
         device.setElderId(elderId);
         return device;
     }

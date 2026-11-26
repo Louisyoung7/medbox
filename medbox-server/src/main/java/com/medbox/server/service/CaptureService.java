@@ -106,7 +106,7 @@ public class CaptureService {
     }
 
     /**
-     * 设备上传抓拍（调用前 Controller 已校验 {@code X-Device-Id} 与路径 deviceId 一致）。
+     * 设备上传抓拍（路径 deviceId 即药箱主控 ID，不再有摄像头子设备与 X-Device-Id）。
      *
      * @return 本次（或命中的既有）抓拍的 {@code captureId} 与 {@code expireAt}
      */
@@ -118,7 +118,7 @@ public class CaptureService {
                 deviceId, planId, cellNo, takenResult, file != null && !file.isEmpty(), capturedAt);
 
         String elderId = deviceOwnerResolver.resolveElderId(deviceId);
-        BizAssert.forbiddenIf(elderId == null, "设备归属老人解析失败（设备未注册或父设备缺失）");
+        BizAssert.forbiddenIf(elderId == null, "设备归属老人解析失败（设备未注册）");
 
         String reasonNorm = (reason == null || reason.isBlank()) ? "NORMAL" : reason.trim().toUpperCase(Locale.ROOT);
         String takenNorm = (takenResult == null || takenResult.isBlank()) ? "UNTAKEN"
@@ -186,7 +186,7 @@ public class CaptureService {
         String recordId = null;
         if (dispense) {
             CaptureDispenseInput input = new CaptureDispenseInput();
-            input.setCameraDeviceId(deviceId);
+            input.setDeviceId(deviceId);
             input.setCaptureId(captureId);
             input.setPlanId(planId);
             input.setCellNo(cellNo);

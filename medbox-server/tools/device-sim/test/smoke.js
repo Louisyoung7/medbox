@@ -119,9 +119,8 @@ async function checkAckScenario(seedData, ack) {
     check(`[${ack}] 设备上线`, !!online, '确认 EMQX 与后端 MQTT 均已启用');
     if (!online) return;
 
-    const sensors = await api(`/devices/${deviceId}/sensors`, { token });
-    const withHeartbeat = (sensors.data?.list ?? sensors.data ?? []).filter((s) => s.lastHeartbeat);
-    check(`[${ack}] 传感器心跳落库`, withHeartbeat.length >= 2, JSON.stringify(sensors.data));
+    const env = await api(`/env/realtime?deviceId=${deviceId}`, { token });
+    check(`[${ack}] 主控遥测落库`, !!env.data?.sampleTime, JSON.stringify(env.data));
 
     const localHHmm = new Date(Date.now() + 8 * 3600_000).toISOString().slice(11, 16);
     const updated = await api(`/plans/${planId}`, {
@@ -188,10 +187,8 @@ async function checkCamera(token) {
     !!takenRow && takenRow.takenResult === 'TAKEN' && !takenRow.sizeBytes && !takenRow.fileToken,
     JSON.stringify(takenRow));
 
-  const mismatch = await postCapture(validateConfig(resolveConfig({ capture: 'taken', deviceIdMismatch: true })));
-  check('X-Device-Id 不一致 → 40001', mismatch.code === 40001, JSON.stringify(mismatch));
   const unknown = await postCapture(validateConfig(resolveConfig({ capture: 'taken', unknownDevice: true })));
-  check('未登记摄像头 → 40301', unknown.code === 40301, JSON.stringify(unknown));
+  check('未登记设备 → 40301', unknown.code === 40301, JSON.stringify(unknown));
 
   const records = await api(`/records?elderId=e-1001&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&page=1&size=50`, { token });
   const recordRows = records.data?.list ?? [];

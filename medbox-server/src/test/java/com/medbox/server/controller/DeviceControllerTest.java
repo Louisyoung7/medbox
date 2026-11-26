@@ -83,7 +83,7 @@ class DeviceControllerTest {
     // ————————————————— 注册 —————————————————
 
     @Test
-    @DisplayName("注册成功 → 200，回显主控与子设备")
+    @DisplayName("注册成功 → 200，回显主控与初始离线状态")
     void 注册成功() throws Exception {
         when(deviceService.register(any(DeviceRegisterRequest.class))).thenReturn(registerResponse());
 
@@ -91,15 +91,12 @@ class DeviceControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"deviceId":"BOXA1001","elderId":"u-1001",
-                                 "sensors":[{"deviceId":"BOXA1001-S-TH01","deviceType":"TEMP_HUMI"}]}"""))
+                                {"deviceId":"BOXA1001","elderId":"u-1001"}"""))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.deviceId").value(DEVICE_ID))
-                .andExpect(jsonPath("$.data.deviceType").value("MAIN"))
                 .andExpect(jsonPath("$.data.onlineState").value("OFFLINE"))
-                .andExpect(jsonPath("$.data.sensors.length()").value(1))
-                .andExpect(jsonPath("$.data.sensors[0].deviceType").value("TEMP_HUMI"));
+                .andExpect(jsonPath("$.data.sensors").doesNotExist());
     }
 
     @Test
@@ -175,29 +172,27 @@ class DeviceControllerTest {
     // ————————————————— 四个查询 —————————————————
 
     @Test
-    @DisplayName("设备列表 → 200，回显主控与子设备数量")
+    @DisplayName("设备列表 → 200，回显主控与在线状态")
     void 设备列表() throws Exception {
         when(deviceService.list()).thenReturn(List.of(
-                new DeviceSummaryResponse(DEVICE_ID, "MAIN", ELDER_ID, "medbox-box",
-                        "Asia/Shanghai", "ONLINE", OffsetDateTime.parse("2026-10-13T01:00:00Z"), 3)));
+                new DeviceSummaryResponse(DEVICE_ID, ELDER_ID, "medbox-box",
+                        "Asia/Shanghai", "ONLINE", OffsetDateTime.parse("2026-10-13T01:00:00Z"))));
 
         mockMvc.perform(get("/api/v1/devices")
                         .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].deviceId").value(DEVICE_ID))
-                .andExpect(jsonPath("$.data[0].sensorCount").value(3));
+                .andExpect(jsonPath("$.data[0].onlineState").value("ONLINE"));
     }
 
     @Test
-    @DisplayName("设备详情 → 200，含子设备列表")
+    @DisplayName("设备详情 → 200，含最新遥测（无子设备数组）")
     void 设备详情() throws Exception {
         when(deviceService.detail(DEVICE_ID)).thenReturn(new DeviceDetailResponse(
-                DEVICE_ID, "MAIN", ELDER_ID, "medbox-box", "Asia/Shanghai", "ONLINE",
+                DEVICE_ID, ELDER_ID, "medbox-box", "Asia/Shanghai", "ONLINE",
                 OffsetDateTime.parse("2026-10-13T01:00:00Z"),
                 OffsetDateTime.parse("2026-10-12T00:00:00Z"),
-                List.of(new DeviceDetailResponse.SensorSummary(
-                        "BOXA1001-S-TH01", "TEMP_HUMI", "OFFLINE", null)),
                 null));
 
         mockMvc.perform(get("/api/v1/devices/{deviceId}", DEVICE_ID)
@@ -205,8 +200,7 @@ class DeviceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deviceId").value(DEVICE_ID))
                 .andExpect(jsonPath("$.data.timezone").value("Asia/Shanghai"))
-                .andExpect(jsonPath("$.data.sensors.length()").value(1))
-                .andExpect(jsonPath("$.data.sensors[0].onlineState").value("OFFLINE"));
+                .andExpect(jsonPath("$.data.sensors").doesNotExist());
     }
 
     @Test
@@ -274,8 +268,7 @@ class DeviceControllerTest {
 
     private static DeviceRegisterResponse registerResponse() {
         return new DeviceRegisterResponse(
-                DEVICE_ID, "MAIN", ELDER_ID, "medbox-box", "Asia/Shanghai", "OFFLINE",
-                OffsetDateTime.parse("2026-10-13T01:00:00Z"),
-                List.of(new DeviceRegisterResponse.RegisteredSensor("BOXA1001-S-TH01", "TEMP_HUMI")));
+                DEVICE_ID, ELDER_ID, "medbox-box", "Asia/Shanghai", "OFFLINE",
+                OffsetDateTime.parse("2026-10-13T01:00:00Z"));
     }
 }

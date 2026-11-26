@@ -5,6 +5,8 @@ const env = (name, fallback) => (process.env[name] ?? fallback);
 /**
  * 模拟器配置：默认值对齐后端 devtools 种子（BOXA-DEBUG-01 / medbox-box / p-3301），
  * 所有项都可由命令行覆盖，便于联调非种子设备。
+ *
+ * 系统只建模药箱主控一种设备：不再有传感器 / 摄像头子设备 ID 与子设备心跳。
  */
 export function resolveConfig(overrides = {}) {
   const deviceId = overrides.deviceId ?? env('MEDBOX_SIM_DEVICE_ID', 'BOXA-DEBUG-01');
@@ -18,13 +20,9 @@ export function resolveConfig(overrides = {}) {
     productKey,
     topicPrefix: overrides.topicPrefix ?? env('MEDBOX_SIM_TOPIC_PREFIX', 'medbox'),
     planId: overrides.planId ?? env('MEDBOX_SIM_PLAN_ID', 'p-3301'),
-    sensorTh: overrides.sensorTh ?? env('MEDBOX_SIM_SENSOR_TH', `${deviceId}-S-TH01`),
-    sensorLx: overrides.sensorLx ?? env('MEDBOX_SIM_SENSOR_LX', `${deviceId}-S-LX01`),
-    sensorCam: overrides.sensorCam ?? env('MEDBOX_SIM_SENSOR_CAM', `${deviceId}-S-CAM01`),
     stateDir: path.resolve(stateDir),
     keepaliveSeconds: Number(overrides.keepaliveSeconds ?? env('MEDBOX_SIM_KEEPALIVE', 60)),
     telemetryIntervalMs: Number(overrides.telemetryIntervalMs ?? env('MEDBOX_SIM_TELEMETRY_INTERVAL_MS', 60_000)),
-    heartbeatIntervalMs: Number(overrides.heartbeatIntervalMs ?? env('MEDBOX_SIM_HEARTBEAT_INTERVAL_MS', 60_000)),
     ack: overrides.ack ?? 'ok',
     capture: overrides.capture ?? 'taken',
     cellNo: Number(overrides.cellNo ?? 1),
@@ -32,7 +30,6 @@ export function resolveConfig(overrides = {}) {
     capturedAt: overrides.capturedAt ?? null,
     reason: overrides.reason ?? 'NORMAL',
     errorType: overrides.errorType ?? null,
-    deviceIdMismatch: Boolean(overrides.deviceIdMismatch ?? false),
     unknownDevice: Boolean(overrides.unknownDevice ?? false),
     durationMs: Number(overrides.durationMs ?? 0),
     timeoutMs: Number(overrides.timeoutMs ?? 10_000),

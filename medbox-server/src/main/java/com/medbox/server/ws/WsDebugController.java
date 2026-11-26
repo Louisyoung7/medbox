@@ -76,7 +76,7 @@ public class WsDebugController {
 
     private static Object samplePayload(WsFrameType type, String elderId) {
         if (type == WsFrameType.DEVICE_STATUS) {
-            return new DeviceStatusPayload("BOXA1001", "MAIN", true, null);
+            return new DeviceStatusPayload("BOXA1001", true);
         }
         return new AlarmPayload("a-debug-0001", "MISS", "WARN",
                 "调试：08:00 1 号格（早间）未按时取药", elderId);

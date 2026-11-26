@@ -80,7 +80,7 @@ public enum Permission {
     /** 删除抓拍图片。 */
     WRITE_CAPTURE,
 
-    /** 查看设备与子设备状态。 */
+    /** 查看药箱主控状态。 */
     READ_DEVICE,
 
     /** 下发设备控制命令。 */

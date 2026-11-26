@@ -11,7 +11,6 @@ import com.medbox.server.domain.DeviceCommand;
 import com.medbox.server.domain.enums.DeviceCmd;
 import com.medbox.server.domain.enums.DeviceCommandState;
 import com.medbox.server.domain.enums.DeviceEventType;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.dto.device.CommandSendRequest;
 import com.medbox.server.dto.device.CommandSendResponse;
@@ -39,7 +38,7 @@ import tools.jackson.databind.ObjectMapper;
  * 把行翻成 SUCCESS / FAILED 终态。
  *
  * <p><b>判定表（07 清单本分支规则，顺序即优先级）</b>：
- * 设备不存在 / 越权 / 传子设备编号 / 老人本人 → 40301；关系 PENDING → 40302；
+ * 设备不存在 / 越权 / 老人本人 → 40301；关系 PENDING → 40302；
  * cmd 不在白名单 → 40001；<b>设备离线 → 40901</b>（小程序 mp-device-extra 已按此提示
  * "设备离线，无法下发"）；MQTT 未启用 / 发布失败 → 50000（未启用时不落库，与 devtools
  * 设备注册的口径一致）。
@@ -98,8 +97,7 @@ public class DeviceCommandService implements PendingAckRegistry.DownlinkCompleti
         AccessIdentity identity = accessService.requireDevice(deviceId, Permission.WRITE_DEVICE);
         Device device = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
                 .eq(Device::getDeviceId, deviceId));
-        if (device == null || device.getDeviceType() != DeviceType.MAIN) {
-            // 子设备编号与越权同码，防设备编号枚举
+        if (device == null) {
             throw BizException.of(ErrorCode.FORBIDDEN);
         }
 

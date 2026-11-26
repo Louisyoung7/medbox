@@ -13,7 +13,6 @@ import {
   errorEvent,
   luxTelemetry,
   parseDownlink,
-  sensorHeartbeat,
   telemetry,
 } from '../src/payloads.js';
 import { parseArgs } from '../src/cli.js';
@@ -44,14 +43,11 @@ test('topic 按 medbox/{productKey}/{deviceId}/... 构造', () => {
 
 test('上行报文字段与 spec 03 一致', () => {
   const base = { msgId: 'BOXA-DEBUG-01-0000000001', ts: 1759474487000 };
-  assert.deepEqual(JSON.parse(telemetry({ ...base, sensorId: 'BOXA-DEBUG-01-S-TH01', temperature: 24.6, humidity: 52.1 })), {
-    ...base, sensorId: 'BOXA-DEBUG-01-S-TH01', temperature: 24.6, humidity: 52.1,
+  assert.deepEqual(JSON.parse(telemetry({ ...base, temperature: 24.6, humidity: 52.1 })), {
+    ...base, temperature: 24.6, humidity: 52.1,
   });
-  assert.deepEqual(JSON.parse(luxTelemetry({ ...base, sensorId: 'BOXA-DEBUG-01-S-LX01', lux: 120 })), {
-    ...base, sensorId: 'BOXA-DEBUG-01-S-LX01', lux: 120,
-  });
-  assert.deepEqual(JSON.parse(sensorHeartbeat({ ...base, sensors: [{ sensorId: 'S1', online: true }] })), {
-    ...base, sensors: [{ sensorId: 'S1', online: true }],
+  assert.deepEqual(JSON.parse(luxTelemetry({ ...base, lux: 120 })), {
+    ...base, lux: 120,
   });
   assert.deepEqual(JSON.parse(errorEvent({ ...base, type: 'DOOR_TIMEOUT', detail: 'timeout' })), {
     ...base, type: 'DOOR_TIMEOUT', detail: 'timeout',

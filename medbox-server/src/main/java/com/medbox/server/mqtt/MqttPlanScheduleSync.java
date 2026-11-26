@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.MedPlan;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.MedPlanMapper;
 import com.medbox.server.service.PlanSyncEvent;
@@ -70,8 +69,7 @@ public class MqttPlanScheduleSync implements PendingAckRegistry.DownlinkCompleti
             return;
         }
         Device device = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
-                .eq(Device::getElderId, event.getElderId())
-                .eq(Device::getDeviceType, DeviceType.MAIN));
+                .eq(Device::getElderId, event.getElderId()));
         if (device == null) {
             log.warn("老人无 MAIN 设备，无法下发计划 planId={} elderId={}",
                     event.getPlanId(), event.getElderId());

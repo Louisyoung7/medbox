@@ -13,7 +13,6 @@ import com.medbox.server.domain.Device;
 import com.medbox.server.domain.EnvSample;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
@@ -118,9 +117,9 @@ class EnvCoreWebIntegrationTest {
 
         EnvSample th = sample("24.6", "52.1", null, "2026-10-26T01:00:00Z");
         EnvSample lx = sample(null, null, "120", "2026-10-26T01:05:00Z");
-        when(envSampleMapper.selectLatestTempHumi(ArgumentMatchers.eq(DEVICE_ID), ArgumentMatchers.any()))
+        when(envSampleMapper.selectLatestTempHumi(ArgumentMatchers.eq(DEVICE_ID)))
                 .thenReturn(th);
-        when(envSampleMapper.selectLatestLux(ArgumentMatchers.eq(DEVICE_ID), ArgumentMatchers.any()))
+        when(envSampleMapper.selectLatestLux(ArgumentMatchers.eq(DEVICE_ID)))
                 .thenReturn(lx);
 
         mockMvc.perform(get("/api/v1/env/realtime").param("deviceId", DEVICE_ID)
@@ -142,7 +141,7 @@ class EnvCoreWebIntegrationTest {
         EnvHistoryPoint point = new EnvHistoryPoint(
                 OffsetDateTime.parse("2026-10-26T01:00:00Z"),
                 new BigDecimal("24.6"), new BigDecimal("52.1"), new BigDecimal("120"));
-        when(envSampleMapper.selectHistory(ArgumentMatchers.eq(DEVICE_ID), ArgumentMatchers.any(),
+        when(envSampleMapper.selectHistory(ArgumentMatchers.eq(DEVICE_ID),
                 ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
                 .thenReturn(List.of(point));
 
@@ -202,9 +201,9 @@ class EnvCoreWebIntegrationTest {
                 .thenReturn(List.of());
 
         EnvSample th = sample("24.6", "52.1", null, "2026-10-26T01:00:00Z");
-        when(envSampleMapper.selectLatestTempHumi(ArgumentMatchers.eq(DEVICE_ID), ArgumentMatchers.any()))
+        when(envSampleMapper.selectLatestTempHumi(ArgumentMatchers.eq(DEVICE_ID)))
                 .thenReturn(th);
-        when(envSampleMapper.selectLatestLux(ArgumentMatchers.eq(DEVICE_ID), ArgumentMatchers.any()))
+        when(envSampleMapper.selectLatestLux(ArgumentMatchers.eq(DEVICE_ID)))
                 .thenReturn(null);
 
         mockMvc.perform(get("/api/v1/devices/{deviceId}", DEVICE_ID)
@@ -245,7 +244,6 @@ class EnvCoreWebIntegrationTest {
     private static Device mainDevice(String deviceId, String elderId) {
         Device device = new Device();
         device.setDeviceId(deviceId);
-        device.setDeviceType(DeviceType.MAIN);
         device.setElderId(elderId);
         device.setProductKey("medbox-box");
         device.setTimezone("Asia/Shanghai");
@@ -257,7 +255,6 @@ class EnvCoreWebIntegrationTest {
     private static EnvSample sample(String temp, String humi, String lux, String time) {
         EnvSample s = new EnvSample();
         s.setDeviceId(DEVICE_ID);
-        s.setGatewayDeviceId(DEVICE_ID);
         s.setElderId(ELDER_ID);
         s.setTemperature(temp == null ? null : new BigDecimal(temp));
         s.setHumidity(humi == null ? null : new BigDecimal(humi));
