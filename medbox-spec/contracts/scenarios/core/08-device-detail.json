@@ -32,8 +32,8 @@
         "code": 0,
         "shape": {
           "data.deviceId": "string",
-          "data.deviceType": "string",
-          "data.sensors": "array"
+          "data.elderId": "string",
+          "data.onlineState": "string"
         },
         "equals": {
           "data.deviceId": "${deviceId}"
