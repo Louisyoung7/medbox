@@ -7,13 +7,13 @@
 | 项 | 约定 |
 |----|------|
 | Broker | **EMQX**，局域网内网部署：`tcp://{内网BrokerIP}:1883`（明文），详见文档 01 第 4 章。**设备**连这个地址；**后端**与 EMQX 同机时连 `localhost:1883` |
-| clientId | = deviceId。**必填**（即使匿名连接也必须有）：EMQX 靠它区分身份、维护会话与遗嘱；相同 clientId 再次连接会踢掉前一个 |
+| clientId | = deviceId。**必填**（即使匿名连接也必须有）：EMQX 靠它区分身份、维护会话与遗嘱；相同 clientId 再次连接会踢掉前一个。`deviceId` 由设备固件生成并固化，后端只在注册时校验格式与唯一性 |
 | KeepAlive | 60s，心跳维持在线判定 |
 | 遗嘱消息 LWT | topic=`.../status`，payload `{"online":false}`，异常掉线即时感知 |
 | QoS | 遥测 QoS0/1；命令/事件 QoS1；关键下行命令 QoS1 且带 ack |
 | Retained | status（在线状态）retained=true，订阅即得最新态 |
 | 后端接入方式 | 后端以订阅方身份连到 EMQX，订阅 `.../up/#` 消费上报、向 `.../down/#` 发布下行 |
-| 连接主体 | **一个药箱只有主设备（`MAIN`）建立 MQTT 连接**，clientId = 药箱 deviceId。温湿度 / 光照传感器是其**子设备**，不各自建 MQTT 连接，由主控在消息里带 `sensorId` 标明来源；**摄像头独立经 HTTP 直连后端上报服药事件（取药结论 + 格号 + 仅未取药时附原图，见第 4 章），不走 MQTT** |
+| 连接主体 | **一个药箱只有主控建立 MQTT 连接**，clientId = 药箱 `deviceId`。系统不再建模传感器 / 摄像头子设备，也没有子设备编号；温湿度 / 光照读数由主控直接上报、不带 `sensorId`；**摄像头独立经 HTTP 直连后端上报服药事件（用同一个主控 `deviceId`，取药结论 + 格号 + 仅未取药时附原图，见第 4 章），不走 MQTT** |
 | 消息幂等 | **所有上行消息必须带 `msgId`**，格式固定为 **`{deviceId}-{10位递增序号}`**（如 `BOXA-DEBUG-01-0000000124`，序号持久化、重启不归零）。断线重连重发时服务端按 `msgId` 去重，避免重复写入服药记录 / 告警 |
 | 下行确认 | 下行消息带 `msgId` 与 `needAck`；设备处理后向 `.../up/ack` 回执。**重发策略：超时 5s 未回执则重发，最多 3 次**；3 次仍无回执则标记该下发失败并生成告警（见第 2 章） |
 
@@ -25,9 +25,8 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），用于查看连接
 
 | 方向     | Topic                       | QoS | 说明                                                                             |
 | -------- | --------------------------- | --- | -------------------------------------------------------------------------------- |
-| 设备→云 | `.../up/telemetry`        | 0/1 | 环境遥测（**每个传感器各发一条**，只带自己负责的字段，见第 3 章）          |
+| 设备→云 | `.../up/telemetry`        | 0/1 | 环境遥测（**主控直接上报**，温湿度 / 光照可分别上报，不带 `sensorId`，见第 3 章） |
 | 设备→云 | `.../up/event/error`      | 1   | **设备侧异常**：门超时、识别失败、硬件故障等                               |
-| 设备→云 | `.../up/sensor/heartbeat` | 0   | 主控周期性上报各传感器子设备在线状态（子设备无遗嘱，判离线靠它，见第 3 章）      |
 | 设备→云 | **`.../up/ack`**    | 1   | **下行消息回执**（计划 / 命令的 `msgId` 处理结果）                       |
 | 设备→云 | `.../status (LWT)`        | 0   | 在线/离线状态（retained）                                                        |
 | 云→设备 | `.../down/schedule`       | 1   | 下发/同步服药计划与提醒任务                                                      |
@@ -37,21 +36,19 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），用于查看连接
 
 > **上行消息统一带 `msgId`**，服务端按 `msgId` 幂等去重（同一 `msgId` 重复到达只处理一次）。
 
-上行·环境遥测 `.../up/telemetry`（**每个传感器各发一条**，只带自己负责的字段）：
+上行·环境遥测 `.../up/telemetry`（**主控直接上报**，只带读数、不带 `sensorId`）：
 
 ```json
-// 温湿度传感器（TEMP_HUMI）
+// 温湿度
 { "msgId":"BOXA-DEBUG-01-0000000123", "ts":1759474487000,
-  "sensorId":"BOXA-DEBUG-01-S-TH01",
   "temperature":24.6, "humidity":52.1 }
 
-// 光照传感器（LIGHT）
+// 光照
 { "msgId":"BOXA-DEBUG-01-0000000124", "ts":1759474488000,
-  "sensorId":"BOXA-DEBUG-01-S-LX01",
   "lux":120 }
 ```
 
-`sensorId` = 该传感器子设备的 `device_id`（见文档 06 的 2.3）；主控转发时原样带上，后端据此区分来源、只更新对应列。
+后端按消息所属主控 `deviceId` 直接写 `env_sample.device_id`，不再区分、也不落任何传感器来源 ID。
 
 上行·服药事件：**不走 MQTT**，由摄像头经 HTTP multipart 上报（端点与字段见 `02b_设备管理.md` §1.1）。`takenResult` 二值（`TAKEN` 已取药 / `UNTAKEN` 未取药）+ **格号 `cellNo`（1/2/3）**；**仅 `UNTAKEN` 附抓拍原图作留证，`TAKEN` 不上图**。后端据 `cellNo` + 就近时间槽落记录，不做人脸识别、无置信度、无第三态。
 
@@ -64,16 +61,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），用于查看连接
 
 `type` 取值：`DOOR_TIMEOUT` 门超时 / `CAMERA_FAILED` 识别失败 / `HW_FAULT` 硬件故障。后端收到后**记入设备事件流水**（`GET /devices/{id}/events`）**并生成 `DEVICE_FAULT` 告警**（见文档 02f_告警.md 第 1 章）。
 
-上行·传感器心跳 `.../up/sensor/heartbeat`（主控周期性汇总子设备状态）：
-
-```json
-{ "msgId":"BOXA-DEBUG-01-0000000128", "ts":1759474540000,
-  "sensors":[ { "sensorId":"BOXA-DEBUG-01-S-TH01","online":true },
-              { "sensorId":"BOXA-DEBUG-01-S-LX01","online":true },
-              { "sensorId":"BOXA-DEBUG-01-S-CAM01","online":false } ] }
-```
-
-因为**只有主控有 MQTT 连接**，子设备没有自己的遗嘱消息，故由主控每 **60s** 汇总上报一次；后端据此更新各子设备的 `last_heartbeat` 与 `online_state`。**离线判定：连续 3 个周期（180s）未上报即判该传感器离线**，**不生成 DEVICE_OFFLINE 告警**，仅在设备详情与 `DEVICE_STATUS` 推送中标注。
+**不再有传感器心跳 Topic，也没有子设备在线状态**：系统只保留主控的 MQTT retained status / 遗嘱与上行活跃判定，设备详情与 `DEVICE_STATUS` 推送只反映主控在线/离线。
 
 上行·下行回执 `.../up/ack`（对应下行消息中的 `msgId`）：
 
@@ -110,7 +98,7 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），用于查看连接
 
 ## 4. 摄像头识别与上报链路（摄像头 → 后端 HTTP）
 
-摄像头端侧判定「对应格位的药格是否被取走」，直接经 HTTP 把取药结论 + **格号 `cellNo`** 上报后端（复用 `02b_设备管理.md` §1.1 的 captures 端点）。单片机与摄像头之间的协同（谁触发判定、如何取流）是设备固件内部实现，协议只约束「摄像头 → 后端」这一跳 HTTP。
+摄像头端侧判定「对应格位的药格是否被取走」，直接经 HTTP 把取药结论 + **格号 `cellNo`** 上报后端（复用 `02b_设备管理.md` §1.1 的 captures 端点），路径里用**药箱主控 `deviceId`**，不再有摄像头子设备 ID。单片机与摄像头之间的协同（谁触发判定、如何取流）是设备固件内部实现，协议只约束「摄像头 → 后端」这一跳 HTTP。
 
 ```
 摄像头(端侧判定格位是否取走) --HTTP multipart(cellNo + takenResult + 仅UNTAKEN附file)--> 后端(据格号+时间落记录, 不跑识别)
@@ -141,13 +129,13 @@ EMQX 自带 Dashboard（默认 `http://{内网IP}:18083`），用于查看连接
 ```bash
 cd medbox-server/tools/device-sim
 npm install
-# 药箱主控（种子设备）：上线 + 温湿/光照遥测 + 传感器心跳 + down/# 订阅 + 回执
+# 药箱主控（种子设备）：上线 + 温湿/光照遥测 + down/# 订阅 + 回执
 npm run mcu -- --ack ok --duration-ms 90000
-# 摄像头：按时取药（TAKEN 不附图）
+# 摄像头：按时取药（TAKEN 不附图），用主控 deviceId
 npm run camera -- --capture taken --cell-no 1 --plan-id p-3301 --captured-at <ISO-8601 UTC>
 ```
 
-默认对齐本仓联调种子：`deviceId=BOXA-DEBUG-01`、`productKey=medbox-box`、传感器 `-S-TH01`/`-S-LX01`/`-S-CAM01`、`planId=p-3301`。真机联调用 `--device-id` / `--broker` / `--base-url` 覆盖。所有上行 `msgId` 由 `.state/{deviceId}.json` 持久化递增（10 位、重启不归零），可命中服务端幂等去重。
+默认对齐本仓联调种子：`deviceId=BOXA-DEBUG-01`、`productKey=medbox-box`、`planId=p-3301`。真机联调用 `--device-id` / `--broker` / `--base-url` 覆盖。所有上行 `msgId` 由 `.state/{deviceId}.json` 持久化递增（10 位、重启不归零），可命中服务端幂等去重。
 
 ### 5.2 MCU 场景
 
@@ -166,13 +154,12 @@ npm run camera -- --capture taken --cell-no 1 --plan-id p-3301 --captured-at <IS
 | `--capture taken` | `cellNo` + `TAKEN` + `planId`，不附图 | 落 capture 与 med_record，`takenResult=TAKEN` |
 | `--capture untaken` | 同上 `UNTAKEN`，自动生成 1×1 JPEG 作留证 | 落带图 capture 与 med_record；`UNTAKEN` 无 `file` 时 40001 |
 | `--capture none` | 到点不上报 | 超容忍窗口后由后端判 `MISS`（容忍：计划级 > 老人级 > 15 分钟） |
-| `--device-id-mismatch` | `X-Device-Id` 与路径不一致 | 40001 |
-| `--unknown-device` | 未登记摄像头 ID | 40301 |
+| `--unknown-device` | 未登记的主控 `deviceId` | 40301 |
 
 同一 `planId + cellNo` 60s 内重复上报只保留第一条，故连续自测不同结论时换 `cellNo` 或换时间槽。`TAKEN` 不附图在响应上的判定依据是无 `sizeBytes` / 无 `fileToken`；`mime` 因 `capture.mime` 的 DB 默认值可能仍回显 `image/jpeg`（见 06 的 2.12），不代表真有文件。
 
 ### 5.4 测试与边界
 
 - `npm test`：纯函数 + 本地假 HTTP 服务，CI 可跑、不依赖 PG/EMQX。
-- `MEDBOX_DEVICE_SIM_SMOKE=true npm run smoke`：opt-in 端到端冒烟，需本机 PostgreSQL、EMQX 与以 `medbox.devtools.enabled=true` 启动的后端；覆盖上线、心跳、三种回执、命令终态、TAKEN/UNTAKEN、错误路径，输出 `N 通过 / M 失败` 报告。
+- `MEDBOX_DEVICE_SIM_SMOKE=true npm run smoke`：opt-in 端到端冒烟，需本机 PostgreSQL、EMQX 与以 `medbox.devtools.enabled=true` 启动的后端；覆盖上线、遥测、三种回执、命令终态、TAKEN/UNTAKEN、错误路径，输出 `N 通过 / M 失败` 报告。
 - 不覆盖：断网缓存补传、MISS 定时扫描、WebSocket 业务帧断言——这些仍需按 `docs/单片机与摄像头联调对接.md` 用真机或调试端点验证。EMQX Dashboard / `mosquitto_sub` 仅作协议层观察，不再充当设备模拟手段。

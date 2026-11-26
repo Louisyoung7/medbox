@@ -10,7 +10,7 @@ info:
     |---|---|---|
     | MISS | 后端判定 | 计划时间+容忍时长内该格未收到服药上报（按槽判定；告警只提格号与时间，不提药品名；后端定时判定生成并经 WS 推送） |
     | ENV | 设备上报 | 温度/湿度/光照超出该老人统一配置的 envThreshold（不按药品细分，01 §5.4） |
-    | DEVICE_OFFLINE | 后端判定 | 心跳超时，设备离线超阈值（仅主控，传感器子设备离线不生成告警） |
+    | DEVICE_OFFLINE | 后端判定 | 心跳超时，设备离线超阈值（仅主控） |
     | DEVICE_FAULT | 设备上报 | 设备侧异常（up/event/error）：门超时 / 识别失败 / 硬件故障 |
 
     **权限**：列表/未读/已读/设置查询属 READ_ALARM（老人本人 + GUARDIAN）；handleAlarm 属 HANDLE_ALARM（仅 GUARDIAN）；PUT /alarm-settings 属 WRITE_ALARM_SETTINGS（仅 GUARDIAN，非 GUARDIAN 写 → 40301）。

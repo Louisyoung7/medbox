@@ -33,9 +33,8 @@
         "shape": {
           "data": "array",
           "data[0].deviceId": "string",
-          "data[0].deviceType": "string",
-          "data[0].onlineState": "string",
-          "data[0].sensorCount": "number"
+          "data[0].elderId": "string",
+          "data[0].onlineState": "string"
         },
         "minLength": {
           "data": 1

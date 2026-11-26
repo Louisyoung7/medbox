@@ -6,7 +6,7 @@
 
 家用智能药品箱，纯局域网通信：
 
-- **设备**（药箱主控 + 传感器 + 摄像头）经 **MQTT(EMQX)** 上报
+- **设备**（药箱主控，环境遥测经 MQTT、摄像头抓拍经 HTTP）上报
 - **Java 后端**（`medbox-server/`，Spring Boot 4 + Java 21）落库并判定
 - **uni-app 客户端**（`medbox-app/`，主交付端 Android APK；H5 仅本地联调）通过 **HTTP REST + WebSocket** 交互
 - **AI 问答**走大模型（后端不托管，监护人代配 Key）

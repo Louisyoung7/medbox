@@ -35,13 +35,13 @@
 | type | 触发时机 | payload 要点 |
 |------|----------|--------------|
 | ALARM | 后端生成漏服/环境告警 | alarmId, type, level(`INFO`/`WARN`/`CRITICAL`), message, elderId |
-| DEVICE_STATUS | 设备在线/离线（订阅 retained status） | deviceId, deviceType(`MAIN`/`TEMP_HUMI`/`LIGHT`/`CAMERA`), online, parentDeviceId（子设备时） |
+| DEVICE_STATUS | 设备在线/离线（订阅 retained status） | deviceId, online |
 | REMINDER | 临近服药计划提醒（可选，监护端提醒） | planId, planTime, **cellNo**（格号 1/2/3，不含药品信息） |
 | AI_STREAM | AI 流式回答分片（**本期不使用**：按需洞察的流式统一走 HTTP SSE，见文档 05 第 2.2 章） | sessionId, delta |
 | AI_INSIGHT | 周期洞察推送（系统定时生成的 COMPREHENSIVE 洞察，详见文档 05 第 2.3 章） | insightId, elderId, type, content, citations, disclaimer |
 | RESYNC | 补推窗口已过期，客户端应改走 REST 拉全量 | `reason=WINDOW_EXPIRED`、`latestEventId` |
 
-> **DEVICE_STATUS 覆盖子设备**：药箱主控（`MAIN`）离线/上线各推一条；**传感器子设备**没有自己的 MQTT 连接，其在线状态由主控通过 `up/sensor/heartbeat` 汇总上报（见文档 03 第 3 章），后端据此推送子设备的 `DEVICE_STATUS`（带 `deviceType` 与 `parentDeviceId`）。子设备离线**不生成 DEVICE_OFFLINE 告警**，仅在设备详情页标注。
+> **DEVICE_STATUS 只覆盖主控**：药箱离线/上线各推一条，不再有传感器子设备状态帧（`deviceType` / `parentDeviceId` 字段已删除）。
 
 **示例：推送漏服告警**
 ```json

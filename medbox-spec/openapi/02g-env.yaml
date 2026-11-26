@@ -24,11 +24,11 @@ paths:
     get:
       operationId: getEnvRealtime
       tags: [env]
-      summary: 最新温湿光读数（按传感器合并）【鉴权·READ_ENV】
+      summary: 最新温湿光读数（按主控合并）【鉴权·READ_ENV】
       description: |
         权限：requireDevice(deviceId, READ_ENV)，越权 / 设备查不到一律 40301（与设备类接口同口径，防设备编号枚举）。
-        温湿度传感器与光照传感器分两条 env_sample 入库，本接口**合并两者最新非空读数**；
-        某传感器无数据则该字段 null；sampleTime 取温湿度行与光照行中较新者。
+        主控上报的温湿度与光照分别入库，本接口**合并最新非空读数**；
+        某字段无数据则 null；sampleTime 取所有读数中较新者。无 sensorId 参数。
       parameters:
         - name: deviceId
           in: query
@@ -36,11 +36,6 @@ paths:
           description: 药箱主控
           schema: { type: string }
           example: BOXA-DEBUG-01
-        - name: sensorId
-          in: query
-          required: false
-          description: 按传感器查
-          schema: { type: string }
       responses:
         '200':
           description: 实时读数（code=0；无数据字段为 null）
@@ -67,17 +62,13 @@ paths:
       summary: 历史曲线（客户端图表）【鉴权·READ_ENV】
       description: |
         - from / to **必填**（ISO-8601，含端点）；interval 可选（分钟，1~1440，分桶 avg() 聚合；缺省返回原始有序点）；
-        - 按 sensorId 查询时只筛该传感器 device_id，否则按药箱 gateway_device_id 筛其下全部传感器；
+        - 统一按 env_sample.device_id = deviceId 查询，无 sensorId / gateway_device_id 概念；
         - 边界校验（不满足 → 40001）：from/to 缺省；from > to；interval 越界（1~1440）；**时间跨度 > 30 天**；
-        - 原始模式下单行只带一类数值、其余为 null（温湿度与光照来自不同传感器、上报时刻不同）；分桶模式按桶 avg() 聚合（avg 天然忽略 null）。
+        - 原始模式下单行只带一类数值、其余为 null（温湿度与光照上报时刻不同）；分桶模式按桶 avg() 聚合（avg 天然忽略 null）。
       parameters:
         - name: deviceId
           in: query
           required: true
-          schema: { type: string }
-        - name: sensorId
-          in: query
-          required: false
           schema: { type: string }
         - name: from
           in: query
