@@ -6,13 +6,26 @@
     </view>
 
     <MbCard v-if="isGuardian" title="登记药箱">
-      <view class="form-row">
-        <input v-model="newDeviceId" class="form-input" placeholder="设备自生成 ID（如 BOXA1001）" />
-      </view>
-      <view class="form-row">
-        <input v-model="newElderId" class="form-input" placeholder="老人用户 ID" />
-      </view>
-      <MbButton type="primary" size="small" :loading="registering" @click="onRegister">登记设备</MbButton>
+      <MbField
+        v-model="newDeviceId"
+        label="设备自生成 ID"
+        placeholder="如 BOXA1001"
+        :error="deviceIdError"
+      />
+      <MbField
+        v-model="newElderId"
+        label="老人用户 ID"
+        placeholder="请输入已绑定老人的用户 ID"
+        :error="elderIdError"
+      />
+      <text class="register-tip">登记前需与老人建立 ACTIVE 监护关系；PENDING 无法登记。</text>
+      <MbButton
+        type="primary"
+        size="small"
+        :loading="registering"
+        :disabled="!canRegister"
+        @click="onRegister"
+      >登记设备</MbButton>
       <text v-if="registerHint" class="register-hint">{{ registerHint }}</text>
     </MbCard>
 
@@ -54,15 +67,27 @@ import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import MbDrawer from '@/components/MbDrawer.vue'
 import MbButton from '@/components/MbButton.vue'
+import MbField from '@/components/MbField.vue'
 import { listDevices, registerDevice } from '@/api/device.js'
+import { CODE } from '@/api/request.js'
+import { getElderProfile } from '@/api/user.js'
 import { connect, onEvent, onResync, WS_EVENT } from '@/store/ws.js'
 import { getRole, ROLE } from '@/store/user.js'
 import { applyStatus } from '@/utils/device-status.js'
+import { collectElderIds, buildElderProfiles, deviceElderLabel } from '@/utils/device-elder.js'
 import { formatRelative } from '@/utils/datetime.js'
+
+const DEVICE_ID_RE = /^[A-Za-z0-9_-]{4,64}$/
+const REGISTER_HINTS = {
+  [CODE.BAD_REQUEST]: '设备 ID 格式不合法',
+  [CODE.FORBIDDEN]: '无权限登记，请确认已与该老人建立监护关系',
+  [CODE.GUARDIAN_PENDING]: '监护关系未生效，请等待老人确认',
+  [CODE.CONFLICT]: '该设备编号已登记',
+}
 
 export default {
   name: 'DevicePage',
-  components: { MbCard, MbCell, MbEmpty, MbLoading, MbTabBar, MbDrawer, MbButton },
+  components: { MbCard, MbCell, MbEmpty, MbLoading, MbTabBar, MbDrawer, MbButton, MbField },
   data() {
     return {
       devices: [],
@@ -72,6 +97,9 @@ export default {
       offResync: null,
       newDeviceId: '',
       newElderId: '',
+      deviceIdError: '',
+      elderIdError: '',
+      elderProfiles: {},
       registering: false,
       registerHint: '',
     }
@@ -79,6 +107,18 @@ export default {
   computed: {
     isGuardian() {
       return getRole() === ROLE.GUARDIAN
+    },
+    canRegister() {
+      return !!(this.newDeviceId.trim() && this.newElderId.trim() && !this.deviceIdError && !this.elderIdError)
+    },
+  },
+  watch: {
+    newDeviceId(value) {
+      const text = String(value || '').trim()
+      this.deviceIdError = !text || DEVICE_ID_RE.test(text) ? '' : '4~64 位字母、数字、下划线或短横线'
+    },
+    newElderId(value) {
+      this.elderIdError = String(value || '').trim() ? '' : '请输入老人用户 ID'
     },
   },
   onLoad() {
@@ -96,6 +136,7 @@ export default {
       this.error = ''
       try {
         this.devices = await listDevices()
+        await this.loadElderProfiles()
         this.connectForGuardian()
       } catch (err) {
         this.error = (err && err.message) || '加载失败'
@@ -103,13 +144,24 @@ export default {
         this.loading = false
       }
     },
+    /** 老人姓名是增强信息：并发拉取、单个失败静默回退 ID，不阻断设备列表。 */
+    async loadElderProfiles() {
+      const elderIds = collectElderIds(this.devices)
+      if (!elderIds.length) {
+        this.elderProfiles = {}
+        return
+      }
+      const results = await Promise.all(elderIds.map((elderId) =>
+        getElderProfile(elderId, { silent: true })
+          .then((value) => ({ status: 'fulfilled', value }))
+          .catch(() => ({ status: 'rejected' })),
+      ))
+      this.elderProfiles = buildElderProfiles(elderIds, results)
+    },
     // 监护人可见的是「一批老人」的设备，订阅主题要从列表归纳 elderId 后传入（老人端 App.vue 已起连自己）
     connectForGuardian() {
       if (getRole() !== ROLE.GUARDIAN) return
-      const elderIds = []
-      this.devices.forEach((device) => {
-        if (device.elderId && elderIds.indexOf(device.elderId) === -1) elderIds.push(device.elderId)
-      })
+      const elderIds = collectElderIds(this.devices)
       if (elderIds.length) connect({ elderIds })
     },
     onDeviceStatus(frame) {
@@ -119,25 +171,30 @@ export default {
       this.load()
     },
     deviceLabel(device) {
-      const parts = [device.elderId ? `老人 ${device.elderId}` : '药箱主控']
+      const parts = [deviceElderLabel(device, this.elderProfiles)]
       if (device.lastHeartbeat) parts.push(`心跳 ${formatRelative(device.lastHeartbeat)}`)
       return parts.join(' · ')
     },
     async onRegister() {
-      if (!this.newDeviceId.trim() || !this.newElderId.trim()) {
-        this.registerHint = '请填写设备 ID 和老人用户 ID'
+      const deviceId = this.newDeviceId.trim()
+      const elderId = this.newElderId.trim()
+      this.deviceIdError = DEVICE_ID_RE.test(deviceId) ? '' : '4~64 位字母、数字、下划线或短横线'
+      this.elderIdError = elderId ? '' : '请输入老人用户 ID'
+      if (this.deviceIdError || this.elderIdError) {
+        this.registerHint = '请检查填写内容'
         return
       }
       this.registering = true
       this.registerHint = ''
       try {
-        await registerDevice({ deviceId: this.newDeviceId.trim(), elderId: this.newElderId.trim() })
+        await registerDevice({ deviceId, elderId })
         this.registerHint = '登记成功，设备初始为离线'
         this.newDeviceId = ''
         this.newElderId = ''
         await this.load()
       } catch (err) {
-        this.registerHint = err && err.code === 40901 ? '该设备编号已登记' : (err && err.message) || '登记失败'
+        const code = err && err.code
+        this.registerHint = REGISTER_HINTS[code] || (err && err.message) || '登记失败'
       } finally {
         this.registering = false
       }
@@ -174,19 +231,12 @@ export default {
   }
 }
 
-.form-row {
-  margin-bottom: 16rpx;
-}
-
-.form-input {
-  width: 100%;
-  padding: 16rpx 20rpx;
-  box-sizing: border-box;
-  background: #fff;
-  border: 1rpx solid $mb-border;
-  border-radius: 12rpx;
-  font-size: 28rpx;
-  color: $mb-text;
+.register-tip {
+  display: block;
+  margin: 4rpx 0 16rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: $mb-text-3;
 }
 
 .register-hint {

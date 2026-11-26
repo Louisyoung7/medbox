@@ -642,7 +642,7 @@ components:
           example: cap-1001
         deviceId:
           type: string
-          example: BOXA-DEBUG-01-S-CAM01
+          example: BOXA-DEBUG-01
         elderId:
           type: string
           example: u-1001

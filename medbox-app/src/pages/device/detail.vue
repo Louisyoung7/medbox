@@ -7,6 +7,7 @@
     <template v-else-if="device">
       <MbCard title="设备档案">
         <MbCell title="设备编号" :value="device.deviceId" />
+        <MbCell title="归属老人" :value="elderLabel || device.elderId || '-'" />
         <MbCell title="产品 Key" :value="device.productKey || '-'" />
         <MbCell title="时区" :value="device.timezone || '-'" />
         <MbCell title="登记时间" :value="formatDateTime(device.createdAt)" />
@@ -79,9 +80,11 @@ import MbButton from '@/components/MbButton.vue'
 import RoleGate from '@/components/RoleGate.vue'
 import { getDevice, getDeviceEvents, sendDeviceCommand } from '@/api/device.js'
 import { CODE } from '@/api/request.js'
+import { getElderProfile } from '@/api/user.js'
 import { onEvent, onResync, WS_EVENT } from '@/store/ws.js'
 import { applyStatus } from '@/utils/device-status.js'
 import { CMD_LIST, cmdLabel, commandStateLabel, parseEventsPage, toEventView } from '@/utils/device.js'
+import { elderNameText } from '@/utils/profile.js'
 import { formatDateTime, formatRelative } from '@/utils/datetime.js'
 import { getUserInfo } from '@/store/user.js'
 
@@ -100,6 +103,8 @@ export default {
       cmdSending: '',
       commandHint: '',
       issuedCommands: [],
+      // 老人姓名是增强信息：失败回退 elderId
+      elderLabel: '',
       // 设备事件：详情页展示最近几条
       recentEvents: [],
     }
@@ -135,11 +140,23 @@ export default {
       this.error = ''
       try {
         this.device = await getDevice(this.deviceId)
+        await this.loadElderLabel(this.device.elderId)
       } catch (err) {
         // 不存在 / 他人设备，后端一律 40301（不返回 40401）
         this.error = err && err.code === CODE.FORBIDDEN ? '无权访问或设备不存在' : (err && err.message) || '加载失败'
       } finally {
         this.loading = false
+      }
+    },
+    /** 姓名是增强信息：资料接口失败时回退 elderId，不打扰用户。 */
+    async loadElderLabel(elderId) {
+      this.elderLabel = ''
+      if (!elderId) return
+      try {
+        const profile = await getElderProfile(elderId, { silent: true })
+        this.elderLabel = elderNameText(profile, elderId)
+      } catch (_) {
+        this.elderLabel = elderId
       }
     },
     onDeviceStatus(frame) {
