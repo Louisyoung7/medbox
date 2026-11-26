@@ -655,6 +655,23 @@ async function handleUpdatePlanStatus(req, res, planId, body) {
   ok(res, toPlanDetail(plan))
 }
 
+/**
+ * 手动同步（`POST /plans/{planId}/sync`，02d / feat/backend-plan-sync）：
+ * 强制下发一次 UPSERT，**不去重、不写 syncState**；Mock 无设备链路，只回现状供前端展示。
+ * 真实回执终态由真后端的 PLAN_SYNC 帧推送（Mock 不推业务帧）。
+ */
+async function handleSyncPlan(req, res, planId) {
+  const user = requireUser(req)
+  const plan = state.plans.find((p) => p.planId === planId)
+  if (!plan) throw new BizError(40301, '无权限访问该资源')
+  const access = planAccess(user, plan)
+  if (access === 'pending') throw new BizError(40302, '监护关系未生效，请等待老人确认')
+  if (access !== 'ok') throw new BizError(40301, '无权限访问该资源')
+  if (user.role !== 'GUARDIAN') throw new BizError(40301, '无权限执行该操作')
+  // 不重置 syncState：保持调用前的现状，只有真实 ACK 才翻终态
+  ok(res, toPlanDetail(plan))
+}
+
 async function handleDeletePlan(req, res, planId) {
   const user = requireUser(req)
   const plan = state.plans.find((p) => p.planId === planId)
@@ -1706,6 +1723,10 @@ const server = http.createServer(async (req, res) => {
     matched = /^\/plans\/([^/]+)\/status$/.exec(sub)
     if (req.method === 'PATCH' && matched) {
       return await handleUpdatePlanStatus(req, res, decodeURIComponent(matched[1]), await readBody(req))
+    }
+    matched = /^\/plans\/([^/]+)\/sync$/.exec(sub)
+    if (req.method === 'POST' && matched) {
+      return await handleSyncPlan(req, res, decodeURIComponent(matched[1]))
     }
     matched = /^\/plans\/([^/]+)$/.exec(sub)
     if (req.method === 'GET' && matched) return await handleGetPlan(req, res, decodeURIComponent(matched[1]))

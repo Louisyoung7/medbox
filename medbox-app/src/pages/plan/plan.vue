@@ -52,6 +52,10 @@
             @change="onToggle(plan, $event)"
           />
         </view>
+        <view v-if="canWrite" class="sync-row">
+          <text class="sync-row__label">设备同步</text>
+          <MbButton type="ghost" size="small" @click="onSync(plan)">立即同步</MbButton>
+        </view>
         <view class="timeline-row" @click="goTimeline(plan)">
           <text class="timeline-row__label">未来服药时间线</text>
           <text class="timeline-row__arrow">›</text>
@@ -78,9 +82,10 @@ import MbLoading from '@/components/MbLoading.vue'
 import MbTabBar from '@/components/MbTabBar.vue'
 import MbDrawer from '@/components/MbDrawer.vue'
 import { listDevices } from '@/api/device.js'
-import { listPlans, updatePlanStatus } from '@/api/plan.js'
+import { listPlans, syncPlan, updatePlanStatus } from '@/api/plan.js'
 import { CODE } from '@/api/request.js'
 import {
+  applyPlanSyncState,
   canWritePlan,
   parsePlansPage,
   planSlotsText,
@@ -88,6 +93,8 @@ import {
   syncStateLabel,
 } from '@/utils/plan.js'
 import { getRole, getUserId } from '@/store/user.js'
+import { onEvent } from '@/store/ws.js'
+import { WS_EVENT } from '@/utils/ws-frame.js'
 
 /** 列表错误文案按 code 细分（请求已 silent，页面统一自绘）。 */
 function errorText(err) {
@@ -110,6 +117,7 @@ export default {
       loading: false,
       error: '',
       loaded: false,
+      offPlanSync: null,
     }
   },
   computed: {
@@ -122,7 +130,14 @@ export default {
     this.myUserId = getUserId()
     // 老人端只看自己；监护人端先归纳候选老人再加载
     this.elderId = this.canWrite ? '' : this.myUserId
+    // 订阅设备 ACK 后的同步终态：只改命中 planId 的那一项，不整页重拉
+    this.offPlanSync = onEvent(WS_EVENT.PLAN_SYNC, (frame) => {
+      this.plans = applyPlanSyncState(this.plans, frame && frame.payload, this.elderId)
+    })
     this.load()
+  },
+  onUnload() {
+    if (this.offPlanSync) this.offPlanSync()
   },
   onShow() {
     // 从新建 / 编辑页返回时刷新（启停与格位排程都可能已变）
@@ -194,6 +209,20 @@ export default {
         })
         // switch 由 :checked 驱动，重拉列表让其回弹
         this.load()
+      }
+    },
+    /** 手动同步：只负责让设备再收一次，不把本地状态改成 PENDING（等 PLAN_SYNC 推终态）。 */
+    async onSync(plan) {
+      try {
+        const updated = await syncPlan(plan.planId, { silent: true })
+        // 响应是调用前的现状（后端不写 sync_state）；有值则原样回显，不闪回 PENDING
+        if (updated && updated.syncState) plan.syncState = updated.syncState
+        uni.showToast({ title: '已重新下发到设备', icon: 'none' })
+      } catch (err) {
+        uni.showToast({
+          title: (err && err.message) || '同步失败',
+          icon: 'none',
+        })
       }
     },
     goEdit(plan) {
@@ -298,6 +327,20 @@ export default {
 }
 
 .switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16rpx;
+  padding-top: 20rpx;
+  border-top: 2rpx solid $mb-border;
+
+  &__label {
+    font-size: 28rpx;
+    color: $mb-text-2;
+  }
+}
+
+.sync-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
