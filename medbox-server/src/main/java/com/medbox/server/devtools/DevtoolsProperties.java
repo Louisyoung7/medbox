@@ -80,7 +80,7 @@ public class DevtoolsProperties {
         /**
          * 调试药箱主控设备 ID（同时是 MQTT clientId）。
          *
-         * <p><b>同样避开真实设备号</b>：{@code clearSeed} 会按该 ID 及其 {@code -S-} 子设备删设备，
+         * <p><b>同样避开真实设备号</b>：{@code clearSeed} 会按该 ID 删设备，
          * 用真机序列号做种子会误删真实设备。
          */
         private String deviceId = "BOXA-DEBUG-01";

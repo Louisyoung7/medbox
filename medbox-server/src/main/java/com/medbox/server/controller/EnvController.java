@@ -33,20 +33,18 @@ public class EnvController {
         this.envSampleService = envSampleService;
     }
 
-    /** 实时读数：最新温/湿/光与采样时间（可按传感器过滤）。 */
+    /** 实时读数：最新温/湿/光与采样时间（按药箱主控查询）。 */
     @GetMapping("/realtime")
-    public R<EnvRealtimeResponse> realtime(@RequestParam("deviceId") String deviceId,
-                                           @RequestParam(value = "sensorId", required = false) String sensorId) {
-        return R.ok(envSampleService.realtime(deviceId, sensorId));
+    public R<EnvRealtimeResponse> realtime(@RequestParam("deviceId") String deviceId) {
+        return R.ok(envSampleService.realtime(deviceId));
     }
 
-    /** 历史曲线：时间有序读数点（可选 interval 分钟分桶聚合，可按传感器查）。 */
+    /** 历史曲线：时间有序读数点（可选 interval 分钟分桶聚合）。 */
     @GetMapping("/history")
     public R<EnvHistoryResponse> history(@RequestParam("deviceId") String deviceId,
-                                         @RequestParam(value = "sensorId", required = false) String sensorId,
                                          @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
                                          @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
                                          @RequestParam(value = "interval", required = false) Integer interval) {
-        return R.ok(envSampleService.history(deviceId, sensorId, from, to, interval));
+        return R.ok(envSampleService.history(deviceId, from, to, interval));
     }
 }

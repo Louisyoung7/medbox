@@ -32,7 +32,6 @@ import org.springframework.context.ApplicationEventPublisher;
 /** 服药事件判定核心（07 §1）：按格准入、按格就近槽、领域事件带格号。 */
 class DispenseConsumeServiceTest {
 
-    private static final String CAMERA_ID = "BOXA-01-S-CAM01";
     private static final String MAIN_ID = "BOXA-01";
     private static final String ELDER_ID = "u-1001";
     private static final String PLAN_ID = "p-1001";
@@ -50,13 +49,10 @@ class DispenseConsumeServiceTest {
 
     @BeforeEach
     void setUp() {
-        Device camera = new Device();
-        camera.setDeviceId(CAMERA_ID);
-        camera.setParentDeviceId(MAIN_ID);
         Device main = new Device();
         main.setDeviceId(MAIN_ID);
         main.setElderId(ELDER_ID);
-        when(deviceMapper.selectOne(any())).thenReturn(camera, main);
+        when(deviceMapper.selectOne(any())).thenReturn(main);
         when(timezoneResolver.resolve(anyString())).thenReturn(ZoneId.of("Asia/Shanghai"));
         when(toleranceResolver.resolveMinutes(any(), anyString())).thenReturn(15);
         when(medRecordMapper.nextRecordId()).thenReturn("mr-1001");
@@ -81,7 +77,7 @@ class DispenseConsumeServiceTest {
 
     private static CaptureDispenseInput input(String planId, Integer cellNo) {
         CaptureDispenseInput i = new CaptureDispenseInput();
-        i.setCameraDeviceId(CAMERA_ID);
+        i.setDeviceId(MAIN_ID);
         i.setCaptureId("cap-1001");
         i.setPlanId(planId);
         i.setCellNo(cellNo);

@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.medbox.server.domain.Device;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.support.MutableClock;
@@ -177,7 +176,6 @@ class DeviceStatusServiceTest {
     private static Device device(OnlineState state) {
         Device device = new Device();
         device.setDeviceId(DEVICE_ID);
-        device.setDeviceType(DeviceType.MAIN);
         device.setElderId(ELDER_ID);
         device.setOnlineState(state);
         return device;

@@ -1,6 +1,6 @@
 # tools/device-sim · 设备侧模拟器（dev/QA）
 
-不接真机也能跑通「设备上线 → 遥测/心跳 → 下行回执 → 摄像头抓拍 → 后端落库/判定 → WS 推送」链路。它是**设备对端**，严格复用 `medbox-spec/03` 第 1～4 章的 topic、payload、`msgId`、ack 与 multipart 字段，不扩展协议、不进生产构建、不占用 8080。
+不接真机也能跑通「设备上线 → 主控遥测 → 下行回执 → 摄像头抓拍 → 后端落库/判定 → WS 推送」链路。它是**设备对端**，严格复用 `medbox-spec/03` 第 1～4 章的 topic、payload、`msgId`、ack 与 multipart 字段，不扩展协议、不进生产构建、不占用 8080。
 
 与后端 `POST /api/v1/_debug/mqtt/publish` 的区别：后者是**服务端单发报文**（无会话、不订阅 `down/#`、不回执，受 `medbox.devtools.enabled` 门禁）；本工具是**真实设备会话 + HTTP 直报**。两者并存，口径见 `medbox-spec/03` 第 5 章。
 
@@ -13,8 +13,8 @@ npm install                 # 唯一依赖：mqtt
 
 - MCU 子命令需要 EMQX `tcp://localhost:1883` 可连，后端需 `medbox.mqtt.enabled=true`。
 - camera 子命令只需后端 HTTP 可达；seed 类验收还需以 `medbox.devtools.enabled=true` 启动后端。
-- 摄像头 ID 必须与后端登记一致；默认取 seed 的 `BOXA-DEBUG-01-S-CAM01`。
-- 本工具不需要用户 JWT：抓拍走设备身份 Header，查询类验收借用 seed 返回的 `guardianToken`。
+- 抓拍路径用主控 ID，与后端登记一致；默认取 seed 的 `BOXA-DEBUG-01`，不再有摄像头子设备 ID。
+- 本工具不需要用户 JWT：抓拍按路径 `deviceId` 校验归属，查询类验收借用 seed 返回的 `guardianToken`。
 
 ## 2. 命令
 
@@ -30,10 +30,10 @@ npm run mcu -- --ack ok --duration-ms 90000
 | `--offline` | 关 | 完全不连 broker，只验证离线态 |
 | `--error-type TYPE` | 无 | 额外发一条 `up/event/error`，TYPE ∈ `DOOR_TIMEOUT`/`CAMERA_FAILED`/`HW_FAULT` |
 | `--broker URL` / `--device-id ID` / `--product-key PK` | `tcp://localhost:1883` / `BOXA-DEBUG-01` / `medbox-box` | 连接身份与 topic 前缀参数 |
-| `--telemetry-interval-ms N` / `--heartbeat-interval-ms N` / `--duration-ms N` | `60000` / `60000` / `0`（常驻） | 周期与退出时长；`0` 时按 Ctrl+C 退出 |
-| `--state-dir DIR` / `--sensor-th ID` / `--sensor-lx ID` / `--sensor-cam ID` | `.state` / `{deviceId}-S-TH01` / `-S-LX01` / `-S-CAM01` | 序号持久化目录与子设备编号 |
+| `--telemetry-interval-ms N` / `--duration-ms N` | `60000` / `0`（常驻） | 周期与退出时长；`0` 时按 Ctrl+C 退出 |
+| `--state-dir DIR` | `.state` | 序号持久化目录 |
 
-启动即做：以 `clientId=deviceId` 连接 → retained `{"online":true}` → 设 LWT → 订阅 `down/#` → 温湿/光照各一条遥测 → 一条传感器心跳；之后按周期重复。所有上行 `msgId` 为 `{deviceId}-{10位递增序号}`，序号写入 `.state/{deviceId}.json`（已 gitignore），重启不归零。
+启动即做：以 `clientId=deviceId` 连接 → retained `{"online":true}` → 设 LWT → 订阅 `down/#` → 温湿/光照各一条遥测；之后按周期重复。所有上行 `msgId` 为 `{deviceId}-{10位递增序号}`，序号写入 `.state/{deviceId}.json`（已 gitignore），重启不归零。
 
 ### Camera（摄像头 HTTP 直报）
 
@@ -48,8 +48,8 @@ npm run camera -- --capture none                        # 到点不上报（交�
 | `--capture taken\|untaken\|none` | `taken` | 取药结论；`TAKEN` 不附图、`UNTAKEN` 附图 |
 | `--cell-no 1\|2\|3` / `--plan-id ID` / `--reason NORMAL\|MANUAL` | `1` / `p-3301` / `NORMAL` | multipart 字段 |
 | `--captured-at ISO-8601` | 省略（后端取当前 UTC） | 上报时刻；自测 MISS 边缘时显式给出 |
-| `--base-url URL` / `--device-id ID` | `http://localhost:8080/medbox/api/v1` / `BOXA-DEBUG-01` | 后端地址与主控 ID（摄像头 ID 由其派生，可用 `--sensor-cam` 覆盖） |
-| `--device-id-mismatch` / `--unknown-device` | 关 | 验证 `X-Device-Id` 不一致 → 40001 / 未登记设备 → 40301 |
+| `--base-url URL` / `--device-id ID` | `http://localhost:8080/medbox/api/v1` / `BOXA-DEBUG-01` | 后端地址与主控 ID（抓拍路径直接用它） |
+| `--unknown-device` | 关 | 验证未登记设备 → 40301 |
 
 同一 `planId + cellNo` 60s 内重复上报只保留第一条，连续自测不同结论请换 `cellNo` 或时间槽。
 
@@ -57,14 +57,14 @@ npm run camera -- --capture none                        # 到点不上报（交�
 
 | 场景 | 命令 | 后端预期 |
 |------|------|----------|
-| 上线 / 遥测 / 心跳 | `npm run mcu -- --duration-ms 90000` | 设备 ONLINE，详情有温湿度，三个传感器有心跳 |
+| 上线 / 遥测 | `npm run mcu -- --duration-ms 90000` | 设备 ONLINE，详情有温湿度/光照读数 |
 | 计划同步成功 | `npm run mcu -- --ack ok --duration-ms 90000`，再改计划 | 日志出现 `up/ack` 且 `ackFor` 等于下行 `msgId`，计划 `SYNCED_TO_DEVICE` |
 | 计划同步失败 | 同上改 `--ack fail` / `--ack silent` | `SYNC_FAILED`；silent 触发 5s×3 重发 |
 | 命令终态 | `--ack ok` 时下发 `REBOOT` | 事件流 COMMAND 行 `state=SUCCESS` |
 | 设备离线 | `npm run mcu -- --offline --duration-ms 90000` | 主控 180s 判离线并生成 `DEVICE_OFFLINE` |
 | 已取药 / 未取药 | `npm run camera -- --capture taken` / `--capture untaken` | 记录页出现对应结论，UNTAKEN 带抓拍图 |
 | 漏服 | `npm run camera -- --capture none` 且不补报 | 超容忍窗口后生成 `MISS` |
-| 错误路径 | `--device-id-mismatch` / `--unknown-device` | 40001 / 40301 |
+| 错误路径 | `--unknown-device` | 40301 |
 
 ## 4. 测试与报告
 

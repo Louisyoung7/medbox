@@ -2,7 +2,6 @@ package com.medbox.server.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.medbox.server.domain.Device;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.mapper.DeviceMapper;
 import java.time.ZoneId;
 import org.slf4j.Logger;
@@ -37,8 +36,7 @@ public class DeviceTimezoneResolver {
             return DEFAULT_ZONE;
         }
         Device device = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
-                .eq(Device::getElderId, elderId)
-                .eq(Device::getDeviceType, DeviceType.MAIN));
+                .eq(Device::getElderId, elderId));
         if (device != null && device.getTimezone() != null && !device.getTimezone().isBlank()) {
             try {
                 return ZoneId.of(device.getTimezone().trim());

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.MqttMessage;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.MqttMessageMapper;
@@ -78,7 +77,6 @@ class MqttInboundIntegrationTest {
     private static Device registeredDevice() {
         Device device = new Device();
         device.setDeviceId("BOXA1001");
-        device.setDeviceType(DeviceType.MAIN);
         device.setElderId("u-1001");
         device.setOnlineState(OnlineState.OFFLINE);
         return device;

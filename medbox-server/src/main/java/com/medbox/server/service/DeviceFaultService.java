@@ -5,7 +5,6 @@ import com.medbox.server.config.DeviceFaultAlarmProperties;
 import com.medbox.server.domain.Alarm;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.enums.DeviceEventType;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.mapper.AlarmMapper;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mqtt.payload.DeviceErrorPayload;
@@ -76,7 +75,7 @@ public class DeviceFaultService {
         }
         Device main = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
                 .eq(Device::getDeviceId, mainDeviceId));
-        if (main == null || main.getDeviceType() != DeviceType.MAIN) {
+        if (main == null) {
             // 未登记设备也能连 EMQX（本期匿名连接），是常态，不刷 warn
             log.debug("up/event/error 的设备未登记或非主控，忽略 deviceId={}", mainDeviceId);
             return;

@@ -8,7 +8,7 @@ package com.medbox.server.domain.enums;
  */
 public enum DeviceEventType {
 
-    /** 设备登记（主控与每个子设备各记一条）。 */
+    /** 设备登记（主控记一条）。 */
     REGISTERED,
 
     /** 主控上线（MQTT status / 任意上行消息触发，仅状态跃变时记录）。 */

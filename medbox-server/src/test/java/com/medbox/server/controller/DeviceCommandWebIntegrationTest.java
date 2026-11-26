@@ -15,7 +15,6 @@ import com.medbox.server.domain.Device;
 import com.medbox.server.domain.DeviceCommand;
 import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
@@ -79,7 +78,6 @@ class DeviceCommandWebIntegrationTest {
     private static final String OTHER_ELDER_ID = "u-1002";
     private static final String GUARDIAN_ID = "u-2001";
     private static final String DEVICE_ID = "BOXA1001";
-    private static final String SENSOR_ID = "BOXA1001-S-TH01";
 
     @Autowired
     private MockMvc mockMvc;
@@ -183,25 +181,6 @@ class DeviceCommandWebIntegrationTest {
     }
 
     @Test
-    @DisplayName("传子设备编号 → 40301（deviceId 只接受药箱主控）")
-    void 子设备编号_40301() throws Exception {
-        givenActiveRelation();
-        Device sensor = new Device();
-        sensor.setDeviceId(SENSOR_ID);
-        sensor.setDeviceType(DeviceType.TEMP_HUMI);
-        sensor.setElderId(ELDER_ID);
-        sensor.setOnlineState(OnlineState.ONLINE);
-        givenDevice(sensor);
-
-        mockMvc.perform(post("/api/v1/devices/{deviceId}/commands", SENSOR_ID)
-                        .header(HttpHeaders.AUTHORIZATION, bearer(GUARDIAN_ID, "GUARDIAN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"cmd\":\"BUZZ\"}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(40301));
-    }
-
-    @Test
     @DisplayName("越权（无监护关系）→ 40301")
     void 越权_40301() throws Exception {
         // 刻意不建到 OTHER_ELDER 的监护关系
@@ -278,7 +257,6 @@ class DeviceCommandWebIntegrationTest {
     private static Device mainDevice(String deviceId, String elderId, OnlineState state) {
         Device device = new Device();
         device.setDeviceId(deviceId);
-        device.setDeviceType(DeviceType.MAIN);
         device.setElderId(elderId);
         device.setProductKey("medbox-box");
         device.setOnlineState(state);

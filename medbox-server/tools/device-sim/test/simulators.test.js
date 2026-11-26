@@ -23,7 +23,6 @@ async function captureWithServer(overrides) {
     req.on('end', () => {
       seen.request = {
         url: req.url,
-        deviceIdHeader: req.headers['x-device-id'],
         body: Buffer.concat(chunks).toString('utf8'),
       };
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -45,8 +44,7 @@ test('摄像头 TAKEN 上报：字段齐全且不附图', async () => {
   const { result, seen } = await captureWithServer({ capture: 'taken', cellNo: 1, planId: 'p-3301' });
   assert.equal(result.captureId, 'cap-sim-1');
   assert.equal(result.takenResult, 'TAKEN');
-  assert.match(seen.request.url, /\/devices\/BOXA-DEBUG-01-S-CAM01\/captures$/);
-  assert.equal(seen.request.deviceIdHeader, 'BOXA-DEBUG-01-S-CAM01');
+  assert.match(seen.request.url, /\/devices\/BOXA-DEBUG-01\/captures$/);
   assert.match(seen.request.body, /name="cellNo"/);
   assert.match(seen.request.body, /\r\n1\r\n/);
   assert.match(seen.request.body, /name="takenResult"\r\n\r\nTAKEN/);
@@ -66,12 +64,7 @@ test('摄像头 --capture none 不上报', async () => {
   assert.equal(seen.request, null);
 });
 
-test('错误路径开关：身份不一致 / 未登记设备', async () => {
-  const mismatch = await captureWithServer({ capture: 'taken', deviceIdMismatch: true });
-  assert.equal(mismatch.seen.request.deviceIdHeader, 'OTHER-CAMERA');
-  assert.match(mismatch.seen.request.url, /BOXA-DEBUG-01-S-CAM01/);
-
+test('错误路径开关：未登记设备 → 40301', async () => {
   const unknown = await captureWithServer({ capture: 'taken', unknownDevice: true });
-  assert.match(unknown.seen.request.url, /\/devices\/UNREGISTERED-CAM\/captures$/);
-  assert.equal(unknown.seen.request.deviceIdHeader, 'UNREGISTERED-CAM');
+  assert.match(unknown.seen.request.url, /\/devices\/UNREGISTERED-DEVICE\/captures$/);
 });

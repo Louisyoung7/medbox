@@ -22,8 +22,9 @@ function buildForm(config) {
 /**
  * 模拟摄像头经 HTTP multipart 直报后端的服药事件（spec 03 第 4 章 / 02b §1.1）。
  *
- * <p>TAKEN 不附图；UNTAKEN 必附图；--capture none 表示到点不上报（供后端判 MISS）。
- * --device-id-mismatch / --unknown-device 分别验证 40001 / 40301 两条错误路径。
+ * <p>路径用主控 deviceId，不再有摄像头子设备 ID 与 X-Device-Id 头。
+ * TAKEN 不附图；UNTAKEN 必附图；--capture none 表示到点不上报（供后端判 MISS）。
+ * --unknown-device 验证未登记设备 → 40301。
  */
 export async function postCapture(config) {
   if (config.capture === 'none') {
@@ -31,12 +32,10 @@ export async function postCapture(config) {
     return { skipped: true };
   }
 
-  const cameraId = config.unknownDevice ? 'UNREGISTERED-CAM' : config.sensorCam;
-  const headerId = config.deviceIdMismatch ? 'OTHER-CAMERA' : cameraId;
-  const url = `${config.baseUrl}/devices/${encodeURIComponent(cameraId)}/captures`;
+  const deviceId = config.unknownDevice ? 'UNREGISTERED-DEVICE' : config.deviceId;
+  const url = `${config.baseUrl}/devices/${encodeURIComponent(deviceId)}/captures`;
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'X-Device-Id': headerId },
     body: buildForm(config),
   });
   const body = await response.json();
@@ -44,7 +43,7 @@ export async function postCapture(config) {
     status: response.status,
     code: body?.code,
     captureId: body?.data?.captureId ?? null,
-    cameraId,
+    deviceId,
     takenResult: config.capture === 'untaken' ? 'UNTAKEN' : 'TAKEN',
   };
   console.log(JSON.stringify({

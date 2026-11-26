@@ -109,8 +109,6 @@ medbox:
     default-timezone: Asia/Shanghai    # 设备本地时区（服药时间按此换算，见文档 06 的 2.6.1）
     event-page-size: 20                # 事件流水默认每页条数
     event-max-page-size: 100           # 每页上限：防深分页拖垮数据库，也防客户端一次拉全量
-    sensor-offline-after-ms: 180000    # 传感器子设备 180s 未上报判离线（不生成 DEVICE_OFFLINE 告警，见 03 第 3 章）
-    sensor-scan-interval-ms: 60000     # 子设备离线扫描间隔
     main-offline-after-ms: 180000      # 主控设备 180s 未刷新心跳（KeepAlive 60s ×3）判离线，触发 DEVICE_OFFLINE 告警
     main-scan-interval-ms: 60000       # 主控离线扫描间隔
 

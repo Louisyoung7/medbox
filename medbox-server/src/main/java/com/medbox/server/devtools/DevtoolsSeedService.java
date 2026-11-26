@@ -12,7 +12,6 @@ import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.PlanReminder;
 import com.medbox.server.domain.PlanSlot;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.OnlineState;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
@@ -111,7 +110,6 @@ public class DevtoolsSeedService {
         planReminderMapper.delete(new QueryWrapper<PlanReminder>().eq("plan_id", PLAN_ID));
         medPlanMapper.delete(new QueryWrapper<MedPlan>().eq("plan_id", PLAN_ID));
         deviceMapper.delete(new QueryWrapper<Device>().eq("device_id", deviceId));
-        deviceMapper.delete(new QueryWrapper<Device>().likeRight("device_id", deviceId + "-S-"));
         medicineMapper.delete(new QueryWrapper<Medicine>().in("medicine_id", MED_SEED));
         guardianRelationMapper.delete(new QueryWrapper<GuardianRelation>()
                 .eq("elder_id", s.getElderUserId()).eq("guardian_id", s.getGuardianUserId()));
@@ -150,33 +148,14 @@ public class DevtoolsSeedService {
     }
 
     private void insertDevices(DevtoolsProperties.Seed s) {
-        Device main = new Device();
-        main.setDeviceId(s.getDeviceId());
-        main.setDeviceType(DeviceType.MAIN);
-        main.setParentDeviceId(null);
-        main.setProductKey(s.getProductKey());
-        main.setElderId(s.getElderUserId());
-        main.setTimezone(s.getTimezone());
-        main.setOnlineState(OnlineState.OFFLINE);
-        main.setCreatedAt(OffsetDateTime.now());
-        deviceMapper.insert(main);
-
-        insertSensor(s, s.getDeviceId() + "-S-TH01", DeviceType.TEMP_HUMI);
-        insertSensor(s, s.getDeviceId() + "-S-LX01", DeviceType.LIGHT);
-        insertSensor(s, s.getDeviceId() + "-S-CAM01", DeviceType.CAMERA);
-    }
-
-    private void insertSensor(DevtoolsProperties.Seed s, String sensorId, DeviceType type) {
-        Device sensor = new Device();
-        sensor.setDeviceId(sensorId);
-        sensor.setDeviceType(type);
-        sensor.setParentDeviceId(s.getDeviceId());
-        sensor.setProductKey(s.getProductKey());
-        sensor.setElderId(s.getElderUserId());
-        sensor.setTimezone(s.getTimezone());
-        sensor.setOnlineState(OnlineState.OFFLINE);
-        sensor.setCreatedAt(OffsetDateTime.now());
-        deviceMapper.insert(sensor);
+        Device device = new Device();
+        device.setDeviceId(s.getDeviceId());
+        device.setProductKey(s.getProductKey());
+        device.setElderId(s.getElderUserId());
+        device.setTimezone(s.getTimezone());
+        device.setOnlineState(OnlineState.OFFLINE);
+        device.setCreatedAt(OffsetDateTime.now());
+        deviceMapper.insert(device);
     }
 
     private void insertMedicines(DevtoolsProperties.Seed s) {

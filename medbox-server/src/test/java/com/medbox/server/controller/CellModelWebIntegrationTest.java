@@ -14,7 +14,6 @@ import com.medbox.server.domain.GuardianRelation;
 import com.medbox.server.domain.MedPlan;
 import com.medbox.server.domain.PlanSlot;
 import com.medbox.server.domain.User;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.domain.enums.RelationStatus;
 import com.medbox.server.domain.enums.UserRole;
 import com.medbox.server.mapper.DeviceMapper;
@@ -199,7 +198,6 @@ class CellModelWebIntegrationTest {
         Device device = new Device();
         device.setDeviceId("BOXA1001");
         device.setElderId(ELDER_ID);
-        device.setDeviceType(DeviceType.MAIN);
         device.setTimezone("Asia/Shanghai");
         when(deviceMapper.selectOne(any())).thenReturn(device);
 

@@ -12,8 +12,8 @@ import lombok.Data;
 @Data
 public class CaptureDispenseInput {
 
-    /** 摄像头子设备 deviceId（由 parent_device_id 反查 MAIN 药箱）。 */
-    private String cameraDeviceId;
+    /** 药箱主控 deviceId（摄像头上报时路径里用的同一个 ID）。 */
+    private String deviceId;
 
     /** 本次抓拍业务号（capture.capture_id），关联留证图。 */
     private String captureId;

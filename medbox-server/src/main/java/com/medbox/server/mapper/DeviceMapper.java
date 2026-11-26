@@ -2,7 +2,6 @@ package com.medbox.server.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.medbox.server.domain.Device;
-import com.medbox.server.domain.enums.DeviceType;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 

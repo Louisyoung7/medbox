@@ -30,8 +30,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 /**
- * {@link EnvSampleService} 的纯单测（不走 Spring）：EnvSampleMapper / DeviceMapper / AccessService 全部打桩，
- * 覆盖入库字段映射与归属跳过、实时读数合并、历史边界校验。权限放行由打桩的 {@code AccessService} 模拟。
+ * {@link EnvSampleService} 的纯单测（不走 Spring）：Mapper / AccessService 全部打桩，
+ * 覆盖入库字段映射与归属跳过、实时读数合并、历史边界校验。
  */
 class EnvSampleServiceTest {
 
@@ -44,13 +44,10 @@ class EnvSampleServiceTest {
             new EnvSampleService(envSampleMapper, deviceMapper, accessService, clock);
 
     private static final String MAIN = "BOXA1001";
-    private static final String TH = "BOXA1001-S-TH01";
-    private static final String LX = "BOXA1001-S-LX01";
 
-    private static Device sensor(String id, String parent) {
+    private static Device mainDevice() {
         Device d = new Device();
-        d.setDeviceId(id);
-        d.setParentDeviceId(parent);
+        d.setDeviceId(MAIN);
         d.setElderId("u-1001");
         return d;
     }
@@ -58,24 +55,21 @@ class EnvSampleServiceTest {
     // ————————————————— 入库 —————————————————
 
     @Test
-    @DisplayName("ingest：温湿度传感器入库，仅写非空字段、归属正确、ts 转 UTC")
+    @DisplayName("ingest：温湿度入库，device_id 记主控、归属取老人、ts 转 UTC")
     void ingestTempHumi() {
-        when(deviceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(sensor(TH, MAIN));
+        when(deviceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(mainDevice());
 
         TelemetryPayload p = new TelemetryPayload();
-        p.setSensorId(TH);
         p.setTs(1759474487000L);
         p.setTemperature(24.6);
         p.setHumidity(52.1);
-        // lux 不设置（null）
 
         service.ingest(MAIN, p);
 
         ArgumentCaptor<EnvSample> captor = ArgumentCaptor.forClass(EnvSample.class);
         verify(envSampleMapper).insert(captor.capture());
         EnvSample s = captor.getValue();
-        assertThat(s.getDeviceId()).isEqualTo(TH);
-        assertThat(s.getGatewayDeviceId()).isEqualTo(MAIN);
+        assertThat(s.getDeviceId()).isEqualTo(MAIN);
         assertThat(s.getElderId()).isEqualTo("u-1001");
         assertThat(s.getTemperature()).isEqualByComparingTo("24.6");
         assertThat(s.getHumidity()).isEqualByComparingTo("52.1");
@@ -85,36 +79,10 @@ class EnvSampleServiceTest {
     }
 
     @Test
-    @DisplayName("ingest：缺 sensorId 跳过、不入库")
-    void ingestMissingSensorId() {
-        TelemetryPayload p = new TelemetryPayload();
-        p.setTs(1759474487000L);
-        p.setTemperature(24.6);
-
-        service.ingest(MAIN, p);
-
-        verify(envSampleMapper, never()).insert(any(EnvSample.class));
-    }
-
-    @Test
-    @DisplayName("ingest：未登记传感器跳过、不建脏行")
-    void ingestUnknownSensor() {
+    @DisplayName("ingest：未登记主控跳过、不建脏行")
+    void ingestUnknownDevice() {
         when(deviceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
         TelemetryPayload p = new TelemetryPayload();
-        p.setSensorId(TH);
-        p.setTemperature(24.6);
-
-        service.ingest(MAIN, p);
-
-        verify(envSampleMapper, never()).insert(any(EnvSample.class));
-    }
-
-    @Test
-    @DisplayName("ingest：传感器不属于该主控则跳过")
-    void ingestWrongParent() {
-        when(deviceMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(sensor(TH, "OTHER-MAIN"));
-        TelemetryPayload p = new TelemetryPayload();
-        p.setSensorId(TH);
         p.setTemperature(24.6);
 
         service.ingest(MAIN, p);
@@ -126,7 +94,7 @@ class EnvSampleServiceTest {
 
     @Test
     @DisplayName("realtime：合并温湿度行与光照行，sampleTime 取较新者")
-    void realtimeMergesSensors() {
+    void realtimeMergesReadings() {
         EnvSample th = new EnvSample();
         th.setTemperature(new BigDecimal("24.6"));
         th.setHumidity(new BigDecimal("52.1"));
@@ -135,10 +103,10 @@ class EnvSampleServiceTest {
         lx.setLux(new BigDecimal("120"));
         lx.setSampleTime(OffsetDateTime.parse("2026-10-26T01:05:00Z"));
 
-        when(envSampleMapper.selectLatestTempHumi(eq(MAIN), eq(null))).thenReturn(th);
-        when(envSampleMapper.selectLatestLux(eq(MAIN), eq(null))).thenReturn(lx);
+        when(envSampleMapper.selectLatestTempHumi(eq(MAIN))).thenReturn(th);
+        when(envSampleMapper.selectLatestLux(eq(MAIN))).thenReturn(lx);
 
-        EnvRealtimeResponse r = service.realtime(MAIN, null);
+        EnvRealtimeResponse r = service.realtime(MAIN);
         assertThat(r.temperature()).isEqualByComparingTo("24.6");
         assertThat(r.humidity()).isEqualByComparingTo("52.1");
         assertThat(r.lux()).isEqualByComparingTo("120");
@@ -151,10 +119,10 @@ class EnvSampleServiceTest {
         EnvSample lx = new EnvSample();
         lx.setLux(new BigDecimal("120"));
         lx.setSampleTime(OffsetDateTime.parse("2026-10-26T01:05:00Z"));
-        when(envSampleMapper.selectLatestTempHumi(eq(MAIN), eq(null))).thenReturn(null);
-        when(envSampleMapper.selectLatestLux(eq(MAIN), eq(null))).thenReturn(lx);
+        when(envSampleMapper.selectLatestTempHumi(eq(MAIN))).thenReturn(null);
+        when(envSampleMapper.selectLatestLux(eq(MAIN))).thenReturn(lx);
 
-        EnvRealtimeResponse r = service.realtime(MAIN, null);
+        EnvRealtimeResponse r = service.realtime(MAIN);
         assertThat(r.temperature()).isNull();
         assertThat(r.humidity()).isNull();
         assertThat(r.lux()).isEqualByComparingTo("120");
@@ -163,26 +131,26 @@ class EnvSampleServiceTest {
     // ————————————————— 历史 —————————————————
 
     @Test
-    @DisplayName("history：成功时透传给 mapper 并返回分桶点")
+    @DisplayName("history：成功时按主控透传给 mapper 并返回分桶点")
     void historyCallsMapper() {
         EnvHistoryPoint point = new EnvHistoryPoint(
                 OffsetDateTime.parse("2026-10-26T01:00:00Z"),
                 new BigDecimal("24.6"), new BigDecimal("52.1"), new BigDecimal("120"));
-        when(envSampleMapper.selectHistory(eq(MAIN), eq(null), any(), any(), eq(10)))
+        when(envSampleMapper.selectHistory(eq(MAIN), any(), any(), eq(10)))
                 .thenReturn(List.of(point));
 
-        EnvHistoryResponse resp = service.history(MAIN, null,
+        EnvHistoryResponse resp = service.history(MAIN,
                 OffsetDateTime.parse("2026-10-26T00:00:00Z"),
                 OffsetDateTime.parse("2026-10-26T02:00:00Z"), 10);
 
         assertThat(resp.points()).hasSize(1);
-        verify(envSampleMapper).selectHistory(eq(MAIN), eq(null), any(), any(), eq(10));
+        verify(envSampleMapper).selectHistory(eq(MAIN), any(), any(), eq(10));
     }
 
     @Test
     @DisplayName("history：interval 越界 → 40001")
     void historyRejectsBadInterval() {
-        assertThatThrownBy(() -> service.history(MAIN, null,
+        assertThatThrownBy(() -> service.history(MAIN,
                 OffsetDateTime.parse("2026-10-26T00:00:00Z"),
                 OffsetDateTime.parse("2026-10-26T01:00:00Z"), 2000))
                 .isInstanceOf(BizException.class);
@@ -191,7 +159,7 @@ class EnvSampleServiceTest {
     @Test
     @DisplayName("history：缺少 from → 40001")
     void historyRejectsMissingFrom() {
-        assertThatThrownBy(() -> service.history(MAIN, null, null,
+        assertThatThrownBy(() -> service.history(MAIN, null,
                 OffsetDateTime.parse("2026-10-26T01:00:00Z"), null))
                 .isInstanceOf(BizException.class);
     }
@@ -199,7 +167,7 @@ class EnvSampleServiceTest {
     @Test
     @DisplayName("history：时间跨度超过 30 天 → 40001")
     void historyRejectsTooLargeSpan() {
-        assertThatThrownBy(() -> service.history(MAIN, null,
+        assertThatThrownBy(() -> service.history(MAIN,
                 OffsetDateTime.parse("2026-01-01T00:00:00Z"),
                 OffsetDateTime.parse("2026-02-01T00:00:00Z"), null))
                 .isInstanceOf(BizException.class);

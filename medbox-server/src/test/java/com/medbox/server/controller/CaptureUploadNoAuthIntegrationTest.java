@@ -110,40 +110,12 @@ class CaptureUploadNoAuthIntegrationTest {
                         .param("reason", "NORMAL")
                         .param("planId", "p-3301")
                         .param("cellNo", "1")
-                        .param("takenResult", "TAKEN")
-                        .header("X-Device-Id", CAMERA_ID))
+                        .param("takenResult", "TAKEN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.captureId").value("cap-noauth-1"));
 
         verify(captureMapper).insert(any(Capture.class));
-    }
-
-    @Test
-    @DisplayName("X-Device-Id 与路径不一致 → 40001，且不落库")
-    void 身份不一致返回40001() throws Exception {
-        mockMvc.perform(multipart("/api/v1/devices/{deviceId}/captures", CAMERA_ID)
-                        .file(image())
-                        .param("reason", "NORMAL")
-                        .param("takenResult", "UNTAKEN")
-                        .header("X-Device-Id", "OTHER-CAMERA"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40001));
-
-        verify(captureMapper, never()).insert(any(Capture.class));
-    }
-
-    @Test
-    @DisplayName("缺少 X-Device-Id → 40001，且不落库")
-    void 缺设备身份Header返回40001() throws Exception {
-        mockMvc.perform(multipart("/api/v1/devices/{deviceId}/captures", CAMERA_ID)
-                        .file(image())
-                        .param("reason", "NORMAL")
-                        .param("takenResult", "UNTAKEN"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40001));
-
-        verify(captureMapper, never()).insert(any(Capture.class));
     }
 
     @Test

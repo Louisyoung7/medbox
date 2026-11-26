@@ -3,7 +3,6 @@ package com.medbox.server.service;
 import com.medbox.server.config.DeviceOfflineAlarmProperties;
 import com.medbox.server.domain.Alarm;
 import com.medbox.server.domain.Device;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.mapper.AlarmMapper;
 import com.medbox.server.ws.WsFrameType;
 import com.medbox.server.ws.WsPushService;
@@ -64,10 +63,6 @@ public class DeviceOfflineAlarmService {
     }
 
     private void doRaise(Device device) {
-        if (device.getDeviceType() != DeviceType.MAIN) {
-            // 传感器子设备离线不生成告警（文档 06 的 2.3），由上报侧只更新 online_state
-            return;
-        }
         String elderId = device.getElderId();
         if (elderId == null || elderId.isBlank()) {
             log.debug("DEVICE_OFFLINE 告警跳过：设备无归属老人 deviceId={}", device.getDeviceId());

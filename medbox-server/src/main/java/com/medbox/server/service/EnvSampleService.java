@@ -3,7 +3,6 @@ package com.medbox.server.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.medbox.server.common.exception.BizAssert;
 import com.medbox.server.common.security.Permission;
-import com.medbox.server.service.AccessService;
 import com.medbox.server.domain.Device;
 import com.medbox.server.domain.EnvSample;
 import com.medbox.server.dto.env.EnvHistoryPoint;
@@ -24,33 +23,24 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * 环境遥测（{@code feat/env-core}，见文档 02 第 9 章 / 06 的 2.8 / 03 第 3 章）。
+ * 环境遥测（{@code feat/env-core}，见文档 02g / 06 的 2.8 / 03 第 3 章）。
  *
  * <p>两条链路共用本类：
  * <ol>
- *   <li><b>上行入库</b> {@link #ingest}：被 {@code TelemetryUpMessageHandler} 调用，按
- *       {@code sensorId} 定位子设备后逐条落 {@code env_sample}（温湿度一行、光照一行，
- *       其余数值列留 {@code NULL}）；</li>
- *   <li><b>查询</b> {@link #realtime} / {@link #history}：被 {@link com.medbox.server.controller.EnvController}
- *       与 {@link DeviceService#detail} 调用，权限走 {@link AccessService#requireDevice}
- *       （{@link Permission#READ_ENV}，四角色可读），越权/查不到一律 {@code 40301}。</li>
+ *   <li><b>上行入库</b> {@link #ingest}：被 {@code TelemetryUpMessageHandler} 调用，
+ *       按 topic 中的主控 deviceId 直接落 {@code env_sample}，不再有 sensorId / 父设备校验；</li>
+ *   <li><b>查询</b> {@link #realtime} / {@link #history}：被 {@code EnvController} 与
+ *       {@code DeviceService.detail} 调用，权限走 {@code AccessService#requireDevice}。</li>
  * </ol>
  *
- * <p><b>与 dispense / sensor-heartbeat 同源的口径</b>：MQTT 匿名、信任 topic 中的 deviceId，
- * ingest 不查权限；单条子设备解析失败只记 warn，不影响同帧其余；{@code msgId} 去重已由
- * {@code MqttInboundGateway} 完成，本类不重复做。
- *
- * <p><b>告警与 WS 不在本类做</b>：环境超标判定归 {@code feat/env-alarm}——{@link #ingest} 入库后返回
- * 该样本，由 {@code TelemetryUpMessageHandler} 发布 {@code EnvSampleRecordedEvent} 触发判定。
+ * <p>MQTT 匿名、信任 topic 中的 deviceId；{@code msgId} 去重已由 {@code MqttInboundGateway} 完成。
  */
- @Service
- public class EnvSampleService {
+@Service
+public class EnvSampleService {
 
     private static final Logger log = LoggerFactory.getLogger(EnvSampleService.class);
 
-    /** 历史分桶粒度上限（分钟），防止过度聚合请求。 */
     private static final int MAX_INTERVAL_MIN = 1440;
-    /** 历史查询最大跨度（小时 = 30 天）。 */
     private static final long MAX_SPAN_HOURS = 30L * 24;
 
     private final EnvSampleMapper envSampleMapper;
@@ -58,19 +48,17 @@ import org.springframework.stereotype.Service;
     private final AccessService accessService;
     private final Clock clock;
 
-    /** 生产用构造器（双构造器必须显式 {@code @Autowired}，同 {@code SensorStatusService}）。 */
     @Autowired
     public EnvSampleService(EnvSampleMapper envSampleMapper,
-                           DeviceMapper deviceMapper,
-                           AccessService accessService) {
+                            DeviceMapper deviceMapper,
+                            AccessService accessService) {
         this(envSampleMapper, deviceMapper, accessService, Clock.systemUTC());
     }
 
-    /** 测试用构造器：注入固定时钟与可打桩的 Mapper。 */
     public EnvSampleService(EnvSampleMapper envSampleMapper,
-                           DeviceMapper deviceMapper,
-                           AccessService accessService,
-                           Clock clock) {
+                            DeviceMapper deviceMapper,
+                            AccessService accessService,
+                            Clock clock) {
         this.envSampleMapper = envSampleMapper;
         this.deviceMapper = deviceMapper;
         this.accessService = accessService;
@@ -78,57 +66,36 @@ import org.springframework.stereotype.Service;
     }
 
     /**
-     * 入库一条 {@code up/telemetry}。幂等由网关 {@code msgId} 保证，此处只做归属校验与落库。
+     * 入库一条 {@code up/telemetry}：只认主控 deviceId，设备未登记时跳过。
      *
-     * @param mainDeviceId 上报的主控（topic 第 3 层）
-     * @param payload      已反序列化的遥测负载
-     * @return 已入库的样本（归属校验失败 / 未登记 / 不属于该主控时返回 {@code null}），
-     *         供调用方发布 {@code EnvSampleRecordedEvent} 触发环境超标判定
+     * @return 已入库样本，供调用方发布 {@code EnvSampleRecordedEvent} 触发环境超标判定
      */
-    public EnvSample ingest(String mainDeviceId, TelemetryPayload payload) {
-        String sensorId = payload.getSensorId();
-        if (sensorId == null || sensorId.isBlank()) {
-            log.warn("telemetry 缺少 sensorId，已跳过 mainDeviceId={}", mainDeviceId);
-            return null;
-        }
-        Device sensor = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
-                .eq(Device::getDeviceId, sensorId));
-        if (sensor == null) {
-            // 未登记传感器（本期匿名连接，固件可能上报未登记子设备）是常态，不刷 warn
-            log.debug("telemetry 携带未登记传感器，已跳过 mainDeviceId={} sensorId={}", mainDeviceId, sensorId);
-            return null;
-        }
-        if (sensor.getParentDeviceId() == null || !sensor.getParentDeviceId().equals(mainDeviceId)) {
-            // 不属于该主控：跳过，不建脏行（与 device-sensor 同口径）
-            log.warn("telemetry 传感器不属于该主控，已跳过 mainDeviceId={} sensorId={} parent={}",
-                    mainDeviceId, sensorId, sensor.getParentDeviceId());
+    public EnvSample ingest(String deviceId, TelemetryPayload payload) {
+        Device device = deviceMapper.selectOne(new LambdaQueryWrapper<Device>()
+                .eq(Device::getDeviceId, deviceId));
+        if (device == null || device.getElderId() == null || device.getElderId().isBlank()) {
+            log.debug("telemetry 设备未登记或无归属老人，已跳过 deviceId={}", deviceId);
             return null;
         }
 
         EnvSample sample = new EnvSample();
-        sample.setDeviceId(sensorId);
-        sample.setGatewayDeviceId(mainDeviceId);
-        sample.setElderId(sensor.getElderId());
+        sample.setDeviceId(deviceId);
+        sample.setElderId(device.getElderId());
         sample.setTemperature(toBigDecimal(payload.getTemperature()));
         sample.setHumidity(toBigDecimal(payload.getHumidity()));
         sample.setLux(toBigDecimal(payload.getLux()));
         sample.setSampleTime(resolveSampleTime(payload.getTs()));
         envSampleMapper.insert(sample);
-        log.debug("env_sample 入库 mainDeviceId={} sensorId={} sampleTime={}",
-                mainDeviceId, sensorId, sample.getSampleTime());
+        log.debug("env_sample 入库 deviceId={} sampleTime={}", deviceId, sample.getSampleTime());
         return sample;
     }
 
-    /**
-     * 实时读数：合并「最新非空温度/湿度行」与「最新非空光照行」。
-     *
-     * @param sensorId 可选；非空时只查该传感器
-     */
-    public EnvRealtimeResponse realtime(String deviceId, String sensorId) {
+    /** 实时读数：合并「最新非空温湿度行」与「最新非空光照行」。 */
+    public EnvRealtimeResponse realtime(String deviceId) {
         accessService.requireDevice(deviceId, Permission.READ_ENV);
 
-        EnvSample th = envSampleMapper.selectLatestTempHumi(deviceId, sensorId);
-        EnvSample lx = envSampleMapper.selectLatestLux(deviceId, sensorId);
+        EnvSample th = envSampleMapper.selectLatestTempHumi(deviceId);
+        EnvSample lx = envSampleMapper.selectLatestLux(deviceId);
 
         BigDecimal temperature = th != null ? th.getTemperature() : null;
         BigDecimal humidity = th != null ? th.getHumidity() : null;
@@ -145,16 +112,11 @@ import org.springframework.stereotype.Service;
         return new EnvRealtimeResponse(temperature, humidity, lux, sampleTime);
     }
 
-    /**
-     * 历史曲线。
-     *
-     * @param interval 分桶粒度（分钟），为空返回原始有序点
-     */
+    /** 历史曲线：按主控 deviceId 查询，不再有传感器来源筛选。 */
     public EnvHistoryResponse history(String deviceId,
-                                     String sensorId,
-                                     OffsetDateTime from,
-                                     OffsetDateTime to,
-                                     Integer interval) {
+                                      OffsetDateTime from,
+                                      OffsetDateTime to,
+                                      Integer interval) {
         accessService.requireDevice(deviceId, Permission.READ_ENV);
 
         BizAssert.badRequestIf(from == null || to == null, "from/to 不能为空");
@@ -164,7 +126,7 @@ import org.springframework.stereotype.Service;
         BizAssert.badRequestIf(ChronoUnit.HOURS.between(from, to) > MAX_SPAN_HOURS,
                 "时间跨度不能超过 " + (MAX_SPAN_HOURS / 24) + " 天");
 
-        List<EnvHistoryPoint> points = envSampleMapper.selectHistory(deviceId, sensorId, from, to, interval);
+        List<EnvHistoryPoint> points = envSampleMapper.selectHistory(deviceId, from, to, interval);
         return new EnvHistoryResponse(points == null ? List.of() : points);
     }
 

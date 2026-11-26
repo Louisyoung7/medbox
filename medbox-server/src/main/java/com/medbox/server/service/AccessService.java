@@ -94,7 +94,7 @@ public class AccessService {
      * 设备维度校验：先把 {@code deviceId} 解析成归属老人，再走 {@link #require}。
      *
      * <p><b>依赖 {@code feat/device-core}</b>：需要它提供 {@link DeviceOwnerResolver} 实现
-     * （查 {@code device} 表；传感器子设备经 {@code parent_device_id} 反查所属药箱）。
+     * （查 {@code device} 表，直接取 {@code elder_id}）。
      * 当前未注册实现 → 抛 50000 并在日志提示，接入后无需改动本方法。
      *
      * <p>设备查不到同样返回 <b>40301</b>（不是 40401）：与第 ② 步同一口径，避免枚举设备 ID。

@@ -8,7 +8,6 @@ import static org.mockito.Mockito.when;
 import com.medbox.server.config.DeviceOfflineAlarmProperties;
 import com.medbox.server.domain.Alarm;
 import com.medbox.server.domain.Device;
-import com.medbox.server.domain.enums.DeviceType;
 import com.medbox.server.mapper.AlarmMapper;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.support.TableInfoWarmup;
@@ -78,7 +77,6 @@ class DeviceOfflineAlarmIntegrationTest {
     private Device main() {
         Device d = new Device();
         d.setDeviceId(DEVICE);
-        d.setDeviceType(DeviceType.MAIN);
         d.setElderId(ELDER);
         return d;
     }
@@ -98,18 +96,6 @@ class DeviceOfflineAlarmIntegrationTest {
 
         verify(wsPushService).publish(org.mockito.ArgumentMatchers.eq(WsTopic.elder(ELDER)),
                 org.mockito.ArgumentMatchers.eq(WsFrameType.ALARM), any(AlarmPayload.class));
-    }
-
-    @Test
-    @DisplayName("集成链路：传感器子设备离线 → 无告警、无推送")
-    void sensorOfflineNoAlarm() {
-        Device sensor = main();
-        sensor.setDeviceType(DeviceType.TEMP_HUMI);
-
-        deviceOfflineAlarmService.raise(sensor);
-
-        verify(alarmMapper, never()).insert(any(Alarm.class));
-        verify(wsPushService, never()).publish(any(), any(), any());
     }
 
     @Test

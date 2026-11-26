@@ -29,9 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
  * （与 {@code UserController} 同一形态）：注册走 {@code WRITE_DEVICE}，四个查询走 {@code READ_DEVICE}。
  * 未登录由 {@code AuthInterceptor} 统一兜 40101，这里不判。
  *
- * <p><b>{@code deviceId} 一律指药箱主控</b>：传感器子设备不是独立的资源入口，
- * 它们随主控登记、在详情的 {@code sensors} 里展示（文档 02 第 4 章表下说明）。
- * 传子设备编号进来按 40301 处理，不返回 40401（沿用"不区分不存在与无权限"的口径）。
+ * <p><b>{@code deviceId} 一律指药箱主控</b>：系统不再建模传感器子设备，
+ * 没有 {@code /devices/{id}/sensors} 入口；设备查不到按 40301 处理，不返回 40401。
  */
 @RestController
 @RequestMapping("/api/v1/devices")
@@ -45,19 +44,19 @@ public class DeviceController {
         this.commandService = commandService;
     }
 
-    /** 药箱注册并绑定到老人（注册即生效；传感器子设备随主控一并登记）。 */
+    /** 药箱注册并绑定到老人（注册即生效；deviceId 由设备固件生成）。 */
     @PostMapping("/register")
     public R<DeviceRegisterResponse> register(@Valid @RequestBody DeviceRegisterRequest request) {
         return R.ok(deviceService.register(request));
     }
 
-    /** 我监护老人的药箱列表（只列主控，含在线状态与子设备数量）。 */
+    /** 我可见的药箱列表（只列主控，含在线状态与最近心跳）。 */
     @GetMapping
     public R<List<DeviceSummaryResponse>> list() {
         return R.ok(deviceService.list());
     }
 
-    /** 设备详情：档案 + 下属传感器子设备及其在线状态。 */
+    /** 设备详情：档案 + 最新遥测（无子设备数组）。 */
     @GetMapping("/{deviceId}")
     public R<DeviceDetailResponse> detail(@PathVariable("deviceId") String deviceId) {
         return R.ok(deviceService.detail(deviceId));
@@ -67,12 +66,6 @@ public class DeviceController {
     @GetMapping("/{deviceId}/status")
     public R<DeviceStatusResponse> status(@PathVariable("deviceId") String deviceId) {
         return R.ok(deviceService.status(deviceId));
-    }
-
-    /** 该药箱下的传感器子设备列表（温湿度 / 光照 / 摄像头，含各自在线状态），feat/device-sensor。 */
-    @GetMapping("/{deviceId}/sensors")
-    public R<List<DeviceDetailResponse.SensorSummary>> sensors(@PathVariable("deviceId") String deviceId) {
-        return R.ok(deviceService.sensors(deviceId));
     }
 
     /**
