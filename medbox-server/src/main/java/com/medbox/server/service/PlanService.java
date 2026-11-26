@@ -158,6 +158,25 @@ public class PlanService {
         publishSync(planId, elderId, PlanSyncEvent.Op.DELETE);
     }
 
+    // ———————————————— 手动同步（强制下发、不去重、不写状态） ————————————————
+
+    /**
+     * POST /plans/{planId}/sync：强制重发一次 UPSERT 到设备。
+     *
+     * <p><b>不去重</b>：不检查当前 {@code syncState}，即使已 {@code SYNCED_TO_DEVICE} 仍真实下发；
+     * 连点多次各自独立回执。<b>不写 {@code sync_state}</b>：调用后状态保持原值、不闪回 {@code PENDING}，
+     * 只有真实 ACK 结算才由 {@code MqttPlanScheduleSync} 翻终态（见文档 02d / 07 §5）。
+     *
+     * <p>开事务仅为让 {@code @TransactionalEventListener(AFTER_COMMIT)} 触发下行（与其余写操作一致）；
+     * 本方法自身不产生任何落库变更。
+     */
+    @Transactional
+    public PlanResponse manualSync(String planId) {
+        MedPlan plan = findForWrite(planId);
+        publishSync(planId, plan.getElderId(), PlanSyncEvent.Op.UPSERT);
+        return PlanResponse.from(plan);
+    }
+
     /** 计划写事务提交后由 {@code MqttPlanScheduleSync} 下发 slots 到设备。 */
     private void publishSync(String planId, String elderId, PlanSyncEvent.Op op) {
         if (eventPublisher != null) {

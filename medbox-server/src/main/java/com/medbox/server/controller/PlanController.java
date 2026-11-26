@@ -79,6 +79,12 @@ public class PlanController {
         return R.ok(planService.list(elderId, page, size));
     }
 
+    /** POST /plans/{planId}/sync：手动强制下发计划到设备（不去重、不写状态）。 */
+    @PostMapping("/{planId}/sync")
+    public R<PlanResponse> sync(@PathVariable String planId) {
+        return R.ok(planService.manualSync(planId));
+    }
+
     /** GET /plans/{planId}/next-doses?days=N：未来待服时间线（仅 DAILY）。 */
     @GetMapping("/{planId}/next-doses")
     public R<List<NextDoseResponse>> nextDoses(

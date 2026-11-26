@@ -7,11 +7,16 @@ import com.medbox.server.domain.MedPlan;
 import com.medbox.server.mapper.DeviceMapper;
 import com.medbox.server.mapper.MedPlanMapper;
 import com.medbox.server.service.PlanSyncEvent;
+import com.medbox.server.ws.WsFrameType;
+import com.medbox.server.ws.WsPushService;
+import com.medbox.server.ws.WsTopic;
+import com.medbox.server.ws.payload.PlanSyncPayload;
 import jakarta.annotation.PostConstruct;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -27,6 +32,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *
  * <p><b>载荷</b>：UPSERT 直接下发计划的 {@code slots}（格号 + 开格时间），不再回查药品明细；
  * DELETE 只带 planId。格号 1 / 2 / 3 由固件固定对应早 / 中 / 晚。
+ *
+ * <p><b>多回执并发</b>：手动同步允许连点、不去重，同一计划可能同时挂多条待回执下行。
+ * {@code latestByPlan} 记录每个计划最新一次下发的 msgId；只有最新那条回执改状态并推
+ * {@code PLAN_SYNC}，迟到的旧回执仅出账本、不改状态（防止"旧 FAILED 覆盖新 OK"）。
  */
 @Component
 public class MqttPlanScheduleSync implements PendingAckRegistry.DownlinkCompletionListener {
@@ -38,6 +47,7 @@ public class MqttPlanScheduleSync implements PendingAckRegistry.DownlinkCompleti
 
     private final MedPlanMapper medPlanMapper;
     private final DeviceMapper deviceMapper;
+    private final ObjectProvider<WsPushService> wsPushService;
 
     /** 下行发布器；MQTT 禁用时由 Spring 注入 null。 */
     @Autowired(required = false)
@@ -47,12 +57,17 @@ public class MqttPlanScheduleSync implements PendingAckRegistry.DownlinkCompleti
     @Autowired(required = false)
     private PendingAckRegistry registry;
 
-    /** msgId → planId，用于把 {@code up/ack} 关联回计划。 */
-    private final ConcurrentMap<String, String> pendingSync = new ConcurrentHashMap<>();
+    /** msgId → (planId, elderId)，用于把 {@code up/ack} 关联回计划与推送主题。 */
+    private final ConcurrentMap<String, PendingPlanSync> pendingSync = new ConcurrentHashMap<>();
 
-    public MqttPlanScheduleSync(MedPlanMapper medPlanMapper, DeviceMapper deviceMapper) {
+    /** planId → 最新一次下发的 msgId；仅最新回执允许改状态（旧回执迟到时忽略）。 */
+    private final ConcurrentMap<String, String> latestByPlan = new ConcurrentHashMap<>();
+
+    public MqttPlanScheduleSync(MedPlanMapper medPlanMapper, DeviceMapper deviceMapper,
+                                ObjectProvider<WsPushService> wsPushService) {
         this.medPlanMapper = medPlanMapper;
         this.deviceMapper = deviceMapper;
+        this.wsPushService = wsPushService;
     }
 
     @PostConstruct
@@ -84,7 +99,8 @@ public class MqttPlanScheduleSync implements PendingAckRegistry.DownlinkCompleti
         try {
             String msgId = downlinkPublisher.publish(device.getDeviceId(),
                     DownlinkPublisher.SUB_TOPIC_SCHEDULE, payload, true);
-            pendingSync.put(msgId, event.getPlanId());
+            pendingSync.put(msgId, new PendingPlanSync(event.getPlanId(), event.getElderId()));
+            latestByPlan.put(event.getPlanId(), msgId);
             log.info("已下发计划 planId={} op={} deviceId={} msgId={}",
                     event.getPlanId(), payload.getOp(), device.getDeviceId(), msgId);
         } catch (RuntimeException ex) {
@@ -117,15 +133,45 @@ public class MqttPlanScheduleSync implements PendingAckRegistry.DownlinkCompleti
 
     @Override
     public void onComplete(String msgId, String deviceId, boolean success, String reason) {
-        String planId = pendingSync.remove(msgId);
-        if (planId == null) {
+        PendingPlanSync pending = pendingSync.remove(msgId);
+        if (pending == null) {
             return;
         }
+        // 同一计划连点多次时，只有最新一次下发的回执算终态；旧回执迟到不改状态、不推送
+        if (!msgId.equals(latestByPlan.get(pending.planId()))) {
+            log.debug("忽略过期计划同步回执 planId={} msgId={} success={}",
+                    pending.planId(), msgId, success);
+            return;
+        }
+        latestByPlan.remove(pending.planId());
+
         String state = success ? SYNCED_TO_DEVICE : SYNC_FAILED;
-        medPlanMapper.update(null, new LambdaUpdateWrapper<MedPlan>()
-                .eq(MedPlan::getPlanId, planId)
+        int updated = medPlanMapper.update(null, new LambdaUpdateWrapper<MedPlan>()
+                .eq(MedPlan::getPlanId, pending.planId())
                 .set(MedPlan::getSyncState, state));
         log.info("计划同步终态 planId={} deviceId={} result={} reason={}",
-                planId, deviceId, state, reason);
+                pending.planId(), deviceId, state, reason);
+        // 计划已删除时 update 为 0，无状态可更新；不推状态帧（客户端列表已无该项）
+        if (updated > 0) {
+            pushWs(pending.planId(), pending.elderId(), state);
+        }
+    }
+
+    private void pushWs(String planId, String elderId, String state) {
+        WsPushService pusher = wsPushService.getIfAvailable();
+        if (pusher == null) {
+            log.debug("WS 未启用，跳过 PLAN_SYNC 推送 planId={}", planId);
+            return;
+        }
+        try {
+            pusher.publish(WsTopic.elder(elderId), WsFrameType.PLAN_SYNC,
+                    new PlanSyncPayload(planId, elderId, state));
+        } catch (RuntimeException ex) {
+            // WS 推送失败不影响状态落库
+            log.warn("PLAN_SYNC 推送失败 planId={}：{}", planId, ex.getMessage());
+        }
+    }
+
+    private record PendingPlanSync(String planId, String elderId) {
     }
 }

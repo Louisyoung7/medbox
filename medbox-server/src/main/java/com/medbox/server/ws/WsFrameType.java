@@ -24,6 +24,9 @@ public enum WsFrameType {
     /** 服药提醒（触发逻辑在 {@code feat/plan-reminder}，本分支只登记类型）。 */
     REMINDER,
 
+    /** 服药计划同步状态落库（{@code feat/backend-plan-sync}，见文档 04 §3）。 */
+    PLAN_SYNC,
+
     /** AI 流式分片：<b>本期不使用</b>，只在文档里占位。 */
     AI_STREAM,
 
@@ -38,6 +41,7 @@ public enum WsFrameType {
 
     /** 是否允许由业务方通过 {@link WsPushService} 主动推送（内部帧走专用通道）。 */
     public boolean pushable() {
-        return this == ALARM || this == DEVICE_STATUS || this == REMINDER || this == AI_INSIGHT;
+        return this == ALARM || this == DEVICE_STATUS || this == REMINDER
+                || this == PLAN_SYNC || this == AI_INSIGHT;
     }
 }
