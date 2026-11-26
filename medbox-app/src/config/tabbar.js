@@ -3,8 +3,9 @@
  *
  * <p>增删入口 / 调顺序 / 调角色可见性只改这里（角色限制走 `utils/permission.js` 的
  * `ENTRY_ROLES`，本配置只描述入口本身）。`key` 须与 `ENTRY_ROLES` 的键对齐，
- * `path` 须是 `pages.json` 已注册的页面；`tab: true` 表示一级页（切换用 `reLaunch`，
- * 页面栈只留一个），省略则按二级页 `navigateTo` 入栈（保留返回）。
+ * `path` 须是 `pages.json` 已注册的页面；`tab: true` 表示一级页（底部栏 / 抽屉切换用
+ * `reLaunch`，页面栈只留一个），省略则按二级页 `navigateTo` 入栈（保留返回）。
+ * **首页「功能入口」卡片不走此语义**：4 个主入口统一 `navigateTo` 入栈，确保有返回键。
  */
 
 import { HOME_PATH } from '@/store/guard.js'

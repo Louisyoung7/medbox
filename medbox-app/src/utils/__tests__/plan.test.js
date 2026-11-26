@@ -8,6 +8,7 @@ import {
   parseNextDoses,
   toDoseView,
   groupDosesByDay,
+  applyPlanSyncState,
   syncStateLabel,
   canWritePlan,
   repeatRuleLabel,
@@ -119,5 +120,30 @@ describe('响应容错与视图', () => {
     ])
     expect(groups.map((g) => g.day)).toEqual(['2026-11-12', '2026-11-13'])
     expect(groups[0].doses.map((d) => d.time)).toEqual(['08:00', '18:00'])
+  })
+})
+
+describe('applyPlanSyncState（PLAN_SYNC 局部合并）', () => {
+  const plans = [
+    { planId: 'p-1', elderId: 'u-1001', syncState: 'PENDING' },
+    { planId: 'p-2', elderId: 'u-1001', syncState: 'SYNC_FAILED' },
+  ]
+
+  it('按 planId 局部更新终态，不整页重拉、不影响其它项', () => {
+    const next = applyPlanSyncState(plans, { planId: 'p-1', elderId: 'u-1001', syncState: 'SYNCED_TO_DEVICE' }, 'u-1001')
+    expect(next[0].syncState).toBe('SYNCED_TO_DEVICE')
+    expect(next[1].syncState).toBe('SYNC_FAILED')
+    expect(plans[0].syncState).toBe('PENDING')
+  })
+
+  it('跨老人帧 / 未知 planId / 缺字段一律忽略', () => {
+    expect(applyPlanSyncState(plans, { planId: 'p-1', elderId: 'u-9999', syncState: 'SYNCED_TO_DEVICE' }, 'u-1001')).toBe(plans)
+    expect(applyPlanSyncState(plans, { planId: 'p-x', syncState: 'SYNCED_TO_DEVICE' }, 'u-1001')).toBe(plans)
+    expect(applyPlanSyncState(plans, { planId: 'p-1' }, 'u-1001')).toBe(plans)
+    expect(applyPlanSyncState(plans, null, 'u-1001')).toBe(plans)
+  })
+
+  it('状态相同不产生新数组（避免无意义重渲染）', () => {
+    expect(applyPlanSyncState(plans, { planId: 'p-2', elderId: 'u-1001', syncState: 'SYNC_FAILED' }, 'u-1001')).toBe(plans)
   })
 })

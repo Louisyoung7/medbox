@@ -13,6 +13,7 @@ export const WS_EVENT = {
   ALARM: 'ALARM',
   DEVICE_STATUS: 'DEVICE_STATUS',
   REMINDER: 'REMINDER',
+  PLAN_SYNC: 'PLAN_SYNC',
   AI_STREAM: 'AI_STREAM',
   AI_INSIGHT: 'AI_INSIGHT',
   PONG: 'PONG',
@@ -20,7 +21,13 @@ export const WS_EVENT = {
 }
 
 /** 会推进 `lastEventId` 的业务帧（PONG 不在此列）。 */
-const BUSINESS_TYPES = [WS_EVENT.ALARM, WS_EVENT.DEVICE_STATUS, WS_EVENT.REMINDER, WS_EVENT.AI_INSIGHT]
+const BUSINESS_TYPES = [
+  WS_EVENT.ALARM,
+  WS_EVENT.DEVICE_STATUS,
+  WS_EVENT.REMINDER,
+  WS_EVENT.PLAN_SYNC,
+  WS_EVENT.AI_INSIGHT,
+]
 
 /** 固定格位中文标签（1 早间 / 2 午间 / 3 晚间）。 */
 function cellLabel(cellNo) {
@@ -85,6 +92,8 @@ export function describeFrame(frame) {
       const label = cellLabel(payload.cellNo)
       return label ? `服药提醒：${label}` : '服药提醒：请按时服药'
     }
+    case WS_EVENT.PLAN_SYNC:
+      return payload.syncState === 'SYNC_FAILED' ? '服药计划同步失败' : '服药计划已同步到设备'
     case WS_EVENT.AI_INSIGHT:
       return 'AI 健康洞察已更新'
     case WS_EVENT.RESYNC:

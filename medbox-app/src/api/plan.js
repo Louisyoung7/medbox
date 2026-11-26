@@ -83,6 +83,22 @@ export function updatePlanStatus(planId, status, options) {
 }
 
 /**
+ * 手动同步计划到设备：强制重发一次 UPSERT（**不去重、不写 `sync_state`**）。
+ *
+ * <p>即使当前 `syncState` 已是 `SYNCED_TO_DEVICE` 也会真实下发，供调试 / 演示确认设备收到；
+ * 连点多次均允许。接口返回计划现状，状态不会闪回 `PENDING`，只有真实 ACK 结算才翻终态
+ * （随后由 `PLAN_SYNC` 帧主动推给客户端）。
+ *
+ * @param {string} planId 计划编号
+ * @param {Object} [options] 透传请求选项（建议 `silent: true`，由页面自绘 toast）
+ * @returns {Promise<Object>} 计划现状（含 `syncState`，保持调用前的值）
+ * @throws {ApiError} 40101 / 40301 / 40302 / -1
+ */
+export function syncPlan(planId, options) {
+  return post(`/plans/${planId}/sync`, undefined, options)
+}
+
+/**
  * 删除计划（一老人一计划，无明细级联）。
  *
  * @param {string} planId 计划编号

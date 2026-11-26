@@ -133,6 +133,33 @@ export function syncStateLabel(syncState) {
 }
 
 /**
+ * 把 `PLAN_SYNC` 帧的终态局部合并进计划列表（纯函数，页面不整页重拉）。
+ *
+ * <p>只改命中 `planId` 且归属老人匹配的那一项的 `syncState`；缺字段 / 不匹配时原样返回，
+ * 不新增、不删除计划。手动同步不会推 `PENDING`，故这里收到的都是 ACK 结算后的终态。
+ *
+ * @param {Array<Object>} plans 当前计划列表
+ * @param {Object} payload `PLAN_SYNC` 帧的 `{planId, elderId, syncState}`
+ * @param {string} currentElderId 当前页面选中的老人（跨老人帧忽略）
+ * @returns {Array<Object>} 新数组（有变更时）/ 原数组（无变更时）
+ */
+export function applyPlanSyncState(plans, payload, currentElderId) {
+  const list = Array.isArray(plans) ? plans : []
+  const src = payload || {}
+  const planId = String(src.planId || '').trim()
+  const state = String(src.syncState || '').trim()
+  if (!planId || !state) return list
+  if (currentElderId && src.elderId && String(src.elderId) !== String(currentElderId)) return list
+  let changed = false
+  const next = list.map((plan) => {
+    if (!plan || String(plan.planId) !== planId || plan.syncState === state) return plan
+    changed = true
+    return { ...plan, syncState: state }
+  })
+  return changed ? next : list
+}
+
+/**
  * 未来待服时间线响应容错解析：兼容 `{doses:[...]}` 与裸数组。
  *
  * @param {Object|Array|null} data 请求层兑现的 `data`

@@ -252,6 +252,17 @@ async function waitReady() {
     const disabled = await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'DISABLED' } })
     check('PATCH 停用（契约 {status}）', disabled.code === 0 && disabled.data.status === 'DISABLED')
     check('PATCH 非法状态 40001', (await call('PATCH', `/plans/${newPlanId}/status`, { token: gw.token, body: { status: 'ON' } })).code === 40001)
+
+    // 手动同步（02d / feat/backend-plan-sync）：不去重、不写 syncState
+    const syncStateBefore = (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).data.syncState
+    const sync1 = await call('POST', `/plans/${newPlanId}/sync`, { token: gw.token })
+    check('POST /plans/{id}/sync 200 且回显现状', sync1.code === 0 && sync1.data.planId === newPlanId)
+    check('手动同步不闪回 PENDING（状态保持原值）', sync1.data.syncState === syncStateBefore)
+    const sync2 = await call('POST', `/plans/${newPlanId}/sync`, { token: gw.token })
+    check('连点两次不去重（均 200）', sync2.code === 0 && sync2.data.syncState === syncStateBefore)
+    check('老人手动同步 40301', (await call('POST', `/plans/${newPlanId}/sync`, { token: elder.token })).code === 40301)
+    check('不存在计划手动同步 40301', (await call('POST', '/plans/p-not-exist/sync', { token: gw.token })).code === 40301)
+
     check('DELETE 删除计划', (await call('DELETE', `/plans/${newPlanId}`, { token: gw.token })).code === 0)
     check('删除后详情 40301', (await call('GET', `/plans/${newPlanId}`, { token: gw.token })).code === 40301)
 

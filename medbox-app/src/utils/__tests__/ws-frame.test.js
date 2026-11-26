@@ -27,9 +27,10 @@ describe('parseFrame', () => {
 })
 
 describe('业务帧判定', () => {
-  it('ALARM / DEVICE_STATUS / REMINDER / AI_INSIGHT 推进 lastEventId，PONG 不推进', () => {
+  it('ALARM / DEVICE_STATUS / REMINDER / PLAN_SYNC / AI_INSIGHT 推进 lastEventId，PONG 不推进', () => {
     expect(isBusinessType(WS_EVENT.ALARM)).toBe(true)
     expect(isBusinessType(WS_EVENT.REMINDER)).toBe(true)
+    expect(isBusinessType(WS_EVENT.PLAN_SYNC)).toBe(true)
     expect(isBusinessType(WS_EVENT.AI_INSIGHT)).toBe(true)
     expect(isBusinessType(WS_EVENT.PONG)).toBe(false)
     expect(isBusinessFrame({ type: 'DEVICE_STATUS' })).toBe(true)
@@ -51,6 +52,12 @@ describe('describeFrame（04：REMINDER 按格，ALARM 不带 medicineIds）', (
   it('ALARM 直接展示后端文案（只提格号时间）', () => {
     expect(describeFrame({ type: 'ALARM', payload: { message: '08:00 2 号格（午间）未按时取药', level: 'WARN' } }))
       .toBe('08:00 2 号格（午间）未按时取药')
+  })
+  it('PLAN_SYNC 按同步终态给摘要', () => {
+    expect(describeFrame({ type: 'PLAN_SYNC', payload: { planId: 'p-1', syncState: 'SYNCED_TO_DEVICE' } }))
+      .toBe('服药计划已同步到设备')
+    expect(describeFrame({ type: 'PLAN_SYNC', payload: { planId: 'p-1', syncState: 'SYNC_FAILED' } }))
+      .toBe('服药计划同步失败')
   })
   it('其它帧摘要', () => {
     expect(describeFrame({ type: 'DEVICE_STATUS', payload: { deviceId: 'BOXA1001', online: true } })).toBe('药箱 BOXA1001已上线')

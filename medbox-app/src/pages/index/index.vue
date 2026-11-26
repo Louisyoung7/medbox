@@ -16,10 +16,10 @@
 
     <view class="section">
       <MbCard title="功能入口">
-        <MbCell title="我的设备" value="药箱与传感器" arrow clickable @click="go('/pages/device/device')" />
-        <MbCell title="药品管理" value="公共与私有药品" arrow clickable @click="go('/pages/medicine/medicine')" />
-        <MbCell title="服药计划" value="格位排程" arrow clickable @click="go('/pages/plan/plan')" />
-        <MbCell title="服药记录" value="按格记录" arrow clickable @click="go('/pages/record/record')" />
+        <MbCell title="我的设备" value="药箱与传感器" arrow clickable @click="goPage('/pages/device/device')" />
+        <MbCell title="药品管理" value="公共与私有药品" arrow clickable @click="goPage('/pages/medicine/medicine')" />
+        <MbCell title="服药计划" value="格位排程" arrow clickable @click="goPage('/pages/plan/plan')" />
+        <MbCell title="服药记录" value="按格记录" arrow clickable @click="goPage('/pages/record/record')" />
         <MbCell title="告警" :value="unreadText" arrow clickable @click="goPage('/pages/alarm/list')" />
         <MbCell title="监护关系" value="绑定与待确认" arrow clickable @click="goPage('/pages/guardian/guardian')" />
       </MbCard>
@@ -84,11 +84,7 @@ export default {
     },
   },
   methods: {
-    // Tab 页：页面栈重建（与底部 TabBar 的切换方式一致）
-    go(path) {
-      uni.reLaunch({ url: path })
-    },
-    // 二级页：入栈保留首页，原生导航栏才会出现返回键
+    // 功能入口统一入栈：保留首页，原生导航栏才会出现返回键（与告警/监护关系一致）
     goPage(path) {
       uni.navigateTo({ url: path })
     },

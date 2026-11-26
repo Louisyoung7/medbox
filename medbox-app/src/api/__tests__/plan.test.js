@@ -127,6 +127,30 @@ describe('plan —— 请求层', () => {
     expect(sent[0].data).toEqual({ status: 'DISABLED' })
   })
 
+  it('syncPlan：POST /plans/{id}/sync，无请求体，回显 syncState 保持原值', async () => {
+    const { plan } = await loadPlanApi()
+    scripts = [{ body: { code: 0, data: { planId: 'p-3301', syncState: 'SYNCED_TO_DEVICE' } } }]
+
+    const data = await plan.syncPlan('p-3301')
+
+    expect(data.syncState).toBe('SYNCED_TO_DEVICE')
+    expect(sent[0].method).toBe('POST')
+    expect(sent[0].url).toContain('/medbox/api/v1/plans/p-3301/sync')
+    expect(sent[0].data).toBeUndefined()
+    expect(sent[0].header.Authorization).toBe('Bearer TOKEN')
+  })
+
+  it('syncPlan：40301 / 40302 兑现 ApiError', async () => {
+    const { plan, CODE } = await loadPlanApi()
+    scripts = [{ body: { code: 40301, message: '无权限访问该资源' } }]
+    const err = await plan.syncPlan('p-3301').catch((e) => e)
+    expect(err.code).toBe(CODE.FORBIDDEN)
+
+    scripts = [{ body: { code: 40302, message: '监护关系未生效' } }]
+    const err2 = await plan.syncPlan('p-3301').catch((e) => e)
+    expect(err2.code).toBe(CODE.GUARDIAN_PENDING)
+  })
+
   it('deletePlan：DELETE /plans/{id}', async () => {
     const { plan } = await loadPlanApi()
     scripts = [{ body: { code: 0 } }]
