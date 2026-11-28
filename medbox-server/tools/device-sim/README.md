@@ -82,7 +82,7 @@ MEDBOX_DEVICE_SIM_SMOKE=true MEDBOX_SIM_SMOKE_QUICK=true npm run smoke  # 只跑
 ## 5. 边界
 
 - 不实现断网缓存 / 恢复补传；`--offline` 只模拟"从未上线"。
-- 不判定 MISS、不推 WS 业务帧——这两项由后端扫描与 WS 通道负责，需按 `docs/单片机与摄像头联调对接.md` 单独验证。
+- 不判定 MISS、不推 WS 业务帧——这两项由后端扫描与 WS 通道负责，需按 `docs/调试测试流程/后端与摄像头调试测试流程.md` 单独验证（接口契约见 `docs/API与配置对接/摄像头与后端API对接.md`）。
 - 无通用"订阅并打印下行"子命令；要看原始下行报文请用 EMQX Dashboard 或 `mosquitto_sub`（协议观察手段）。
 - `clean session=false` 便于离线期间下行补投；真机固件若选 `true`，验收结果可能不同（见联调文档 §2.2 待确认项）。
 - `TAKEN` 不附图在响应上的判定依据是**无 `sizeBytes` / 无 `fileToken`**；`mime` 因 `capture.mime` 的 DB 默认值可能仍回显 `image/jpeg`（见 06 的 2.12），不代表真有文件。
