@@ -29,6 +29,15 @@
 
 ---
 
+## 0.2 文档阅读与维护分工
+
+- **人日常看的第一层是仓库根 `docs/`**：产品使用说明、调试测试流程、API 与配置对接；
+- **第二层是各端 README，含 `tools/` 里的 README**：`medbox-server/README.md`、`medbox-app/README.md`、`medbox-admin/README.md`，以及 `medbox-server/tools/device-sim/README.md`、`medbox-app/tools/mock/README.md` 等；
+- **`medbox-spec/` 是唯一权威副本，主要由 AI 维护和查阅**：契约以 `openapi/*.yaml` 为准，规则以 `07` / 分册规则表为准，表结构以 `06` 为准；人只在讨论口径、评审契约 diff 时按需查，不用通读；
+- **维护责任对应阅读层级**：改了接口 / 字段 / 表结构仍必须同步 `medbox-spec/`（铁律 3）；若改动影响使用或联调方式，还要同步更新对应的 `docs/` 或端 README，保证人常看的那层不过时。
+
+---
+
 ## 1. 铁律（AI 发现违反时，必须先提醒用户再继续）
 
 1. **绝不在主分支开发**：一切改动都在 `feat/xxx` 特性分支上做。分支命名约定：后端 `feat/backend-xxx`、客户端 `feat/app-xxx`、Web `feat/admin-xxx`、文档 `docs/xxx`（首轮 37+23 个分支的清单已归档至 `medbox-spec/archive/07` / `08` / `09`，查历史分支去归档）。
@@ -172,6 +181,7 @@ git stash pop                # 恢复未提交改动
 - [ ] 实现与 `medbox-spec/` 里的字段 / 错误码 / 枚举**一致**吗？
 - [ ] 改了接口或表结构 → **`medbox-spec/02` / `06` / `03` 同步改了**吗？
 - [ ] 改了文档 → **文档正文只写最新口径、不留旧痕迹**吗？（变更历史看 `git log`，不写进文档，也不再维护 `CHANGELOG.md`）
+- [ ] 改了使用 / 联调方式 → **`docs/` 或对应端 README（含 `tools/` 下的）同步更新**了吗？
 - [ ] 是功能分支 → **写了集成测试并把测试报告给了用户**吗？是判定型分支 → **先出规则表再写代码**了吗？客户端分支 → **`npm run test:e2e`（Mock 端到端）也跑了吗**？
 - [ ] 能合并的待办合并成一个分支了吗？没有为单接口 CRUD 单开分支？
 - [ ] 功能已完成 → 受影响的 `medbox-spec/` 文档已随代码同 PR 或已在 `docs/<特性名>` 分支完成？

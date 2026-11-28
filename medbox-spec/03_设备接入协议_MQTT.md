@@ -162,4 +162,4 @@ npm run camera -- --capture taken --cell-no 1 --plan-id p-3301 --captured-at <IS
 
 - `npm test`：纯函数 + 本地假 HTTP 服务，CI 可跑、不依赖 PG/EMQX。
 - `MEDBOX_DEVICE_SIM_SMOKE=true npm run smoke`：opt-in 端到端冒烟，需本机 PostgreSQL、EMQX 与以 `medbox.devtools.enabled=true` 启动的后端；覆盖上线、遥测、三种回执、命令终态、TAKEN/UNTAKEN、错误路径，输出 `N 通过 / M 失败` 报告。
-- 不覆盖：断网缓存补传、MISS 定时扫描、WebSocket 业务帧断言——这些仍需按 `docs/单片机与摄像头联调对接.md` 用真机或调试端点验证。EMQX Dashboard / `mosquitto_sub` 仅作协议层观察，不再充当设备模拟手段。
+- 不覆盖：断网缓存补传、MISS 定时扫描、WebSocket 业务帧断言——这些仍需按 `docs/调试测试流程/后端与单片机调试测试流程.md`、`docs/调试测试流程/后端与摄像头调试测试流程.md` 用真机或调试端点验证（接口契约见 `docs/API与配置对接/单片机与后端API对接.md`、`docs/API与配置对接/摄像头与后端API对接.md`）。EMQX Dashboard / `mosquitto_sub` 仅作协议层观察，不再充当设备模拟手段。
